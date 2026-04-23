@@ -436,6 +436,20 @@ function test_way_road_build_parallel()
 }
 
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: a road cannot be built directly under a
+// powerline, but can be built adjacent to or ending under one; removing
+// the powerline frees the ground for road. Valuable under hex.
+//
+// Why this fails today: the test lays a rectangular powerline loop
+// (1,1)→(3,1)→(3,3)→(1,3)→(1,1) and uses ASSERT_WAY_PATTERN with
+// 4-bit ribi digits (6/A/C/5/3/9 = southeast/eastwest/southwest/
+// northsouth/northeast/northwest). Rectangle and 4-bit ribi both go
+// away under hex.
+//
+// Restoration plan: rebuild with a hex-shaped powerline loop (e.g. a
+// unit hex ring around a central tile) and a 6-bit-ribi ASSERT helper.
 function test_way_road_build_below_powerline()
 {
 	local pl = player_x(0)
@@ -655,6 +669,20 @@ function test_way_road_build_below_powerline()
 }
 
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: road and rail form a crossing when they meet
+// at a single tile; if the road is too fast for a crossing, the build
+// fails and nothing gets placed; the crossing flags (is_crossing,
+// has_two_ways) flip correctly. Invariant survives the port.
+//
+// Why this fails today: rail runs along (3,1)→(3,3) and road along
+// (2,2)→(4,2) — the classic square-perpendicular pair, which does not
+// exist on a hex grid (6 axes, not 2 orthogonal ones). Way patterns
+// also use 4-bit ribi.
+//
+// Restoration plan: pick a pair of hex axes whose meeting point is
+// one tile, and rewrite the patterns against 6-bit ribi.
 function test_way_road_build_crossing()
 {
 	local pl = player_x(0)
@@ -739,6 +767,19 @@ function test_way_road_build_crossing()
 }
 
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: upgrading road speed past a crossing's limit
+// keeps the crossing but caps the road's effective speed there; going
+// the other way (downgrading) lifts the cap. Invariant survives the
+// port.
+//
+// Why this fails today: same perpendicular rail/road crossing setup
+// at (3,*)/( *,2) as test_way_road_build_crossing, same 4-bit ribi
+// assertions.
+//
+// Restoration plan: bundled with the rest of the crossing tests —
+// hex-axis pair + 6-bit ribi assertions.
 function test_way_road_upgrade_crossing()
 {
 	local pl = player_x(0)
