@@ -7,6 +7,25 @@ than strikethrough; add new items as you find them).
 Items are roughly ordered by dependency — earlier items unblock later
 ones. The overall design is in `documentation/hex-grid-plan.md`.
 
+## Tests pending migration to hex model
+
+The scenario suite under `tests/` still runs on CI. As the port moves
+forward, tests that encode square-grid geometry get skipped rather
+than deleted when their invariant is valuable but their assertions are
+square-specific. See `AGENTS.md` → "Tests and the hex port" for the
+classification rules. Items below are the currently-skipped tests; the
+function bodies stay in place in their test files with a header
+comment explaining the invariant and what needs to change. Remove an
+item here when its replacement test has been written and added back to
+`all_tests.nut`.
+
+`test_building_build_multi_tile_sloped` in `tests/tests/test_building.nut`
+asserts that build-then-remove on sloped terrain restores the natural
+slope. The invariant survives the port but the assertions encode 4-way
+vertex sharing (hex shares 3 per vertex) and 4-corner slope names
+(`southeast`/`southwest`/`northeast`/`northwest`). Restore after
+`slope_t` becomes 6-corner.
+
 ## Known regressions from the first port commit
 
 The neighbour-table change from 8 square offsets to 6 axial offsets

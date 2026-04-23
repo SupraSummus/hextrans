@@ -88,6 +88,46 @@ context that produced it.
 The aim is for `TODO.md` to remain a useful, current map of "what
 still needs doing". A growing TODO file is fine; a stale one is not.
 
+## Tests and the hex port
+
+The scenario tests under `tests/` encode gameplay invariants. Many of
+those invariants survive the hex port, but the specific assertions
+(coord choices, direction constants, slope enum names, neighbour
+counts) bake in the square-grid model. When the port breaks a test,
+do not paper over the regression by preserving legacy square data
+structures — parallel neighbour tables, `#ifdef HEX` forks, or silent
+auto-conversion shims. That is parallel types in spirit even if not in
+name, and contradicts the in-place port approach above. Red CI during
+the port transition is more honest than green CI propped up by shims.
+
+Per-test, decide:
+
+*Migrate* when the invariant survives the port and only the assertions
+are square-specific (e.g. asserts 4-way vertex sharing, 4-corner slope
+names, 8-way neighbour iteration). Remove the entry from
+`tests/all_tests.nut`, keep the function body in its test file with a
+header comment that names the invariant and explains what needs to
+change under hex, and add a paragraph to `TODO.md` listing it as
+pending with the trigger for restoration (typically "after slope_t is
+6-corner" or "after ribi widens to 6 bits"). The function is left in
+place so the rewrite has the original logic visible.
+
+*Delete* when the invariant is a purely square-grid geometric property
+— e.g. a test that asserts the exact shape of an 8-neighbour climate
+transition mask. Remove the function and the `all_tests.nut` entry
+together. Git history is the record; no placeholder comment.
+
+*Fix* when the test is correct and the code is the regression. Fix the
+code.
+
+Test isolation caveat: the scenario runner does not reset world state
+between tests. A failure mid-test cascades into every subsequent test
+that expects a clean map (via `RESET_ALL_PLAYER_FUNDS`' maintenance
+check, leftover buildings, raised grid points, etc.). When triaging a
+large failing set, expect most failures to be cascades from a smaller
+number of actual hex regressions. Work the cascade head first, rerun,
+and see what is left before classifying the tail.
+
 ## Working notes
 
 Compile from the repo root: `cmake --build build -j "$(nproc)"`. The
@@ -98,3 +138,10 @@ The build cannot be tested end-to-end without a pakset (see
 and launches" is the only signal we have. Behaviour of the ported
 codebase under a real game cannot be validated in this env; flag any
 assumption that depends on running the game.
+
+The CI job `.github/workflows/run-tests.yml` does have a pakset — it
+installs pak64 and runs the full scenario suite under clang+ASAN+UBSAN.
+So pushing to any branch exercises the tests and will surface hex
+regressions even though they cannot be run locally without manual
+pakset setup. See `documentation/claude-code-web-dev.md` for the
+manual steps if you need to reproduce a CI failure locally.
