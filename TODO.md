@@ -55,6 +55,23 @@ and the inside/outside predicate is rectangular. Restore after the
 forest tool's region walker is ported to hex iteration and the
 selection shape is replaced with a hex-shaped region.
 
+`test_way_bridge_build_ground` and `test_way_bridge_build_above_way` in
+`tests/tests/test_way_bridge.nut` assert that bridges can be built —
+first on flat ground, then spanning a perpendicular way — and produce
+the expected way patterns. The invariants survive the port, but the
+endpoints define square-axis lines, the way-pattern matrices encode
+4-bit ribi, and `build_above_way` also sets up bridgeheads with
+4-corner slope names (`slope.south`, `slope.north`). Restore after
+`ribi_t` widens to 6 bits, `slope_t` becomes 6-corner, and
+`ASSERT_WAY_PATTERN` handles 6-bit ribi.
+
+`test_way_road_build_straight` and `test_way_road_build_parallel` in
+`tests/tests/test_way_road.nut` assert straight / parallel road
+patterns and T-junction connectivity against 4-bit ribi matrices on
+square-axis layouts. Same problem shape as the bridge tests. Restore
+alongside them after `ribi_t` widens and `ASSERT_WAY_PATTERN` handles
+6-bit ribi.
+
 ## Known regressions from the first port commit
 
 The neighbour-table change from 8 square offsets to 6 axial offsets
