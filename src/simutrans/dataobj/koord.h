@@ -15,7 +15,18 @@
 class loadsave_t;
 
 /**
- * 2D Coordinates
+ * 2D Coordinates.
+ *
+ * HEX-PORT NOTE: as of the hex-grid port, koord stores axial hex
+ * coordinates (q, r) on a flat-top hex grid. The struct fields are
+ * still named x and y for byte-compatibility (save format,
+ * planquadrat_t indexing, etc. all unchanged), but the *operations*
+ * defined below — distance, neighbour iteration — use hex semantics.
+ *
+ * koord::nesw[4] and the koord::north/south/east/west constants still
+ * encode the legacy 4-direction (square) model and remain tied to the
+ * ribi system, which is still 4-bit; they will be retired when ribi
+ * is widened to 6 hex directions.
  */
 class koord
 {
@@ -23,6 +34,8 @@ public:
 	// this is set by einstelugen_t
 	static uint32 locality_factor;
 
+	// (q, r) axial hex coords; struct field names kept as x/y for
+	// save-format / array-indexing compatibility.
 	sint16 x;
 	sint16 y;
 
@@ -91,10 +104,15 @@ public:
 	static const koord south;
 	static const koord east;
 	static const koord west;
-	// the 4 basic directions as an Array
+	// Legacy 4-cardinal directions, tied to the (still-square) ribi
+	// system: koord::nesw[i] is the displacement matching the ribi
+	// direction at ribi_t::nesw[i]. Will be retired with the ribi
+	// widening.
 	static const koord nesw[4];
-	// 8 next neighbours
-	static const koord neighbours[8];
+	// 6 hex neighbours (flat-top axial), clockwise starting from "east"
+	// in axial space: E, SE, SW, W, NW, NE. Iterate with
+	// for (size_t i = 0; i < lengthof(koord::neighbours); i++).
+	static const koord neighbours[6];
 
 private:
 	static const koord from_ribi[16];
@@ -102,23 +120,26 @@ private:
 };
 
 
+// Hex axial distance (cube formula: (|dx|+|dy|+|dz|)/2 with x+y+z=0).
+// Replaces the legacy Manhattan distance; semantics are hex-grid steps
+// between two axial coords.
 static inline uint32 koord_distance(const koord &a, const koord &b)
 {
-	return abs(a.x - b.x) + abs(a.y - b.y);
+	const sint32 dx = a.x - b.x;
+	const sint32 dz = a.y - b.y;
+	const sint32 dy = -dx - dz;
+	return (uint32)((abs(dx) + abs(dy) + abs(dz)) / 2);
 }
 
-// shortest distance in cardinal (N, E, S, W) and ordinal (NE, SE, SW, NW) directions
+// Same metric as koord_distance for hex grids — there is no separate
+// "with diagonals" notion on a hex grid because all 6 neighbours are
+// at distance 1. Kept as a separate function so callers that
+// semantically wanted "shortest reachable steps" still read clearly;
+// any callers that used it specifically for sqrt(2)-weighted ordinal
+// distance need a different metric and should be revisited.
 static inline uint32 shortest_distance(const koord &a, const koord &b)
 {
-	const uint32 x_offset = abs(a.x - b.x);
-	const uint32 y_offset = abs(a.y - b.y);
-	// square root of 2 is estimated by 181/128; 64 is for rounding
-	if(  x_offset>=y_offset  ) {
-		return (x_offset - y_offset) + ( ((y_offset * 181u) + 64u) >> 7 );
-	}
-	else {
-		return (y_offset - x_offset) + ( ((x_offset * 181u) + 64u) >> 7 );
-	}
+	return koord_distance(a, b);
 }
 
 // multiply the value by the distance weight
