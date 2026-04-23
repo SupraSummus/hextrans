@@ -128,17 +128,12 @@ every `HEX-PORT TODO` listed above.
 `dirs[16]`, `doppelr[16]`, `nesw[4]`, etc.) all grow. Once ribi is
 6-bit, retire `koord::nesw[4]` and the `koord::north/south/east/west`
 direction constants — they exist today only because they're tied to
-the still-4-bit ribi system. Way connectivity, signal logic and
-station orientation switch from 2 axes (NS, EW) to 3 axes; this is a
-real gameplay change, not just a refactor.
-
-## Pathfinding & heuristic audit
-
-`koord_distance` is now hex distance for all 86 callers. Most are A*
-heuristics where switching from Manhattan to hex distance is benign
-or improves accuracy, but some are "is target in range?" checks where
-the range now means a different shape. Audit each call site and flag
-any that depend on the old square-distance semantics.
+the still-4-bit ribi system; the A* expansion in `route.cc` and the
+airport ring-builder in `ai_passenger.cc` both currently iterate
+`nesw[4]` and so touch only 4 of 6 hex neighbours, and get swept in
+this same commit. Way connectivity, signal logic and station
+orientation switch from 2 axes (NS, EW) to 3 axes; this is a real
+gameplay change, not just a refactor.
 
 ## Viewport projection
 
