@@ -69,15 +69,60 @@ they're separate downloads (typically 30–100 MB) under their own
 licences, distributed from the Simutrans website.
 
 The canonical pakset for the test suite is **pak64** (the tests in
-`tests/all_tests.nut` reference features from it). The CI workflow
-`.github/workflows/run-tests.yml` is the authoritative recipe; the
-compact copy-paste sequence lives in `AGENTS.md` → "Running the test
-suite locally" and covers: install pak64 via `tools/get_pak.sh pak64`,
-link `tests/` as an addon scenario, write a `simuconf.tab`, and run
-`./run-automated-tests.sh` under `SDL_VIDEODRIVER=dummy`.
+`tests/all_tests.nut` reference features from it). The authoritative
+recipe is `.github/workflows/run-tests.yml`; the copy-paste sequence
+that mirrors it is:
+
+```sh
+# one-time deps beyond what the session-start hook installs
+apt-get install -y ccache libclang-rt-18-dev zlib1g-dev moreutils
+
+# build with the CI's sanitizer flags
+autoconf
+CC="ccache clang" CXX="ccache clang++" ./configure
+cat >> config.default <<'EOF'
+FLAGS += -Wno-cast-align
+FLAGS += -fsanitize=address,undefined -fno-sanitize-recover=all -fno-sanitize=shift,function
+LDFLAGS += -fsanitize=address,undefined
+STATIC := 0
+EOF
+CC="ccache clang" CXX="ccache clang++" make -j"$(nproc)"
+
+# install pak64 (~30 MB)
+( cd simutrans && ../tools/get_pak.sh pak64 )
+
+# wire tests in as an addon scenario
+mkdir -p ~/simutrans/addons/pak/scenario
+ln -sTf "$(pwd)/tests" ~/simutrans/addons/pak/scenario/automated-tests
+mkdir -p ~/simutrans
+cat > ~/simutrans/simuconf.tab <<'EOF'
+frames_per_second = 100
+fast_forward_frames_per_second = 100
+EOF
+
+# run (the runner expects to live at repo root)
+cp tools/run-automated-tests.sh .
+chmod +x run-automated-tests.sh
+export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
+export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
+export SDL_VIDEODRIVER=dummy
+./run-automated-tests.sh
+```
+
+End-to-end time on a warm cache is ~2-3 minutes (most of it build).
+A cold run is dominated by the first build (~5-10 min).
 
 `SDL_VIDEODRIVER=dummy` is required because remote sessions have no
 display server; SDL falls back to a software renderer with no window.
+
+`run-automated-tests.sh` grep-watches the log for "Tests completed
+successfully." (pass) or `</error>` (fail) and kills the sim process
+when either appears. The runner bails on the first failure — the
+scenario runner does not continue past it. When triaging, the failing
+test is the last `[N/M] test_...` line printed before the `<error>`
+block. Don't edit `tools/run-automated-tests.sh`, `tests/scenario.nut`,
+or `tests/test_helpers.nut` as part of triage — the runner's contract
+is what CI uses.
 
 The session-start hook deliberately does **not** download a pakset
 because:
