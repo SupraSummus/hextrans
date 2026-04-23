@@ -2073,13 +2073,7 @@ const char *tool_set_climate_t::do_work( player_t *player, const koord3d &start,
 					if(  gr->is_water()  ) {
 						const sint8 hgt = welt->lookup_hgt(k);
 						ok = welt->get_water_hgt(k) == hgt  &&  welt->is_plan_height_changeable( k.x, k.y );
-						// check s, se, e - these must not be deep water!
-						// HEX-PORT TODO: indices 3..5 mapped to (s,se,e) under
-						// the legacy 8-neighbour ordering; under the hex
-						// 6-neighbour ordering they are (W, NW, NE), so the
-						// neighbours actually checked here are wrong.  Needs
-						// a directional rewrite once hex ribi semantics land.
-						for(  int i = 3 ;  i < 6 && ok ;  i++  ) {
+						for(  size_t i = 0 ;  i < lengthof(koord::neighbours) && ok ;  i++  ) {
 							koord k_neighbour(k + koord::neighbours[i]);
 							if(  welt->is_within_grid_limits(k_neighbour)  ) {
 								ok = welt->lookup_hgt(k_neighbour) >= hgt;
