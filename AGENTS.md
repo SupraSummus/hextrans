@@ -146,3 +146,11 @@ installs pak64 and runs the full scenario suite under clang+ASAN+UBSAN
 on every push, so any hex regression will surface there. To reproduce
 a CI failure locally, see `documentation/claude-code-web-dev.md` →
 "Running automated tests".
+
+Claude Code on the web checks out a shallow clone, so `git log` only
+reaches back a handful of commits and `git blame` on older lines
+returns "(grafted)". If you need real history — tracing a square-grid
+convention to its upstream intent, bisecting a regression across the
+port commit, or just following a function's evolution — run `git
+fetch --unshallow origin` first. Default to staying shallow; unshallow
+only when the question actually needs the history.

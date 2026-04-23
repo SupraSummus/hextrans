@@ -65,12 +65,24 @@ endpoints define square-axis lines, the way-pattern matrices encode
 `ribi_t` widens to 6 bits, `slope_t` becomes 6-corner, and
 `ASSERT_WAY_PATTERN` handles 6-bit ribi.
 
-`test_way_road_build_straight` and `test_way_road_build_parallel` in
-`tests/tests/test_way_road.nut` assert straight / parallel road
-patterns and T-junction connectivity against 4-bit ribi matrices on
-square-axis layouts. Same problem shape as the bridge tests. Restore
+`test_way_road_build_straight`, `test_way_road_build_parallel`,
+`test_way_road_build_below_powerline`, `test_way_road_build_crossing`
+and `test_way_road_upgrade_crossing` in `tests/tests/test_way_road.nut`
+assert road patterns, T-junction connectivity, build-under-powerline
+rules and road/rail crossing semantics against 4-bit ribi matrices on
+square-axis layouts. The crossing tests additionally hardcode a
+rail/road perpendicular pair (square-axis orthogonality) that has no
+direct hex equivalent. Same problem shape as the bridge tests. Restore
 alongside them after `ribi_t` widens and `ASSERT_WAY_PATTERN` handles
-6-bit ribi.
+6-bit ribi; the crossing cases also need a chosen pair of hex axes to
+replace the square-perpendicular setup.
+
+`test_way_tram_build_parallel` in `tests/tests/test_way_tram.nut`
+asserts that 16 parallel tram rails along one square axis stay
+independent and match two specific 16×16 ribi matrices. Same problem
+shape as the road tests — 4-bit ribi on a square-axis layout. Restore
+after `ribi_t` widens, `ASSERT_WAY_PATTERN` handles 6-bit ribi, and a
+hex axis is chosen for the parallel-rails layout.
 
 ## Known regressions from the first port commit
 
@@ -84,11 +96,9 @@ and `surface_t::recalc_transitions` (4-corner / 8-neighbour bitmask
 with `& 7` masking, climate transitions wrong on every tile);
 `karte_t::raise_lake_to` and the `simtool.cc` water-raise tool
 (flood-fill state machines whose stored neighbour-index values are
-now reinterpreted under a different ordering); the headland and
+now reinterpreted under a different ordering); and the headland and
 beach heuristics in `karte_t` (numeric thresholds tuned for 8
-neighbours need re-tuning for 6); and the seasonal-water tool slice
-that hardcoded indices 3..5 to mean (s, se, e), which under the new
-ordering means (NW, N, NE) instead.
+neighbours need re-tuning for 6).
 
 ## Per-vertex height storage
 
