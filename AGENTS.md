@@ -110,12 +110,14 @@ header comment that names the invariant and explains what needs to
 change under hex, and add a paragraph to `TODO.md` listing it as
 pending with the trigger for restoration (typically "after slope_t is
 6-corner" or "after ribi widens to 6 bits"). The function is left in
-place so the rewrite has the original logic visible.
+place as part of the live migration plan — while the port is in
+flight it is useful reference for the hex rewrite; delete the function
+together with the TODO entry at restoration time.
 
 *Delete* when the invariant is a purely square-grid geometric property
 — e.g. a test that asserts the exact shape of an 8-neighbour climate
 transition mask. Remove the function and the `all_tests.nut` entry
-together. Git history is the record; no placeholder comment.
+together. No TODO.md entry either; git history has the record.
 
 *Fix* when the test is correct and the code is the regression. Fix the
 code.
