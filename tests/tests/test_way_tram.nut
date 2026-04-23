@@ -24,6 +24,21 @@ function test_way_tram_build_flat()
 }
 
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: 16 tram rails running along the x-axis sit
+// independently (no merging across rows); with / without ctrl the
+// pattern matches two specific 16×16 ribi matrices. Invariant
+// survives — adjacent parallel tram rows should stay independent under
+// hex too.
+//
+// Why this fails today: the pattern is encoded in 4-bit ribi digits
+// (2/A/8 = east/eastwest/west, plus corner/T/cross composites
+// 6/E/B/C/5/7/9/3/4/1). Under hex the equivalent "parallel along one
+// axis" layout has 6 axes to choose from and needs 6-bit ribi.
+//
+// Restoration plan: pick one hex axis, rewrite the 16-run parallel
+// layout against a 6-bit ribi pattern helper.
 function test_way_tram_build_parallel()
 {
 	local pl   = player_x(0)
