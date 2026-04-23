@@ -211,6 +211,24 @@ function test_building_build_house_auto_rotation_citybuilding()
 }
 
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: building then immediately removing a multi-tile
+// building on sloped terrain restores the original natural slope on each
+// affected tile. That invariant is valuable under hex and will need a
+// replacement test.
+//
+// Why this specific test is square-grid: the body asserts that a single
+// grid_raise at (4, 2) leaves the 4 surrounding tiles with slopes named
+// southeast / southwest / northeast / northwest. Both parts are square
+// geometry — a hex vertex is shared by 3 tiles, not 4, and flat-top hex
+// slopes have 6 corners at E/SE/SW/W/NW/NE, not the 4-corner
+// {NW, NE, SE, SW} enum this test uses (slope values 27/9/3/1 are powers
+// of 3 over 4 corners).
+//
+// Restoration plan: rewrite when slope_t becomes 6-corner (TODO.md step
+// "slope_t rewrite"). The rewrite should pick a hex grid-raise scenario,
+// assert on the 3 vertex-sharing tiles, and use hex-corner slope names.
 function test_building_build_multi_tile_sloped()
 {
 	local public_pl = player_x(1)

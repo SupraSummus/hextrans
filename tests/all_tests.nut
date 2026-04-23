@@ -43,7 +43,8 @@ all_tests <- [
 	test_building_build_house_invalid_desc,
 	test_building_build_house_auto_rotation_attraction,
 	test_building_build_house_auto_rotation_citybuilding,
-	test_building_build_multi_tile_sloped,
+	// test_building_build_multi_tile_sloped: HEX-PORT PENDING, see
+	// tests/tests/test_building.nut and TODO.md.
 	test_building_buy_house_invalid_param,
 	test_building_buy_house_from_public_player,
 	test_building_buy_house_attraction,
