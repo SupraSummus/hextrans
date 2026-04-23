@@ -68,29 +68,30 @@ files) installed at `simutrans/pak/`. Paksets are not part of this repo;
 they're separate downloads (typically 30–100 MB) under their own
 licences, distributed from the Simutrans website.
 
-To run tests in a remote session you have to first install a pakset
-into `simutrans/pak/` — for example:
-
-```sh
-# From inside the repo root, after the build:
-mkdir -p simutrans/pak
-# Download and unpack a pakset of your choice into simutrans/pak/.
-# The pakset must be the one the tests were authored against; see
-# tests/all_tests.nut for the features they exercise.
-SDL_VIDEODRIVER=dummy ./tools/run-automated-tests.sh
-```
+The canonical pakset for the test suite is **pak64** (the tests in
+`tests/all_tests.nut` reference features from it). The CI workflow
+`.github/workflows/run-tests.yml` is the authoritative recipe; the
+compact copy-paste sequence lives in `AGENTS.md` → "Running the test
+suite locally" and covers: install pak64 via `tools/get_pak.sh pak64`,
+link `tests/` as an addon scenario, write a `simuconf.tab`, and run
+`./run-automated-tests.sh` under `SDL_VIDEODRIVER=dummy`.
 
 `SDL_VIDEODRIVER=dummy` is required because remote sessions have no
 display server; SDL falls back to a software renderer with no window.
 
-The hook deliberately does **not** download a pakset because:
+The session-start hook deliberately does **not** download a pakset
+because:
 
-- Pakset choice is a project decision, not an env decision.
-- They are large; bundling them would slow every cold session start.
+- Pakset choice used to be a project decision; today we have settled
+  on pak64 for tests but larger paksets (pak128, pak192) are valid for
+  manual play-testing.
+- They are large; bundling the download into every cold session would
+  slow boot noticeably and most sessions don't need it.
 - They have their own licences and update cadence.
 
-If we settle on a canonical pakset for CI use we can teach the hook to
-fetch it on demand (cached in the container).
+Teaching the hook to fetch pak64 on demand (cached in the container)
+would be a reasonable improvement for sessions that need the test
+suite.
 
 ## Smoke-checking the binary without a pakset
 
