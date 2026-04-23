@@ -23,6 +23,20 @@ class loadsave_t;
  * planquadrat_t indexing, etc. all unchanged), but the *operations*
  * defined below — distance, neighbour iteration — use hex semantics.
  *
+ * Naming convention (pin this; getting it wrong gives a silent
+ * 30°-off grid that compiles fine):
+ *   - EDGES (and the 6 neighbour directions reached through them):
+ *       N, NE, SE, S, SW, NW.
+ *     Flat-top hexes have due-N and due-S edges, so neighbour
+ *     directions DO include N and S.
+ *   - VERTICES / CORNERS (6 per tile):
+ *       E, SE, SW, W, NW, NE.
+ *     Flat-top hexes have NO due-N or due-S corner; the 6 vertices
+ *     sit at angles 0°, 60°, 120°, 180°, 240°, 300° from the centre.
+ * koord::neighbours[] is ordered clockwise starting from the SE
+ * neighbour, see koord.cc.  Edge labels in the comments there refer
+ * to the EDGE convention above.
+ *
  * koord::nesw[4] and the koord::north/south/east/west constants still
  * encode the legacy 4-direction (square) model and remain tied to the
  * ribi system, which is still 4-bit; they will be retired when ribi
@@ -109,8 +123,8 @@ public:
 	// direction at ribi_t::nesw[i]. Will be retired with the ribi
 	// widening.
 	static const koord nesw[4];
-	// 6 hex neighbours (flat-top axial), clockwise starting from "east"
-	// in axial space: E, SE, SW, W, NW, NE. Iterate with
+	// 6 hex neighbours (flat-top axial), clockwise starting from the SE
+	// neighbour: SE, S, SW, NW, N, NE. Iterate with
 	// for (size_t i = 0; i < lengthof(koord::neighbours); i++).
 	static const koord neighbours[6];
 

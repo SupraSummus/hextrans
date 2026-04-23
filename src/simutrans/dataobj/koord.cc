@@ -31,16 +31,19 @@ const koord koord::nesw[] = {
 	koord(-1,  0)
 };
 
-// Flat-top hex axial neighbours, clockwise from "east" (axial +q):
-//   E, SE, SW, W, NW, NE
-// Vertex shared by exactly 3 tiles; iterate with
+// Flat-top hex axial neighbours, clockwise starting from the SE
+// neighbour. The axial +q axis points 30° south of due-east in screen
+// space, so axial (1, 0) is the SE neighbour, NOT a due-east one
+// (flat-top hexes have no due-east neighbour — east is a vertex).
+//   SE, S, SW, NW, N, NE
+// Iterate with
 //   for (size_t i = 0; i < lengthof(koord::neighbours); i++)
 const koord koord::neighbours[] = {
-	koord(  1,  0 ), // E
-	koord(  0,  1 ), // SE
+	koord(  1,  0 ), // SE
+	koord(  0,  1 ), // S
 	koord( -1,  1 ), // SW
-	koord( -1,  0 ), // W
-	koord(  0, -1 ), // NW
+	koord( -1,  0 ), // NW
+	koord(  0, -1 ), // N
 	koord(  1, -1 ), // NE
 };
 
