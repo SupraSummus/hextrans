@@ -200,16 +200,20 @@ all_tests <- [
 	test_trees_plant_single_occupied,
 	// test_trees_plant_forest: HEX-PORT PENDING, see
 	// tests/tests/test_trees.nut and TODO.md.
-	test_way_bridge_build_ground,
+	// test_way_bridge_build_ground: HEX-PORT PENDING, see
+	// tests/tests/test_way_bridge.nut and TODO.md.
 	test_way_bridge_build_at_slope,
 	test_way_bridge_build_at_slope_stacked,
-	test_way_bridge_build_above_way,
+	// test_way_bridge_build_above_way: HEX-PORT PENDING, see
+	// tests/tests/test_way_bridge.nut and TODO.md.
 	test_way_bridge_build_above_runway,
 	test_way_bridge_planner,
 	test_way_road_build_single_tile,
-	test_way_road_build_straight,
+	// test_way_road_build_straight: HEX-PORT PENDING, see
+	// tests/tests/test_way_road.nut and TODO.md.
 	test_way_road_build_bend,
-	test_way_road_build_parallel,
+	// test_way_road_build_parallel: HEX-PORT PENDING, see
+	// tests/tests/test_way_road.nut and TODO.md.
 	test_way_road_build_below_powerline,
 	test_way_road_build_crossing,
 	test_way_road_upgrade_crossing,

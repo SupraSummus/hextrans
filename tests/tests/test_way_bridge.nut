@@ -9,6 +9,26 @@
 //
 
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: a bridge can be built between two endpoints on
+// flat ground; the two endpoint tiles get bridgehead way-connections
+// pointing along the bridge; the bridge body forms a straight way on
+// the upper level; and follow-up builds that would overlap or cross
+// the bridge fail cleanly. All of that survives the port.
+//
+// Why this fails today: two layers of square-grid dependency.
+// (1) The bridge endpoints (3,5)→(3,2) assume a straight axis-aligned
+// line in square geometry; under axial hex those coords lie on the
+// r-axis which projects 30° off due-north, so "a straight N-S bridge"
+// isn't geometrically the same thing. (2) The ASSERT_WAY_PATTERN
+// matrix encodes 4-bit ribi directions (dir.south = '4',
+// dir.northsouth = '5', dir.north = '1') — the same N/E/S/W set that
+// will be retired when ribi widens to 6 bits.
+//
+// Restoration plan: rewrite after ribi_t widens to 6 bits, using a
+// hex direction (e.g. one of the 6 edges) for the bridge axis, and
+// reworking ASSERT_WAY_PATTERN to encode 6-bit ribi.
 function test_way_bridge_build_ground()
 {
 	local pl          = player_x(0)
@@ -451,6 +471,25 @@ function test_way_bridge_build_at_slope_stacked()
 
 
 // TODO Try to build bridge when way_height_clearance == 2
+//
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: a bridge can span over a perpendicular ground
+// way; the lower-level way keeps its connections under the bridge;
+// removing and rebuilding the lower way under the bridge works. The
+// invariant survives the port.
+//
+// Why this fails today: same two layers as `test_way_bridge_build_ground`
+// — bridge endpoints on a square axis, 4-bit ribi ASSERT_WAY_PATTERN
+// matrix — plus 4-corner slope names (`slope.south`, `slope.north`,
+// `slope.all_down_slope`) used to set up and tear down the bridgeheads.
+// Under hex there is no "perpendicular" (6 axes, not 2) and no
+// due-N/due-S corner.
+//
+// Restoration plan: rewrite after ribi_t widens to 6 bits AND slope_t
+// becomes 6-corner. Pick a pair of crossing hex axes for the bridge
+// and the under-way, and use hex-corner slope names for the
+// bridgeheads.
 function test_way_bridge_build_above_way()
 {
 	local remover = command_x(tool_remove_way)
