@@ -297,7 +297,7 @@ static halthandle_t suche_nahe_haltestelle(player_t *player, karte_t *welt, koor
 
 #ifdef AUTOJOIN_PUBLIC
 	// now search everything for public stops
-	for(  int i=0;  i<8;  i++ ) {
+	for(  size_t i=0;  i<lengthof(koord::neighbours);  i++ ) {
 		if(  planquadrat_t* plan=welt->access(k+koord::neighbours[i])  ) {
 			my_halt = plan->get_halt( welt->get_public_player() );
 			if(  my_halt.is_bound()  ) {
@@ -1392,7 +1392,7 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 			sint8 water_table = (water_hgt >= (gr1->get_hoehe() + (gr1->get_grund_hang() ? 1 : 0))) ? water_hgt : welt->get_groundwater() - 4;
 			sint8 min_neighbour_height = gr1->get_hoehe();
 
-			for(  sint16 i = 0 ;  i < 8 ;  i++  ) {
+			for(  size_t i = 0 ;  i < lengthof(koord::neighbours) ;  i++  ) {
 				const koord neighbour = k + koord::neighbours[i];
 
 				if(  welt->is_within_grid_limits( neighbour )  ) {
@@ -2074,6 +2074,11 @@ const char *tool_set_climate_t::do_work( player_t *player, const koord3d &start,
 						const sint8 hgt = welt->lookup_hgt(k);
 						ok = welt->get_water_hgt(k) == hgt  &&  welt->is_plan_height_changeable( k.x, k.y );
 						// check s, se, e - these must not be deep water!
+						// HEX-PORT TODO: indices 3..5 mapped to (s,se,e) under
+						// the legacy 8-neighbour ordering; under the hex
+						// 6-neighbour ordering they are (W, NW, NE), so the
+						// neighbours actually checked here are wrong.  Needs
+						// a directional rewrite once hex ribi semantics land.
 						for(  int i = 3 ;  i < 6 && ok ;  i++  ) {
 							koord k_neighbour(k + koord::neighbours[i]);
 							if(  welt->is_within_grid_limits(k_neighbour)  ) {
@@ -2094,7 +2099,7 @@ const char *tool_set_climate_t::do_work( player_t *player, const koord3d &start,
 				}
 				else if(  !gr->is_water()  &&  gr->get_grund_hang() == slope_t::flat  &&  welt->is_plan_height_changeable( k.x, k.y )  ) {
 					bool ok = true;
-					for(  int i = 0 ;  i < 8;  i++  ) {
+					for(  size_t i = 0 ;  i < lengthof(koord::neighbours);  i++  ) {
 						grund_t *gr2 = welt->lookup_kartenboden( k + koord::neighbours[i] );
 						if(  gr2  &&  ok  ) {
 							ok = gr2->get_pos().z >= gr->get_pos().z;
@@ -2202,7 +2207,13 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 		sint8 neighbour_heights[8][4];
 		welt->get_neighbour_heights( k, neighbour_heights );
 
-		for(  int i = stage[array_koord(k.x,k.y)];  i < 8;  i++  ) {
+		// HEX-PORT TODO: this flood-fill is square-grid
+		// (4-corner-to-8-neighbour bit math at neighbour_heights[i][((i>>1)+1)&3]
+		// below).  Loop bound and sentinels (==7, =8, <7) are widened to
+		// hex via lengthof(koord::neighbours), but the corner-mapping
+		// expressions inside still encode the square model and give
+		// wrong results for hex.  Needs porting with slope_t.
+		for(  int i = stage[array_koord(k.x,k.y)];  i < (int)lengthof(koord::neighbours);  i++  ) {
 			koord k_neighbour = k + koord::neighbours[i];
 			grund_t *gr2 = welt->lookup_kartenboden(k_neighbour);
 			if(  gr2  ) {
@@ -2260,14 +2271,14 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 				}
 			}
 			//return back to previous tile
-			if(  i==7  ) {
-				stage[array_koord(k.x,k.y)] = 8;
+			if(  i == (int)lengthof(koord::neighbours) - 1  ) {
+				stage[array_koord(k.x,k.y)] = (sint8)lengthof(koord::neighbours);
 				if(  from_dir[array_koord(k.x,k.y)] != -1  ) {
 					k = k - koord::neighbours[from_dir[array_koord(k.x,k.y)]];
 				}
 			}
 		}
-	} while(  from_dir[array_koord(k.x,k.y)] != -1  ||  stage[array_koord(k.x,k.y)] < 7  );
+	} while(  from_dir[array_koord(k.x,k.y)] != -1  ||  stage[array_koord(k.x,k.y)] < (sint8)(lengthof(koord::neighbours) - 1)  );
 
 	delete [] from_dir;
 
@@ -2805,7 +2816,7 @@ const char *tool_build_way_t::calc_route( way_builder_t &bauigel, const koord3d 
 		else {
 			// find out if there is a way close by
 			koord3d delta_z(0, 0, (bautyp & way_builder_t::elevated_flag) != 0);
-			for (int i = 0; i < 8; i++) {
+			for (size_t i = 0; i < lengthof(koord::neighbours); i++) {
 				if (grund_t* gr = welt->lookup(start + koord::neighbours[i] + delta_z)) {
 					if (gr->get_weg(desc->get_wtyp())) {
 						assume_parallel = true;
@@ -2820,7 +2831,7 @@ const char *tool_build_way_t::calc_route( way_builder_t &bauigel, const koord3d 
 		if (grund_t* gr = welt->lookup(my_end)) {
 			if (!gr->get_weg(desc->get_wtyp())) {
 				koord3d delta_z(0, 0, (bautyp & way_builder_t::elevated_flag) != 0);
-				for (int i = 0; i < 8; i++) {
+				for (size_t i = 0; i < lengthof(koord::neighbours); i++) {
 					if (grund_t* gr = welt->lookup(my_end + koord::neighbours[i] + delta_z)) {
 						if (gr->get_weg(desc->get_wtyp())) {
 							assume_parallel2 = true;

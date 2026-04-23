@@ -335,7 +335,7 @@ const char* terraformer_t::can_lower_tile_to(const node_t &node, const player_t 
 
 	// water heights
 	// check if need to lower water height for higher neighbouring tiles
-	for(  sint16 i = 0 ;  i < 8 ;  i++  ) {
+	for(  size_t i = 0 ;  i < lengthof(koord::neighbours) ;  i++  ) {
 		const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
 		if(  welt->is_within_limits(neighbour)  &&  welt->get_water_hgt_nocheck(neighbour) > hneu  ) {
 			if (!welt->is_plan_height_changeable( neighbour.x, neighbour.y )) {
@@ -480,6 +480,11 @@ int terraformer_t::lower_to(const node_t &node)
 		 * Surrounding tiles are indicated by bits going anti-clockwise from
 		 * (binary) 00000001 for north-west through to (binary) 10000000 for north
 		 * as this is the order of directions used by koord::neighbours[]
+		 *
+		 * HEX-PORT TODO: this 4-corner-to-8-neighbour bitmask is square-grid.
+		 * Bits 6 and 7 of neighbour_flags are silently ignored under hex
+		 * iteration (only 6 neighbours), so two of the corner-adjacent tiles
+		 * are not checked.  Needs a real port once slope_t becomes 6-corner.
 		 */
 
 		uint8 neighbour_flags = 0;
@@ -497,7 +502,7 @@ int terraformer_t::lower_to(const node_t &node)
 			neighbour_flags |= 0x0e;
 		}
 
-		for(  sint16 i = 0;  i < 8 ;  i++  ) {
+		for(  size_t i = 0;  i < lengthof(koord::neighbours) ;  i++  ) {
 			const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
 
 			// here we look at the bit in neighbour_flags for this direction
@@ -512,13 +517,13 @@ int terraformer_t::lower_to(const node_t &node)
 			}
 		}
 
-		for(  sint16 i = 0;  i < 8 ;  i++  ) {
+		for(  size_t i = 0;  i < lengthof(koord::neighbours) ;  i++  ) {
 			const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
 			if(  welt->is_within_limits( neighbour )  ) {
 				grund_t *gr2 = welt->lookup_kartenboden_nocheck( neighbour );
 				if(  gr2  &&  gr2->get_hoehe() < water_table  ) {
-					i = 8;
 					water_table = welt->get_groundwater() - 4;
+					break;
 				}
 			}
 		}
@@ -565,7 +570,7 @@ int terraformer_t::lower_to(const node_t &node)
 	// water heights
 	// lower water height for higher neighbouring tiles
 	// find out how high water is
-	for(  sint16 i = 0;  i < 8;  i++  ) {
+	for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 		const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
 		if(  welt->is_within_limits( neighbour )  ) {
 			const sint8 water_hgt_neighbour = welt->get_water_hgt_nocheck( neighbour );
@@ -587,7 +592,7 @@ int terraformer_t::lower_to(const node_t &node)
 
 	if (recalc_climate) {
 		welt->calc_climate( koord( node.x, node.y ), false );
-		for(  sint16 i = 0;  i < 8;  i++  ) {
+		for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 			const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
 			welt->calc_climate( neighbour, false );
 		}
