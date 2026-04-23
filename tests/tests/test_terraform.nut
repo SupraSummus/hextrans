@@ -93,6 +93,24 @@ function test_terraform_raise_lower_land_at_water_center()
 }
 
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: raising/lowering a grid vertex on the corner of
+// a water body converts water tiles to land (and vice versa) in a
+// consistent, reversible pattern. That invariant survives the port.
+//
+// Why the specific assertions are square-grid: the body works with the
+// 2×2 block of tiles {(2,2), (3,2), (2,3), (3,3)} meeting at a single
+// grid vertex, and names each raise/lower operation by a 4-corner label
+// (north-west, south-east, south-west, north-west again). Under flat-top
+// hex, a vertex is shared by 3 tiles (not 4), so "the 2×2 block meeting
+// at a corner" is not a thing — and the corners themselves sit at
+// E/SE/SW/W/NW/NE, not the 4-corner {NW, NE, SE, SW} set.
+//
+// Restoration plan: rewrite when the per-vertex height storage lands
+// (TODO "Per-vertex height storage"). The rewrite should pick a hex
+// vertex, assert over the 3 tiles that share it, and use hex corner
+// names for the per-direction variants.
 function test_terraform_raise_lower_land_at_water_corner()
 {
 	local clim  = command_x(tool_set_climate)
@@ -215,6 +233,23 @@ function test_terraform_raise_lower_land_at_water_corner()
 }
 
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: raising/lowering a grid vertex on the edge of a
+// water body converts water tiles to land (and back) in a consistent,
+// reversible pattern. That invariant survives the port.
+//
+// Why the specific assertions are square-grid: like the _at_water_corner
+// variant, the body walks the 2×2 tile block {(2,2), (3,2), (2,3),
+// (3,3)} and names operations by the 4 cardinal edge directions
+// (north / east / south / west edge). Flat-top hex has 6 edge
+// directions (N, NE, SE, S, SW, NW) and a hex vertex is shared by 3
+// tiles, so "the four tiles on each side of a straight water edge"
+// isn't a hex concept at all.
+//
+// Restoration plan: rewrite together with _at_water_corner once
+// per-vertex height storage lands, using hex edges and hex vertex
+// neighbourhoods.
 function test_terraform_raise_lower_land_at_water_edge()
 {
 	local clim  = command_x(tool_set_climate)
@@ -430,6 +465,30 @@ function terraform_volcano(pl, pos, size, h)
 	}
 }
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: `tool_change_water_height` honours ground vs
+// water correctly, floods only the contiguous water body, and the
+// volcano-shaped terrain used as scaffolding correctly contains the
+// flood. That invariant survives the port.
+//
+// Why this fails today: the test scaffolds with `terraform_volcano`,
+// which raises the 4 sides of a rectangle — a square-grid shape — and
+// the flood-fill inside `tool_change_water_height` (in
+// `src/simutrans/tool/simtool.cc`, tagged HEX-PORT TODO) uses square
+// 8-neighbour state machine arrays (`our_stage[]`, `from_dir[]`, mask
+// expression `((i>>1)+1)&3`) whose stored neighbour indices are
+// reinterpreted under the hex ordering and produce wrong results.
+// Geometry assertions also reference slope names `slope.east`,
+// `2*slope.east` and specific tile neighbour sets
+// {(4,3),(5,3),(6,3),(3,4),(3,5)...} that are square-grid.
+//
+// Restoration plan: (a) replace `terraform_volcano` with a hex-shape
+// helper that makes a containing ring on a hex grid, (b) port the
+// flood-fill in simtool.cc to iterate hex neighbours, (c) rewrite the
+// geometric assertions against the hex tile neighbourhood of the
+// flood origin. Blocked on the simtool water-tool port (see TODO
+// "Known regressions from the first port commit").
 function test_terraform_raise_lower_water_level()
 {
 	local pl = player_x(0)

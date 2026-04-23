@@ -5,7 +5,8 @@ to use this file (paragraphs not lists; delete resolved items rather
 than strikethrough; add new items as you find them).
 
 Items are roughly ordered by dependency — earlier items unblock later
-ones. The overall design is in `documentation/hex-grid-plan.md`.
+ones. Design decisions driving the ordering are summarised in
+`AGENTS.md`.
 
 ## Tests pending migration to hex model
 
@@ -25,6 +26,34 @@ slope. The invariant survives the port but the assertions encode 4-way
 vertex sharing (hex shares 3 per vertex) and 4-corner slope names
 (`southeast`/`southwest`/`northeast`/`northwest`). Restore after
 `slope_t` becomes 6-corner.
+
+`test_terraform_raise_lower_land_at_water_corner` and
+`test_terraform_raise_lower_land_at_water_edge` in
+`tests/tests/test_terraform.nut` assert that raise/lower at a water-body
+corner or edge converts water/land in a predictable pattern. The
+invariant survives the port but the assertions walk the 2×2 block of
+tiles meeting at one grid vertex (square 4-way corner share) and name
+each operation by a 4-corner or 4-edge label. Hex vertices are shared
+by 3 tiles and hex has 6 edge directions. Restore together after
+per-vertex height storage lands.
+
+`test_terraform_raise_lower_water_level` in
+`tests/tests/test_terraform.nut` exercises the water-height tool. The
+test scaffolds with `terraform_volcano` (a rectangular raised
+perimeter) and asserts that the flood-fill in
+`tool_change_water_height` correctly floods / drains the ring's
+interior. The invariant is valuable under hex, but both the scaffold
+and the flood-fill itself are square-grid — the flood-fill is one of
+the known HEX-PORT regressions tagged in `simtool.cc`. Restore after
+that flood-fill is ported to hex neighbours AND the scaffold is
+rewritten to use a hex-shaped containing ring.
+
+`test_trees_plant_forest` in `tests/tests/test_trees.nut` asserts that
+the forest tool plants trees inside the selected rectangle and nothing
+outside. The invariant is valuable but the selection is a 2D rectangle
+and the inside/outside predicate is rectangular. Restore after the
+forest tool's region walker is ported to hex iteration and the
+selection shape is replaced with a hex-shaped region.
 
 ## Known regressions from the first port commit
 

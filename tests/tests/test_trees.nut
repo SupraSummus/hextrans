@@ -260,6 +260,26 @@ function test_trees_plant_single_occupied()
 }
 
 
+// HEX-PORT PENDING — removed from all_tests.nut.
+//
+// Invariant under test: the forest-plant tool, given two corner
+// coordinates, plants trees within the rectangle they define and
+// nothing outside it (with a +1 margin in each direction that the
+// tool's own geometry allows). The "forest tool plants trees inside
+// the selection" invariant survives the port.
+//
+// Why this fails today: the selection is a 2D rectangle defined by
+// topleft/bottomright — a square-grid region. The outside / inside
+// predicates are rectangular (`x < 3 || y < 3`). Under hex there is
+// no natural rectangle, and the tool itself likely walks tiles with a
+// square-grid two-coord iterator that needs porting. The 2×2 sub-case
+// also asserts which of the 4 tiles gets a tree, which is directly
+// tied to the square layout.
+//
+// Restoration plan: pick a hex-shaped selection region (e.g. all tiles
+// within radius R of a centre), port the forest tool's region walker
+// to hex iteration, and rewrite the inside/outside predicate in axial
+// distance.
 function test_trees_plant_forest()
 {
 	local pl = player_x(0)

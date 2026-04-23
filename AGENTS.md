@@ -11,10 +11,10 @@ easy to miss when grepping or browsing the tree.
 ## Project context
 
 This fork of Simutrans is transitioning from the upstream square-tile
-grid to a **hexagonal grid**. See `documentation/hex-grid-plan.md` for
-the original design, `tools/hex_spike/findings.md` for what a
-30-minute prototype surfaced, and **`TODO.md` for the live list of
-items still to do**.
+grid to a **hexagonal grid**. See `tools/hex_spike/findings.md` for
+what a 30-minute prototype surfaced, and **`TODO.md` for the live list
+of items still to do**. Key design decisions (flat-top hex,
+right-prism z-stacking, in-place port) are summarised below.
 
 ## Approach
 
@@ -145,3 +145,69 @@ So pushing to any branch exercises the tests and will surface hex
 regressions even though they cannot be run locally without manual
 pakset setup. See `documentation/claude-code-web-dev.md` for the
 manual steps if you need to reproduce a CI failure locally.
+
+### Running the test suite locally
+
+The authoritative recipe is `.github/workflows/run-tests.yml`. This
+section mirrors it as a copy-paste sequence for a Linux box or a web
+sandbox. The session-start hook primes the cmake build, but the test
+tooling (`tools/run-automated-tests.sh`) expects the autoconf build's
+`./sim` binary at the repo root, and the CI flags use clang + ASAN +
+UBSAN, so the most direct reproduction is:
+
+```sh
+# one-time deps beyond what the session-start hook installs
+apt-get install -y ccache libclang-rt-18-dev zlib1g-dev moreutils
+
+# build with the CI's sanitizer flags
+autoconf
+CC="ccache clang" CXX="ccache clang++" ./configure
+cat >> config.default <<'EOF'
+FLAGS += -Wno-cast-align
+FLAGS += -fsanitize=address,undefined -fno-sanitize-recover=all -fno-sanitize=shift,function
+LDFLAGS += -fsanitize=address,undefined
+STATIC := 0
+EOF
+CC="ccache clang" CXX="ccache clang++" make -j"$(nproc)"
+
+# install pak64 (the pakset the tests are authored against; ~30 MB)
+( cd simutrans && ../tools/get_pak.sh pak64 )
+
+# wire the tests in as an addon scenario
+mkdir -p ~/simutrans/addons/pak/scenario
+ln -sTf "$(pwd)/tests" ~/simutrans/addons/pak/scenario/automated-tests
+mkdir -p ~/simutrans
+cat > ~/simutrans/simuconf.tab <<'EOF'
+frames_per_second = 100
+fast_forward_frames_per_second = 100
+EOF
+
+# run (the runner expects to live at repo root)
+cp tools/run-automated-tests.sh .
+chmod +x run-automated-tests.sh
+export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
+export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
+export SDL_VIDEODRIVER=dummy
+./run-automated-tests.sh
+```
+
+End-to-end time on a warm cache is ~2-3 minutes (most of it build).
+A cold run is dominated by the first build (~5-10 min).
+
+`run-automated-tests.sh` grep-watches the log for "Tests completed
+successfully." (pass) or `</error>` (fail) and kills the sim process
+when either appears. The runner bails on the first failure — the
+scenario runner does not continue past it. When triaging, the failing
+test is the last `[N/M] test_...` line printed before the `<error>`
+block.
+
+The run-tests.yml recipe is what CI exercises on every push. It is
+also what the "Tests and the hex port" policy above assumes when
+talking about "CI red" — the same commands, same pakset, same
+sanitizers.
+
+Don't edit `tools/run-automated-tests.sh`, `tests/scenario.nut`, or
+`tests/test_helpers.nut` as part of triage — the runner's contract is
+what CI uses. If you need to collect all failures in one pass
+(ordinary runs bail on first error), do it in a scratch copy, revert
+before committing.
