@@ -31,15 +31,17 @@ const koord koord::nesw[] = {
 	koord(-1,  0)
 };
 
+// Flat-top hex axial neighbours, clockwise from "east" (axial +q):
+//   E, SE, SW, W, NW, NE
+// Vertex shared by exactly 3 tiles; iterate with
+//   for (size_t i = 0; i < lengthof(koord::neighbours); i++)
 const koord koord::neighbours[] = {
-	koord( -1, -1),
-	koord( -1, 0 ),
-	koord( -1, 1 ),
-	koord( 0,  1 ),
-	koord( 1,  1 ),
-	koord( 1,  0 ),
-	koord( 1, -1 ),
-	koord( 0, -1 )
+	koord(  1,  0 ), // E
+	koord(  0,  1 ), // SE
+	koord( -1,  1 ), // SW
+	koord( -1,  0 ), // W
+	koord(  0, -1 ), // NW
+	koord(  1, -1 ), // NE
 };
 
 const koord koord::from_ribi[] = {

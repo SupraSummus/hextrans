@@ -511,7 +511,7 @@ bool way_builder_t::check_building( const grund_t *to, const koord dir ) const
 //  helper function for building parallel ways
 bool way_builder_t::has_neighbour_with_way(koord3d pos, waytype_t wt) const
 {
-	for (int i = 0; i < 8; i++) {
+	for (size_t i = 0; i < lengthof(koord::neighbours); i++) {
 		if (grund_t* gr = welt->lookup(pos + koord::neighbours[i])) {
 			if (gr->get_weg(wt)) {
 				return true;

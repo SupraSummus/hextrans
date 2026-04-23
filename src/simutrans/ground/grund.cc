@@ -1049,12 +1049,15 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 					uint8 water_corners = 0;
 
 					// get neighbour corner heights
+					// HEX-PORT TODO: same square-grid 4-corner climate logic
+					// as surface_t::recalc_transitions; keep [8] storage
+					// until slope_t becomes 6-corner.
 					sint8 neighbour_height[8][4];
 					welt->get_neighbour_heights( k, neighbour_height );
 
 					//look up neighbouring climates
-					climate neighbour_climate[8];
-					for(  int i = 0;  i < 8;  i++  ) {
+					climate neighbour_climate[8] = {};
+					for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 						koord k_neighbour = k + koord::neighbours[i];
 						if(  !welt->is_within_limits(k_neighbour)  ) {
 							k_neighbour = welt->get_closest_coordinate(k_neighbour);

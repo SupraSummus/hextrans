@@ -100,7 +100,7 @@ bool surface_t::square_is_free(koord pos, sint16 w, sint16 h, int *last_y, clima
 			climate test_climate = get_climate(k_check);
 			if(  cl & (1 << water_climate)  &&  test_climate != water_climate  ) {
 				bool neighbour_water = false;
-				for(int i=0; i<8  &&  !neighbour_water; i++) {
+				for(size_t i=0; i<lengthof(koord::neighbours)  &&  !neighbour_water; i++) {
 					if(  is_within_limits(k_check + koord::neighbours[i])  &&  get_climate( k_check + koord::neighbours[i] ) == water_climate  ) {
 						neighbour_water = true;
 					}
@@ -194,9 +194,15 @@ void surface_t::get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &s
 
 
 // fills array with neighbour heights
+// HEX-PORT: 6 hex neighbours.  Storage shape stays [8][4] until
+// calculate_natural_slope() and friends are ported away from 4-corner
+// square geometry; the unused tail is zeroed so callers don't read
+// uninitialised memory (their downstream output is still wrong for hex
+// but doesn't crash).
 void surface_t::get_neighbour_heights(const koord k, sint8 neighbour_height[8][4]) const
 {
-	for(  int i = 0;  i < 8;  i++  ) { // 0 = nw, 1 = w etc.
+	memset(neighbour_height, 0, sizeof(sint8) * 8 * 4);
+	for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 		planquadrat_t *pl2 = access( k + koord::neighbours[i] );
 		if(  pl2  ) {
 			grund_t *gr2 = pl2->get_kartenboden();
@@ -518,12 +524,18 @@ slope_t::type surface_t::recalc_natural_slope( const koord k, sint8 &new_height 
 		sint8 corner_height[4];
 
 		// get neighbour corner heights
+		// HEX-PORT TODO: this whole calculate_natural_slope() block is
+		// fundamentally square-grid (4 corners, 8 neighbours, & 7 mask
+		// indexing) and needs rewriting once slope_t becomes 6-corner.
+		// Until then we keep [8] storage; the trailing two entries are
+		// zeroed by get_neighbour_heights so the masked indexing into
+		// [6,7] doesn't read garbage.
 		sint8 neighbour_height[8][4];
 		get_neighbour_heights( k, neighbour_height );
 
 		//check whether neighbours are foundations
-		bool neighbour_fundament[8];
-		for(  int i = 0;  i < 8;  i++  ) {
+		bool neighbour_fundament[8] = {};
+		for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 			grund_t *gr2 = lookup_kartenboden( k + koord::neighbours[i] );
 			neighbour_fundament[i] = (gr2  &&  gr2->get_typ() == grund_t::fundament);
 		}
@@ -657,12 +669,14 @@ void surface_t::recalc_transitions(koord k)
 	grund_t *gr = pl->get_kartenboden();
 	if(  !gr->is_water()  ) {
 		// get neighbour corner heights
+		// HEX-PORT TODO: square-grid 4-corner climate-transition logic.
+		// Same situation as calculate_natural_slope() above.
 		sint8 neighbour_height[8][4];
 		get_neighbour_heights( k, neighbour_height );
 
 		// look up neighbouring climates
-		climate neighbour_climate[8];
-		for(  int i = 0;  i < 8;  i++  ) { // 0 = nw, 1 = w etc.
+		climate neighbour_climate[8] = {};
+		for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 			koord k_neighbour = k + koord::neighbours[i];
 			if(  !is_within_limits(k_neighbour)  ) {
 				k_neighbour = get_closest_coordinate(k_neighbour);
@@ -723,7 +737,7 @@ void surface_t::calc_climate(koord k, bool recalc)
 			bool beach = false;
 			climate default_cl = (climate)climate_map.at( k.x, k.y );
 			if(  gr->get_pos().z == groundwater  ) {
-				for(  int i = 0;  i < 8 && !beach;  i++  ) {
+				for(  size_t i = 0;  i < lengthof(koord::neighbours) && !beach;  i++  ) {
 					grund_t *gr2 = lookup_kartenboden( k + koord::neighbours[i] );
 					if(  gr2 && gr2->is_water()  ) {
 						beach = true;
@@ -751,7 +765,7 @@ void surface_t::calc_climate(koord k, bool recalc)
 
 	if(  recalc  ) {
 		recalc_transitions(k);
-		for(  int i = 0;  i < 8;  i++  ) {
+		for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 			recalc_transitions( k + koord::neighbours[i] );
 		}
 	}

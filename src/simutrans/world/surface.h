@@ -366,6 +366,10 @@ public:
 	/**
 	 * Fills array with corner heights of neighbours
 	 */
+	// HEX-PORT TODO: array shape is square-grid (8 neighbours × 4 corners);
+	// kept until calculate_natural_slope and friends are ported away from
+	// 4-corner geometry.  The function fills only the first 6 entries
+	// with hex neighbour data and zeroes the rest.
 	void get_neighbour_heights(const koord k, sint8 neighbour_height[8][4]) const;
 
 	//
@@ -497,7 +501,7 @@ public:
 			plan->set_climate(cl);
 			if(  recalc  ) {
 				recalc_transitions(k);
-				for(  int i = 0;  i < 8;  i++  ) {
+				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 					recalc_transitions( k + koord::neighbours[i] );
 				}
 			}

@@ -1140,7 +1140,7 @@ DBG_DEBUG("karte_t::distribute_groundobj()","distributing groundobjs");
 					if(  queried<0  ) {
 						// test for beach
 						bool neighbour_water = false;
-						for(int i=0; i<8; i++) {
+						for(size_t i=0; i<lengthof(koord::neighbours); i++) {
 							if(  is_within_limits(k + koord::neighbours[i])  &&  get_climate( k + koord::neighbours[i] ) == water_climate  ) {
 								neighbour_water = true;
 								break;
@@ -1515,10 +1515,15 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 			if(  gr->is_water()  &&  gr->get_hoehe()==groundwater  &&  gr->kann_alle_obj_entfernen(NULL)==NULL) {
 				koord k( ix, iy );
 				uint8 neighbour_water = 0;
+				// HEX-PORT TODO: this beach-detection uses square 8-neighbour
+				// orientation tests with `& 7` masking; needs rethinking for
+				// hex topology.  Kept structurally as-is (water[] sized 8,
+				// trailing entries default-initialised to 0) so the masked
+				// reads don't access garbage.
 				bool water[8] = {};
 				sint16 total_ground = 0;
 				// check whether nearby tiles are water
-				for(  int i = 0;  i < 8;  i++  ) {
+				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 					if(  grund_t *gr2 = lookup_kartenboden( k + koord::neighbours[i] )  ) {
 						total_ground++;
 						if( gr2->hat_weg( water_wt ) ) {
@@ -1534,7 +1539,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 				}
 
 				// make a count of nearby tiles - where tiles on opposite (+-1 direction) sides are water these count much more so we don't block straits
-				for(  int i = 0;  i < 8;  i++  ) {
+				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 					if(  water[i]  ) {
 						if(  water[(i + 3) & 7]  ||  water[(i + 4) & 7]  ||  water[(i + 5) & 7]  ) {
 							neighbour_water++;
@@ -1563,13 +1568,14 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 			grund_t *gr = lookup_kartenboden_nocheck(k);
 			if(  !gr->is_water()  &&  gr->get_pos().z == groundwater  ) {
 				uint8 neighbour_water = 0;
-				for(  int i = 0;  i < 8;  i++  ) {
+				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 					grund_t *gr2 = lookup_kartenboden( k + koord::neighbours[i] );
 					if(  !gr2  ||  gr2->is_water()  ) {
 						neighbour_water++;
 					}
 				}
-				// if a lot of water nearby we are a headland
+				// HEX-PORT TODO: threshold 3 was tuned for 8 neighbours; with
+				// 6 hex neighbours the headland heuristic needs re-tuning.
 				if(  neighbour_water > 3  ) {
 					access_nocheck(k)->set_climate( get_climate_at_height( groundwater + 1 ) );
 				}
@@ -1584,8 +1590,10 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 			if(  access_nocheck(k)->get_climate()  ==  desert_climate  ) {
 				uint8 neighbour_beach = 0;
 				//look up neighbouring climates
-				climate neighbour_climate[8];
-				for(  int i = 0;  i < 8;  i++  ) {
+				// HEX-PORT TODO: 4-corner climate-corner scan below uses
+				// `& 7` masking; storage stays [8] for now.
+				climate neighbour_climate[8] = {};
+				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 					koord k_neighbour = k + koord::neighbours[i];
 					if(  !is_within_limits(k_neighbour)  ) {
 						k_neighbour = get_closest_coordinate(k_neighbour);
@@ -4912,7 +4920,9 @@ bool karte_t::can_flood_to_depth(koord k, sint8 new_water_height, sint8 *stage, 
 		}
 		next_neighbour:
 		//return back to previous tile
-		while(  our_stage[offset]==7  ) {
+		// HEX-PORT: 7 was "last index of an 8-neighbour table"; with the
+		// hex 6-neighbour table the last index is 5.
+		while(  our_stage[offset] == (sint8)(lengthof(koord::neighbours) - 1)  ) {
 			if(  from_dir[offset] == -1  ) goto exit_iteration;    // for natural maps only need to have checked one path out from original tile
 			k = k - koord::neighbours[from_dir[offset]];
 			offset = array_koord(k.x,k.y);
@@ -5173,7 +5183,7 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 					for(uint16 x=max(0,xtop-1); x<xbottom; x++) {
 						if(climate_smooth_cpy[x+y*xbottom] != water_climate ) {
 							sint32 temp_climate = 4 * (climate_smooth_cpy[x+y*xbottom]);
-							for(int i=0; i<8; i++) {
+							for(size_t i=0; i<lengthof(koord::neighbours); i++) {
 								sint32 this_climate;
 								koord k_neighbour = koord(x,y) + koord::neighbours[i];
 
@@ -5322,7 +5332,7 @@ void karte_t::assign_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbotto
 					if(  climate_map.at(x,y)!=desert_climate  ) {
 						grund_t *gr = pl->get_kartenboden();
 						if(  gr->get_pos().z == groundwater  ) {
-							for(  int i = 0;  i < 8 && !beach;  i++  ) {
+							for(  size_t i = 0;  i < lengthof(koord::neighbours) && !beach;  i++  ) {
 								grund_t *gr2 = lookup_kartenboden( koord(x,y) + koord::neighbours[i] );
 								if(   gr2  &&  gr2->is_water()  ) {
 									beach = true;
@@ -6068,7 +6078,7 @@ sint16 karte_t::get_sound_id(grund_t *gr)
 		const koord k = gr->get_pos().get_2d();
 		uint8 climate_corners = access(k)->get_climate_corners();
 		if (climate_corners  && sound_desc_t::beach_sound!=NO_SOUND) {
-			for (int i = 0; i < 8; i++) {
+			for (size_t i = 0; i < lengthof(koord::neighbours); i++) {
 				koord k_neighbour = k + koord::neighbours[i];
 				if (!is_within_limits(k_neighbour)) {
 					k_neighbour = get_closest_coordinate(k_neighbour);
