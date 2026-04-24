@@ -146,12 +146,70 @@ formula — it produces a deterministic but geometrically wrong map
 when rotation != 0; fix in the same pass as `rotate90`.
 
 The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
-`surface.h` routes every `(x, y)` to the E canonical slot.  It is
-harmless today (old writers + old readers stay internally
-consistent), but once every writer and reader is ported to the
-hex-aware `(tile, corner)` overloads the shim will silently drop
-SE data on the floor.  Retire it at the end of the
-writer-and-reader port, not before.
+`surface.h` routes every `(x, y)` to the E canonical slot of tile
+`(x-1, y-1)` — NOT to any named corner of tile `(x, y)`.  The 55
+remaining shim call sites across 13 files audit into 6 clusters
+with different retirement triggers:
+
+*Square-corner writer ritual* — `terraformer.cc` (10 sites) raise/
+lower writes 4 "corners" at `(node.x, node.y)`, `(node.x+1, node.y)`,
+`(node.x, node.y+1)`, `(node.x+1, node.y+1)`, and `simtool.cc:2302-2312`
+(8 sites) does the same for partial-water grid heights.  Under hex
+these four shim coords land on four unrelated tiles' E corners, not
+on four corners of a single tile.  Blocked on the terraformer /
+slope-topology port; when it lands, the writes gain a hex-corner
+name.
+
+*Square-corner reader ritual* — `surface.cc` 12 sites in the
+`recalc_natural_slope` `[8][4]` scaffold already flagged.  Blocked
+on the recalc_natural_slope port.
+
+*NW-corner-only writers — ACTIVE SILENT BUG* — `hausbauer.cc:457`
+and `simtool.cc:1600` compute `height + corner_nw(slope)` and write
+via the shim.  Under the old square grid, grid point `(k.x, k.y)`
+WAS the NW corner of tile `k` and the write landed at that world
+vertex.  Under hex, the shim stores at tile `(k.x-1, k.y-1)`'s E
+corner — geometrically unrelated to tile `k`'s NW corner (which
+lives at tile `(k.x-1, k.y)`'s E slot, one row south).  Hex-aware
+readers are live TODAY: `surface_t::min_hgt` / `max_hgt` /
+`get_height_slope_from_grid` in `surface.cc` read all 6 corners via
+`canonical_vertex()`, so after `hausbauer_t::build_tile` or
+`tool_change_water_height` runs, `min_hgt(k)` for the just-modified
+tile sees groundwater at the NW slot instead of the just-written
+value.  The old square invariant "writing via shim at `(k, k)` makes
+tile k's NW corner read-back correct" does not survive the port.
+Fix: convert both sites to the `(tile, hex_corner_t::NW)` overload,
+and any shim reader that was relying on that slot (see bubble
+below) migrates with them.
+
+*"Tile reference height" readers — semantic drift bubble* —
+`grund.cc:175`, `wasser.cc:68`, `wegbauer.cc:599, 1778`,
+`simtool.cc:1011, 1021, 1596, 2080, 2085, 2721`, `simplay.cc:225`,
+`minimap.cc:735`, `enlarge_map_frame.cc:201`, `tunnelbauer.cc:198`
+(~14 sites).  All ask "what is the characteristic height of this
+tile?" via the shim.  Under hex a tile has 6 corner heights and no
+single "characteristic" one; the shim picks an arbitrary slot on a
+different tile.  Answers are internally consistent only because all
+14 readers and their paired writers (the NW-corner-only writers
+above, plus a few shim writers in `simtool.cc:1597` and
+`grund.cc:316`) hit the same slot.  Retire by defining what
+"tile's reference height" means under hex (min-corner? SE canonical
+corner? get_hoehe?) and converting every reader to the chosen
+accessor.  Roughly a one-commit port once the decision is made.
+
+*Save-cycle round-trippers* — `grund.cc:175, 287, 297, 307, 316`
+(5 sites), `simplan.cc:312, 317` (2 sites).  Read-then-write during
+the rdwr save/load cycle and during `planquadrat_t` changes.
+Bubble-consistent by construction.  Subsumed by the save-format
+version bump.
+
+*Explicit out-of-scope* — `simworld.cc:4673` heightfield load (1
+site, blocked on import decision as noted above).
+
+Each cluster above has an independent trigger; retire separately.
+The NW-corner-only cluster is the one to tackle first — fix the
+two writers together with the reference-height cluster in a single
+commit once hex "tile reference height" semantics are chosen.
 
 Remaining hex-aware readers still 4-corner: `recalc_natural_slope`
 with its `get_neighbour_heights[8][4]` scaffold, and the
@@ -167,15 +225,17 @@ These are the shim / stub patterns spread across the caller port
 that need a second sweep once their trigger condition lands.  Each
 is named / tagged so a global grep surfaces all sites.
 
-**`ribi_t::rotate_for_map_rotate90` sweep.**  Every `obj_t::rotate90()`
-override that holds a ribi (ways, vehicles, signs, water flow,
-wind direction) calls `ribi_t::rotate_for_map_rotate90(x)`, currently
-stubbed to `rotate60(x)` — "one step forward when the world ticks
-one step forward", the same single-bit-rotation semantic the old
-4-ribi `rotate90` had on a 4-direction grid.  Triggered by the
-`karte_t::rotate90` decision (refuse map rotation under hex?  rewrite
-to 60°?).  When that lands, update the helper body in one place (or
-delete the helper and all callers).
+**Rotation cascade.**  `koord::rotate90` is `dbg->fatal` and the 6
+top-level callers (`fabrikbauer` retry loops ×4, `karte_t::destroy`
+/ `karte_t::save` retry loops, the `tool_rotate90` player tool) are
+gated so the cascade is unreachable in normal play.  The underlying
+`karte_t::rotate90` body and every `obj_t::rotate90()` override
+still compile (so the binary builds and any hex-aware rotation
+replacement can drop in cleanly), and the `ribi_t::rotate_for_map_rotate90`
+/ `rotate_perpendicular` stubs (currently `rotate60`) stay for the
+same reason.  Replace with a real design when the viewport port
+lands — either a hex 60° rotation, a viewport-only rotation, or a
+formal removal.
 
 **`ribi_t::rotate_perpendicular` / `_l` sweep.**  Square-era "90°
 off this direction" sites — crossroads collision avoidance
@@ -197,17 +257,20 @@ need sprite representations — every rename site needs re-audit.
 Grep: `HEX-PORT.*east\|HEX-PORT.*west\|\b(southeast|northwest)\b`
 inside rendering-cluster files.
 
-**`ribi_t::{northwest, southeast, northeast, southwest}` silent
-semantic shift.**  These names existed before the structural flip
-as 4-bit combo constants (`northwest` = N|W = 9, `northeast` = N|E
-= 3, `southeast` = S|E = 6, `southwest` = S|W = 12).  Under the
-hex flip they're now single-edge bits (8, 32, 1, 4 — the 4 hex-only
-edges).  Same names, different numeric values, silent in the
-compiler.  ~60 call sites using these names need manual audit:
-which sites relied on the combo-value semantics (must be changed
-to explicit `(ribi_t::a | ribi_t::b)` combos) vs which sites are
-actually single-edge tests (already correct).  No easy grep filter
-— every occurrence deserves a look.
+**`crossing_logic_t::get_dir` binary → 3-axis.**  `crossing_logic.cc:291, 368`
+uses `crossing_t::get_dir() ? northwest : north` to scan for
+mergeable neighbours, i.e. binary — handles 2 of 3 hex axes.  Any
+3rd-axis crossing (road+tram on NE-SW, etc.) fails to merge.  Needs
+`crossing_t::get_dir()` to return a 3-valued axis identifier.
+Previously flagged only under the powerline entry; road/rail/tram
+crossings use the same code path.
+
+**`koord_random` / `clip_min` / `clip_max` rhombus caveat.**  These
+are rectangular in axial `(q, r)` — rhombus-shaped in world space
+under hex.  Current 11 callers all use them for map-bound clamps /
+bounding-box iteration, which matches the tile array's rhombus
+shape.  Flag so a future caller wanting a hex-circle / hex-radius
+region writes its own helper instead of overloading these.
 
 **`ribi_t::is_perpendicular` 2-axis vs 3-axis.**  Under hex there
 is no true 90° axis relation; the current predicate returns true

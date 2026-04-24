@@ -609,7 +609,6 @@ bool factory_builder_t::can_factory_tree_rotate( const factory_desc_t *desc )
 int factory_builder_t::build_link(koord3d* parent, const factory_desc_t* info, sint32 initial_prod_base, int rotate, koord3d* pos, player_t* player, int number_of_chains, bool ignore_climates)
 {
 	int n = 1;
-	int org_rotation = -1;
 
 	if(info==NULL) {
 		// no industry found
@@ -621,15 +620,9 @@ int factory_builder_t::build_link(koord3d* parent, const factory_desc_t* info, s
 		return 0;
 	}
 
-	// if a factory is not rotate-able, rotate the world until we can save it
-	if(welt->cannot_save()  &&  parent==NULL  &&  !can_factory_tree_rotate(info)  ) {
-		org_rotation = welt->get_settings().get_rotation();
-		for(  int i=0;  i<3  &&  welt->cannot_save();  i++  ) {
-			pos->rotate90( welt->get_size().y-info->get_building()->get_y(rotate) );
-			welt->rotate90();
-		}
-		assert( !welt->cannot_save() );
-	}
+	// HEX-PORT: the upstream "rotate the world until non-rotatable
+	// factory fits" retry (and matching rotate-back after placement)
+	// is disabled here — see TODO.md.
 
 	// in town we need a different place search
 	if (info->get_placement() == factory_desc_t::City) {
@@ -720,14 +713,6 @@ int factory_builder_t::build_link(koord3d* parent, const factory_desc_t* info, s
 
 		INT_CHECK( "fabrikbauer 730" );
 
-		// must rotate back?
-		if(org_rotation>=0) {
-			for (int i = 0; i < 4 && welt->get_settings().get_rotation() != org_rotation; ++i) {
-				pos->rotate90( welt->get_size().y-1 );
-				welt->rotate90();
-			}
-			welt->update_map();
-		}
 	}
 
 	return n;
@@ -984,16 +969,8 @@ int factory_builder_t::increase_industry_density( bool tell_me )
 	// first: do we have to continue unfinished factory chains?
 	if(  !ware_needed.empty()  && last_built_consumer  ) {
 
-		int org_rotation = -1;
-		// rotate until we can save it if one of the factories is non-rotate-able ...
-		if(welt->cannot_save()  &&  !can_factory_tree_rotate(last_built_consumer->get_desc()) ) {
-			org_rotation = welt->get_settings().get_rotation();
-			for(  int i=0;  i<3  &&  welt->cannot_save();  i++  ) {
-				welt->rotate90();
-			}
-			assert( !welt->cannot_save() );
-		}
-
+		// HEX-PORT: upstream "rotate the world to fit a chain" retry
+		// (and its rotate-back companion) are disabled — see TODO.md.
 
 		uint32 last_suppliers = last_built_consumer->get_suppliers().get_count();
 		do {
@@ -1013,14 +990,6 @@ int factory_builder_t::increase_industry_density( bool tell_me )
 			ware_needed.remove_at( 0 );
 
 		} while(  !ware_needed.empty()  &&  last_built_consumer->get_suppliers().get_count()==last_suppliers  );
-
-		// must rotate back?
-		if(org_rotation>=0) {
-			for (int i = 0; i < 4 && welt->get_settings().get_rotation() != org_rotation; ++i) {
-				welt->rotate90();
-			}
-			welt->update_map();
-		}
 
 		// only return if successful
 		if(  last_built_consumer->get_suppliers().get_count() > last_suppliers  ) {

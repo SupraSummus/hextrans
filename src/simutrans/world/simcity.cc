@@ -3793,8 +3793,8 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 							slope_t::type this_slope = bd->get_grund_hang();
 							if ((slope_t::is_way(this_slope) &&
 								(bd->get_hoehe() == target_h && (this_slope == slope_t::flat ||
-									(ribi_type(this_slope) & ribi_t::northwest & ribi_t::nesw[r]) != 0)))
-								|| (((ribi_type(this_slope) & ribi_t::southeast & ribi_t::nesw[r]) != 0)  &&  target_h == bd->get_hoehe() + slope_t::max_diff(this_slope))
+									(ribi_type(this_slope) & ribi_t::upper_half & ribi_t::nesw[r]) != 0)))
+								|| (((ribi_type(this_slope) & ribi_t::lower_half & ribi_t::nesw[r]) != 0)  &&  target_h == bd->get_hoehe() + slope_t::max_diff(this_slope))
 								) {
 								// we can connect => no further preparations needed
 

@@ -8,6 +8,7 @@
 #include "../display/scr_coord.h"
 #include "../utils/simrandom.h"
 #include "../simconst.h"
+#include "../simdebug.h"
 
 
 // default: close and far away does not matter
@@ -76,6 +77,16 @@ koord::koord(slope_t::type slope) : x(0), y(0)
 koord koord::step(ribi_t::ribi r)
 {
 	return koord(r);
+}
+
+
+// See the comment at the declaration in koord.h.
+void koord::rotate90(sint16)
+{
+	dbg->fatal("koord::rotate90",
+		"90° is not a hex lattice symmetry — the rotation cascade "
+		"(karte_t::rotate90 and every obj_t::rotate90 override) "
+		"needs redesigning for the hex port.  See TODO.md.");
 }
 
 

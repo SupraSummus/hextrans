@@ -87,16 +87,9 @@ public:
 		return *this;
 	}
 
-	void rotate90( sint16 y_size )
-	{
-		if(  (x&y)<0  ) {
-			// do not rotate illegal coordinates
-			return;
-		}
-		sint16 new_x = y_size-y;
-		y = x;
-		x = new_x;
-	}
+	// 90° is not a hex lattice symmetry; calling this is a
+	// `dbg->fatal`.  Top-level callers are gated; see TODO.md.
+	void rotate90( sint16 y_size );
 
 	inline void clip_min( koord k_min )
 	{
