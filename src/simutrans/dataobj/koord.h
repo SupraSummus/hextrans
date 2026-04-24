@@ -231,6 +231,25 @@ uint32 vertex_slot_count(sint16 W, sint16 H);
 uint32 vertex_slot_index(hex_vertex_t v, sint16 W);
 
 
+/// 2D position in the hex world plane, in units of hex side length.
+struct hex_pos_t {
+	double x;
+	double y;
+};
+
+
+/**
+ * World XY of a hex world vertex, flat-top geometry, R = 1.  Tile
+ * centre sits at `(1.5*q, sqrt(3)*(r + q/2))`; corner `c` is the
+ * offset `(cos(c*60°), sin(c*60°))` from centre.  All three
+ * (tile, corner) names of a shared world vertex produce the same
+ * result — this is the geometric fact that lets noise sampled at
+ * vertex positions be self-consistent across tile boundaries
+ * without any reconciliation pass.
+ */
+hex_pos_t hex_vertex_pos(hex_vertex_t v);
+
+
 // Hex axial distance (cube formula: (|dx|+|dy|+|dz|)/2 with x+y+z=0).
 // Replaces the legacy Manhattan distance; semantics are hex-grid steps
 // between two axial coords.

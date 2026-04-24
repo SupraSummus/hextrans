@@ -147,6 +147,18 @@ uint32 vertex_slot_index(hex_vertex_t v, sint16 W)
 }
 
 
+hex_pos_t hex_vertex_pos(hex_vertex_t v)
+{
+	static constexpr double HEX_SQRT3 = 1.7320508075688772;
+	// Per-corner offsets (R = 1) at angles c * 60° clockwise from E.
+	static constexpr double OX[hex_corner_t::count] = {  1.0,  0.5, -0.5, -1.0, -0.5,  0.5 };
+	static constexpr double OY[hex_corner_t::count] = {  0.0,  HEX_SQRT3 * 0.5,  HEX_SQRT3 * 0.5,  0.0, -HEX_SQRT3 * 0.5, -HEX_SQRT3 * 0.5 };
+	const double cx = 1.5 * v.tile.x;
+	const double cy = HEX_SQRT3 * (v.tile.y + 0.5 * v.tile.x);
+	return { cx + OX[v.corner], cy + OY[v.corner] };
+}
+
+
 // for debug messages...
 const char *koord::get_str() const
 {

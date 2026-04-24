@@ -63,36 +63,36 @@ connects to the producer.  Under hex iteration the mine is found
 first.  Needs a real policy choice in `suche_fab_neighbour` (prefer
 producers?  prefer nearest?), not a test edit.
 
-## Per-vertex height storage — writer-side port
+## Per-vertex height storage — remaining writer-side ports
 
-Storage is now per-hex-vertex (see
-`documentation/hex-vertex-storage.md`, `surface_t::grid_hgts`): two
-canonical slots (E, SE) per tile, plus boundary padding.  The legacy
-`lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` API routes every
-`(x, y)` to the E canonical slot via `i*2` indexing, so old callers
-stay internally consistent.  Hex-aware readers use the
-`(koord tile, hex_corner_t::type c)` overloads and read real 6-corner
-data — but no writer yet produces any.  SE canonical slots sit at
-whatever groundwater default the allocator left them at, so a
-hex-aware reader asking for the SE / W / NE corners of a tile will
-get groundwater for three of six corners.  That is the forcing
-function for the writer-side port: do not auto-fill SE from E via a
-shim (parallel-types in spirit, violates the in-place port rule in
-`AGENTS.md`).  The real fix is to port each writer to the hex API
-and have it produce distinct E and SE values per tile.
+Storage is per-hex-vertex (see `documentation/hex-vertex-storage.md`,
+`surface_t::grid_hgts`): two canonical slots (E, SE) per tile, plus
+boundary padding.  `perlin_hoehe` now samples at world-vertex
+positions and writes both canonical slots, so freshly generated
+terrain is self-consistent across shared vertices — the three owners
+of any shared vertex all resolve to the same slot and get the same
+noise value by construction.
 
-Primary writer to port first: `karte_t::perlin_hoehe_loop` +
-`karte_t::perlin_hoehe`.  Once that writes real per-vertex heights
-the existing hex readers (`calc_natural_slope`, `min/max_hgt{_nocheck}`,
-`get_height_slope_from_grid`) produce geometrically correct slopes
-and every downstream slope-consuming code path inherits hex terrain
-from the generator without further changes.  Then follow up with
-`terraformer.cc`'s raise/lower bitmask (still
-4-corner-to-8-neighbour, tagged `HEX-PORT TODO`), the
-`simtool.cc` water-raise flood-fill (square 4-neighbour), and
-`karte_t::rotate90`'s heightmap-rotation loop (90° is not a valid
-hex symmetry; the whole rotation path needs a refusal or a real
-hex rotation, tied to the viewport port).
+Other writers still use the legacy `set_grid_hgt_nocheck(x, y)` API
+(which lands in the E slot only) and need porting next: `terraformer.cc`'s
+raise/lower bitmask (still 4-corner-to-8-neighbour, tagged `HEX-PORT TODO`);
+the `simtool.cc` water-raise flood-fill (square 4-neighbour); the
+heightfield-load path in `karte_t::init_tiles` (replicates the last
+square-grid row into the doubled slot layout — needs a hex-aware
+importer or a clean rejection);  `karte_t::rotate90`'s heightmap-rotation
+loop (90° is not a valid hex symmetry; the whole rotation path needs
+a refusal or a real hex rotation, tied to the viewport port).
+`perlin_hoehe`'s own rotation code is still the legacy 90° square
+formula — it produces a deterministic but geometrically wrong map
+when rotation != 0; fix in the same pass as `rotate90`.
+
+The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
+`surface.h` routes every `(x, y)` to the E canonical slot.  It is
+harmless today (old writers + old readers stay internally
+consistent), but once every writer and reader is ported to the
+hex-aware `(tile, corner)` overloads the shim will silently drop
+SE data on the floor.  Retire it at the end of the
+writer-and-reader port, not before.
 
 Remaining hex-aware readers still 4-corner: `recalc_natural_slope`
 with its `get_neighbour_heights[8][4]` scaffold, and the

@@ -398,7 +398,7 @@ void welt_gui_t::update_preview(bool load_heightfield)
 		const int my = sets->get_size_y()/map_size.h;
 		for(  int y=0;  y<map_size.h;  y++  ) {
 			for(  int x=0;  x<map_size.w;  x++  ) {
-				map.at(x,y) = minimap_t::calc_height_color(karte_t::perlin_hoehe( sets, koord(x*mx,y*my), koord::invalid ), sets->get_groundwater());
+				map.at(x,y) = minimap_t::calc_height_color(karte_t::perlin_hoehe( sets, koord(x*mx,y*my), hex_corner_t::E, koord::invalid ), sets->get_groundwater());
 			}
 		}
 		sets->heightfield = "";

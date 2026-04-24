@@ -204,7 +204,7 @@ void enlarge_map_frame_t::update_preview()
 			}
 			else {
 				// new part
-				const sint16 height = karte_t::perlin_hoehe(sets, pos, koord(old_x,old_y) );
+				const sint16 height = karte_t::perlin_hoehe(sets, pos, hex_corner_t::E, koord(old_x,old_y) );
 				color = minimap_t::calc_height_color(height, sets->get_groundwater());
 			}
 			map.at(i,j) = color;

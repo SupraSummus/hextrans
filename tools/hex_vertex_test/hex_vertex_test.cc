@@ -1,6 +1,6 @@
 // Self-test for the per-vertex height storage helpers in
 // src/simutrans/dataobj/koord.{h,cc} — canonical_vertex(),
-// vertex_slot_count(), vertex_slot_index().
+// vertex_slot_count(), vertex_slot_index(), hex_vertex_pos().
 //
 // Exercises the invariants:
 //   1. canonical_vertex agrees with the lex-min of vertex_owners.
@@ -9,6 +9,9 @@
 //   4. Canonical corners are always E or SE.
 //   5. vertex_slot_index is a bijection from valid canonical vertices
 //      onto [0, vertex_slot_count).
+//   6. All 3 owners of a world vertex produce the same hex_vertex_pos.
+//      This is the geometric invariant that makes perlin-noise terrain
+//      self-consistent at shared vertices.
 //
 // The helper bodies are duplicated here rather than linked from
 // koord.cc to keep the test standalone — koord.cc pulls in
@@ -16,6 +19,7 @@
 
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <set>
@@ -93,6 +97,18 @@ static uint32_t vertex_slot_index(vertex_t v, int16_t W)
     const uint32_t w = uint32_t(W + 1);
     const uint32_t corner_bit = (v.corner == SE) ? 1u : 0u;
     return (q + r * w) * 2u + corner_bit;
+}
+
+// Mirror of hex_vertex_pos() in koord.cc.
+struct pos_t { double x; double y; };
+static pos_t hex_vertex_pos(vertex_t v)
+{
+    static constexpr double HEX_SQRT3 = 1.7320508075688772;
+    static constexpr double OX[6] = {  1.0,  0.5, -0.5, -1.0, -0.5,  0.5 };
+    static constexpr double OY[6] = {  0.0,  HEX_SQRT3 * 0.5,  HEX_SQRT3 * 0.5,  0.0, -HEX_SQRT3 * 0.5, -HEX_SQRT3 * 0.5 };
+    const double cx = 1.5 * v.tile.x;
+    const double cy = HEX_SQRT3 * (v.tile.y + 0.5 * v.tile.x);
+    return { cx + OX[v.corner], cy + OY[v.corner] };
 }
 
 
@@ -216,6 +232,35 @@ static void test_slot_index_bijection()
     CHECK(canonicals.size() >= size_t(W * H));
 }
 
+static void test_vertex_pos_owners_agree()
+{
+    // The 3 (tile, corner) names of a shared world vertex must
+    // resolve to the same (x, y) — this is the geometric property
+    // that lets perlin noise sampled at vertex positions be
+    // self-consistent across tile boundaries by construction.
+    //
+    // Floating-point rounding makes exact equality fragile; require
+    // agreement within a small absolute tolerance.  The values in
+    // play are O(1..10) in units of hex side length, so 1e-9 is
+    // ~10 orders of magnitude above roundoff noise.
+    const double eps = 1e-9;
+    for (int16_t q = -3; q <= 3; q++) {
+        for (int16_t r = -3; r <= 3; r++) {
+            for (uint8_t c = 0; c < 6; c++) {
+                vertex_t owners[3];
+                vertex_owners({q, r}, corner_t(c), owners);
+                pos_t p0 = hex_vertex_pos(owners[0]);
+                pos_t p1 = hex_vertex_pos(owners[1]);
+                pos_t p2 = hex_vertex_pos(owners[2]);
+                CHECK(std::fabs(p0.x - p1.x) < eps);
+                CHECK(std::fabs(p1.x - p2.x) < eps);
+                CHECK(std::fabs(p0.y - p1.y) < eps);
+                CHECK(std::fabs(p1.y - p2.y) < eps);
+            }
+        }
+    }
+}
+
 static void test_slot_index_bounds()
 {
     // Every slot index produced by a canonical vertex in the valid
@@ -243,6 +288,7 @@ int main()
     test_all_owners_agree();
     test_slot_index_bijection();
     test_slot_index_bounds();
+    test_vertex_pos_owners_agree();
 
     if (fail_count == 0) {
         printf("hex_vertex_test: all checks passed\n");

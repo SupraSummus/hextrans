@@ -325,13 +325,17 @@ public:
 
 	inline void set_grid_hgt_nocheck(koord k, sint8 hgt) { set_grid_hgt_nocheck(k.x, k.y, hgt); }
 
-	// HEX-PORT: hex-aware per-vertex reader.  Returns the height at
-	// world vertex `(tile, corner)` via its canonical slot — see
-	// `documentation/hex-vertex-storage.md`.  This is the read side
-	// of the port; hex-aware writers / hex_vertex_t overloads land
-	// with the writer-side port when their first caller needs them.
+	// HEX-PORT: hex-aware per-vertex reader/writer.  Reads/writes the
+	// height at world vertex `(tile, corner)` via its canonical slot
+	// — see `documentation/hex-vertex-storage.md`.  The three owners
+	// of a shared world vertex all resolve to the same storage slot,
+	// so terraforming stays consistent across tile boundaries.
 	inline sint8 lookup_hgt_nocheck(koord tile, hex_corner_t::type c) const {
 		return grid_hgts[vertex_slot_index(canonical_vertex({tile, c}), cached_grid_size.x)];
+	}
+
+	inline void set_grid_hgt_nocheck(koord tile, hex_corner_t::type c, sint8 hgt) {
+		grid_hgts[vertex_slot_index(canonical_vertex({tile, c}), cached_grid_size.x)] = hgt;
 	}
 
 public:
