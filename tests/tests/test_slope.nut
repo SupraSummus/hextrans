@@ -32,32 +32,28 @@ function test_slope_to_dir()
 }
 
 
-// test_slope_can_set: HEX-PORT PENDING.
 function test_slope_can_set()
 {
 	local pl = player_x(0)
 	local pos = coord3d(2, 3, 0)
 
-	for (local sl = 0; sl < slope.raised; ++sl) {
-		for (local target_sl = 0; target_sl < slope.raised; ++target_sl) {
-			command_x.set_slope(pl, pos, sl)
-			ASSERT_EQUAL(tile_x(2, 3, 0).get_slope(), sl)
-			RESET_ALL_PLAYER_FUNDS()
+	foreach (sl in interesting_slopes()) {
+		command_x.set_slope(pl, pos, sl)
+		ASSERT_EQUAL(tile_x(2, 3, 0).get_slope(), sl)
+		RESET_ALL_PLAYER_FUNDS()
 
-			local expected = ""
-			ASSERT_EQUAL(command_x.can_set_slope(pl, pos, sl), expected)
+		ASSERT_EQUAL(command_x.can_set_slope(pl, pos, sl), "")
 
-			local sq = square_x(2, 3)
-			ASSERT_TRUE(sq != null && sq.is_valid())
-			ASSERT_EQUAL(sq.get_climate(), cl_mediterran)
+		local sq = square_x(2, 3)
+		ASSERT_TRUE(sq != null && sq.is_valid())
+		ASSERT_EQUAL(sq.get_climate(), cl_mediterran)
 
-			local tile = sq.get_tile_at_height(0)
-			ASSERT_TRUE(tile != null && tile.is_valid())
-			ASSERT_EQUAL(tile.get_slope(), sl)
+		local tile = sq.get_tile_at_height(0)
+		ASSERT_TRUE(tile != null && tile.is_valid())
+		ASSERT_EQUAL(tile.get_slope(), sl)
 
-			ASSERT_EQUAL(pl.get_current_cash(),        200000)     // get_current_cash is in credits (returns float)
-			ASSERT_EQUAL(pl.get_current_net_wealth(),  200000*100) // get_current_net_wealth is in 1/100 credits
-		}
+		ASSERT_EQUAL(pl.get_current_cash(),        200000)     // get_current_cash is in credits (returns float)
+		ASSERT_EQUAL(pl.get_current_net_wealth(),  200000*100) // get_current_net_wealth is in 1/100 credits
 	}
 
 	// reset to normal slope
@@ -175,15 +171,14 @@ function test_slope_max_height_diff()
 }
 
 
-// test_slope_get_price: HEX-PORT PENDING.
 function test_slope_get_price()
 {
 	local pl = player_x(0)
-	for (local sl = 0; sl < slope.raised; ++sl) {
-		ASSERT_EQUAL(command_x.slope_get_price(slope.flat), 2000 * 100)
+	foreach (sl in interesting_slopes()) {
+		ASSERT_EQUAL(command_x.slope_get_price(sl), 2000 * 100)
 	}
 
-	local restore_slope = 84
+	local restore_slope = 803 // RESTORE_SLOPE from simconst.h
 	ASSERT_EQUAL(command_x.slope_get_price(restore_slope), 1500 * 100)
 
 	ASSERT_EQUAL(pl.get_current_cash(),        200000)     // get_current_cash is in credits (returns float)

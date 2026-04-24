@@ -580,7 +580,6 @@ function test_way_bridge_build_above_runway()
 }
 
 
-// test_way_bridge_planner: HEX-PORT PENDING.
 function test_way_bridge_planner()
 {
 	local pl = player_x(0)
@@ -593,7 +592,7 @@ function test_way_bridge_planner()
 	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
 
 	{
-		for (local sl = slope.flat; sl < slope.raised; ++sl) {
+		foreach (sl in interesting_slopes()) {
 			command_x.set_slope(pl, end_pos, sl)
 
 			local end = bridge_planner_x.find_end(pl, start_pos, dir.south, bridge_desc, 0)

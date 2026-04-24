@@ -9,7 +9,6 @@
 //
 
 
-// test_halt_build_rail_single_tile: HEX-PORT PENDING.
 function test_halt_build_rail_single_tile()
 {
 	local pl = player_x(0)
@@ -30,7 +29,7 @@ function test_halt_build_rail_single_tile()
 	local pos = coord3d(4, 2, 0)
 
 	{
-		for (local sl = slope.flat; sl < slope.raised; ++sl) {
+		foreach (sl in interesting_slopes()) {
 			ASSERT_EQUAL(setslope(pl, pos, sl), sl != slope.flat ? null : "")
 			ASSERT_EQUAL(stationbuilder.work(pl, pos, station_desc.get_name()), "No suitable way on the ground!")
 
@@ -43,7 +42,8 @@ function test_halt_build_rail_single_tile()
 
 	// cannot build on non-flat tile
 	{
-		for (local sl = slope.flat+1; sl < slope.raised; ++sl) {
+		foreach (sl in interesting_slopes()) {
+			if (sl == slope.flat) continue
 			ASSERT_EQUAL(setslope(pl, pos, sl), null)
 
 			local d = slope.to_dir(sl)
