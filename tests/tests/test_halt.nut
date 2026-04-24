@@ -107,6 +107,7 @@ function test_halt_build_harbour()
 	local stationbuilder = command_x(tool_build_station)
 	local station_desc = building_desc_x.get_available_stations(building_desc_x.harbour, wt_water, good_desc_x.passenger)[0] // FIXME: null instead of pax fails
 	local setclimate = command_x(tool_set_climate)
+	local setslope = command_x.set_slope
 
 	// build harbour on flat land: should fail
 	{
@@ -114,39 +115,29 @@ function test_halt_build_harbour()
 		ASSERT_EQUAL(tile_x(4, 3, 0).find_object(mo_building), null)
 	}
 
-	// build harbour on sloped land: should fail
+	// build harbour on sloped land (not adjacent to water): should fail
 	{
-		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 3, 0)), null)
-		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(5, 3, 0)), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.south), null)
 
-		ASSERT_EQUAL(stationbuilder.work(pl, coord3d(4, 3, 0), station_desc.get_name()), "")
-		ASSERT_EQUAL(tile_x(4, 3, 0).find_object(mo_building), null)
-
-		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 4, 0)), null)
-		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(5, 4, 0)), null)
-
-		ASSERT_EQUAL(stationbuilder.work(pl, coord3d(4, 3, 0), station_desc.get_name()), "")
-		ASSERT_EQUAL(tile_x(4, 3, 0).find_object(mo_building), null)
+		ASSERT_EQUAL(stationbuilder.work(pl, coord3d(4, 2, 0), station_desc.get_name()), "No suitable ground!")
+		ASSERT_EQUAL(tile_x(4, 2, 0).find_object(mo_building), null)
 	}
 
-	// build harbour on sloped land adjacent to water: Should succeed
+	// build harbour on sloped land adjacent to water: should succeed
 	{
-		ASSERT_EQUAL(setclimate.work(pl, coord3d(4, 3, -1), coord3d(4, 3, -1), "" + cl_water), null)
-		ASSERT_EQUAL(stationbuilder.work(pl, coord3d(4, 2, -1), station_desc.get_name()), null)
+		ASSERT_EQUAL(setclimate.work(pl, coord3d(4, 3, 0), coord3d(4, 3, 0), "" + cl_water), null)
+		ASSERT_EQUAL(stationbuilder.work(pl, coord3d(4, 2, 0), station_desc.get_name()), null)
 
-		ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(4, 3, -1)), null)
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(4, 3, 0)), null)
 
 		ASSERT_EQUAL(pl.get_current_maintenance(), 0)
-		ASSERT_EQUAL(tile_x(4, 3, 0).find_object(mo_building), null)
+		ASSERT_EQUAL(tile_x(4, 2, 0).find_object(mo_building), null)
 
-		ASSERT_EQUAL(setclimate.work(pl, coord3d(4, 3, -1), coord3d(4, 3, -1), "" + cl_mediterran), null)
+		ASSERT_EQUAL(setclimate.work(pl, coord3d(4, 3, 0), coord3d(4, 3, 0), "" + cl_mediterran), null)
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 3, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(5, 3, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 4, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(5, 4, 0)), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.all_down_slope), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
@@ -648,6 +639,7 @@ function test_halt_build_near_factories()
 }
 
 
+// test_halt_build_on_tunnel_entrance: HEX-PORT PENDING.
 function test_halt_build_on_tunnel_entrance()
 {
 	local pl = player_x(0)
@@ -1192,6 +1184,7 @@ function test_halt_make_public_multi_tile()
 }
 
 
+// test_halt_make_public_underground: HEX-PORT PENDING.
 function test_halt_make_public_underground()
 {
 	local pl = player_x(0)

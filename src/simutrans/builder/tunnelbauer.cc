@@ -173,13 +173,15 @@ koord3d tunnel_builder_t::find_end_pos(player_t *player, koord3d pos, koord zv, 
 		// steep slopes and we are appearing at the top of one
 		if(  gr->get_hoehe() == pos.z-1  &&  welt->get_settings().get_way_height_clearance()==1  ) {
 			const slope_t::type new_slope = slope_type(-zv);
-			sint8 hsw = pos.z + corner_sw(new_slope);
-			sint8 hse = pos.z + corner_se(new_slope);
-			sint8 hne = pos.z + corner_ne(new_slope);
-			sint8 hnw = pos.z + corner_nw(new_slope);
+			sint8 hE  = pos.z + corner_e (new_slope);
+			sint8 hSE = pos.z + corner_se(new_slope);
+			sint8 hSW = pos.z + corner_sw(new_slope);
+			sint8 hW  = pos.z + corner_w (new_slope);
+			sint8 hNW = pos.z + corner_nw(new_slope);
+			sint8 hNE = pos.z + corner_ne(new_slope);
 
 			terraformer_t raise(terraformer_t::raise, welt);
-			raise.add_node(pos.x, pos.y, hsw, hse, hne, hnw);
+			raise.add_node(pos.x, pos.y, hE, hSE, hSW, hW, hNW, hNE);
 			raise.generate_affected_tile_list();
 
 			if (raise.can_raise_all(player)) {
@@ -247,16 +249,18 @@ koord3d tunnel_builder_t::find_end_pos(player_t *player, koord3d pos, koord zv, 
 			if(  gr->ist_karten_boden()  &&  ( slope!=new_slope  ||  pos.z!=gr->get_pos().z )  ) {
 				// lower terrain to match - most of time shouldn't need to raise
 				// however player might have manually altered terrain so check this anyway
-				sint8 hsw = pos.z + corner_sw(new_slope);
-				sint8 hse = pos.z + corner_se(new_slope);
-				sint8 hne = pos.z + corner_ne(new_slope);
-				sint8 hnw = pos.z + corner_nw(new_slope);
+				sint8 hE  = pos.z + corner_e (new_slope);
+				sint8 hSE = pos.z + corner_se(new_slope);
+				sint8 hSW = pos.z + corner_sw(new_slope);
+				sint8 hW  = pos.z + corner_w (new_slope);
+				sint8 hNW = pos.z + corner_nw(new_slope);
+				sint8 hNE = pos.z + corner_ne(new_slope);
 
 				terraformer_t raise(terraformer_t::raise, welt);
 				terraformer_t lower(terraformer_t::lower, welt);
 
-				raise.add_node(pos.x, pos.y, hsw, hse, hne, hnw);
-				lower.add_node(pos.x, pos.y, hsw, hse, hne, hnw);
+				raise.add_node(pos.x, pos.y, hE, hSE, hSW, hW, hNW, hNE);
+				lower.add_node(pos.x, pos.y, hE, hSE, hSW, hW, hNW, hNE);
 
 				raise.generate_affected_tile_list();
 				lower.generate_affected_tile_list();
@@ -416,16 +420,18 @@ const char *tunnel_builder_t::build( player_t *player, koord pos, const tunnel_d
 	slope_t::type end_slope = slope_type(-zv) * welt->get_settings().get_way_height_clearance();
 	if(  full_tunnel  &&  (!end_gr  ||  end_gr->get_grund_hang()!=end_slope)  ) {
 		// end slope not at correct height - we have already checked in find_end_pos that we can change this
-		sint8 hsw = end.z + corner_sw(end_slope);
-		sint8 hse = end.z + corner_se(end_slope);
-		sint8 hne = end.z + corner_ne(end_slope);
-		sint8 hnw = end.z + corner_nw(end_slope);
+		sint8 hE  = end.z + corner_e (end_slope);
+		sint8 hSE = end.z + corner_se(end_slope);
+		sint8 hSW = end.z + corner_sw(end_slope);
+		sint8 hW  = end.z + corner_w (end_slope);
+		sint8 hNW = end.z + corner_nw(end_slope);
+		sint8 hNE = end.z + corner_ne(end_slope);
 
 		terraformer_t raise(terraformer_t::raise, welt);
 		terraformer_t lower(terraformer_t::lower, welt);
 
-		raise.add_node(end.x, end.y, hsw, hse, hne, hnw);
-		lower.add_node(end.x, end.y, hsw, hse, hne, hnw);
+		raise.add_node(end.x, end.y, hE, hSE, hSW, hW, hNW, hNE);
+		lower.add_node(end.x, end.y, hE, hSE, hSW, hW, hNW, hNE);
 
 		raise.generate_affected_tile_list();
 		lower.generate_affected_tile_list();
