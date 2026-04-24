@@ -381,8 +381,13 @@ function test_depot_build_sloped()
 
 	local pos = coord3d(4, 3, 0)
 
+	// Walk the buildable single-height slopes instead of every
+	// integer 1..363 — under the hex base-3 encoding most integers
+	// aren't valid slopes.  interesting_slopes() covers flat + 6
+	// single-corner + 6 hex-edge + 2 legacy square diagonals.
 	{
-		for (local sl = slope.flat+1; sl < slope.raised; ++sl) {
+		foreach (sl in interesting_slopes()) {
+			if (sl == slope.flat) continue
 			ASSERT_EQUAL(setslope(pl, pos, sl), null)
 
 			local d = slope.to_dir(sl)

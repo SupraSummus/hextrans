@@ -7,28 +7,31 @@
 // Test set_/can_set_slope
 //
 
-// test_slope_to_dir: HEX-PORT PENDING.
 function test_slope_to_dir()
 {
-	local slope_to_dir = {}
+	// slope.to_dir(sl) returns the ribi that walks UP the slope — see
+	// ribi_type(slope_t::type) in ribi.cc.  Only the 4 legacy square-
+	// named slopes (N, S edges and E, W 2-corner diagonals) have ribi
+	// aliases today, each at single and double height.  Every other
+	// slope — flat, the 6 single-corner raises, the 4 hex-only edge
+	// slopes — maps to dir.none until the slope-edge table lands (see
+	// TODO.md → slope-edge constants).
+	local expected = {}
+	expected[slope.north]     <- dir.south
+	expected[slope.south]     <- dir.north
+	expected[slope.east]      <- dir.northwest  // W corners raised → uphill = NW hex edge
+	expected[slope.west]      <- dir.southeast  // E corners raised → uphill = SE hex edge
+	expected[2 * slope.north] <- dir.south
+	expected[2 * slope.south] <- dir.north
+	expected[2 * slope.east]  <- dir.northwest
+	expected[2 * slope.west]  <- dir.southeast
 
-	slope_to_dir[slope.north] <- dir.south
-	slope_to_dir[slope.east ] <- dir.west
-	slope_to_dir[slope.south] <- dir.north
-	slope_to_dir[slope.west ] <- dir.east
-
-	slope_to_dir[2*slope.north] <- dir.south
-	slope_to_dir[2*slope.east ] <- dir.west
-	slope_to_dir[2*slope.south] <- dir.north
-	slope_to_dir[2*slope.west ] <- dir.east
-
-	for (local sl = 0; sl < 81; ++sl) {
-		if (sl in slope_to_dir) {
-			ASSERT_EQUAL(slope.to_dir(sl), slope_to_dir[sl])
-		}
-		else {
-			ASSERT_EQUAL(slope.to_dir(sl), dir.none)
-		}
+	foreach (sl, d in expected) {
+		ASSERT_EQUAL(slope.to_dir(sl), d)
+	}
+	foreach (sl in interesting_slopes()) {
+		if (sl in expected) continue
+		ASSERT_EQUAL(slope.to_dir(sl), dir.none)
 	}
 }
 
