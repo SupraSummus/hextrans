@@ -74,15 +74,15 @@ all_tests <- [
 	test_depot_build_on_halt,
 	test_depot_convoy_add_normal,
 	test_depot_convoy_add_nonelectrified,
-	// test_dir_is_single: HEX-PORT PENDING.
-	// test_dir_is_twoway: HEX-PORT PENDING.
-	// test_dir_is_threeway: HEX-PORT PENDING.
-	// test_dir_is_curve: HEX-PORT PENDING.
-	// test_dir_is_straight: HEX-PORT PENDING.
-	// test_dir_double: HEX-PORT PENDING.
-	// test_dir_backward: HEX-PORT PENDING.
-	// test_dir_to_slope: HEX-PORT PENDING.
-	// test_dir_to_coord: HEX-PORT PENDING.
+	test_dir_is_single,
+	test_dir_is_twoway,
+	test_dir_is_threeway,
+	test_dir_is_curve,
+	test_dir_is_straight,
+	test_dir_double,
+	test_dir_backward,
+	test_dir_to_slope,
+	test_dir_to_coord,
 	test_factory_build_pp,
 	test_factory_build_with_fields,
 	test_factory_build_climate,
@@ -162,7 +162,7 @@ all_tests <- [
 	// test_sign_build_signal_multiple: HEX-PORT PENDING.
 	// test_sign_replace_signal: HEX-PORT PENDING.
 	test_sign_signal_when_player_removed,
-	// test_slope_to_dir: HEX-PORT PENDING.
+	test_slope_to_dir,
 	test_slope_can_set,
 	test_slope_set_and_restore,
 	test_slope_get_price,

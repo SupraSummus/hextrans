@@ -39,31 +39,28 @@ across_tunnel_slope}`, `test_way_tunnel_make_public`,
 Several crossing cases additionally need a hex-axis pair to replace
 the square-perpendicular setup.
 
-**Script `dir` class port.**  `simutrans/script/script_base.nut`
-still declares the `dir` class with old 4-bit values (`north=1,
-east=2, south=4, west=8, northsouth=5, eastwest=10, ...`) — these
-no longer match the C++ `ribi_t::_ribi` bit layout (SE=1, S=2,
-SW=4, NW=8, N=16, NE=32).  Any script that references
-`dir.northsouth`, `dir.northeast`, `dir.all`, etc. silently gets
-the wrong ribi.  Port the class to hex values and restore the 9
-`test_dir_*` tests (`_is_single / _is_twoway / _is_threeway /
-_is_curve / _is_straight / _double / _backward / _to_slope /
-_to_coord`).  Some test bodies will need rewriting rather than
-restoring — old assertions like `ASSERT_EQUAL(dir.double(dir.east),
-dir.eastwest)` bake the 2-axis model that hex's 3 axes don't
-satisfy.
-
 **Slope iteration over the full 6-corner space.**
 `test_depot_build_sloped`, `test_depot_build_on_tunnel_entrance`,
 `test_halt_build_rail_single_tile`, `test_halt_build_multi_tile`,
-`test_slope_to_dir`, `test_slope_max_height_diff`,
-`test_way_bridge_build_at_slope` (and `_stacked` / `_above_runway` /
-`_planner`) all iterate over slope integers or exercise bridge
-geometry that assumed 4-corner slopes.  Under hex the slope space
-is 3^6 = 729 values; many are double-height and setslope returns
-"" for pakset without `double_grounds`.  Restore after the slope-
-iteration helpers are hex-aware (walk only single-height subsets,
-use hex corner names) and bridge-over-slope geometry is ported.
+`test_slope_max_height_diff`, `test_way_bridge_build_at_slope` (and
+`_stacked` / `_above_runway` / `_planner`) all iterate over slope
+integers or exercise bridge geometry that assumed 4-corner slopes.
+Under hex the slope space is 3^6 = 729 values; many are double-
+height and setslope returns "" for pakset without `double_grounds`.
+Rewriting the iteration to walk `interesting_slopes()` (already
+hex-aware — 15 single-height slopes) gets these past the iteration
+itself — the `test_depot_build_sloped` and `test_halt_build_rail_single_tile`
+bodies carry that port today — but two concrete downstream symptoms
+still block restoration: `command_x.build_way` from a flat N
+neighbour onto a `slope.north` tile returns "" instead of null (the
+wegbauer slope-compat check looks keyed on square corner positions),
+and `setslope(all_up_slope)` a few z-levels deep trips the max-
+tile-height-diff guard (terraformer.cc still walks the 4-neighbour
+set).  Both surface before any assertion about what's being built,
+so re-enabling is a one-line flip once those fixes land.
+`test_halt_build_multi_tile` additionally runs a `tool_remove_way`
+over a bridge span whose footprint changed; fold into the bridge-
+geometry port.
 
 **Powerline 3rd hex axis.**  `test_powerline_connect / _build_below_powerbridge /
 _build_powerbridge_above_powerline / _build_transformer_multiple /
