@@ -100,7 +100,7 @@ all_tests <- [
 	test_groundobj_build_occupied,
 	test_groundobj_build_on_trees,
 	test_groundobj_build_on_slope,
-	// test_halt_build_rail_single_tile: HEX-PORT PENDING.
+	test_halt_build_rail_single_tile,
 	test_halt_build_harbour,
 	test_halt_build_flat_dock_near_water,
 	test_halt_build_flat_dock_near_water_multiple_rotations,
@@ -163,9 +163,9 @@ all_tests <- [
 	test_sign_replace_signal,
 	test_sign_signal_when_player_removed,
 	test_slope_to_dir,
-	// test_slope_can_set: HEX-PORT PENDING.
+	test_slope_can_set,
 	test_slope_set_and_restore,
-	// test_slope_get_price: HEX-PORT PENDING.
+	test_slope_get_price,
 	test_slope_set_near_map_border,
 	test_slope_restore_on_foundation,
 	test_slope_restore_on_bridge,
@@ -200,7 +200,7 @@ all_tests <- [
 	test_way_bridge_build_at_slope_stacked,
 	// test_way_bridge_build_above_way: HEX-PORT PENDING.
 	test_way_bridge_build_above_runway,
-	// test_way_bridge_planner: HEX-PORT PENDING.
+	test_way_bridge_planner,
 	test_way_road_build_single_tile,
 	// test_way_road_build_straight: HEX-PORT PENDING.
 	// test_way_road_build_bend: HEX-PORT PENDING.

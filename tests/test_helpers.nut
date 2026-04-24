@@ -156,6 +156,29 @@ function ASSERT_WAY_PATTERN_MASKED(waytype, lefttop, pattern)
 }
 
 
+// Representative single-height slopes for tests that used to iterate
+// `for sl in 0..slope.raised`.  Under the base-3 hex encoding most
+// integers in 0..363 don't decode to valid slopes; this returns the
+// 15 that do and correspond to buildable single-height terrain:
+// flat, each single-corner raised, each adjacent-pair hex edge, and
+// the 2 legacy square diagonals (`slope.east`, `slope.west`).  Omits
+// `slope.raised` (all_up_one): raising all corners uniformly shifts
+// the whole tile and breaks the cleanup some callers do after the
+// loop.
+function interesting_slopes()
+{
+	// base-3 digits for the 6 hex corners (see slope_t in ribi.h)
+	local E = 1, SE = 3, SW = 9, W = 27, NW = 81, NE = 243
+	return [
+		slope.flat,
+		E, SE, SW, W, NW, NE,                 // 6 single-corner raised
+		E + SE, SE + SW, SW + W,              // 6 hex edges: adjacent corner pairs
+		W + NW, NW + NE, NE + E,
+		SW + NW, SE + NE,                     // 2 legacy square diagonals (== slope.east/west)
+	]
+}
+
+
 function get_depot_by_wt(waytype)
 {
 	local list = building_desc_x.get_building_list(building_desc_x.depot)
