@@ -15,6 +15,11 @@ jobs:
       run: |
         sudo apt-get -y update
         sudo apt-get -ym install libbz2-dev zlib1g-dev libpng-dev autoconf clang-18 ccache moreutils
+    - name: Hex vertex self-test
+      # Sanity-check the pure topology helpers in dataobj/koord before
+      # the slow Simutrans build runs.  ~1 second; fails fast on any
+      # regression in canonical_vertex / vertex_slot_index.
+      run: make -C tools/hex_vertex_test run
     - name: Cache
       uses: actions/cache@v4
       with:

@@ -110,6 +110,43 @@ void vertex_owners(koord tile, hex_corner_t::type c, hex_vertex_t out[3])
 }
 
 
+// Canonical lex-min (tile, corner) for a world vertex.  See
+// documentation/hex-vertex-storage.md — the 6-way case table below
+// is a closed form of running vertex_owners() and picking the
+// lex-smallest tile.
+hex_vertex_t canonical_vertex(hex_vertex_t v)
+{
+	switch (v.corner) {
+		case hex_corner_t::E:  return v;
+		case hex_corner_t::SE: return v;
+		case hex_corner_t::SW: return { v.tile + koord(-1,  1), hex_corner_t::E  };
+		case hex_corner_t::W:  return { v.tile + koord(-1,  0), hex_corner_t::SE };
+		case hex_corner_t::NW: return { v.tile + koord(-1,  0), hex_corner_t::E  };
+		case hex_corner_t::NE: return { v.tile + koord( 0, -1), hex_corner_t::SE };
+		default: break; // unreachable
+	}
+	return v;
+}
+
+
+uint32 vertex_slot_count(sint16 W, sint16 H)
+{
+	return (uint32)(W + 1) * (uint32)(H + 2) * 2u;
+}
+
+
+uint32 vertex_slot_index(hex_vertex_t v, sint16 W)
+{
+	// row-major: tile-x ranges fast with stride (W+1); shift tile
+	// coords from [-1, W-1] x [-1, H] onto [0, W] x [0, H+1].
+	const uint32 q = (uint32)(v.tile.x + 1);
+	const uint32 r = (uint32)(v.tile.y + 1);
+	const uint32 w = (uint32)(W + 1);
+	const uint32 corner_bit = (v.corner == hex_corner_t::SE) ? 1u : 0u;
+	return (q + r * w) * 2u + corner_bit;
+}
+
+
 // for debug messages...
 const char *koord::get_str() const
 {

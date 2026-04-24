@@ -126,69 +126,82 @@ bool surface_t::square_is_free(koord pos, sint16 w, sint16 h, int *last_y, clima
 
 sint8 surface_t::min_hgt_nocheck(const koord k) const
 {
-	// more optimised version of min_hgt code
-	const sint8 * p = &grid_hgts[k.x + k.y*(sint32)(cached_grid_size.x+1)];
-
-	const int h1 = *p;
-	const int h2 = *(p+1);
-	const int h3 = *(p+get_size().x+2);
-	const int h4 = *(p+get_size().x+1);
-
-	return min(min(h1,h2), min(h3,h4));
+	// Minimum over the 6 hex corners of tile k.  Reads via the
+	// per-vertex accessor; canonicalisation + index lookup are
+	// cheap enough here that keeping the old pointer-arithmetic
+	// fast path isn't worth the square-shaped geometry it carries.
+	const int hE  = lookup_hgt_nocheck(k, hex_corner_t::E);
+	const int hSE = lookup_hgt_nocheck(k, hex_corner_t::SE);
+	const int hSW = lookup_hgt_nocheck(k, hex_corner_t::SW);
+	const int hW  = lookup_hgt_nocheck(k, hex_corner_t::W);
+	const int hNW = lookup_hgt_nocheck(k, hex_corner_t::NW);
+	const int hNE = lookup_hgt_nocheck(k, hex_corner_t::NE);
+	return min( min( min(hE, hSE), min(hSW, hW) ), min(hNW, hNE) );
 }
 
 
 sint8 surface_t::max_hgt_nocheck(const koord k) const
 {
-	// more optimised version of max_hgt code
-	const sint8 * p = &grid_hgts[k.x + k.y*(sint32)(cached_grid_size.x+1)];
-
-	const int h1 = *p;
-	const int h2 = *(p+1);
-	const int h3 = *(p+get_size().x+2);
-	const int h4 = *(p+get_size().x+1);
-
-	return max(max(h1,h2), max(h3,h4));
+	// Maximum over the 6 hex corners of tile k — see min_hgt_nocheck.
+	const int hE  = lookup_hgt_nocheck(k, hex_corner_t::E);
+	const int hSE = lookup_hgt_nocheck(k, hex_corner_t::SE);
+	const int hSW = lookup_hgt_nocheck(k, hex_corner_t::SW);
+	const int hW  = lookup_hgt_nocheck(k, hex_corner_t::W);
+	const int hNW = lookup_hgt_nocheck(k, hex_corner_t::NW);
+	const int hNE = lookup_hgt_nocheck(k, hex_corner_t::NE);
+	return max( max( max(hE, hSE), max(hSW, hW) ), max(hNW, hNE) );
 }
 
 
 sint8 surface_t::min_hgt(const koord k) const
 {
-	const sint8 h1 = lookup_hgt(k);
-	const sint8 h2 = lookup_hgt(k+koord(1, 0));
-	const sint8 h3 = lookup_hgt(k+koord(1, 1));
-	const sint8 h4 = lookup_hgt(k+koord(0, 1));
-
-	return min(min(h1,h2), min(h3,h4));
+	// Same as min_hgt_nocheck but bounds-checks the tile.  6 hex
+	// corners of tile k.
+	if( !is_within_limits(k) ) {
+		return groundwater;
+	}
+	return min_hgt_nocheck(k);
 }
 
 
 sint8 surface_t::max_hgt(const koord k) const
 {
-	const sint8 h1 = lookup_hgt(k);
-	const sint8 h2 = lookup_hgt(k+koord(1, 0));
-	const sint8 h3 = lookup_hgt(k+koord(1, 1));
-	const sint8 h4 = lookup_hgt(k+koord(0, 1));
-
-	return max(max(h1,h2), max(h3,h4));
+	if( !is_within_limits(k) ) {
+		return groundwater;
+	}
+	const int hE  = lookup_hgt_nocheck(k, hex_corner_t::E);
+	const int hSE = lookup_hgt_nocheck(k, hex_corner_t::SE);
+	const int hSW = lookup_hgt_nocheck(k, hex_corner_t::SW);
+	const int hW  = lookup_hgt_nocheck(k, hex_corner_t::W);
+	const int hNW = lookup_hgt_nocheck(k, hex_corner_t::NW);
+	const int hNE = lookup_hgt_nocheck(k, hex_corner_t::NE);
+	return max( max( max(hE, hSE), max(hSW, hW) ), max(hNW, hNE) );
 }
 
 
 void surface_t::get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &slope)
 {
 	if(  (k.x | k.y | (cached_grid_size.x - k.x-1) | (cached_grid_size.y - k.y-1)) >= 0  ) {
-		// inside map, so without further checks
-		const sint8 h_n = lookup_hgt_nocheck(k.x, k.y);
-		const sint8 h_w = lookup_hgt_nocheck(k.x, k.y+1);
-		const sint8 h_s = lookup_hgt_nocheck(k.x+1, k.y+1);
-		const sint8 h_e = lookup_hgt_nocheck(k.x+1, k.y);
+		// Tile is inside map — read its 6 hex corners and derive
+		// the slope; structurally the same shape as
+		// calc_natural_slope, but this variant also hands back the
+		// tile's min-corner height via the @p hgt out-param.
+		const int hE  = lookup_hgt_nocheck(k, hex_corner_t::E);
+		const int hSE = lookup_hgt_nocheck(k, hex_corner_t::SE);
+		const int hSW = lookup_hgt_nocheck(k, hex_corner_t::SW);
+		const int hW  = lookup_hgt_nocheck(k, hex_corner_t::W);
+		const int hNW = lookup_hgt_nocheck(k, hex_corner_t::NW);
+		const int hNE = lookup_hgt_nocheck(k, hex_corner_t::NE);
 
-		hgt = min(min(h_n, h_e), min(h_s, h_w));
+		hgt = (sint8)min( min( min(hE, hSE), min(hSW, hW) ),
+		                  min(hNW, hNE) );
 
-		slope  = slope_t::northwest * min(h_n - hgt, 2);
-		slope |= slope_t::northeast * min(h_e - hgt, 2);
-		slope |= slope_t::southeast * min(h_s - hgt, 2);
-		slope |= slope_t::southwest * min(h_w - hgt, 2);
+		slope  = slope_t::raised_E  * min(hE  - hgt, 2);
+		slope |= slope_t::raised_SE * min(hSE - hgt, 2);
+		slope |= slope_t::raised_SW * min(hSW - hgt, 2);
+		slope |= slope_t::raised_W  * min(hW  - hgt, 2);
+		slope |= slope_t::raised_NW * min(hNW - hgt, 2);
+		slope |= slope_t::raised_NE * min(hNE - hgt, 2);
 	}
 }
 
@@ -394,7 +407,9 @@ int surface_t::grid_lower(const player_t *player, koord k, const char*&err)
 void surface_t::raise_grid_to(sint16 x, sint16 y, sint8 h)
 {
 	if(is_within_grid_limits(x,y)) {
-		const sint32 offset = x + y*(cached_grid_size.x+1);
+		// HEX-PORT: doubled index lands on the E canonical slot of
+		// tile (x-1, y-1) — see surface.h.
+		const sint32 offset = (x + y*(cached_grid_size.x+1)) * 2;
 
 		if(  grid_hgts[offset] < h  ) {
 			grid_hgts[offset] = h;
@@ -418,7 +433,8 @@ void surface_t::raise_grid_to(sint16 x, sint16 y, sint8 h)
 void surface_t::lower_grid_to(sint16 x, sint16 y, sint8 h)
 {
 	if(is_within_grid_limits(x,y)) {
-		const sint32 offset = x + y*(cached_grid_size.x+1);
+		// HEX-PORT: doubled index — see raise_grid_to.
+		const sint32 offset = (x + y*(cached_grid_size.x+1)) * 2;
 
 		if(  grid_hgts[offset] > h  ) {
 			grid_hgts[offset] = h;
@@ -494,21 +510,29 @@ slope_t::type surface_t::calc_natural_slope( const koord k ) const
 		return slope_t::flat;
 	}
 
-	const sint8 *p = &grid_hgts[k.x + k.y*(sint32)(get_size().x+1)];
+	// Read the 6 hex corner heights for tile k via the per-vertex
+	// accessor; derive the slope from the deltas above the minimum
+	// corner.  Deltas are clamped to 2 (the max corner height under
+	// the 6-corner base-3 encoding) so pathological terrain can't
+	// overflow into an unrelated slope value.
+	const int hE  = lookup_hgt_nocheck(k, hex_corner_t::E);
+	const int hSE = lookup_hgt_nocheck(k, hex_corner_t::SE);
+	const int hSW = lookup_hgt_nocheck(k, hex_corner_t::SW);
+	const int hW  = lookup_hgt_nocheck(k, hex_corner_t::W);
+	const int hNW = lookup_hgt_nocheck(k, hex_corner_t::NW);
+	const int hNE = lookup_hgt_nocheck(k, hex_corner_t::NE);
 
-	const int h1 = *p;
-	const int h2 = *(p+1);
-	const int h3 = *(p+get_size().x+2);
-	const int h4 = *(p+get_size().x+1);
+	const int mini = min( min( min(hE, hSE), min(hSW, hW) ),
+	                      min(hNW, hNE) );
 
-	const int mini = min(min(h1,h2), min(h3,h4));
+	const int dE  = min(hE  - mini, 2);
+	const int dSE = min(hSE - mini, 2);
+	const int dSW = min(hSW - mini, 2);
+	const int dW  = min(hW  - mini, 2);
+	const int dNW = min(hNW - mini, 2);
+	const int dNE = min(hNE - mini, 2);
 
-	const int d1=h1-mini;
-	const int d2=h2-mini;
-	const int d3=h3-mini;
-	const int d4=h4-mini;
-
-	return encode_corners(d4, d3, d2, d1);
+	return encode_corners_hex(dE, dSE, dSW, dW, dNW, dNE);
 }
 
 

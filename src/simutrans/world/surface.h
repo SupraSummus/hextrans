@@ -79,7 +79,19 @@ protected:
 	planquadrat_t *plan = NULL;
 
 	/**
-	 * Array representing the height of each point of the grid.
+	 * Per-vertex height array.
+	 *
+	 * HEX-PORT: layout is `vertex_slot_count(W, H) = 2*(W+1)*(H+2)`
+	 * bytes, one slot per world vertex, indexed by canonical
+	 * `(tile, corner)` — see `documentation/hex-vertex-storage.md`
+	 * and the helpers in `dataobj/koord.h`.  The legacy `(x, y)`
+	 * grid-point API reads/writes only the even-indexed slots (the
+	 * E canonical corner of each tile), so its per-(x,y) behaviour
+	 * is unchanged at the storage layer — the odd slots (SE
+	 * canonical corners) are untouched by old callers and available
+	 * to new hex-aware callers that pass `(koord tile,
+	 * hex_corner_t::type c)`.
+	 *
 	 * @see cached_grid_size
 	 */
 	sint8 *grid_hgts = NULL;
@@ -275,11 +287,23 @@ public:
 	inline planquadrat_t *access(koord k) const { return access(k.x, k.y); }
 
 public:
+	// HEX-PORT: the legacy grid-point `(x, y)` accessors route each
+	// `(x, y)` to the E canonical slot at index `2 * (x + y*(W+1))`.
+	// This preserves "same (x, y) → same value" for every old caller
+	// while the storage is physically per-hex-vertex.  SE canonical
+	// slots are not touched by the legacy API and remain at whatever
+	// groundwater default the allocator / loader left them at — any
+	// hex-aware reader asking for SE / W / NE corners of a tile that
+	// only ever saw legacy writes will see that default.  That is
+	// the forcing function for the writer-side port (see TODO.md);
+	// do not paper over it with auto-fill shims.  New callers should
+	// use the `(koord tile, hex_corner_t::type c)` overloads below.
+
 	/**
 	 * @return Height at the grid point x,y - versions without checks for speed
 	 */
 	inline sint8 lookup_hgt_nocheck(sint16 x, sint16 y) const {
-		return grid_hgts[x + y*(cached_grid_size.x+1)];
+		return grid_hgts[(x + y*(uint32)(cached_grid_size.x+1)) * 2u];
 	}
 
 	inline sint8 lookup_hgt_nocheck(koord k) const { return lookup_hgt_nocheck(k.x, k.y); }
@@ -288,7 +312,7 @@ public:
 	 * @return Height at the grid point x,y
 	 */
 	inline sint8 lookup_hgt(sint16 x, sint16 y) const {
-		return is_within_grid_limits(x, y) ? grid_hgts[x + y*(cached_grid_size.x+1)] : groundwater;
+		return is_within_grid_limits(x, y) ? grid_hgts[(x + y*(uint32)(cached_grid_size.x+1)) * 2u] : groundwater;
 	}
 
 	inline sint8 lookup_hgt(koord k) const { return lookup_hgt(k.x, k.y); }
@@ -297,9 +321,18 @@ public:
 	 * Sets grid height.
 	 * Never set grid_hgts manually, always use this method!
 	 */
-	void set_grid_hgt_nocheck(sint16 x, sint16 y, sint8 hgt) { grid_hgts[x + y*(uint32)(cached_grid_size.x+1)] = hgt; }
+	void set_grid_hgt_nocheck(sint16 x, sint16 y, sint8 hgt) { grid_hgts[(x + y*(uint32)(cached_grid_size.x+1)) * 2u] = hgt; }
 
 	inline void set_grid_hgt_nocheck(koord k, sint8 hgt) { set_grid_hgt_nocheck(k.x, k.y, hgt); }
+
+	// HEX-PORT: hex-aware per-vertex reader.  Returns the height at
+	// world vertex `(tile, corner)` via its canonical slot — see
+	// `documentation/hex-vertex-storage.md`.  This is the read side
+	// of the port; hex-aware writers / hex_vertex_t overloads land
+	// with the writer-side port when their first caller needs them.
+	inline sint8 lookup_hgt_nocheck(koord tile, hex_corner_t::type c) const {
+		return grid_hgts[vertex_slot_index(canonical_vertex({tile, c}), cached_grid_size.x)];
+	}
 
 public:
 	/// @return water height - versions without checks for speed

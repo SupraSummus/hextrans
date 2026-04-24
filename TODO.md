@@ -63,21 +63,44 @@ connects to the producer.  Under hex iteration the mine is found
 first.  Needs a real policy choice in `suche_fab_neighbour` (prefer
 producers?  prefer nearest?), not a test edit.
 
-## Per-vertex height storage
+## Per-vertex height storage — writer-side port
 
-The most impactful remaining structural move.  `surface_t::grid_hgts`
-is already per-vertex on a square `(x+1) × (y+1)` grid; adapt its
-indexing to hex vertex topology (each hex tile owns roughly 2
-vertices, 3-way shared with neighbours) and rewrite `get_hoehe` /
-`set_grid_hgt_nocheck` accordingly.  The topology primitives
-(`hex_corner_t`, `vertex_owners()`) already exist in
-`dataobj/koord.h`; what remains is the storage layout + accessor +
-call-site rewrite.  Unblocks: `surface_t::calculate_natural_slope`,
-`surface_t::recalc_transitions`, `grund_t::display_if_visible`
-climate transitions, `terraformer.cc`'s 4-corner-to-8-neighbour
-bitmask, the `simtool.cc` water-raise flood-fill, and the tests
-under "Per-vertex grid topology" above.  All are tagged
-`HEX-PORT TODO` in the source — `grep -rn 'HEX-PORT' src/simutrans/`.
+Storage is now per-hex-vertex (see
+`documentation/hex-vertex-storage.md`, `surface_t::grid_hgts`): two
+canonical slots (E, SE) per tile, plus boundary padding.  The legacy
+`lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` API routes every
+`(x, y)` to the E canonical slot via `i*2` indexing, so old callers
+stay internally consistent.  Hex-aware readers use the
+`(koord tile, hex_corner_t::type c)` overloads and read real 6-corner
+data — but no writer yet produces any.  SE canonical slots sit at
+whatever groundwater default the allocator left them at, so a
+hex-aware reader asking for the SE / W / NE corners of a tile will
+get groundwater for three of six corners.  That is the forcing
+function for the writer-side port: do not auto-fill SE from E via a
+shim (parallel-types in spirit, violates the in-place port rule in
+`AGENTS.md`).  The real fix is to port each writer to the hex API
+and have it produce distinct E and SE values per tile.
+
+Primary writer to port first: `karte_t::perlin_hoehe_loop` +
+`karte_t::perlin_hoehe`.  Once that writes real per-vertex heights
+the existing hex readers (`calc_natural_slope`, `min/max_hgt{_nocheck}`,
+`get_height_slope_from_grid`) produce geometrically correct slopes
+and every downstream slope-consuming code path inherits hex terrain
+from the generator without further changes.  Then follow up with
+`terraformer.cc`'s raise/lower bitmask (still
+4-corner-to-8-neighbour, tagged `HEX-PORT TODO`), the
+`simtool.cc` water-raise flood-fill (square 4-neighbour), and
+`karte_t::rotate90`'s heightmap-rotation loop (90° is not a valid
+hex symmetry; the whole rotation path needs a refusal or a real
+hex rotation, tied to the viewport port).
+
+Remaining hex-aware readers still 4-corner: `recalc_natural_slope`
+with its `get_neighbour_heights[8][4]` scaffold, and the
+climate-transition bitmask in `recalc_transitions` /
+`grund_t::display_if_visible`.  Both are bigger than the readers
+that already ported — they don't just read six heights, they walk
+six neighbours and compose per-corner data.  Sketch the 6-corner
+equivalent before diving in.
 
 ## ribi_t widening — 4 bits → 6 bits
 

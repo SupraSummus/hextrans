@@ -183,6 +183,54 @@ struct hex_vertex_t {
 void vertex_owners(koord tile, hex_corner_t::type c, hex_vertex_t out[3]);
 
 
+/**
+ * Canonical (tile, corner) name for a world vertex.
+ *
+ * Every world vertex has 3 (tile, corner) names (see vertex_owners).
+ * The canonical one is the one whose tile is lex-smallest under (x, y)
+ * ordering; this always lands on corner E or SE of some tile, so the
+ * canonical corner is one of {E, SE}.  See
+ * documentation/hex-vertex-storage.md for the derivation.
+ *
+ * Passing an already-canonical vertex returns it unchanged.
+ */
+hex_vertex_t canonical_vertex(hex_vertex_t v);
+
+
+/**
+ * Number of per-vertex storage slots for a map of @p W x @p H tiles.
+ *
+ * Canonical tiles span `q ∈ [-1, W-1], r ∈ [-1, H]` — `(W+1) * (H+2)`
+ * positions, 2 corners (E, SE) each.  The `q = -1` / `r = -1`
+ * phantom row+column host vertices along the north-west map edges
+ * whose canonical owner falls one tile off-map; the `r = H` phantom
+ * row hosts vertices at the SW corner of the south-edge tiles,
+ * which canonicalise to `(q-1, r+1)` with `r+1 = H`.  The asymmetry
+ * is real — flat-top hex geometry shifts `+r` in the SW direction
+ * but never shifts `+q`, so the south edge needs an extra row that
+ * the east edge does not.
+ */
+uint32 vertex_slot_count(sint16 W, sint16 H);
+
+
+/**
+ * Flat slot index for a canonical vertex in the per-vertex height
+ * array of a map @p W tiles wide.
+ *
+ * Row-major layout matching the legacy `grid_hgts[x + y*(W+1)]`
+ * convention: tile-x ranges fast, tile-y slow, stride is `(W+1)`.
+ * Each canonical tile owns a contiguous pair (E, SE), so the old
+ * grid-point index `i = x + y*(W+1)` maps to the E canonical slot at
+ * `i*2` and the SE slot at `i*2 + 1`.
+ *
+ * Precondition: @p v is canonical (i.e. `v.corner` is E or SE), and
+ * `v.tile` lies in `[-1, W-1] x [-1, H]`.  Call canonical_vertex()
+ * first on any (tile, corner) pair that is not already known to be
+ * canonical.
+ */
+uint32 vertex_slot_index(hex_vertex_t v, sint16 W);
+
+
 // Hex axial distance (cube formula: (|dx|+|dy|+|dz|)/2 with x+y+z=0).
 // Replaces the legacy Manhattan distance; semantics are hex-grid steps
 // between two axial coords.

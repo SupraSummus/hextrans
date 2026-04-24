@@ -374,7 +374,12 @@ void karte_t::cleanup_grounds_loop( sint16 x_min, sint16 x_max, sint16 y_min, si
 void karte_t::cleanup_karte( int xoff, int yoff )
 {
 	// we need a copy to smooth the map to a realistic level
-	const sint32 grid_size = (get_size().x+1)*(sint32)(get_size().y+1);
+	// HEX-PORT: grid_hgts is per-hex-vertex now — see surface.h.
+	// The copy is full-size (E + SE slots); the raise/lower loops
+	// still iterate by grid-point `(i, j)` and touch only the E
+	// canonical slot via the doubled index.  SE slots are carried
+	// through but unmodified.
+	const sint32 grid_size = vertex_slot_count(get_size().x, get_size().y);
 	sint8 *grid_hgts_cpy = new sint8[grid_size];
 	memcpy( grid_hgts_cpy, grid_hgts, grid_size );
 
@@ -382,7 +387,7 @@ void karte_t::cleanup_karte( int xoff, int yoff )
 	sint32 i,j;
 	for(j=0; j<=get_size().y; j++) {
 		for(i=j>=yoff?0:xoff; i<=get_size().x; i++) {
-			raise_grid_to(i,j, grid_hgts_cpy[i+j*(get_size().x+1)] + 1);
+			raise_grid_to(i,j, grid_hgts_cpy[(i+j*(get_size().x+1)) * 2] + 1);
 		}
 	}
 	delete [] grid_hgts_cpy;
@@ -390,7 +395,7 @@ void karte_t::cleanup_karte( int xoff, int yoff )
 	// but to leave the map unchanged, we lower the height again
 	for(j=0; j<=get_size().y; j++) {
 		for(i=j>=yoff?0:xoff; i<=get_size().x; i++) {
-			grid_hgts[i+j*(get_size().x+1)] --;
+			grid_hgts[(i+j*(get_size().x+1)) * 2] --;
 		}
 	}
 
@@ -619,9 +624,12 @@ void karte_t::init_tiles()
 	uint32 const x = get_size().x;
 	uint32 const y = get_size().y;
 	plan      = new planquadrat_t[x * y];
-	grid_hgts = new sint8[(x + 1) * (y + 1)];
+	// HEX-PORT: grid_hgts is per-hex-vertex now — see surface.h and
+	// documentation/hex-vertex-storage.md.
+	const uint32 hgts_slots = vertex_slot_count(get_size().x, get_size().y);
+	grid_hgts = new sint8[hgts_slots];
 	max_height = min_height = 0;
-	MEMZERON(grid_hgts, (x + 1) * (y + 1));
+	MEMZERON(grid_hgts, hgts_slots);
 	water_hgts = new sint8[x * y];
 	MEMZERON(water_hgts, x * y);
 
@@ -1692,10 +1700,14 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	}
 
 	planquadrat_t *new_plan = new planquadrat_t[(uint32) new_size.x      * (uint32) new_size.y];
-	sint8 *new_grid_hgts    = new sint8        [(uint32)(new_size.x + 1) * (uint32)(new_size.y + 1)];
+	// HEX-PORT: grid_hgts is per-hex-vertex — vertex_slot_count
+	// slots, not (W+1)*(H+1).  Allocation, memset, and the
+	// migration copy loop below all carry the doubled stride.
+	const uint32 new_hgts_slots = vertex_slot_count(new_size.x, new_size.y);
+	sint8 *new_grid_hgts    = new sint8        [new_hgts_slots];
 	sint8 *new_water_hgts   = new sint8        [(uint32) new_size.x      * (uint32) new_size.y];
 
-	memset( new_grid_hgts,  groundwater, sizeof(sint8) * (new_size.x + 1) * (new_size.y + 1) );
+	memset( new_grid_hgts,  groundwater, sizeof(sint8) * new_hgts_slots );
 	memset( new_water_hgts, groundwater, sizeof(sint8) *  new_size.x      *  new_size.y );
 
 	const koord old_size = get_size();
@@ -1733,9 +1745,16 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 		}
 		for (sint16 iy = 0; iy<=old_size.y; iy++) {
 			for (sint16 ix = 0; ix<=old_size.x; ix++) {
-				uint32 nr = ix+(iy*(old_size.x+1));
-				uint32 nnr = ix+(iy*(new_size.x+1));
-				new_grid_hgts[nnr] = grid_hgts[nr];
+				// HEX-PORT: 2 canonical slots per (ix, iy) grid
+				// pair (E + SE); copy both so a future SE-writing
+				// caller survives the reshape.  The extra
+				// south-edge row at canonical r=H is left at the
+				// memset groundwater default — old storage had
+				// nothing there.
+				uint32 nr  = (ix + iy*(uint32)(old_size.x+1)) * 2;
+				uint32 nnr = (ix + iy*(uint32)(new_size.x+1)) * 2;
+				new_grid_hgts[nnr    ] = grid_hgts[nr    ];
+				new_grid_hgts[nnr + 1] = grid_hgts[nr + 1];
 			}
 		}
 		max_display_progress = 16 + sets->get_city_count()*2 + cities.get_count()*4;
@@ -1764,14 +1783,21 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 
 	if(  new_world  &&  !settings.heightfield.empty()  ) {
 		// init from file
+		// HEX-PORT: writes land on E canonical slots (doubled
+		// index).  SE slots stay at their memset groundwater
+		// default; a hex-aware importer is out of scope here.
+		const sint32 row_slots = (sint32)(cached_grid_size.x + 1) * 2;
 		for(int y=0; y<cached_grid_size.y; y++) {
 			for(int x=0; x<cached_grid_size.x; x++) {
-				grid_hgts[x + y*(cached_grid_size.x+1)] = h_field[x+(y*(sint32)cached_grid_size.x)]+1;
+				grid_hgts[(x + y*(cached_grid_size.x+1)) * 2] = h_field[x+(y*(sint32)cached_grid_size.x)]+1;
 			}
-			grid_hgts[cached_grid_size.x + y*(cached_grid_size.x+1)] = grid_hgts[cached_grid_size.x-1 + y*(cached_grid_size.x+1)];
+			grid_hgts[(cached_grid_size.x + y*(cached_grid_size.x+1)) * 2] = grid_hgts[(cached_grid_size.x-1 + y*(cached_grid_size.x+1)) * 2];
 		}
-		// lower border
-		memcpy( grid_hgts+(cached_grid_size.x+1)*(sint32)cached_grid_size.y, grid_hgts+(cached_grid_size.x+1)*(sint32)(cached_grid_size.y-1), cached_grid_size.x+1 );
+		// lower border — replicate the last in-map row one step
+		// south.  Copies the full doubled row (E + SE slots).
+		memcpy( grid_hgts + row_slots*(sint32)cached_grid_size.y,
+				grid_hgts + row_slots*(sint32)(cached_grid_size.y-1),
+				row_slots );
 		ls.set_progress(2);
 	}
 	else {
@@ -2413,15 +2439,26 @@ DBG_MESSAGE( "karte_t::rotate90()", "called" );
 	climate_map.rotate90();
 
 	// rotate heightmap
-	sint8* new_hgts = new sint8[(cached_grid_size.x + 1) * (cached_grid_size.y + 1)];
+	// HEX-PORT TODO: a 90° rotation is meaningless on a hex grid
+	// (the symmetry step is 60°).  The rotation math below is
+	// carried through under the new doubled layout so the call
+	// site still allocates/deallocates consistent memory, but the
+	// result is geometrically wrong for hex.  Ship a real hex
+	// rotation (or a refusal) with the viewport port.
+	const uint32 new_hgts_slots = vertex_slot_count(cached_grid_size.x, cached_grid_size.y);
+	sint8* new_hgts = new sint8[new_hgts_slots];
+	memset(new_hgts, groundwater, new_hgts_slots);
 	const int LOOP_BLOCK = 64;
 	for (int yy = 0; yy <= cached_grid_size.y; yy += LOOP_BLOCK) {
 		for (int xx = 0; xx <= cached_grid_size.x; xx += LOOP_BLOCK) {
 			for (int x = xx; x <= min(xx + LOOP_BLOCK, cached_grid_size.x); x++) {
 				for (int y = yy; y <= min(yy + LOOP_BLOCK, cached_grid_size.y); y++) {
-					const int nr = x + (y * (cached_grid_size.x + 1));
-					const int new_nr = (cached_grid_size.y - y) + (x * (cached_grid_size.y + 1));
-					new_hgts[new_nr] = grid_hgts[nr];
+					// Preserve both E and SE canonical slots per
+					// grid point — see the enlarge_map copy loop.
+					const int nr     = (x + y * (cached_grid_size.x + 1)) * 2;
+					const int new_nr = ((cached_grid_size.y - y) + x * (cached_grid_size.y + 1)) * 2;
+					new_hgts[new_nr    ] = grid_hgts[nr    ];
+					new_hgts[new_nr + 1] = grid_hgts[nr + 1];
 				}
 			}
 		}
@@ -4608,8 +4645,12 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 		else if(  file->is_version_less(102, 2)  )  {
 			// hgt now bytes
 			DBG_MESSAGE("karte_t::rdwr_gamestate()","loading grid for older versions");
+			// HEX-PORT: legacy saves stored one byte per grid point
+			// with layout `grid_hgts[x + y*(W+1)]`.  Route each
+			// loaded byte to the matching E canonical slot; SE
+			// slots stay at their memset groundwater default.
 			for( sint32 i=0;  i<(get_size().y+1)*(sint32)(get_size().x+1);  i++  ) {
-				file->rdwr_byte(grid_hgts[i]);
+				file->rdwr_byte(grid_hgts[i * 2]);
 			}
 		}
 
@@ -4652,8 +4693,10 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 	else {
 		if(  file->is_version_less(102, 2)  ) {
 			// not needed any more
+			// HEX-PORT: legacy save path reads from E canonical slots
+			// only — see the matching load above.
 			for(int j=0; j<(get_size().y+1)*(sint32)(get_size().x+1); j++) {
-				file->rdwr_byte(grid_hgts[j]);
+				file->rdwr_byte(grid_hgts[j * 2]);
 			}
 			DBG_MESSAGE("karte_t::rdwr_gamestate()", "saved hgt");
 		}
