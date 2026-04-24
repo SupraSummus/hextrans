@@ -17,10 +17,9 @@ On a flat-top hex grid every interior world vertex belongs to exactly
 3 tiles as a named corner.  We keep the same "one slot per world
 vertex" invariant — storing per-tile slopes is not an option, because
 terraforming a shared vertex would leave the three neighbours with
-inconsistent heights (see `tools/hex_spike/findings.md` §1).  The
-question this doc answers is: given a `hex_vertex_t` (a (tile, corner)
-pair), how do we pick the one canonical owner out of the three, and
-how do we lay out the storage?
+inconsistent heights.  The question this doc answers is: given a
+`hex_vertex_t` (a (tile, corner) pair), how do we pick the one
+canonical owner out of the three, and how do we lay out the storage?
 
 ## Canonical ownership: lex-min over tile coords
 
