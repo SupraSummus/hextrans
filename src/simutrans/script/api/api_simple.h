@@ -24,7 +24,10 @@ struct my_ribi_t {
 };
 
 struct my_slope_t {
-	uint8 data;
+	// HEX-PORT: widened to slope_t::type (sint16) so terraform-tool
+	// sentinels (ALL_UP_SLOPE = 801 etc.) and the full 0..728 slope
+	// range fit.  Was uint8 under the square 81-value encoding.
+	slope_t::type data;
 	my_slope_t(slope_t::type r) : data(r) { }
 	operator slope_t::type() const { return data; }
 };

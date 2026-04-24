@@ -16,25 +16,15 @@ class koord;
 class koord3d;
 
 /**
- * Slopes of tiles.
+ * Slopes of tiles.  Base-3 6-corner encoding: each corner holds
+ * height 0, 1 or 2; digit positions follow hex_corner_t (E=mult 1,
+ * SE=3, SW=9, W=27, NW=81, NE=243).  3^6 = 729 possible slopes,
+ * needs sint16.  Double-height slopes kept.
  */
 class slope_t {
-
-	/// Static lookup table
-	static const int flags[81];
-
-	/// Named constants for the flags table
-	enum {
-		doubles = 1 << 0, ///< two-height difference slopes
-		way_ns  = 1 << 1, ///< way possible in north-south direction
-		way_ew  = 1 << 2, ///< way possible in east-west direction
-		single  = 1 << 3, ///< way possible
-		all_up  = 1 << 4  ///< all corners raised
-	};
-
 public:
 
-	typedef sint8 type;
+	typedef sint16 type;
 
 
 	/**
@@ -43,55 +33,150 @@ public:
 	enum _type {
 		flat = 0,
 
-		northwest = 27, ///< NW corner
-		northeast = 9,  ///< NE corner
-		southeast = 3,  ///< SE corner
-		southwest = 1,  ///< SW corner
+		// 6 single-corner raised slopes (corner at height 1).  Digit
+		// positions match hex_corner_t ordering.
+		raised_E  = 1,   ///< E  corner, digit 0
+		raised_SE = 3,   ///< SE corner, digit 1
+		raised_SW = 9,   ///< SW corner, digit 2
+		raised_W  = 27,  ///< W  corner, digit 3
+		raised_NW = 81,  ///< NW corner, digit 4
+		raised_NE = 243, ///< NE corner, digit 5
 
-		north = slope_t::southeast+slope_t::southwest,	///< North slope
-		west  = slope_t::northeast+slope_t::southeast,  ///< West slope
-		east  = slope_t::northwest+slope_t::southwest,  ///< East slope
-		south = slope_t::northwest+slope_t::northeast,  ///< South slope
+		// Square-style single-corner aliases.  Under hex these name the
+		// corresponding hex corner at height 1.
+		southeast = raised_SE,
+		southwest = raised_SW,
+		northwest = raised_NW,
+		northeast = raised_NE,
 
-		all_up_one = slope_t::southwest+slope_t::southeast+slope_t::northeast+slope_t::northwest, ///all corners 1 high
-		all_up_two = slope_t::all_up_one * 2,                                                     ///all corners 2 high
+		// 2-corner "edge" slopes named by their LOW edge.  Only north
+		// and south correspond to actual hex edges; east and west
+		// under flat-top hex are 2-corner diagonals (the 2 east /
+		// 2 west corners) kept for backward compatibility with square
+		// callers that reference them.  Hex-only edges (NE, SE, SW, NW)
+		// have no named constant yet — use `raised_X + raised_Y` on
+		// the two adjacent corners.
+		north = raised_SE + raised_SW, ///< low edge N (S corners raised)
+		south = raised_NE + raised_NW, ///< low edge S (N corners raised)
+		east  = raised_NW + raised_SW, ///< 2 west corners raised (legacy square)
+		west  = raised_NE + raised_SE, ///< 2 east corners raised (legacy square)
+
+		all_up_one = raised_E + raised_SE + raised_SW + raised_W + raised_NW + raised_NE, ///< all corners 1 high (= 364)
+		all_up_two = all_up_one * 2,                                                       ///< all corners 2 high (= 728)
 
 		raised = all_up_two,    ///< special meaning: used as slope of bridgeheads and in terraforming tools (keep for compatibility)
 
 		max_number = all_up_two
 	};
 
+	/// Width of the encoding (number of distinct slope values). 3^6.
+	static const int max_slopes = 729;
+
 	/*
-	 * Macros to access the height of the 4 corners:
+	 * Macros to access the height of the 6 corners (base-3 digit
+	 * extraction).  Corner bit positions match hex_corner_t.  Each
+	 * macro returns 0, 1 or 2.
 	 */
-#define corner_sw(i)  ((i)%slope_t::southeast)                      // sw corner
-#define corner_se(i) (((i)/slope_t::southeast)%slope_t::southeast)  // se corner
-#define corner_ne(i) (((i)/slope_t::northeast)%slope_t::southeast)  // ne corner
-#define corner_nw(i)  ((i)/slope_t::northwest)                      // nw corner
+#define corner_e(i)  ((i) % 3)
+#define corner_se(i) (((i) / 3) % 3)
+#define corner_sw(i) (((i) / 9) % 3)
+#define corner_w(i)  (((i) / 27) % 3)
+#define corner_nw(i) (((i) / 81) % 3)
+#define corner_ne(i) ((i) / 243)
 
-#define encode_corners(sw, se, ne, nw) ( (sw) * slope_t::southwest + (se) * slope_t::southeast + (ne) * slope_t::northeast + (nw) * slope_t::northwest )
+/**
+ * Build a slope from 4 square corner heights.  Left for backward
+ * compatibility with square callers; sets the hex-only E and W
+ * corners to flat.  New code should prefer encode_corners_hex.
+ */
+#define encode_corners(sw, se, ne, nw) ( (sw) * slope_t::raised_SW + (se) * slope_t::raised_SE + (ne) * slope_t::raised_NE + (nw) * slope_t::raised_NW )
 
-#define is_one_high(i)   (i & 7)  // quick method to know whether a slope is one high - relies on two high slopes being divisible by 8 -> i&7=0 (only works for slopes with flag single)
+/// Build a slope from 6 hex corner heights.  Argument order matches
+/// hex_corner_t.
+#define encode_corners_hex(e, se, sw, w, nw, ne) \
+	( (e)  * slope_t::raised_E  + (se) * slope_t::raised_SE \
+	+ (sw) * slope_t::raised_SW + (w)  * slope_t::raised_W  \
+	+ (nw) * slope_t::raised_NW + (ne) * slope_t::raised_NE )
 
-	/// Compute the slope opposite to @p x. Returns flat if @p x does not allow ways on it.
-	static type opposite(type x) { return is_single(x) ? (is_one_high(x) ? (slope_t::all_up_one - x) : (slope_t::all_up_two - x)) : flat; }
-	/// Rotate.
-	static type rotate90(type x) { return ( ( (x % slope_t::southeast) * slope_t::northwest ) + ( ( x - (x % slope_t::southeast) ) / slope_t::southeast ) ); }
-	/// Returns true if @p x has all corners raised.
-	static bool is_all_up(type x) { return (flags[x] & all_up)>0; }
-	/// Returns maximal height difference between the corners of this slope.
-	static uint8 max_diff(type x) { return (x!=0)+(flags[x]&doubles); }
-	/// Computes minimum height differnce between corners of  @p high and @p low.
-	static sint8 min_diff(type high, type low) { return min( min( corner_sw(high) - corner_sw(low), corner_se(high)-corner_se(low) ), min( corner_ne(high) - corner_ne(low), corner_nw(high) - corner_nw(low) ) ); }
+/// True if no corner is at height 2 (i.e. only uses 0/1), i.e. a
+/// "single" slope.  Tests that every base-3 digit is < 2 by the
+/// usual trick: `x % 2 == x` iff x == 0 or 1.  Equivalent to
+/// `!(flags[i] & doubles)` but without the table lookup.
+#define is_one_high(i) (!slope_t::has_double_corner(i))
 
-	/// Returns if slope prefers certain way directions (either n/s or e/w).
-	static bool is_single(type x) { return (flags[x] & single) != 0; }
-	/// Returns if way can be build on this slope.
-	static bool is_way(type x)  { return (flags[x] & (way_ns | way_ew)) != 0; }
-	/// Returns if way in n/s direction can be build on this slope.
-	static bool is_way_ns(type x)  { return (flags[x] & way_ns) != 0; }
-	/// Returns if way in e/w direction can be build on this slope.
-	static bool is_way_ew(type x)  { return (flags[x] & way_ew) != 0; }
+	/// True if @p x has any corner at height 2.  Equivalent to the
+	/// old `doubles` flag; used by max_diff and the is_one_high macro.
+	static bool has_double_corner(type x) {
+		return corner_e(x) == 2 || corner_se(x) == 2 || corner_sw(x) == 2
+		    || corner_w(x) == 2 || corner_nw(x) == 2 || corner_ne(x) == 2;
+	}
+
+	/// Compute the slope opposite to @p x (flip each corner 0↔1 for
+	/// single-height slopes, 0↔2 for double-height).  Returns flat if
+	/// @p x does not allow ways on it.
+	static type opposite(type x) { return is_single(x) ? (is_one_high(x) ? (type)(slope_t::all_up_one - x) : (type)(slope_t::all_up_two - x)) : flat; }
+
+	/// Rotate by 60° clockwise (cyclically shift base-3 digits by 1
+	/// position).  The 4-corner rotate90 is gone — hex has 6
+	/// rotational positions so one step is 60°.  Callers that
+	/// semantically wanted a quarter-turn (e.g. building-layout
+	/// 4-cycles) are broken and need explicit auditing.
+	static type rotate60(type x) { return (type)(((x % raised_NE) * 3) + (x / raised_NE)); }
+
+	/// Returns true if @p x has all corners raised (either all 1 or all 2).
+	static bool is_all_up(type x) { return x == all_up_one || x == all_up_two; }
+
+	/// Maximum corner-height difference across this slope.  0 for
+	/// flat, 1 for single-height, 2 for double-height.
+	static uint8 max_diff(type x) { return x != flat ? (has_double_corner(x) ? 2 : 1) : 0; }
+
+	/// Computes minimum corner-height difference between @p high and @p low.
+	static sint8 min_diff(type high, type low) {
+		return min( min( min( corner_e(high)  - corner_e(low),  corner_se(high) - corner_se(low) ),
+		                 min( corner_sw(high) - corner_sw(low), corner_w(high)  - corner_w(low) ) ),
+		            min( corner_nw(high) - corner_nw(low), corner_ne(high) - corner_ne(low) ) );
+	}
+
+	/// Edge slopes that host a way along one direction: 6 genuine hex
+	/// edges (2 adjacent corners raised) plus 2 legacy square-diagonal
+	/// slopes (east = NW+SW, west = NE+SE) — each at single and double
+	/// height.  east and west don't correspond to real hex edges but
+	/// are kept buildable so square-era buildings (docks, harbours)
+	/// still place during the port.
+	static bool is_single(type x) {
+		switch (x) {
+			case raised_E  + raised_SE: case 2 * (raised_E  + raised_SE):
+			case raised_SE + raised_SW: case 2 * (raised_SE + raised_SW):
+			case raised_SW + raised_W:  case 2 * (raised_SW + raised_W):
+			case raised_W  + raised_NW: case 2 * (raised_W  + raised_NW):
+			case raised_NW + raised_NE: case 2 * (raised_NW + raised_NE):
+			case raised_NE + raised_E:  case 2 * (raised_NE + raised_E):
+			case east: case 2 * east:
+			case west: case 2 * west:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	/// Way allowed on this slope: flat, any edge slope, or all-up.
+	static bool is_way(type x) { return x == flat || is_single(x) || is_all_up(x); }
+
+	/// Does this slope's edge lie along the N-S axis?  True for the 2
+	/// hex N/S edges (= ::north and ::south) at single or double
+	/// height, plus all-up (way in any axis).  Legacy 2-axis split;
+	/// hex has 3 axes — the NE-SW and NW-SE edge slopes aren't covered
+	/// by either predicate yet.
+	static bool is_way_ns(type x) {
+		return x == north || x == 2 * north || x == south || x == 2 * south || is_all_up(x);
+	}
+
+	/// Does this slope's edge lie along the E-W axis?  True for the 2
+	/// legacy ::east and ::west constants (which under flat-top hex
+	/// are 2-corner diagonals, not real edges) plus all-up.
+	static bool is_way_ew(type x) {
+		return x == east || x == 2 * east || x == west || x == 2 * west || is_all_up(x);
+	}
 };
 
 

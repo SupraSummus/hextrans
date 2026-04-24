@@ -85,10 +85,10 @@ int leitung_t::gimme_neighbours(leitung_t **conn)
 }
 
 
-fabrik_t *leitung_t::suche_fab_4(const koord pos)
+fabrik_t *leitung_t::suche_fab_neighbour(const koord pos)
 {
-	for(int k=0; k<4; k++) {
-		fabrik_t *fab = fabrik_t::get_fab( pos+koord::nesw[k] );
+	for(size_t k=0; k<lengthof(koord::neighbours); k++) {
+		fabrik_t *fab = fabrik_t::get_fab( pos+koord::neighbours[k] );
 		if(fab) {
 			return fab;
 		}
@@ -553,7 +553,7 @@ void pumpe_t::finish_rd()
 	if(  fab==NULL  ) {
 		if(welt->lookup(get_pos())->ist_karten_boden()) {
 			// on surface, check around
-			fab = leitung_t::suche_fab_4(get_pos().get_2d());
+			fab = leitung_t::suche_fab_neighbour(get_pos().get_2d());
 		}
 		else {
 			// underground, check directly above
@@ -815,7 +815,7 @@ void senke_t::finish_rd()
 	if(  fab==NULL  ) {
 		if(welt->lookup(get_pos())->ist_karten_boden()) {
 			// on surface, check around
-			fab = leitung_t::suche_fab_4(get_pos().get_2d());
+			fab = leitung_t::suche_fab_neighbour(get_pos().get_2d());
 		}
 		else {
 			// underground, check directly above

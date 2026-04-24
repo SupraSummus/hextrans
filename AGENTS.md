@@ -62,11 +62,8 @@ per-tile, like the legacy code does today, will produce inconsistent
 terrain across shared vertices the moment terraforming touches it. The
 fix is to store heights per-vertex and derive slopes — the same
 pattern as the existing `surface_t::grid_hgts` array, but with a
-denser, irregular vertex topology. This has to be designed before the
-slope and terraform code can be ported.
-
-The 6-corner slope encoding fits in `uint16_t` (3⁶ = 729). Slope width
-is the easy part; the spike confirmed that.
+denser, irregular vertex topology. The terraform, flood-fill and
+climate-transition code can't be ported cleanly until this lands.
 
 ## TODO file rules
 
@@ -104,20 +101,26 @@ Per-test, decide:
 
 *Migrate* when the invariant survives the port and only the assertions
 are square-specific (e.g. asserts 4-way vertex sharing, 4-corner slope
-names, 8-way neighbour iteration). Remove the entry from
-`tests/all_tests.nut`, keep the function body in its test file with a
-header comment that names the invariant and explains what needs to
-change under hex, and add a paragraph to `TODO.md` listing it as
-pending with the trigger for restoration (typically "after slope_t is
-6-corner" or "after ribi widens to 6 bits"). The function is left in
-place as part of the live migration plan — while the port is in
-flight it is useful reference for the hex rewrite; delete the function
-together with the TODO entry at restoration time.
+names, 8-way neighbour iteration). Comment the entry out of
+`tests/all_tests.nut` with a short `// foo: HEX-PORT PENDING.` tag —
+the commented entry is a deliberate in-context registry of what still
+needs attention, so someone scanning the test list notices it without
+cross-referencing. Keep the function body in its test file with a
+one-line `// foo: HEX-PORT PENDING.` tag just above `function
+foo()` (the detail lives in `TODO.md`, not duplicated per-test),
+and add a paragraph to `TODO.md` listing it as pending with the
+trigger for restoration (typically "after per-vertex height storage
+lands" or "after ribi widens to 6 bits"). The function body is left
+in place as part of the live migration plan — while the port is in
+flight it is useful reference for the hex rewrite; delete the
+function, the `all_tests.nut` comment and the TODO entry together
+at restoration time.
 
 *Delete* when the invariant is a purely square-grid geometric property
 — e.g. a test that asserts the exact shape of an 8-neighbour climate
 transition mask. Remove the function and the `all_tests.nut` entry
-together. No TODO.md entry either; git history has the record.
+together, without leaving a commented stub. No TODO.md entry either;
+git history has the record.
 
 *Fix* when the test is correct and the code is the regression. Fix the
 code.

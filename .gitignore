@@ -41,3 +41,5 @@ vcpkg_installed/
 UpgradeLog.htm
 src/linux/com.simutrans.Simutrans.metainfo.xml
 src/android/AndroidAppSettings.cfg
+/configure
+/run-automated-tests.sh

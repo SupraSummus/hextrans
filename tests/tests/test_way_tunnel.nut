@@ -9,6 +9,7 @@
 //
 
 
+// test_way_tunnel_build_straight: HEX-PORT PENDING.
 function test_way_tunnel_build_straight()
 {
 	local digger = command_x(tool_build_tunnel)
@@ -190,6 +191,7 @@ function test_way_tunnel_build_straight()
 }
 
 
+// test_way_tunnel_build_up_down: HEX-PORT PENDING.
 function test_way_tunnel_build_up_down()
 {
 	local digger = command_x(tool_build_tunnel)
@@ -396,6 +398,7 @@ function test_way_tunnel_build_up_down()
 }
 
 
+// test_way_tunnel_build_above_tunnel_slope: HEX-PORT PENDING.
 function test_way_tunnel_build_above_tunnel_slope()
 {
 	// Tests building on the tile above the top of a tunnel slope in pak64
@@ -449,6 +452,7 @@ function test_way_tunnel_build_above_tunnel_slope()
 }
 
 
+// test_way_tunnel_build_across_tunnel_slope: HEX-PORT PENDING.
 function test_way_tunnel_build_across_tunnel_slope()
 {
 	local pl = player_x(0)
@@ -509,6 +513,7 @@ function test_way_tunnel_build_across_tunnel_slope()
 }
 
 
+// test_way_tunnel_make_public: HEX-PORT PENDING.
 function test_way_tunnel_make_public()
 {
 	local pl = player_x(0)

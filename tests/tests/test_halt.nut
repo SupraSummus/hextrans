@@ -9,6 +9,7 @@
 //
 
 
+// test_halt_build_rail_single_tile: HEX-PORT PENDING.
 function test_halt_build_rail_single_tile()
 {
 	local pl = player_x(0)

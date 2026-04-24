@@ -57,7 +57,7 @@ public:
 
 	koord(sint16 xp, sint16 yp) : x(xp), y(yp) {}
 	koord(ribi_t::ribi ribi) { *this = from_ribi[ribi]; }
-	koord(slope_t::type slope) { *this = from_hang[slope]; }
+	koord(slope_t::type slope); // defined in koord.cc
 
 	// use this instead of koord(simrand(x),simrand(y)) to avoid
 	// different order on different compilers
@@ -130,8 +130,57 @@ public:
 
 private:
 	static const koord from_ribi[16];
-	static const koord from_hang[81];
 };
+
+
+/**
+ * Hex vertex topology.
+ *
+ * Flat-top hex tiles have 6 CORNERS (vertices), indexed 0..5 clockwise
+ * from due-east. Flat-top hexes have NO due-N or due-S corner; the 6
+ * vertices sit at angles 0°, 60°, 120°, 180°, 240°, 300° from the tile
+ * centre. See AGENTS.md → "Direction naming convention".
+ *
+ * Every world vertex is shared by exactly 3 tiles (vs 4 for a square
+ * corner), so 3 distinct (tile, corner) pairs refer to the same vertex;
+ * use vertex_owners() to enumerate the canonical set.
+ *
+ * These primitives are the foundation that per-vertex height storage,
+ * the slope_t rewrite (to 6-corner encoding) and the viewport
+ * projection all build on. Lifted from tools/hex_spike/hex_spike.cc.
+ */
+struct hex_corner_t {
+	enum type : uint8 {
+		E  = 0,
+		SE = 1,
+		SW = 2,
+		W  = 3,
+		NW = 4,
+		NE = 5,
+		count = 6
+	};
+};
+
+
+/// A tile-corner name for a world vertex. Since each hex vertex is
+/// shared by 3 tiles, 3 distinct (tile, corner) pairs refer to the same
+/// world vertex — see vertex_owners().
+struct hex_vertex_t {
+	koord tile;
+	hex_corner_t::type corner;
+};
+
+
+/**
+ * Writes the 3 (tile, corner) names of the world vertex at corner @p c
+ * of tile @p k into @p out. The first entry is (k, c) itself.
+ *
+ * Geometry: corner c is between the neighbours reached through edges
+ * (c+5)%6 and c in koord::neighbours ordering; seen from each of those
+ * two neighbouring tiles, the same world vertex sits at a corner index
+ * rotated by 2 positions.
+ */
+void vertex_owners(koord tile, hex_corner_t::type c, hex_vertex_t out[3]);
 
 
 // Hex axial distance (cube formula: (|dx|+|dy|+|dz|)/2 with x+y+z=0).

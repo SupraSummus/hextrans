@@ -13,8 +13,9 @@
 #include "ground_desc.h"
 #include "../dataobj/environment.h"
 
-//const int totalslopes_single = 16;
-const int totalslopes = 81;
+// Number of possible slope values under the 6-corner base-3 encoding.
+// 3^6 = 729.  Was 81 under square 4-corner base-3.
+const int totalslopes = slope_t::max_slopes;
 
 
 /****************************************************************************************************
@@ -307,19 +308,40 @@ static image_t* create_texture_from_tile(const image_t* image, const image_t* re
 karte_t *ground_desc_t::world = NULL;
 
 
-/* convert double to single slopes
- */
-const uint8 ground_desc_t::slopetable[80] =
+// Map a 6-corner slope to the pakset's 15 single-height square sprite
+// indices.  Only slopes whose E and W corners are flat (i.e. encode
+// square-like geometry) have a matching sprite; all others return
+// 0xFF.  Callers must handle the "no sprite" case.
+//
+// all_up_two (all 6 corners at height 2 — the bridgehead / flat-top
+// sentinel) returns sprite 0 (the flat sprite), since it renders
+// visually as a flat tile at a raised altitude.  Old square code
+// skipped all_up_two in the sprite-generation loop (loop bound 79,
+// not 80) which coincidentally meant climate-sprite lookup for
+// all_up_two read past the end of the climate sprite block.  We fix
+// that by mapping it to the flat sprite explicitly.
+uint8 ground_desc_t::slopetable(slope_t::type slope)
 {
-	0,    1,    0xFF, 2,    3,    0xFF, 0xFF, 0xFF, 0xFF, 4,
-	5,    0xFF, 6,    7,    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 8,    9,    0xFF,
-	10,   11,   0xFF, 0xFF, 0xFF, 0xFF, 12,   13,   0xFF, 14,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
-};
+	switch (slope) {
+		case 0:                                                               return 0;  // flat
+		case slope_t::all_up_two:                                             return 0;  // flat-top bridgehead
+		case slope_t::raised_SW:                                              return 1;  // SW
+		case slope_t::raised_SE:                                              return 2;  // SE
+		case slope_t::raised_SE + slope_t::raised_SW:                         return 3;  // slope_t::north
+		case slope_t::raised_NE:                                              return 4;  // NE
+		case slope_t::raised_NE + slope_t::raised_SW:                         return 5;  // NE+SW
+		case slope_t::raised_NE + slope_t::raised_SE:                         return 6;  // slope_t::west
+		case slope_t::raised_NE + slope_t::raised_SE + slope_t::raised_SW:    return 7;  // 3 south-ish
+		case slope_t::raised_NW:                                              return 8;  // NW
+		case slope_t::raised_NW + slope_t::raised_SW:                         return 9;  // slope_t::east
+		case slope_t::raised_NW + slope_t::raised_SE:                         return 10; // NW+SE
+		case slope_t::raised_NW + slope_t::raised_SE + slope_t::raised_SW:    return 11;
+		case slope_t::raised_NW + slope_t::raised_NE:                         return 12; // slope_t::south
+		case slope_t::raised_NW + slope_t::raised_NE + slope_t::raised_SW:    return 13;
+		case slope_t::raised_NW + slope_t::raised_NE + slope_t::raised_SE:    return 14;
+		default: return 0xFF;
+	}
+}
 
 
 // since we only use valid slope (to gain some more image slots) we use this lookup table
@@ -331,7 +353,7 @@ const uint8 ground_desc_t::slopetable[80] =
 	44, 255, 255, 45, 255, 255, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55,
 	56, 57, 58, 255, 255, 59, 255, 255, 60, 61, 62, 63, 255, 255, 64, 255, 255
 */
-uint16 doubleslope_to_imgnr[81];
+uint16 doubleslope_to_imgnr[totalslopes];
 
 
 // how many animation stages we got for waves
@@ -463,8 +485,12 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	image_t *final_tile = NULL;
 
 	bool full_climate = true;
-	// check if there are double slopes available
-	for(  int imgindex = 16;  imgindex < totalslopes;  imgindex++  ) {
+	// check if there are double slopes available.  Pakset art uses the
+	// old 4-corner slope-value indexing (81 images, indices 0..80);
+	// don't scan beyond 81 here — `totalslopes` was widened to 729 for
+	// the 6-corner encoding but paksets haven't been regenerated, and
+	// a NULL at index 81+ doesn't mean the pakset is single-height.
+	for(  int imgindex = 16;  imgindex < 81;  imgindex++  ) {
 		if(  light_map->get_image_ptr(imgindex) == NULL  ) {
 			double_grounds = false;
 			break;
@@ -487,9 +513,19 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		all_rotations_slope[slope] = NULL;
 		doubleslope_to_imgnr[slope] = 255;
 
-		if(  slope != 80  &&  (slope_t::is_all_up(slope)  ||  (!double_grounds  &&  slope_t::max_diff(slope)>1)  )  ) {
-			// no need to initialize unneeded slopes
-			// slope 80 is needed below
+		if(  slope != slope_t::all_up_two  &&  (slope_t::is_all_up(slope)  ||  (!double_grounds  &&  slope_t::max_diff(slope)>1)  )  ) {
+			// no need to initialize unneeded slopes — all_up_two is
+			// kept below as a special case (bridgehead / flat-top).
+			continue;
+		}
+		// Under the 6-corner hex encoding most slope values have no
+		// sprite in the square pakset; skip those too to avoid
+		// generating garbage single-pixel tiles for every hex-corner
+		// configuration.  all_up_two passes through — it's the
+		// bridgehead / flat-top sentinel and the big switch below
+		// assigns a dedicated sprite for it via the inner full-climate
+		// branch.
+		if(  !double_grounds  &&  slope != slope_t::all_up_two  &&  slopetable(slope) == 0xFF  ) {
 			continue;
 		}
 
@@ -806,7 +842,12 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 							all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(11)->copy_rotate(0);
 							break;
 						}
-						case slope_t::southwest * 2 + slope_t::northeast * 2 + slope_t::southeast * 2 + slope_t::northwest * 2: {
+						case slope_t::all_up_two: {
+							// All 6 corners at height 2 — bridgehead
+							// / flat-top sentinel.  Old square code
+							// wrote this case as 4-corner-sum * 2,
+							// which under hex resolves to a different
+							// slope value.
 							all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(14)->copy_rotate(0);
 							all_rotations_beach[slope] = transition_water_texture->get_image_ptr(11)->copy_rotate(0);
 							break;
@@ -815,7 +856,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 				}
 				else {
 					all_rotations_slope[slope] = NULL;
-					if (slope == slope_t::southwest * 2 + slope_t::northeast * 2 + slope_t::southeast * 2 + slope_t::northwest * 2) {
+					if (slope == slope_t::all_up_two) {
 						all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(0)->copy_rotate(0);
 						all_rotations_beach[slope] = transition_water_texture->get_image_ptr(0)->copy_rotate(0);
 					}
@@ -839,7 +880,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 		for(uint16 stage = 0; stage < water_animation_stages; stage++) {
 			if(  doubleslope_to_imgnr[dslope] != 255  ) {
-				int slope = double_grounds ? dslope : slopetable[dslope];
+				int slope = double_grounds ? dslope : slopetable(dslope);
 				final_tile = create_textured_tile( light_map->get_image_ptr( slope ), water_stage_texture[stage], true);
 				ground_image_list.append( final_tile );
 			}
@@ -856,7 +897,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		climate_image[i] = gfx->get_image_count();
 		for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 			if(  doubleslope_to_imgnr[dslope] != 255  ) {
-				int slope = double_grounds ? dslope : slopetable[dslope];
+				int slope = double_grounds ? dslope : slopetable(dslope);
 				final_tile = create_textured_tile( light_map->get_image_ptr( slope ), boden_texture->get_image_ptr( i+1 ) );
 				ground_image_list.append( final_tile );
 			}
@@ -866,7 +907,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	climate_image[number_of_climates] = final_tile->get_id() + 1;
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 		if(  doubleslope_to_imgnr[dslope] != 255  ) {
-			int slope = double_grounds ? dslope : slopetable[dslope];
+			int slope = double_grounds ? dslope : slopetable(dslope);
 			final_tile = create_textured_tile( light_map->get_image_ptr( slope ), boden_texture->get_image_ptr( arctic_climate ) );
 			ground_image_list.append( final_tile );
 		}
@@ -875,7 +916,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	// alpha slopes for snowline
 	for(  int dslope = 1;  dslope < totalslopes - 1;  dslope++  ) {
 		if(  doubleslope_to_imgnr[dslope] != 255  ) {
-			int slope = double_grounds ? dslope : slopetable[dslope];
+			int slope = double_grounds ? dslope : slopetable(dslope);
 			final_tile = create_alpha_tile( light_map->get_image_ptr( slope ), dslope, all_rotations_slope[dslope] );
 			alpha_image[dslope] = final_tile->get_id();
 		}
@@ -889,15 +930,19 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		for(  int corners = 1;  corners < 16;  corners++  ) {
 			if(  doubleslope_to_imgnr[dslope] != 255  ) {
 				// slope of tile
-				int slope = double_grounds ? dslope : slopetable[dslope];
-				// corners with transition
-				uint8 double_corners = corners == 15 ? 80 : slope_from_slope4(slope4_t(corners), 1);
+				int slope = double_grounds ? dslope : slopetable(dslope);
+				// Corners with transition.  `corners == 15` used to
+				// resolve to the magic value 80 (= old all_up_two
+				// sentinel) under the 4-corner encoding; under the
+				// 6-corner base-3 encoding the equivalent sentinel is
+				// slope_t::all_up_two (=728), which needs uint16.
+				slope_t::type double_corners = corners == 15 ? slope_t::all_up_two : slope_from_slope4(slope4_t(corners), 1);
 
 				// create alpha image
 				final_tile = create_alpha_tile( light_map->get_image_ptr( slope ), dslope, all_rotations_slope[double_corners] );
 				alpha_corners_image[dslope * 15 + corners - 1] = final_tile->get_id();
 
-				double_corners = corners == 15 ? 80 : slope_from_slope4(slope4_t(15-corners), 1);
+				double_corners = corners == 15 ? slope_t::all_up_two : slope_from_slope4(slope4_t(15-corners), 1);
 				if(  all_rotations_beach[double_corners]  ) {
 					final_tile = create_alpha_tile( light_map->get_image_ptr( slope ), dslope, all_rotations_beach[double_corners] );
 					alpha_water_image[dslope * 15 + corners - 1] = final_tile->get_id();

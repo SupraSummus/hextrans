@@ -86,20 +86,18 @@ namespace script_api {
 
 	void coordinate_transform_t::slope_w2sq(slope_t::type &s)
 	{
-		if (s < slope_t::max_number) {
-			for(uint8 i=1; i <= 4-rotation; i++) {
-				s = slope_t::rotate90(s);
-			}
-		}
+		// HEX-PORT: was rotate90 × (4-rotation) under the square quarter-
+		// turn rotation model; under hex one rotation step is 60° and
+		// the game still has 4 rotation states, so 4 rotate60's = 240°
+		// ≠ identity.  Until the rotation state widens to hex this
+		// transform is a no-op — scripts see world coords unrotated.
+		(void)s;
 	}
 
 	void coordinate_transform_t::slope_sq2w(slope_t::type &s)
 	{
-		if (s < slope_t::max_number) {
-			for(uint8 i=1; i <= rotation; i++) {
-				s = slope_t::rotate90(s);
-			}
-		}
+		// HEX-PORT: see slope_w2sq — no-op during the hex-port transition.
+		(void)s;
 	}
 
 // integer arguments
@@ -361,16 +359,20 @@ namespace script_api {
 		return ribi;
 	}
 // slopes
+	// HEX-PORT: widened to int across the Squirrel boundary — slope_t::type
+	// is sint16 under 6-corner base-3 (3^6 = 729 slopes) and terraform
+	// sentinels (ALL_UP_SLOPE = 801 etc.) live outside that range again.
+	// Used to be uint8, which truncated both slopes ≥ 256 and sentinels.
 	SQInteger param<my_slope_t>::push(HSQUIRRELVM vm, my_slope_t const& v)
 	{
 		slope_t::type slope = v;
 		coordinate_transform_t::slope_w2sq(slope);
-		return param<uint8>::push(vm, slope);
+		return param<int>::push(vm, slope);
 	}
 
 	my_slope_t param<my_slope_t>::get(HSQUIRRELVM vm, SQInteger index)
 	{
-		slope_t::type slope = param<uint8>::get(vm, index);
+		slope_t::type slope = (slope_t::type) param<int>::get(vm, index);
 		coordinate_transform_t::slope_sq2w(slope);
 		return slope;
 	}

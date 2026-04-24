@@ -1206,12 +1206,12 @@ bool minimap_t::infowin_event(const event_t *ev)
 const fabrik_t* minimap_t::get_factory_near( const koord, bool enlarge ) const
 {
 	const fabrik_t *fab = fabrik_t::get_fab(last_world_pos);
-	for(  int i=0;  i<4  && fab==NULL;  i++  ) {
-		fab = fabrik_t::get_fab( last_world_pos+koord::nesw[i] );
+	for(  size_t i=0;  i<lengthof(koord::neighbours)  && fab==NULL;  i++  ) {
+		fab = fabrik_t::get_fab( last_world_pos+koord::neighbours[i] );
 	}
 	if(  enlarge  ) {
-		for(  int i=0;  i<4  && fab==NULL;  i++  ) {
-			fab = fabrik_t::get_fab( last_world_pos+koord::nesw[i]*2 );
+		for(  size_t i=0;  i<lengthof(koord::neighbours)  && fab==NULL;  i++  ) {
+			fab = fabrik_t::get_fab( last_world_pos+koord::neighbours[i]*2 );
 		}
 	}
 	return fab;

@@ -1515,12 +1515,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 			if(  gr->is_water()  &&  gr->get_hoehe()==groundwater  &&  gr->kann_alle_obj_entfernen(NULL)==NULL) {
 				koord k( ix, iy );
 				uint8 neighbour_water = 0;
-				// HEX-PORT TODO: this beach-detection uses square 8-neighbour
-				// orientation tests with `& 7` masking; needs rethinking for
-				// hex topology.  Kept structurally as-is (water[] sized 8,
-				// trailing entries default-initialised to 0) so the masked
-				// reads don't access garbage.
-				bool water[8] = {};
+				bool water[6] = {};
 				sint16 total_ground = 0;
 				// check whether nearby tiles are water
 				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
@@ -1528,7 +1523,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 						total_ground++;
 						if( gr2->hat_weg( water_wt ) ) {
 							// never ever make a beach near a river mound
-							neighbour_water = 8;
+							neighbour_water = 6;
 							break;
 						}
 						if(  gr2->is_water()  ) {
@@ -1538,10 +1533,14 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 					}
 				}
 
-				// make a count of nearby tiles - where tiles on opposite (+-1 direction) sides are water these count much more so we don't block straits
+				// make a count of nearby tiles - where tiles on roughly-opposite sides are water these
+				// count much more so we don't block straits. On hex 6 neighbours, the opposite direction
+				// of i is (i+3)%6; (i+2)%6 and (i+4)%6 are the adjacents either side of opposite. This
+				// matches the 8-neighbour version's +3/+4/+5 span (3 consecutive directions centred on
+				// the opposite side).
 				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 					if(  water[i]  ) {
-						if(  water[(i + 3) & 7]  ||  water[(i + 4) & 7]  ||  water[(i + 5) & 7]  ) {
+						if(  water[(i + 2) % 6]  ||  water[(i + 3) % 6]  ||  water[(i + 4) % 6]  ) {
 							neighbour_water++;
 						}
 					}
@@ -1574,9 +1573,11 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 						neighbour_water++;
 					}
 				}
-				// HEX-PORT TODO: threshold 3 was tuned for 8 neighbours; with
-				// 6 hex neighbours the headland heuristic needs re-tuning.
-				if(  neighbour_water > 3  ) {
+				// Headland: flip to the low-elevation climate when at least half the neighbours
+				// are water. Square version was `> 3` of 8 (≥ 4 = half); hex equivalent is
+				// `> 2` of 6 (≥ 3 = half). Still a rough heuristic; may want re-tuning once
+				// hex gameplay is observable.
+				if(  neighbour_water > 2  ) {
 					access_nocheck(k)->set_climate( get_climate_at_height( groundwater + 1 ) );
 				}
 			}
@@ -1589,10 +1590,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 			koord k( ix, iy );
 			if(  access_nocheck(k)->get_climate()  ==  desert_climate  ) {
 				uint8 neighbour_beach = 0;
-				//look up neighbouring climates
-				// HEX-PORT TODO: 4-corner climate-corner scan below uses
-				// `& 7` masking; storage stays [8] for now.
-				climate neighbour_climate[8] = {};
+				climate neighbour_climate[6] = {};
 				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 					koord k_neighbour = k + koord::neighbours[i];
 					if(  !is_within_limits(k_neighbour)  ) {
@@ -1601,10 +1599,20 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 					neighbour_climate[i] = get_climate( k_neighbour );
 				}
 
-				// get transition climate - look for each corner in turn
-				for( int i = 0;  i < 4;  i++  ) {
-					climate transition_climate = (climate) max( max( neighbour_climate[(i * 2 + 1) & 7], neighbour_climate[(i * 2 + 3) & 7] ), neighbour_climate[(i * 2 + 2) & 7] );
-					climate min_climate = (climate) min( min( neighbour_climate[(i * 2 + 1) & 7], neighbour_climate[(i * 2 + 3) & 7] ), neighbour_climate[(i * 2 + 2) & 7] );
+				// Look for beach transitions at each of the 6 hex corners. A hex vertex is shared
+				// by 3 tiles — the current tile plus the 2 neighbours through the edges adjacent
+				// to that corner (see vertex_owners() in dataobj/koord.h). Corner c sits between
+				// neighbour dir (c+5)%6 and neighbour dir c. A corner counts as a beach if at
+				// least one of those 2 neighbours is at or below desert AND the other is not
+				// strictly above desert — i.e. both are desert-or-below and at least one is
+				// desert. This matches the square version's "transition climate == desert AND
+				// min climate ≤ desert" semantics over its 3 corner-adjacent tiles, adapted to
+				// the 2 non-self tiles per hex vertex.
+				for( int i = 0;  i < 6;  i++  ) {
+					const climate n0 = neighbour_climate[(i + 5) % 6];
+					const climate n1 = neighbour_climate[i];
+					const climate transition_climate = (climate) max( n0, n1 );
+					const climate min_climate        = (climate) min( n0, n1 );
 					if(  min_climate <= desert_climate  &&  transition_climate == desert_climate  ) {
 						neighbour_beach++;
 					}
@@ -4611,10 +4619,13 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 			// now part of the grund_t structure
 			for (int y = 0; y < get_size().y; y++) {
 				for (int x = 0; x < get_size().x; x++) {
-					sint8 slope;
-					file->rdwr_byte(slope);
-					// convert slopes from old single height saved game
-					slope = slope_from_slope4(slope4_t(slope), env_t::pak_height_conversion_factor);
+					sint8 raw_slope4;
+					file->rdwr_byte(raw_slope4);
+					// convert slopes from old single height saved game.
+					// HEX-PORT: converted slope may not fit in sint8
+					// under the new 6-corner encoding (NE corner alone
+					// is 243), so widen to slope_t::type.
+					slope_t::type slope = slope_from_slope4(slope4_t(raw_slope4), env_t::pak_height_conversion_factor);
 					access_nocheck(x, y)->get_kartenboden()->set_grund_hang(slope);
 				}
 			}

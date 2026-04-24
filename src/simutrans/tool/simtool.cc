@@ -1209,8 +1209,14 @@ void tool_setslope_t::rdwr_custom_data(memory_rw_t *packet)
 
 const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos, int new_slope, bool old_slope_compatibility, bool just_check )
 {
-	if(  !ground_desc_t::double_grounds  &&  !old_slope_compatibility  ) {
-		// do not build double slopes if no graphics are available
+	const bool is_sentinel = (new_slope == ALL_UP_SLOPE || new_slope == ALL_DOWN_SLOPE || new_slope == RESTORE_SLOPE
+	                      || new_slope == ALL_UP_SLOPE_SINGLE || new_slope == ALL_DOWN_SLOPE_SINGLE || new_slope == RESTORE_SLOPE_SINGLE);
+
+	if(  !ground_desc_t::double_grounds  &&  !old_slope_compatibility  &&  !is_sentinel  ) {
+		// do not build double slopes if no graphics are available.
+		// Skip the check for sentinels (ALL_UP_SLOPE etc.) since
+		// their values are outside the slope range and max_diff()
+		// would misinterpret them.
 		if (slope_t::max_diff(new_slope) > 1) {
 			return ""; // invalid parameter
 		}
@@ -1773,7 +1779,7 @@ const char *tool_transformer_t::work( player_t *player, koord3d pos )
 	// search for factory
 	// must be independent of network mode
 	if (gr->get_pos().z <= pos.z) {
-		fab = leitung_t::suche_fab_4(k);
+		fab = leitung_t::suche_fab_neighbour(k);
 	}
 	else if(  gr->get_pos().z == pos.z+welt->get_settings().get_way_height_clearance()  ) {
 		fab = fabrik_t::get_fab( k);
