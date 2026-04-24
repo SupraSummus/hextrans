@@ -77,7 +77,7 @@ void signal_t::calc_image()
 			}
 			else {
 				const ribi_t::ribi test_hang = left_swap ? ribi_t::backward(hang_dir) : hang_dir;
-				if(test_hang==ribi_t::east ||  test_hang==ribi_t::north) {
+				if(test_hang==ribi_t::southeast ||  test_hang==ribi_t::north) {
 					yoff = -TILE_HEIGHT_STEP*hang_diff;
 					after_yoffset = 0;
 				}
@@ -94,7 +94,7 @@ void signal_t::calc_image()
 				(grund_t::underground_mode==grund_t::ugm_none  ||  (grund_t::underground_mode==grund_t::ugm_level  &&  gr->get_hoehe()<grund_t::underground_level))   ) {
 				// entering tunnel here: hide the image further in if not undergroud/sliced
 				const ribi_t::ribi tunnel_hang_dir = ribi_t::backward( ribi_type(gr->get_grund_hang()) );
-				if(  tunnel_hang_dir==ribi_t::east ||  tunnel_hang_dir==ribi_t::north  ) {
+				if(  tunnel_hang_dir==ribi_t::southeast ||  tunnel_hang_dir==ribi_t::north  ) {
 					temp_dir &= ~ribi_t::southwest;
 				}
 				else {
@@ -107,7 +107,7 @@ void signal_t::calc_image()
 				const sint16 XOFF = 2*desc->get_offset_left();
 				const sint16 YOFF = desc->get_offset_left();
 
-				if(temp_dir&ribi_t::east) {
+				if(temp_dir&ribi_t::southeast) {
 					image = desc->get_image_id(3+state*4+offset);
 					xoff += XOFF;
 					yoff += -YOFF;
@@ -126,7 +126,7 @@ void signal_t::calc_image()
 					}
 				}
 
-				if(temp_dir&ribi_t::west) {
+				if(temp_dir&ribi_t::northwest) {
 					foreground_image = desc->get_image_id(2+state*4+offset);
 					after_xoffset += -XOFF;
 					after_yoffset += YOFF;
@@ -146,7 +146,7 @@ void signal_t::calc_image()
 				}
 			}
 			else {
-				if(temp_dir&ribi_t::east) {
+				if(temp_dir&ribi_t::southeast) {
 					foreground_image = desc->get_image_id(3+state*4+offset);
 				}
 
@@ -159,7 +159,7 @@ void signal_t::calc_image()
 					}
 				}
 
-				if(temp_dir&ribi_t::west) {
+				if(temp_dir&ribi_t::northwest) {
 					image = desc->get_image_id(2+state*4+offset);
 				}
 

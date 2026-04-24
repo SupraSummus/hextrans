@@ -2119,7 +2119,7 @@ void convoi_t::vorfahren()
 			// move one train length to the start position ...
 			// in north/west direction, we leave the vehicle away to start as much back as possible
 			ribi_t::ribi neue_richtung = fahr[0]->get_direction();
-			if(neue_richtung==ribi_t::south  ||  neue_richtung==ribi_t::east) {
+			if(neue_richtung==ribi_t::south  ||  neue_richtung==ribi_t::southeast) {
 				// drive the convoi to the same position, but do not hop into next tile!
 				if(  train_length%16==0  ) {
 					// any space we need => just add

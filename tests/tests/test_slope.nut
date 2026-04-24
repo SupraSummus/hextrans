@@ -7,6 +7,7 @@
 // Test set_/can_set_slope
 //
 
+// test_slope_to_dir: HEX-PORT PENDING.
 function test_slope_to_dir()
 {
 	local slope_to_dir = {}
@@ -133,6 +134,7 @@ function test_slope_set_near_map_border()
 }
 
 
+// test_slope_max_height_diff: HEX-PORT PENDING.
 function test_slope_max_height_diff()
 {
 	local pl = player_x(0)

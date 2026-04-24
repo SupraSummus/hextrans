@@ -371,6 +371,7 @@ function test_depot_build_tram()
 }
 
 
+// test_depot_build_sloped: HEX-PORT PENDING.
 function test_depot_build_sloped()
 {
 	local pl = player_x(0)
@@ -408,6 +409,7 @@ function test_depot_build_sloped()
 }
 
 
+// test_depot_build_on_tunnel_entrance: HEX-PORT PENDING.
 function test_depot_build_on_tunnel_entrance()
 {
 	local pl = player_x(0)

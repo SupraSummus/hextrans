@@ -9,6 +9,7 @@
 //
 
 
+// test_sign_build_oneway: HEX-PORT PENDING.
 function test_sign_build_oneway()
 {
 	local pl = player_x(0)
@@ -237,6 +238,7 @@ function test_sign_build_oneway()
 }
 
 
+// test_sign_build_trafficlight: HEX-PORT PENDING.
 function test_sign_build_trafficlight()
 {
 	local pl = player_x(0)
@@ -380,6 +382,7 @@ function test_sign_remove_trafficlight()
 }
 
 
+// test_sign_build_private_way: HEX-PORT PENDING.
 function test_sign_build_private_way()
 {
 	local pl = player_x(0)
@@ -559,6 +562,7 @@ function test_sign_build_private_way()
 }
 
 
+// test_sign_build_signal: HEX-PORT PENDING.
 function test_sign_build_signal()
 {
 	local pl = player_x(0)
@@ -930,6 +934,7 @@ function test_sign_build_signal()
 }
 
 
+// test_sign_build_signal_multiple: HEX-PORT PENDING.
 function test_sign_build_signal_multiple()
 {
 	local pl = player_x(0)
@@ -983,6 +988,7 @@ function test_sign_build_signal_multiple()
 }
 
 
+// test_sign_replace_signal: HEX-PORT PENDING.
 function test_sign_replace_signal()
 {
 	local pl = player_x(0)

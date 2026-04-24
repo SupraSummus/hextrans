@@ -113,21 +113,25 @@ void interaction_t::interactive_event( const event_t &ev )
 
 		switch(ev.ev_code) {
 
-			// cursor movements
+			// cursor movements.  HEX-PORT: keyboard pans by one hex
+			// neighbour step.  Displacements are identical to the
+			// old square cardinals (since hex and square share the
+			// same axial coord layout) — just named via
+			// koord(ribi_t::<edge>).
 			case SIM_KEYCODE_UPRIGHT:
-				viewport->change_world_position(viewport->get_world_position() + koord::north);
+				viewport->change_world_position(viewport->get_world_position() + koord::step(ribi_t::north));
 				world->set_dirty();
 				break;
 			case SIM_KEYCODE_DOWNLEFT:
-				viewport->change_world_position(viewport->get_world_position() + koord::south);
+				viewport->change_world_position(viewport->get_world_position() + koord::step(ribi_t::south));
 				world->set_dirty();
 				break;
 			case SIM_KEYCODE_UPLEFT:
-				viewport->change_world_position(viewport->get_world_position() + koord::west);
+				viewport->change_world_position(viewport->get_world_position() + koord::step(ribi_t::northwest));
 				world->set_dirty();
 				break;
 			case SIM_KEYCODE_DOWNRIGHT:
-				viewport->change_world_position(viewport->get_world_position() + koord::east);
+				viewport->change_world_position(viewport->get_world_position() + koord::step(ribi_t::southeast));
 				world->set_dirty();
 				break;
 			case SIM_KEYCODE_RIGHT:

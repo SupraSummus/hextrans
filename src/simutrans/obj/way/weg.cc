@@ -239,11 +239,18 @@ void weg_t::rdwr(loadsave_t *file)
 		set_owner_nr(spnum);
 	}
 
-	// all connected directions
+	// all connected directions.  HEX-PORT: the 4-bit mask-on-load
+	// was tied to the old `uint8 ribi:4` bitfield layout; under the
+	// 6-bit hex ribi this silently drops bits 4-5 (N, NE).  Widened
+	// to 6-bit mask.  The on-disk byte layout is unchanged, but old
+	// saves (4-bit values) load into the same low 4 bits — which
+	// now mean SE/S/SW/NW under hex, not N/E/S/W.  Save-format
+	// version bump needed before any hex save round-trips cleanly
+	// (tracked in TODO.md).
 	uint8 dummy8 = ribi;
 	file->rdwr_byte(dummy8);
 	if(  file->is_loading()  ) {
-		ribi = dummy8 & 15; // before: high bits was maske
+		ribi = dummy8 & ribi_t::all;
 		ribi_maske = 0; // maske will be restored by signal/roadsing
 	}
 
@@ -316,8 +323,10 @@ void weg_t::info(cbuffer_t & buf) const
 void weg_t::rotate90()
 {
 	obj_t::rotate90();
-	ribi = ribi_t::rotate90( ribi );
-	ribi_maske = ribi_t::rotate90( ribi_maske );
+	// HEX-PORT: rotate90 → rotate_for_map_rotate90 helper,
+	// tied to the karte_t::rotate90 refusal in TODO.md.
+	ribi = ribi_t::rotate_for_map_rotate90(ribi );
+	ribi_maske = ribi_t::rotate_for_map_rotate90(ribi_maske );
 }
 
 
@@ -550,7 +559,7 @@ void weg_t::calc_image()
 			// recalc image of neighbors also when this changed to non-diagonal
 			if(recursion == 0) {
 				recursion++;
-				for(int r = 0; r < 4; r++) {
+				for(int r = 0; r < 6; r++) {
 					if(  from->get_neighbour(to, get_waytype(), ribi_t::nesw[r])  ) {
 						// can fail on water tiles
 						if(  weg_t *w=to->get_weg(get_waytype())  )  {
@@ -625,18 +634,22 @@ void weg_t::check_diagonal()
 	ribi_t::ribi r1 = ribi_t::none;
 	ribi_t::ribi r2 = ribi_t::none;
 
+	// HEX-PORT: rotate45 → rotate60 (hex step), rotate90 →
+	// rotate_for_map_rotate90 helper.  Semantically the diagonal-detection
+	// approximates old 4-direction bend logic; real hex bend
+	// rendering awaits the sprite port.
 	// get the ribis of the ways that connect to us
-	// r1 will be 45 degree clockwise ribi (eg northeast->east), r2 will be anticlockwise ribi (eg northeast->north)
-	if(  from->get_neighbour(to, get_waytype(), ribi_t::rotate45(ribi))  ) {
+	// r1 will be 60° clockwise ribi, r2 will be 60° counter-clockwise ribi
+	if(  from->get_neighbour(to, get_waytype(), ribi_t::rotate60(ribi))  ) {
 		r1 = to->get_weg_ribi_unmasked(get_waytype());
 	}
 
-	if(  from->get_neighbour(to, get_waytype(), ribi_t::rotate45l(ribi))  ) {
+	if(  from->get_neighbour(to, get_waytype(), ribi_t::rotate60l(ribi))  ) {
 		r2 = to->get_weg_ribi_unmasked(get_waytype());
 	}
 
-	// diagonal if r1 or r2 are our reverse and neither one is 90 degree rotation of us
-	diagonal = (r1 == ribi_t::backward(ribi) || r2 == ribi_t::backward(ribi)) && r1 != ribi_t::rotate90l(ribi) && r2 != ribi_t::rotate90(ribi);
+	// diagonal if r1 or r2 are our reverse and neither one is a 120° rotation of us
+	diagonal = (r1 == ribi_t::backward(ribi) || r2 == ribi_t::backward(ribi)) && r1 != ribi_t::rotate_perpendicular_l(ribi) && r2 != ribi_t::rotate_perpendicular(ribi);
 
 	if(  diagonal  ) {
 		flags |= IS_DIAGONAL;

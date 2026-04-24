@@ -20,60 +20,47 @@ const scr_size scr_size::invalid(-1, -1);
 const scr_size scr_size::inf(0x7fffffff, 0x7fffffff);
 
 const koord koord::invalid(-1, -1);
-const koord koord::north(    0, -1);
-const koord koord::east(     1,  0);
-const koord koord::south(    0,  1);
-const koord koord::west(   -1,  0);
-const koord koord::nesw[] = {
-	koord( 0, -1),
-	koord( 1,  0),
-	koord( 0,  1),
-	koord(-1,  0)
-};
 
 // Flat-top hex axial neighbours, clockwise starting from the SE
 // neighbour. The axial +q axis points 30° south of due-east in screen
 // space, so axial (1, 0) is the SE neighbour, NOT a due-east one
 // (flat-top hexes have no due-east neighbour — east is a vertex).
+// Bit position in ribi_t::ribi matches this index: bit i set ↔
+// neighbours[i] is part of the ribi.
 //   SE, S, SW, NW, N, NE
 // Iterate with
 //   for (size_t i = 0; i < lengthof(koord::neighbours); i++)
 const koord koord::neighbours[] = {
-	koord(  1,  0 ), // SE
-	koord(  0,  1 ), // S
-	koord( -1,  1 ), // SW
-	koord( -1,  0 ), // NW
-	koord(  0, -1 ), // N
-	koord(  1, -1 ), // NE
+	koord(  1,  0 ), // SE  (bit 0)
+	koord(  0,  1 ), // S   (bit 1)
+	koord( -1,  1 ), // SW  (bit 2)
+	koord( -1,  0 ), // NW  (bit 3)
+	koord(  0, -1 ), // N   (bit 4)
+	koord(  1, -1 ), // NE  (bit 5)
 };
 
-const koord koord::from_ribi[] = {
-	koord( 0,  0), // none
-	koord( 0, -1), // north             (1)
-	koord( 1,  0), // east              (2)
-	koord( 1, -1), // north-east        (3)
-	koord( 0,  1), // south             (4)
-	koord( 0,  0), // north-south       (5)
-	koord( 1,  1), // south-east        (6)
-	koord( 1,  0), // north-south-east  (7)
-	koord(-1,  0), // west              (8)
-	koord(-1, -1), // north-west        (9)
-	koord( 0,  0), // east-west         (10)
-	koord( 0, -1), // north-east-west   (11)
-	koord(-1,  1), // south-west        (12)
-	koord(-1,  0), // north-south-west  (13)
-	koord( 0,  1), // south-east-west   (14)
-	koord( 0,  0)  // all
-};
+
+// ribi → koord displacement: sum of neighbours[i] for each set bit.
+// Single-bit ribi returns the matching neighbour step; multi-bit
+// returns the vector sum (which is (0, 0) for any straight pair).
+// Replaces the old from_ribi[16] lookup table.
+koord::koord(ribi_t::ribi r) : x(0), y(0)
+{
+	for (int i = 0; i < 6; i++) {
+		if (r & (1 << i)) {
+			*this += koord::neighbours[i];
+		}
+	}
+}
 
 
 // Step toward the raised side of a slope.  Used by bridge / tunnel /
 // ramp builders as "which way does this slope face uphill".  Under
 // the 6-corner base-3 encoding this is a short switch — only the
 // 4 square-named 2-corner slopes at heights 1 and 2 have a koord
-// direction representable in the 4-bit ribi model; the 4 hex-only
-// edge slopes are zero until ribi widens and the bridge builders
-// gain hex-direction awareness.
+// direction representable today; the 4 hex-only edge slopes fall
+// through to (0, 0) until bridge builders gain hex-direction
+// awareness.
 koord::koord(slope_t::type slope) : x(0), y(0)
 {
 	switch (slope) {
@@ -83,6 +70,12 @@ koord::koord(slope_t::type slope) : x(0), y(0)
 		case slope_t::west:      case 2 * slope_t::west:  x =  1; break; // uphill hex-SE ≈ E
 		default: break;
 	}
+}
+
+// Static factory matching koord(ribi_t::ribi); see koord.h.
+koord koord::step(ribi_t::ribi r)
+{
+	return koord(r);
 }
 
 

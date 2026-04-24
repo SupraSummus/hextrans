@@ -165,9 +165,9 @@ bool route_t::find_route(karte_t *welt, const koord3d start, test_driver_t *tdri
 
 	assert(start_dir == ribi_t::all  ||  ribi_t::is_single(start_dir) );
 	// start_dir is direction to start with, adjust ribi_from such that bit mask boiles down to start_dir
-	tmp->ribi_from = ribi_t::reverse_single(start_dir) ^ 0x0f;
+	tmp->ribi_from = ribi_t::reverse_single(start_dir) ^ ribi_t::all;
 	// assert that mask in first step is equal to start_dir
-	assert( (uint8)(~ribi_t::reverse_single(tmp->ribi_from)& 0xf)  == start_dir);
+	assert( (uint8)(~ribi_t::reverse_single(tmp->ribi_from) & ribi_t::all)  == start_dir);
 
 	// nothing in lists
 	marker_t& marker = marker_t::instance(welt->get_size().x, welt->get_size().y);
@@ -200,13 +200,13 @@ bool route_t::find_route(karte_t *welt, const koord3d start, test_driver_t *tdri
 			break;
 		}
 
-		// testing all four possible directions
+		// testing all six hex-neighbour directions
 		const ribi_t::ribi ribi =  tdriver->get_ribi(gr)  &  ( ~ribi_t::reverse_single(tmp->ribi_from) );
-		for(  int r=0;  r<4;  r++  ) {
+		for(  int r=0;  r<6;  r++  ) {
 			// a way goes here, and it is not marked (i.e. in the closed list)
 			grund_t* to = NULL;
 			if(  (ribi & ribi_t::nesw[r] )!=0 // do not go backwards
-			    && koord_distance(start, gr->get_pos() + koord::nesw[r])<max_depth // not too far away
+			    && koord_distance(start, gr->get_pos() + koord::neighbours[r])<max_depth // not too far away
 			    && gr->get_neighbour(to, wegtyp, ribi_t::nesw[r])  // is connected
 			    && !marker.is_marked(to) // not already tested
 			    && tdriver->check_next_tile(to) // can be driven on
@@ -270,19 +270,39 @@ bool route_t::find_route(karte_t *welt, const koord3d start, test_driver_t *tdri
 
 
 
+// A* heuristic ordering: return the 6 hex neighbour directions with
+// the target-ward ones first, so A* expands them before the tie-break
+// layer kicks in.  Score each neighbour by the dot product of its
+// displacement with the target vector; insertion-sort to descending
+// score.
+//
+// Old square version returned 4 directions ordered
+// "dominant-axis-toward-target, cross-axis, cross-axis-back,
+// dominant-back".  The hex version drops the 4-direction cap — A*
+// now gets all 6 neighbours per step, at the cost of ~1.5x expansion
+// per tile.  Callers must iterate 0..5, not 0..3.
 ribi_t::ribi *get_next_dirs(const koord3d& gr_pos, const koord3d& ziel)
 {
-	static ribi_t::ribi next_ribi[4];
-	if( abs(gr_pos.x-ziel.x)>abs(gr_pos.y-ziel.y) ) {
-		next_ribi[0] = (ziel.x>gr_pos.x) ? ribi_t::east : ribi_t::west;
-		next_ribi[1] = (ziel.y>gr_pos.y) ? ribi_t::south : ribi_t::north;
+	static ribi_t::ribi next_ribi[6];
+	const sint32 dx = ziel.x - gr_pos.x;
+	const sint32 dy = ziel.y - gr_pos.y;
+	sint32 score[6];
+	for (int i = 0; i < 6; i++) {
+		next_ribi[i] = (ribi_t::ribi)(1 << i);
+		score[i] = (sint32)koord::neighbours[i].x * dx + (sint32)koord::neighbours[i].y * dy;
 	}
-	else {
-		next_ribi[0] = (ziel.y>gr_pos.y) ? ribi_t::south : ribi_t::north;
-		next_ribi[1] = (ziel.x>gr_pos.x) ? ribi_t::east : ribi_t::west;
+	for (int i = 1; i < 6; i++) {
+		sint32 s = score[i];
+		ribi_t::ribi r = next_ribi[i];
+		int j = i;
+		while (j > 0 && score[j-1] < s) {
+			score[j] = score[j-1];
+			next_ribi[j] = next_ribi[j-1];
+			j--;
+		}
+		score[j] = s;
+		next_ribi[j] = r;
 	}
-	next_ribi[2] = ribi_t::reverse_single( next_ribi[1] );
-	next_ribi[3] = ribi_t::reverse_single( next_ribi[0] );
 	return next_ribi;
 }
 
@@ -397,12 +417,12 @@ bool route_t::intern_calc_route(karte_t *welt, const koord3d ziel, const koord3d
 		uint32 topnode_f = !queue.empty() ? queue.front()->f : max_cost;
 
 		const ribi_t::ribi way_ribi =  tdriver->get_ribi(gr);
-		// testing all four possible directions
+		// testing all six hex-edge directions
 		// mask direction we came from
 		const ribi_t::ribi ribi =  way_ribi  &  ( ~ribi_t::reverse_single(tmp->ribi_from) )  &  tmp->jps_ribi;
 
 		const ribi_t::ribi *next_ribi = get_next_dirs(gr->get_pos(), ziel);
-		for(int r=0; r<4; r++) {
+		for(int r=0; r<6; r++) {
 
 			// a way in our direction?
 			if(  (ribi & next_ribi[r])==0  ) {
@@ -453,24 +473,38 @@ bool route_t::intern_calc_route(karte_t *welt, const koord3d ziel, const koord3d
 
 				uint32 dist = calc_distance( to->get_pos(), ziel );
 
-				// count how many 45 degree turns are necessary to get to target
+				// count how many 60° turns are necessary to align current_dir
+				// with the direction-to-target.  HEX-PORT: the old heuristic
+				// used rotate45 + rotate90 to handle the 4-bit model's
+				// axial/diagonal mixed geometry; under hex, directions are
+				// uniform 60°-spaced single bits.  We only apply the turn
+				// penalty when both current_dir and to_target are single-bit
+				// hex edges — multi-bit current_dir (parent step combined
+				// with outgoing ribi) gets turns=0 (heuristic-neutral).
 				sint8 turns = 0;
 				if (dist>1) {
-					ribi_t::ribi to_target = ribi_type(to->get_pos(), ziel );
-
-					if (to_target  &&  (to_target!=current_dir)) {
-						if (ribi_t::is_single(current_dir) != ribi_t::is_single(to_target)) {
-							to_target = ribi_t::rotate45(to_target);
-							turns ++;
+					ribi_t::ribi to_target = ribi_type(to->get_pos(), ziel);
+					if (to_target  &&  ribi_t::is_single(to_target)  &&  ribi_t::is_single(current_dir)  &&  to_target != current_dir) {
+						ribi_t::ribi t = current_dir;
+						while (t != to_target  &&  turns < 3) {
+							t = ribi_t::rotate60(t);
+							turns++;
 						}
-						while(to_target!=current_dir) {
-							to_target = ribi_t::rotate90(to_target);
-							turns +=2;
+						if (t != to_target) {
+							// CCW distance is shorter.
+							t = current_dir;
+							turns = 0;
+							while (t != to_target) {
+								t = ribi_t::rotate60l(t);
+								turns++;
+							}
 						}
-						if (turns>4) turns = 8-turns;
 					}
 				}
-				// add 3*turns to the heuristic bound
+				// add 3*turns to the heuristic bound (kept as square-era
+				// cost constant — 60° per turn would suggest halving, but
+				// the A* is admissible as long as the heuristic ≤ true
+				// cost).
 
 				// take height difference into account when calculating distance
 				uint32 costup = 0;
@@ -636,15 +670,27 @@ void route_t::postprocess_water_route(karte_t *welt)
 				for(uint32 j = straight_end; j < i  &&  ok; j++) {
 					ribi_t::ribi next = 0;
 					koord diff = (end - post.back()).get_2d();
-					if (abs(diff.x)>=abs(diff.y)) {
-						next = diff.x > 0 ? ribi_t::east : ribi_t::west;
-						if (abs(diff.x)==abs(diff.y)  &&  next == straight_ribi) {
-							next = diff.y > 0 ? ribi_t::south : ribi_t::north;
+					// HEX-PORT: pick the hex neighbour direction whose
+					// displacement has the highest dot product with diff;
+					// if the best is the axis the straight part is already
+					// on, fall back to the second-best.  Old 4-direction
+					// code picked E/W vs N/S via |dx| vs |dy|.
+					sint32 best = INT32_MIN, second_best = INT32_MIN;
+					ribi_t::ribi best_ribi = 0, second_best_ribi = 0;
+					for (int k = 0; k < 6; k++) {
+						const sint32 s = (sint32)koord::neighbours[k].x * diff.x + (sint32)koord::neighbours[k].y * diff.y;
+						if (s > best) {
+							second_best = best;
+							second_best_ribi = best_ribi;
+							best = s;
+							best_ribi = (ribi_t::ribi)(1 << k);
+						}
+						else if (s > second_best) {
+							second_best = s;
+							second_best_ribi = (ribi_t::ribi)(1 << k);
 						}
 					}
-					else {
-						next = diff.y > 0 ? ribi_t::south : ribi_t::north;
-					}
+					next = (best_ribi == straight_ribi && second_best_ribi != 0) ? second_best_ribi : best_ribi;
 					koord3d pos = post.back() + koord(next);
 					ok = false;
 					if (grund_t *gr = welt->lookup(pos)) {

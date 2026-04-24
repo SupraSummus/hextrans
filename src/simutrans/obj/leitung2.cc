@@ -61,7 +61,7 @@ int leitung_t::gimme_neighbours(leitung_t **conn)
 	int count = 0;
 	grund_t *gr_base = welt->lookup(get_pos());
 	ribi_t::ribi ribi = get_powerline_ribi(gr_base);
-	for(int i=0; i<4; i++) {
+	for(int i=0; i<6; i++) {
 		// get next connected tile (if there)
 		grund_t *gr;
 		conn[i] = NULL;
@@ -125,7 +125,7 @@ leitung_t::~leitung_t()
 
 	grund_t *gr = welt->lookup(get_pos());
 	if(gr) {
-		leitung_t *conn[4];
+		leitung_t *conn[6];
 		int neighbours = gimme_neighbours(conn);
 		gr->obj_remove(this);
 		set_flag( obj_t::not_on_map );
@@ -133,7 +133,7 @@ leitung_t::~leitung_t()
 		if(neighbours>1) {
 			// only reconnect if two connections ...
 			bool first = true;
-			for(int i=0; i<4; i++) {
+			for(int i=0; i<6; i++) {
 				if(conn[i]!=NULL) {
 					if(!first) {
 						// replace both nets
@@ -146,7 +146,7 @@ leitung_t::~leitung_t()
 		}
 
 		// recalc images
-		for(int i=0; i<4; i++) {
+		for(int i=0; i<6; i++) {
 			if(conn[i]!=NULL) {
 				conn[i]->calc_neighbourhood();
 			}
@@ -173,7 +173,8 @@ void leitung_t::cleanup(player_t *player)
 void leitung_t::rotate90()
 {
 	obj_t::rotate90();
-	ribi = ribi_t::rotate90( ribi );
+	// HEX-PORT: see rotate_for_map_rotate90 helper.
+	ribi = ribi_t::rotate_for_map_rotate90(ribi );
 }
 
 
@@ -189,9 +190,9 @@ void leitung_t::replace(powernet_t* new_net)
 		set_net(new_net);
 	}
 
-	leitung_t * conn[4];
+	leitung_t * conn[6];
 	if(gimme_neighbours(conn)>0) {
-		for(int i=0; i<4; i++) {
+		for(int i=0; i<6; i++) {
 			if(conn[i] && conn[i]->get_net()!=new_net) {
 				conn[i]->replace(new_net);
 			}
@@ -209,9 +210,9 @@ void leitung_t::verbinde()
 	// first get my own ...
 	powernet_t *new_net = get_net();
 //DBG_MESSAGE("leitung_t::verbinde()","Searching net at (%i,%i)",get_pos().x,get_pos().x);
-	leitung_t * conn[4];
+	leitung_t * conn[6];
 	if(gimme_neighbours(conn)>0) {
-		for( uint8 i=0;  i<4 && new_net==NULL;  i++  ) {
+		for( uint8 i=0;  i<6 && new_net==NULL;  i++  ) {
 			if(conn[i]) {
 				new_net = conn[i]->get_net();
 			}
@@ -233,7 +234,7 @@ void leitung_t::verbinde()
 	}
 	else if(new_net) {
 		powernet_t *my_net = get_net();
-		for( uint8 i=0;  i<4;  i++  ) {
+		for( uint8 i=0;  i<6;  i++  ) {
 			if(conn[i] && conn[i]->get_net()!=new_net) {
 				conn[i]->replace(new_net);
 			}
@@ -269,13 +270,25 @@ void leitung_t::calc_image()
 	}
 	else {
 		if(gr->hat_wege()) {
-			// crossing with road or rail
+			// crossing with road or rail.  HEX-PORT: the sprite
+			// table is keyed on the 4 old-4-bit diagonal combo
+			// values (3, 6, 9, 12) that represented square-era
+			// NE/SE/NW/SW crossings.  Under hex we have 3 axes and
+			// 3 perpendicular-crossings, but only 2 sprite slots —
+			// pick the old "E-W" sprite for the hex SE-NW axis
+			// (closest via 2:1 iso rename) and the old "other"
+			// sprite for everything else.  Real hex powerline
+			// crossing sprites wait on the sprite port.  The
+			// ribi_t::is_straight_ew predicate is gone; we test
+			// explicitly for the SE-NW axis pair.
 			weg_t* way = gr->get_weg_nr(0);
-			if(ribi_t::is_straight_ew(way->get_ribi())) {
-				set_image( desc->get_diagonal_image_id(ribi_t::north|ribi_t::east, snow));
+			const ribi_t::ribi way_ribi = way->get_ribi();
+			const bool way_is_old_ew = (way_ribi == (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest));
+			if(way_is_old_ew) {
+				set_image( desc->get_diagonal_image_id((uint8)3, snow));  // old ribi_t::north|ribi_t::east
 			}
 			else {
-				set_image( desc->get_diagonal_image_id(ribi_t::south|ribi_t::east, snow));
+				set_image( desc->get_diagonal_image_id((uint8)6, snow));  // old ribi_t::south|ribi_t::east
 			}
 			is_crossing = true;
 		}
@@ -283,10 +296,10 @@ void leitung_t::calc_image()
 			if(ribi_t::is_straight(ribi)  &&  !ribi_t::is_single(ribi)  &&  (pos.x+pos.y)&1) {
 				// every second skip mast
 				if(ribi_t::is_straight_ns(ribi)) {
-					set_image( desc->get_diagonal_image_id(ribi_t::north|ribi_t::west, snow));
+					set_image( desc->get_diagonal_image_id((uint8)9, snow));  // old ribi_t::north|ribi_t::west
 				}
 				else {
-					set_image( desc->get_diagonal_image_id(ribi_t::south|ribi_t::west, snow));
+					set_image( desc->get_diagonal_image_id((uint8)12, snow));  // old ribi_t::south|ribi_t::west
 				}
 			}
 			else {
@@ -306,10 +319,10 @@ void leitung_t::calc_image()
  */
 void leitung_t::calc_neighbourhood()
 {
-	leitung_t *conn[4];
+	leitung_t *conn[6];
 	ribi = ribi_t::none;
 	if(gimme_neighbours(conn)>0) {
-		for( uint8 i=0;  i<4 ;  i++  ) {
+		for( uint8 i=0;  i<6 ;  i++  ) {
 			if(conn[i]  &&  conn[i]->get_net()==get_net()) {
 				ribi |= ribi_t::nesw[i];
 				conn[i]->add_ribi(ribi_t::backward(ribi_t::nesw[i]));

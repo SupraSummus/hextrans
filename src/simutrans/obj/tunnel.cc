@@ -67,7 +67,10 @@ void tunnel_t::calc_image()
 
 		broad_type = 0;
 		if(  desc->has_broad_portals()  ) {
-			ribi_t::ribi dir = ribi_t::rotate90( ribi_type( hang ) );
+			// HEX-PORT: "perpendicular to slope" → rotate_perpendicular (stubbed to
+			// one 60° step); broad tunnels on hex have a 3rd
+			// perpendicular axis this doesn't serve.
+			ribi_t::ribi dir = ribi_t::rotate_perpendicular(ribi_type( hang ));
 			if(  dir==0  ) {
 				dbg->error( "tunnel_t::calc_image()", "pos=%s, dir=%i, hang=%i", get_pos().get_str(), dir, hang );
 			}

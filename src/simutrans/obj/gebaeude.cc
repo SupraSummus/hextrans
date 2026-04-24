@@ -1113,10 +1113,10 @@ void gebaeude_t::cleanup(player_t *player)
 		grund_t * gr = welt->lookup( get_pos() );
 		if(gr) {
 			sint8 offset = gr->get_weg_yoff()/TILE_HEIGHT_STEP;
-			gr = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::east : koord::south), offset) );
+			gr = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)), offset) );
 			if(!gr) {
 				// check whether bridge end tile
-				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::east : koord::south),offset - 1) );
+				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)),offset - 1) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 					gr = gr_tmp;
 				}
@@ -1134,10 +1134,10 @@ void gebaeude_t::cleanup(player_t *player)
 			}
 
 			// detect if near (south/east) end
-			gr = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::west : koord::north), offset) );
+			gr = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)), offset) );
 			if(!gr) {
 				// check whether bridge end tile
-				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::west : koord::north),offset - 1) );
+				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)),offset - 1) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 					gr = gr_tmp;
 				}

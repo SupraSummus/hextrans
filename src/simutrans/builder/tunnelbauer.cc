@@ -714,8 +714,8 @@ const char *tunnel_builder_t::remove(player_t *player, koord3d start, waytype_t 
 		}
 
 		// Nachbarn raussuchen
-		for(int r = 0; r < 4; r++) {
-			if((zv == koord::invalid || zv == koord::nesw[r]) &&
+		for(int r = 0; r < 6; r++) {
+			if((zv == koord::invalid || zv == koord::neighbours[r]) &&
 				from->get_neighbour(to, delete_wegtyp, ribi_t::nesw[r]) &&
 				!marker.is_marked(to) &&
 				(wegtyp != powerline_wt || to->get_leitung()))
@@ -787,7 +787,10 @@ const char *tunnel_builder_t::remove(player_t *player, koord3d start, waytype_t 
 
 			if( broad_type ) {
 				slope_t::type hang = gr->get_grund_hang();
-				ribi_t::ribi dir = ribi_t::rotate90( ribi_type( hang ) );
+				// HEX-PORT: "perpendicular to slope direction" → two
+				// (via rotate_perpendicular).  Broad tunnels on hex have
+				// a 3rd perpendicular axis this doesn't serve.
+				ribi_t::ribi dir = ribi_t::rotate_perpendicular(ribi_type( hang ));
 				if( broad_type & 1 ) {
 					const grund_t *gr_l = welt->lookup(pos + dir);
 					tunnel_t* tunnel_l = gr_l ? gr_l->find<tunnel_t>() : NULL;

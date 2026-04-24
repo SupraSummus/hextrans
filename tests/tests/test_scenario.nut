@@ -103,6 +103,7 @@ function test_scenario_rules_allow_forbid_way_tool()
 }
 
 
+// test_scenario_rules_allow_forbid_way_tool_rect: HEX-PORT PENDING.
 function test_scenario_rules_allow_forbid_way_tool_rect()
 {
 	local waybuilder = command_x(tool_build_way)
@@ -184,6 +185,7 @@ function test_scenario_rules_allow_forbid_way_tool_rect()
 }
 
 
+// test_scenario_rules_allow_forbid_way_tool_cube: HEX-PORT PENDING.
 function test_scenario_rules_allow_forbid_way_tool_cube()
 {
 	local waybuilder = command_x(tool_build_way)

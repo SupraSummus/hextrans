@@ -1177,8 +1177,8 @@ const char *bridge_builder_t::remove(player_t *player, koord3d pos_start, waytyp
 		}
 
 		// search neighbors
-		for(int r = 0; r < 4; r++) {
-			if(  (zv == koord::invalid  ||  zv == koord::nesw[r])  &&  from->get_neighbour(to, delete_wegtyp, ribi_t::nesw[r])  &&  !marker.is_marked(to)  &&  to->ist_bruecke()  ) {
+		for(int r = 0; r < 6; r++) {
+			if(  (zv == koord::invalid  ||  zv == koord::neighbours[r])  &&  from->get_neighbour(to, delete_wegtyp, ribi_t::nesw[r])  &&  !marker.is_marked(to)  &&  to->ist_bruecke()  ) {
 				if(  wegtyp != powerline_wt  ||  (to->find<bruecke_t>()  &&  to->find<bruecke_t>()->get_desc()->get_waytype() == powerline_wt)  ) {
 					tmp_list.insert(to->get_pos());
 					marker.mark(to);
@@ -1201,7 +1201,7 @@ const char *bridge_builder_t::remove(player_t *player, koord3d pos_start, waytyp
 		if(  first  ||  end_list.empty()  ) {
 			// starts on slope or elevated way, or it consist only of the ramp
 			ribi_t::ribi bridge_ribi = gr->get_weg_ribi_unmasked( wegtyp );
-			for(  uint i = 0;  i < 4;  i++  ) {
+			for(  uint i = 0;  i < 6;  i++  ) {
 				if(  bridge_ribi & ribi_t::nesw[i]  ) {
 					grund_t *prev;
 					// if we have a ramp, then only check the higher end!
@@ -1267,7 +1267,7 @@ const char *bridge_builder_t::remove(player_t *player, koord3d pos_start, waytyp
 
 		// starts on slope or elevated way, or it consist only of the ramp
 		ribi_t::ribi bridge_ribi = gr->get_weg_ribi_unmasked( wegtyp );
-		for(  uint i = 0;  i < 4;  i++  ) {
+		for(  uint i = 0;  i < 6;  i++  ) {
 			if(  bridge_ribi & ribi_t::nesw[i]  ) {
 				grund_t *prev;
 				// if we have a ramp, then only check the higher end!

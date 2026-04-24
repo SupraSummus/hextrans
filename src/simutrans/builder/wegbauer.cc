@@ -366,8 +366,14 @@ bool way_builder_t::check_crossing(const koord zv, const grund_t *bd, const way_
 	if (cr) {
 		// index of the waytype in ns-direction at the crossing
 		const uint8 ns_way = cr->get_dir();
-		// only cross with the right direction
-		return (ns_way==iwtyp ? ribi_t::is_straight_ns(ribi_type(zv)) : ribi_t::is_straight_ew(ribi_type(zv)));
+		// only cross with the right direction.  HEX-PORT:
+		// `is_straight_ew` is deleted (hex has no E-W axis); the old
+		// E-W axis maps to the SE-NW hex axis under the 2:1 iso
+		// rename.  The 3rd hex axis (NE-SW) isn't served by this
+		// crossing geometry yet — tracked in crossings-cluster TODO.
+		return (ns_way == iwtyp)
+			? ribi_t::is_straight_ns(ribi_type(zv))
+			: ribi_type(zv) == (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest);
 	}
 
 	// no crossings in tunnels
@@ -995,28 +1001,34 @@ bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, 
 		// now calculate new slopes
 		assert(new_from_slope);
 		assert(new_to_slope);
-		// direction of way
+		// direction of way.  HEX-PORT: the 4 cardinal displacements
+		// below still cover the N, S, SE (was E), NW (was W)
+		// neighbours under the rename; the 2 hex-only neighbours
+		// (NE=(1,-1), SW=(-1,1)) fall through the if-chain un-handled.
+		// Terraforming a hex-only-direction way step is therefore a
+		// no-op at this site — tracked in the building/terraforming
+		// cluster follow-up.
 		const koord dir = (to->get_pos() - from->get_pos()).get_2d();
 		sint8 start  = from_hgt * 2;
 		sint8 middle = from_hgt * 2;
 		sint8 end    = to_hgt * 2;
 		// get 3 heights - start (min start from, but should be same), middle (average end from/average start to), end (min end to)
-		if(  dir == koord::north  ) {
+		if(  dir == koord::step(ribi_t::north)  ) {
 			start  += corner_sw(from_slope) + corner_se(from_slope);
 			middle += corner_ne(from_slope) + corner_nw(from_slope);
 			end    += corner_ne(to_slope) + corner_nw(to_slope);
 		}
-		else if(  dir == koord::east  ) {
+		else if(  dir == koord::step(ribi_t::southeast)  ) {
 			start  += corner_sw(from_slope) + corner_nw(from_slope);
 			middle += corner_se(from_slope) + corner_ne(from_slope);
 			end    += corner_se(to_slope) + corner_ne(to_slope);
 		}
-		else if(  dir == koord::south  ) {
+		else if(  dir == koord::step(ribi_t::south)  ) {
 			start  += corner_ne(from_slope) + corner_nw(from_slope);
 			middle += corner_sw(from_slope) + corner_se(from_slope);
 			end    += corner_sw(to_slope) + corner_se(to_slope);
 		}
-		else if(  dir == koord::west  ) {
+		else if(  dir == koord::step(ribi_t::northwest)  ) {
 			start  += corner_se(from_slope) + corner_ne(from_slope);
 			middle += corner_sw(from_slope) + corner_nw(from_slope);
 			end    += corner_sw(to_slope) + corner_nw(to_slope);
@@ -1049,19 +1061,19 @@ bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, 
 		const uint8 m_to = (middle >> 1) - to_hgt;
 
 		// write middle heights
-		if(  dir == koord::north  ) {
+		if(  dir == koord::step(ribi_t::north)  ) {
 			*new_from_slope = encode_corners(corner_sw(from_slope), corner_se(from_slope), m_from, m_from);
 			*new_to_slope =   encode_corners(m_to, m_to, corner_ne(to_slope), corner_nw(to_slope));
 		}
-		else if(  dir == koord::east  ) {
+		else if(  dir == koord::step(ribi_t::southeast)  ) {
 			*new_from_slope = encode_corners(corner_sw(from_slope), m_from, m_from, corner_nw(from_slope));
 			*new_to_slope =   encode_corners(m_to, corner_se(to_slope), corner_ne(to_slope), m_to);
 		}
-		else if(  dir == koord::south  ) {
+		else if(  dir == koord::step(ribi_t::south)  ) {
 			*new_from_slope = encode_corners(m_from, m_from, corner_ne(from_slope), corner_nw(from_slope));
 			*new_to_slope =   encode_corners(corner_sw(to_slope), corner_se(to_slope), m_to, m_to);
 		}
-		else if(  dir == koord::west  ) {
+		else if(  dir == koord::step(ribi_t::northwest)  ) {
 			*new_from_slope = encode_corners(m_from, corner_se(from_slope), corner_ne(from_slope), m_from);
 			*new_to_slope =   encode_corners(corner_sw(to_slope), m_to, m_to, corner_nw(to_slope));
 		}
@@ -1476,7 +1488,7 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 		// test directions
 		// .. use only those that are allowed by current slope
 		// .. do not go backward
-		const ribi_t::ribi slope_dir = (slope_t::is_way_ns(gr->get_weg_hang()) ? ribi_t::northsouth : ribi_t::none) | (slope_t::is_way_ew(gr->get_weg_hang()) ? ribi_t::eastwest : ribi_t::none);
+		const ribi_t::ribi slope_dir = (slope_t::is_way_ns(gr->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::north | ribi_t::south) : ribi_t::none) | (slope_t::is_way_ew(gr->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest) : ribi_t::none);
 		const ribi_t::ribi test_dir = (tmp->count & build_straight)==0  ?  slope_dir  & ~ribi_t::backward(straight_dir)
 		                                                                :  straight_dir;
 
@@ -1717,7 +1729,7 @@ void way_builder_t::intern_calc_straight_route(const koord3d start, const koord3
 		// shortest way
 		ribi_t::ribi diff;
 		if(abs(pos.x-ziel.x)>=abs(pos.y-ziel.y)) {
-			diff = (pos.x>ziel.x) ? ribi_t::west : ribi_t::east;
+			diff = (pos.x>ziel.x) ? ribi_t::northwest : ribi_t::southeast;
 		}
 		else {
 			diff = (pos.y>ziel.y) ? ribi_t::north : ribi_t::south;
@@ -1969,7 +1981,7 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 			// test directions
 			// .. use only those that are allowed by current slope
 			// .. do not go backward
-			const ribi_t::ribi slope_dir = (slope_t::is_way_ns(gr->get_weg_hang()) ? ribi_t::northsouth : ribi_t::none) | (slope_t::is_way_ew(gr->get_weg_hang()) ? ribi_t::eastwest : ribi_t::none);
+			const ribi_t::ribi slope_dir = (slope_t::is_way_ns(gr->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::north | ribi_t::south) : ribi_t::none) | (slope_t::is_way_ew(gr->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest) : ribi_t::none);
 			const ribi_t::ribi test_dir = (tmp->count & build_straight)==0  ?  slope_dir  & ~ribi_t::backward(straight_dir)
 		                                                                :  straight_dir;
 
@@ -2010,7 +2022,7 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 			// test directions
 			// .. use only those that are allowed by current slope
 			// .. do not go backward
-			const ribi_t::ribi slope_dir = (slope_t::is_way_ns(gu->get_weg_hang()) ? ribi_t::northsouth : ribi_t::none) | (slope_t::is_way_ew(gu->get_weg_hang()) ? ribi_t::eastwest : ribi_t::none);
+			const ribi_t::ribi slope_dir = (slope_t::is_way_ns(gu->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::north | ribi_t::south) : ribi_t::none) | (slope_t::is_way_ew(gu->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest) : ribi_t::none);
 			const ribi_t::ribi test_dir = (tmp->count & build_straight)==0  ?  slope_dir  & ~ribi_t::backward(straight_dir)
 		                                                                :  straight_dir;
 
@@ -2852,7 +2864,7 @@ void way_builder_t::build_track()
 					slope_ribi = ribi_t::doubles( ribi_type(gr->get_weg_hang()) );
 				}
 
-				for(  int j = 0;  j < 4;  j++  ) {
+				for(  int j = 0;  j < 6;  j++  ) {
 					if (ribi_t::nesw[j] & slope_ribi) {
 						grund_t *sea = NULL;
 						if (gr->get_neighbour(sea, invalid_wt, ribi_t::nesw[j])  &&  sea->is_water()  ) {

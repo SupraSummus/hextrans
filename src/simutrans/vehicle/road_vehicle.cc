@@ -76,10 +76,10 @@ void road_vehicle_t::calc_disp_lane(bool is_overtaking)
 	disp_lane = welt->get_settings().is_drive_left() ? 1 : 3;
 	ribi_t::ribi dir = get_direction();
 	/* disp_lane is valid for vehicles moving to the right side of
-	   the screen, must be mirrored if SE <= heading < NW, and also
-	   if overtaking as there are five "display lanes" in simutrans
-	   which determine their drawing order. */
-	bool heading_left = (dir & ribi_t::south) || dir == ribi_t::west;
+	   the screen, must be mirrored if heading left on screen.  Under
+	   the 2:1 isometric hex projection the three left-heading edges
+	   are S, SW, NW (screen-x decreases). */
+	bool heading_left = (dir & (ribi_t::south | ribi_t::southwest | ribi_t::northwest)) != 0;
 	if (heading_left ^ is_overtaking) {
 		disp_lane ^= 2;
 	}
@@ -377,9 +377,14 @@ bool road_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, ui
 			ribi_t::ribi next_90direction = calc_direction(pos_next, next);
 			obj = no_cars_blocking( gr, cnv, curr_direction, next_direction, next_90direction );
 
-			// do not block intersections
+			// do not block intersections.  HEX-PORT: "perpendicular"
+			// rotate90 → 120° (two rotate60 steps), the closest hex
+			// symmetry.
 			const bool drives_on_left = welt->get_settings().is_drive_left();
-			bool int_block = ribi_t::is_threeway(str->get_ribi_unmasked())  &&  (((drives_on_left ? ribi_t::rotate90l(curr_90direction) : ribi_t::rotate90(curr_90direction)) & str->get_ribi_unmasked())  ||  curr_90direction != next_90direction  ||  (rs  &&  rs->get_desc()->is_traffic_light()));
+			const ribi_t::ribi perp_curr = drives_on_left
+				? ribi_t::rotate_perpendicular_l(curr_90direction)
+				: ribi_t::rotate60 (ribi_t::rotate60 (curr_90direction));
+			bool int_block = ribi_t::is_threeway(str->get_ribi_unmasked())  &&  ((perp_curr & str->get_ribi_unmasked())  ||  curr_90direction != next_90direction  ||  (rs  &&  rs->get_desc()->is_traffic_light()));
 
 			// check exit from crossings and intersections, allow to proceed after 4 consecutive
 			while(  !obj   &&  (int_block  ||  gr->get_crossing())  &&  test_index < r.get_count()  &&  test_index < route_index + 4u  ) {
@@ -447,8 +452,14 @@ bool road_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, ui
 					rs = NULL;
 				}
 
-				// check for blocking intersection
-				int_block = ribi_t::is_threeway(str->get_ribi_unmasked())  &&  (((drives_on_left ? ribi_t::rotate90l(curr_90direction) : ribi_t::rotate90(curr_90direction)) & str->get_ribi_unmasked())  ||  curr_90direction != next_90direction  ||  (rs  &&  rs->get_desc()->is_traffic_light()));
+				// check for blocking intersection (see earlier HEX-PORT
+				// note on rotate90 → 120° hex approximation).
+				{
+					const ribi_t::ribi perp_curr2 = drives_on_left
+						? ribi_t::rotate_perpendicular_l(curr_90direction)
+						: ribi_t::rotate60 (ribi_t::rotate60 (curr_90direction));
+					int_block = ribi_t::is_threeway(str->get_ribi_unmasked())  &&  ((perp_curr2 & str->get_ribi_unmasked())  ||  curr_90direction != next_90direction  ||  (rs  &&  rs->get_desc()->is_traffic_light()));
+				}
 
 				test_index++;
 			}

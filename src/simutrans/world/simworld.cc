@@ -5113,10 +5113,10 @@ void karte_t::calc_humidity_map_region( sint16 , sint16 , sint16 xbottom, sint16
 	const sint8 height_increase = min( 160 / settings.get_climate_borders(arctic_climate,1), 33 );
 
 	const ribi_t::ribi wind = settings.get_wind_dir();
-	if( wind == ribi_t::west || wind == ribi_t::east ) {
-		const sint16 x0   = wind == ribi_t::west ? 0 : xbottom - 1;
-		const sint16 xmax = wind == ribi_t::west ? xbottom : -1;
-		const sint16 dx   = wind == ribi_t::west ? 1 : -1;
+	if( wind == ribi_t::northwest || wind == ribi_t::southeast ) {
+		const sint16 x0   = wind == ribi_t::northwest ? 0 : xbottom - 1;
+		const sint16 xmax = wind == ribi_t::northwest ? xbottom : -1;
+		const sint16 dx   = wind == ribi_t::northwest ? 1 : -1;
 		for(  sint16 y = 0;  y < ybottom;  y++  ) {
 			sint8 current_humidity = 50;	// start value for each row
 			for(  sint16 x = x0;  x < xmax;  x+=dx  ) {

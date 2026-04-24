@@ -9,6 +9,7 @@
 //
 
 
+// test_dir_is_single: HEX-PORT PENDING.
 function test_dir_is_single()
 {
 	ASSERT_FALSE(dir.is_single(dir.none))
@@ -34,6 +35,7 @@ function test_dir_is_single()
 }
 
 
+// test_dir_is_twoway: HEX-PORT PENDING.
 function test_dir_is_twoway()
 {
 	ASSERT_FALSE(dir.is_twoway(dir.none))
@@ -59,6 +61,7 @@ function test_dir_is_twoway()
 }
 
 
+// test_dir_is_threeway: HEX-PORT PENDING.
 function test_dir_is_threeway()
 {
 	ASSERT_FALSE(dir.is_threeway(dir.none))
@@ -84,6 +87,7 @@ function test_dir_is_threeway()
 }
 
 
+// test_dir_is_curve: HEX-PORT PENDING.
 function test_dir_is_curve()
 {
 	ASSERT_FALSE(dir.is_curve(dir.none))
@@ -109,6 +113,7 @@ function test_dir_is_curve()
 }
 
 
+// test_dir_is_straight: HEX-PORT PENDING.
 function test_dir_is_straight()
 {
 	ASSERT_FALSE(dir.is_straight(dir.none))
@@ -134,6 +139,7 @@ function test_dir_is_straight()
 }
 
 
+// test_dir_double: HEX-PORT PENDING.
 function test_dir_double()
 {
 	ASSERT_EQUAL(dir.double(dir.none), dir.none)
@@ -159,6 +165,7 @@ function test_dir_double()
 }
 
 
+// test_dir_backward: HEX-PORT PENDING.
 function test_dir_backward()
 {
 	ASSERT_EQUAL(dir.backward(dir.none), dir.all)
@@ -184,6 +191,7 @@ function test_dir_backward()
 }
 
 
+// test_dir_to_slope: HEX-PORT PENDING.
 function test_dir_to_slope()
 {
 	ASSERT_EQUAL(dir.to_slope(dir.none),  slope.flat)
@@ -220,6 +228,7 @@ function test_dir_to_slope()
 }
 
 
+// test_dir_to_coord: HEX-PORT PENDING.
 function test_dir_to_coord()
 {
 	ASSERT_EQUAL(dir.to_coord(dir.none).tostring(),  coord( 0,  0).tostring())

@@ -414,9 +414,9 @@ bool air_vehicle_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, ro
 		int offset = 0;
 		switch(welt->lookup(search_end)->get_weg_ribi(air_wt)) {
 			case ribi_t::north: offset = 0; break;
-			case ribi_t::west: offset = 4; break;
+			case ribi_t::northwest: offset = 4; break;
 			case ribi_t::south: offset = 8; break;
-			case ribi_t::east: offset = 12; break;
+			case ribi_t::southeast: offset = 12; break;
 		}
 
 		// now make a curve

@@ -149,8 +149,11 @@ vehicle_base_t::vehicle_base_t(koord3d pos):
 void vehicle_base_t::rotate90()
 {
 	obj_t::rotate90();
-	// directions are counterclockwise to ribis!
-	direction = ribi_t::rotate90( direction );
+	// HEX-PORT: map-rotate90 is itself semantically wrong under hex
+	// (90° is not a hex symmetry; see karte_t::rotate90 TODO).  We
+	// stub the ribi rotation via rotate_for_map_rotate90 so nothing assertion-fails while
+	// travelling a still-rotating map.
+	direction = ribi_t::rotate_for_map_rotate90(direction );
 	pos_next.rotate90( welt->get_size().y-1 );
 	// new offsets
 	sint8 new_dx = -dy*2;
@@ -351,6 +354,20 @@ void vehicle_base_t::get_screen_offset( int &xoff, int &yoff, const sint16 raste
 
 
 // calcs new direction and applies it to the vehicles
+//
+// HEX-PORT: under flat-top axial coords the 6 neighbour displacements
+// project onto the existing 2:1 isometric viewport as:
+//   N  (0,-1): screen (+2, -1) — "normal" tile step
+//   S  (0, 1): screen (-2, +1) — "normal" tile step
+//   SE (1, 0): screen (+2, +1) — takes over the old square "east"
+//   NW (-1,0): screen (-2, -1) — takes over the old square "west"
+//   NE (1,-1): screen (+4,  0) — visual-length of old square diagonals
+//   SW (-1,1): screen (-4,  0) — visual-length of old square diagonals
+// So 4 of 6 hex edges are "normal" and 2 (NE, SW) reuse the
+// diagonal-step timing from the square-era projection.  The legacy
+// (1,1) and (-1,-1) square-diagonal cases are dead under hex (hex
+// distance 2, never appears from adjacent-tile pathfinding) — kept
+// only as defensive fallback logging until the viewport port lands.
 ribi_t::ribi vehicle_base_t::calc_set_direction(const koord3d& start, const koord3d& ende)
 {
 	ribi_t::ribi direction = ribi_t::none;
@@ -358,48 +375,45 @@ ribi_t::ribi vehicle_base_t::calc_set_direction(const koord3d& start, const koor
 	const sint8 di = ende.x - start.x;
 	const sint8 dj = ende.y - start.y;
 
-	if(dj < 0 && di == 0) {
+	if(dj < 0 && di == 0) {          // N
 		direction = ribi_t::north;
 		dx = 2;
 		dy = -1;
 		steps_next = VEHICLE_STEPS_PER_TILE - 1;
-	} else if(dj > 0 && di == 0) {
+	} else if(dj > 0 && di == 0) {   // S
 		direction = ribi_t::south;
 		dx = -2;
 		dy = 1;
 		steps_next = VEHICLE_STEPS_PER_TILE - 1;
-	} else if(di < 0 && dj == 0) {
-		direction = ribi_t::west;
+	} else if(di < 0 && dj == 0) {   // NW (was square "west")
+		direction = ribi_t::northwest;
 		dx = -2;
 		dy = -1;
 		steps_next = VEHICLE_STEPS_PER_TILE - 1;
-	} else if(di >0 && dj == 0) {
-		direction = ribi_t::east;
+	} else if(di >0 && dj == 0) {    // SE (was square "east")
+		direction = ribi_t::southeast;
 		dx = 2;
 		dy = 1;
 		steps_next = VEHICLE_STEPS_PER_TILE - 1;
-	} else if(di > 0 && dj > 0) {
-		direction = ribi_t::southeast;
-		dx = 0;
-		dy = 2;
-		steps_next = diagonal_vehicle_steps_per_tile - 1;
-	} else if(di < 0 && dj < 0) {
-		direction = ribi_t::northwest;
-		dx = 0;
-		dy = -2;
-		steps_next = diagonal_vehicle_steps_per_tile - 1;
-	} else if(di > 0 && dj < 0) {
+	} else if(di > 0 && dj < 0) {    // NE
 		direction = ribi_t::northeast;
 		dx = 4;
 		dy = 0;
 		steps_next = diagonal_vehicle_steps_per_tile - 1;
-	} else {
+	} else if(di < 0 && dj > 0) {    // SW
 		direction = ribi_t::southwest;
 		dx = -4;
 		dy = 0;
 		steps_next = diagonal_vehicle_steps_per_tile - 1;
+	} else {
+		// (1,1) or (-1,-1): hex distance 2, should not occur from
+		// adjacent-tile movement.  Fallback to none + zero offset;
+		// the viewport port will remove this branch.
+		direction = ribi_t::none;
+		dx = 0;
+		dy = (dj > 0) ? 2 : -2;
+		steps_next = diagonal_vehicle_steps_per_tile - 1;
 	}
-	// we could artificially make diagonals shorter: but this would break existing game behaviour
 	return direction;
 }
 
@@ -516,16 +530,23 @@ vehicle_base_t *vehicle_base_t::no_cars_blocking( const grund_t *gr, const convo
 					return v;
 				}
 
+				// HEX-PORT: 4-way crossroads collision logic baked in
+				// rotate45 (one-lane cross) and rotate90 (perpendicular).
+				// Under hex, crossroads have 3 or 6 arms at 60° spacing;
+				// rotate45 → rotate60, rotate90 → two rotate60 calls
+				// (via rotate_perpendicular).  Collision
+				// behaviour is approximate; a real hex-crossroads port
+				// is tracked in the TODO building/crossing cluster.
 				const bool drives_on_left = welt->get_settings().is_drive_left();
-				const bool across = next_direction == (drives_on_left ? ribi_t::rotate45l(next_90direction) : ribi_t::rotate45(next_90direction)); // turning across the opposite directions lane
-				const bool other_across = other_direction == (drives_on_left ? ribi_t::rotate45l(other_90direction) : ribi_t::rotate45(other_90direction)); // other is turning across the opposite directions lane
+				const bool across = next_direction == (drives_on_left ? ribi_t::rotate60l(next_90direction) : ribi_t::rotate60(next_90direction)); // turning across the opposite directions lane
+				const bool other_across = other_direction == (drives_on_left ? ribi_t::rotate60l(other_90direction) : ribi_t::rotate60(other_90direction)); // other is turning across the opposite directions lane
 				if(  other_direction == next_direction  &&  !(other_across || across)  ) {
 					// entering same straight waypoint as other ~18%
 					return v;
 				}
 
 				const bool straight = next_direction == next_90direction; // driving straight
-				const ribi_t::ribi current_90direction = straight ? ribi_t::backward(next_90direction) : (~(next_direction|ribi_t::backward(next_90direction)))&0x0F;
+				const ribi_t::ribi current_90direction = straight ? ribi_t::backward(next_90direction) : (ribi_t::ribi)((~(next_direction|ribi_t::backward(next_90direction))) & ribi_t::all);
 				const bool other_straight = other_direction == other_90direction; // other is driving straight
 				const bool other_exit_same_side = current_90direction == other_90direction; // other is exiting same side as we're entering
 				const bool other_exit_opposite_side = ribi_t::backward(current_90direction) == other_90direction; // other is exiting side across from where we're entering
@@ -535,7 +556,11 @@ vehicle_base_t *vehicle_base_t::no_cars_blocking( const grund_t *gr, const convo
 				}
 
 				const bool headon = ribi_t::backward(current_direction) == other_direction; // we're meeting the other headon
-				const bool other_exit_across = (drives_on_left ? ribi_t::rotate90l(next_90direction) : ribi_t::rotate90(next_90direction)) == other_90direction; // other is exiting by turning across the opposite directions lane
+				// HEX-PORT: old rotate90 → rotate_perpendicular.
+				const ribi_t::ribi perpendicular_90 = drives_on_left
+					? ribi_t::rotate_perpendicular_l(next_90direction)
+					: ribi_t::rotate60 (ribi_t::rotate60 (next_90direction));
+				const bool other_exit_across = perpendicular_90 == other_90direction; // other is exiting by turning across the opposite directions lane
 				if(  straight  &&  (ribi_t::is_perpendicular(current_90direction,other_direction)  ||  (other_across  &&  other_moving  &&  (other_exit_across  ||  (other_exit_same_side  &&  !headon))) ) ) {
 					// other turning across in front of us, but allow if other is stopped - duplicating historic behaviour   ~2%
 					return v;

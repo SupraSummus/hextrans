@@ -77,15 +77,21 @@ private:
 	const way_desc_t * desc;
 
 	/**
-	* Direction bits (ribis) for the way. North is in the upper right corner of the monitor.
-	* 1=North, 2=East, 4=South, 8=West
+	* Direction bits (ribis) for the way.  HEX-PORT: 6 hex edge bits
+	* (SE, S, SW, NW, N, NE).  Formerly a 4-bit bitfield paired with
+	* a 4-bit ribi_maske in one uint8; under hex the 6-bit values
+	* silently truncated when stored in 4 bits (N=16 became 0).
+	* Promoted to two full bytes — memory cost is minimal; the
+	* save-format rdwr still writes/reads a single byte (see
+	* weg_t::rdwr) and needs a version bump before hex ribis
+	* survive a round-trip.  Tracked in TODO.md save-format item.
 	*/
-	uint8 ribi:4;
+	uint8 ribi;
 
 	/**
 	* Mask for ribi (Richtungsbits => Direction Bits)
 	*/
-	uint8 ribi_maske:4;
+	uint8 ribi_maske;
 
 	/**
 	* flags like walkway, electrification, road sings

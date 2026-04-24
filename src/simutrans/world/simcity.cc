@@ -561,9 +561,9 @@ class townhall_placefinder_t : public placefinder_t {
 			}
 
 			if ( ((dir & ribi_t::south)!=0  &&  d.y == h - 1) ||
-				((dir & ribi_t::west)!=0  &&  d.x == 0) ||
+				((dir & ribi_t::northwest)!=0  &&  d.x == 0) ||
 				((dir & ribi_t::north)!=0  &&  d.y == 0) ||
-				((dir & ribi_t::east)!=0  &&  d.x == w - 1)) {
+				((dir & ribi_t::southeast)!=0  &&  d.x == w - 1)) {
 				// we want to build a road here:
 				return
 					gr->get_typ() == grund_t::boden &&
@@ -2593,13 +2593,19 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 		// on which side should we place the road?
 		uint8 dir = ribi_t::layout_to_ribi[layout & 3];
 		if (neugruendung || umziehen) {
-			best_pos = townhall_placefinder_t(welt, dir).find_place(pos, desc->get_x(layout) + (dir & ribi_t::eastwest ? 1 : 0), desc->get_y(layout) + (dir & ribi_t::northsouth ? 1 : 0), desc->get_allowed_climate_bits());
+			// HEX-PORT: old "eastwest" combo = E|W, mapped to hex SE|NW
+			// (same displacement vectors under the rename).
+			// "northsouth" combo unchanged (N|S).  Townhall placement
+			// still uses 4-rotation layout via layout_to_ribi[0..3];
+			// the 2 hex-only directions (NE, SW) aren't yet wired
+			// through the townhall placement logic.
+			best_pos = townhall_placefinder_t(welt, dir).find_place(pos, desc->get_x(layout) + (dir & (ribi_t::southeast | ribi_t::northwest) ? 1 : 0), desc->get_y(layout) + (dir & (ribi_t::north | ribi_t::south) ? 1 : 0), desc->get_allowed_climate_bits());
 			// check, if the was something found
 			if (best_pos == koord::invalid) {
 				dbg->error("stadt_t::check_bau_townhall", "no better position found!");
 				return;
 			}
-			if (dir == ribi_t::west) {
+			if (dir == ribi_t::northwest) {
 				best_pos.x++;
 			}
 			if (dir == ribi_t::north) {
@@ -2613,7 +2619,7 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 		DBG_MESSAGE("stadt_t::check_bau_townhall()", "add townhall (bev=%i, ptr=%p)", buildings.get_sum_weight(),welt->lookup_kartenboden(best_pos)->first_no_way_obj());
 
 		// if not during initialization
-		koord offset(dir == ribi_t::west, dir == ribi_t::north);
+		koord offset(dir == ribi_t::northwest, dir == ribi_t::north);
 		if (!new_town) {
 			cbuffer_t buf;
 			buf.printf(translator::translate("%s wasted\nyour money with a\nnew townhall\nwhen it reached\n%i inhabitants."), name.c_str(), get_einwohner());
@@ -2635,12 +2641,12 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 			for (sint8 i = 0; i < 4; i++) {
 				uint8 dir = ribi_t::layout_to_ribi[(layout + i)&3];
 				switch (dir) {
-				case ribi_t::east:
+				case ribi_t::southeast:
 					road0.x = road1.x = size.x;
 					road0.y = -neugruendung;
 					road1.y = size.y - umziehen;
 					break;
-				case ribi_t::west:
+				case ribi_t::northwest:
 					road0.x = road1.x = -1;
 					road0.y = -neugruendung;
 					road1.y = size.y - umziehen;
@@ -3661,9 +3667,11 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 			return false;
 		}
 
-		// try artificial slope. For this, we need to know the height of the tile with the connecting road
-		for (sint8 r = 0; r < 4; r++) {
-			if (grund_t* gr = welt->lookup_kartenboden(k + koord::nesw[r])) {
+		// try artificial slope. For this, we need to know the height
+		// of the tile with the connecting road.  HEX-PORT: iterate 6
+		// hex neighbours instead of 4 cardinals.
+		for (sint8 r = 0; r < 6; r++) {
+			if (grund_t* gr = welt->lookup_kartenboden(k + koord::neighbours[r])) {
 				if (gr->hat_weg(road_wt)) {
 
 					// Do we want to connect to nextnext tile?
@@ -3690,10 +3698,10 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 						sint8 dir = bd->get_hoehe() < gr->get_hoehe() ? +1 : -1;
 						// check height clearance (no bridges or tunnels would be blocked by this when becoming a slope)
 						// (This is only possible near articial sloes, but the check is not expensive)
-						if (welt->lookup(koord3d(k + koord::nesw[r], bd->get_hoehe() + dir))) {
+						if (welt->lookup(koord3d(k + koord::neighbours[r], bd->get_hoehe() + dir))) {
 							continue;
 						}
-						if (welt->get_settings().get_way_height_clearance() == 2  &&  welt->lookup(koord3d(k + koord::nesw[r], bd->get_hoehe() + 2*dir))) {
+						if (welt->get_settings().get_way_height_clearance() == 2  &&  welt->lookup(koord3d(k + koord::neighbours[r], bd->get_hoehe() + 2*dir))) {
 							continue;
 						}
 					}
@@ -3740,7 +3748,7 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 					if (terraform_allowed) {
 						// only try to alter to accomodate
 						bool connected_across = false;
-						if (const grund_t* gr2 = welt->lookup_kartenboden(k - koord::nesw[r])) {
+						if (const grund_t* gr2 = welt->lookup_kartenboden(k - koord::neighbours[r])) {
 							if (gr2->hat_weg(road_wt)) {
 								// we may want to connect or give up, if this is impossible
 								if (gr2->get_grund_hang() == slope_t::flat || ribi_t::is_straight(ribi_t::doubles(ribi_t::nesw[r]) | gr2->get_weg_ribi_unmasked(road_wt))) {
@@ -3824,7 +3832,7 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 								else if (bd->get_hoehe() == target_h) {
 									// find out height of nextnext tile
 									sint8 next_h = bd->get_hoehe();
-									if (grund_t* gr2 = welt->lookup_kartenboden(k - koord::nesw[r])) {
+									if (grund_t* gr2 = welt->lookup_kartenboden(k - koord::neighbours[r])) {
 										next_h = gr2->get_hoehe();
 									}
 									if (next_h>=bd->get_hoehe()) {

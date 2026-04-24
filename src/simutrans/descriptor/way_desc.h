@@ -120,13 +120,24 @@ public:
 		}
 		const uint16 n = image_list_base_index(season, front);
 		image_list_t const* const imglist = get_child<image_list_t>(n);
-		// only do this if extended switches are there
-		if(  imglist->get_count()>16  ) {
+		// only do this if extended switches are there.
+		// HEX-PORT: ribi_to_extra is a 4-bit-ribi → switch-sprite-index
+		// table; only the 4 "3-way junction" combos under the old
+		// 4-bit layout map to the 5 extended switch images (N+E+S=0,
+		// N+E+W=1, N+S+W=2, E+S+W=3, all=4).  Under hex ribi can be
+		// 0..63 and 3-way hex junctions span many more bit patterns —
+		// not yet wired to the sprite table.  Bound-check to the
+		// 4-bit entries that do exist; everything else falls back to
+		// the standard (non-extended) sprite.
+		if(  imglist->get_count()>16  &&  ribi < 16  ) {
 			static uint8 ribi_to_extra[16] = {
 				255, 255, 255, 255, 255, 255, 255, 0,
 				255, 255, 255, 1, 255, 2, 3, 4
 			};
-			return imglist->get_image_id( ribi_to_extra[ribi]+16+(nw*5) );
+			const uint8 extra = ribi_to_extra[ribi];
+			if (extra != 255) {
+				return imglist->get_image_id( extra+16+(nw*5) );
+			}
 		}
 		// else return standard values
 		return imglist->get_image_id( ribi );

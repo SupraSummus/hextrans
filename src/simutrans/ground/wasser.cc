@@ -90,7 +90,7 @@ void wasser_t::recalc_ribis()
 
 	bool harbour = find<gebaeude_t>();
 
-	for(  uint8 i = 0;  i < 4;  i++  ) {
+	for(  uint8 i = 0;  i < 6;  i++  ) {
 		grund_t *gr_neighbour = NULL;
 		ribi_t::ribi test = ribi_t::nesw[i];
 
@@ -107,7 +107,10 @@ void wasser_t::recalc_ribis()
 
 			// test whether we can turn on neighbour canal tile
 			if (!gr_neighbour->is_water()) {
-				ribi_t::ribi ribi_orth = ribi_t::doubles( ribi_t::rotate90( test ));
+				// HEX-PORT: see rotate_perpendicular helper.  "orthogonal canal axis" under
+				// hex is approximate; real canal geometry port is
+				// deferred.
+				ribi_t::ribi ribi_orth = ribi_t::doubles( ribi_t::rotate_perpendicular(test ));
 				if ((ribi_neigh_base & ribi_orth) != ribi_orth) {
 					// turning not possible, mark it as canal ribi
 					canal_ribi |= test;
@@ -130,7 +133,7 @@ void wasser_t::recalc_water_neighbours()
 {
 	recalc_ribis();
 
-	for(  uint8 i = 0;  i < 4;  i++  ) {
+	for(  uint8 i = 0;  i < 6;  i++  ) {
 		grund_t *gr_neighbour = NULL;
 		ribi_t::ribi test = ribi_t::nesw[i];
 
@@ -146,9 +149,10 @@ void wasser_t::recalc_water_neighbours()
 void wasser_t::rotate90()
 {
 	grund_t::rotate90();
-	ribi = ribi_t::rotate90(ribi);
-	canal_ribi = ribi_t::rotate90(canal_ribi);
-	display_ribi = ribi_t::rotate90(display_ribi);
+	// HEX-PORT: see rotate_for_map_rotate90 helper.
+	ribi = ribi_t::rotate_for_map_rotate90(ribi);
+	canal_ribi = ribi_t::rotate_for_map_rotate90(canal_ribi);
+	display_ribi = ribi_t::rotate_for_map_rotate90(display_ribi);
 }
 
 
