@@ -665,26 +665,35 @@ void objlist_t::rotate90_moving()
 	   different directions, that may cause a visual glitch but
 	   shouldn't really happen. */
 
-	static const uint append_dirs = (
-		(1 << ribi_t::southwest) | (1 << ribi_t::northwest) |
-		(1 << ribi_t::northwest) | (1 << ribi_t::north));
-	static const uint rotated_append_dirs = (
-		(1 << ribi_t::southeast) | (1 << ribi_t::south) |
-		(1 << ribi_t::southwest) | (1 << ribi_t::northwest));
-	static const uint rotated_mirror_dirs = (
-		(1 << ribi_t::northeast) | (1 << ribi_t::southeast) |
-		(1 << ribi_t::southwest) | (1 << ribi_t::northwest));
+	/* Ribi-mask sets: bit i set means direction `1 << i` (= hex edge i)
+	   is a member.  The old code stored membership as `1 << direction`
+	   where `direction` was a single-bit ribi value in 1..8 — fits in
+	   a uint.  Under hex, direction can be up to 32 (NE) and `1 << 32`
+	   is undefined behaviour for a 32-bit uint.  Since a ribi IS a
+	   bitmask already, we just AND the ribi with a mask-of-allowed
+	   directions.  The `northwest` duplicate in the old `append_dirs`
+	   was a leftover from the east→southeast / west→northwest rename:
+	   it used to be `... | (1 << west)` and got mechanically doubled
+	   when `west` became `northwest`.  Removed. */
+	static const ribi_t::ribi append_dirs = (ribi_t::ribi)(
+		ribi_t::southwest | ribi_t::northwest | ribi_t::north);
+	static const ribi_t::ribi rotated_append_dirs = (ribi_t::ribi)(
+		ribi_t::southeast | ribi_t::south |
+		ribi_t::southwest | ribi_t::northwest);
+	static const ribi_t::ribi rotated_mirror_dirs = (ribi_t::ribi)(
+		ribi_t::northeast | ribi_t::southeast |
+		ribi_t::southwest | ribi_t::northwest);
 
-	auto rotated_disp_lane = [] (uint& dir_mask, const obj_t* o) {
+	auto rotated_disp_lane = [] (ribi_t::ribi& dir, const obj_t* o) {
 		auto v = static_cast<const vehicle_base_t*>(o);
-		dir_mask = 1 << v->get_direction();
+		dir = v->get_direction();
 		uint lane = v->get_disp_lane();
-		return (rotated_mirror_dirs & dir_mask) ? 4 - lane : lane;
+		return (rotated_mirror_dirs & dir) ? 4 - lane : lane;
 	};
 
 	auto insert = [&] (obj_t *o) {
-		uint dir_mask, dm;
-		uint lane = rotated_disp_lane(dir_mask, o);
+		ribi_t::ribi dir, dm;
+		uint lane = rotated_disp_lane(dir, o);
 		uint i;
 
 		// Insert in the same disp_lane, first position.
@@ -694,7 +703,7 @@ void objlist_t::rotate90_moving()
 		}
 		// Append if the vehicle will move upwards on screen after
 		// rotation, same as in intern_add_moving().
-		if (rotated_append_dirs & dir_mask) {
+		if (rotated_append_dirs & dir) {
 			for (; i < top; ++i) {
 				if (rotated_disp_lane(dm, obj.some[i]) > lane)
 					break;
@@ -721,7 +730,7 @@ void objlist_t::rotate90_moving()
 			lane = disp_lane(old_some[i]);
 			if (lane != prev_lane)
 				break;
-			if (append_dirs & (1 << v->get_direction()))
+			if (append_dirs & v->get_direction())
 				break;
 		}
  

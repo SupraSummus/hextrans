@@ -975,7 +975,7 @@ const char* bridge_builder_t::renovate(player_t* player, koord3d pos_start, wayt
 	grund_t* from = start;
 	while (1) {
 		ribi_t::ribi r = wegtyp == powerline_wt ? from->get_leitung()->get_ribi() : from->get_weg_nr(0)->get_ribi_unmasked();
-		ribi_t::ribi dir = r & ribi_t::northeast;
+		ribi_t::ribi dir = r & ribi_t::upper_half;
 
 		grund_t* to;
 		if (from->get_neighbour(to, check_wegtyp, dir) && to->ist_bruecke()) {
@@ -996,7 +996,7 @@ const char* bridge_builder_t::renovate(player_t* player, koord3d pos_start, wayt
 	from = start;
 	while (1) {
 		ribi_t::ribi r = wegtyp == powerline_wt ? from->get_leitung()->get_ribi() : from->get_weg_nr(0)->get_ribi_unmasked();
-		ribi_t::ribi dir = r & ribi_t::southwest;
+		ribi_t::ribi dir = r & ribi_t::lower_half;
 
 		grund_t* to;
 		if (from->get_neighbour(to, check_wegtyp, dir) && to->ist_bruecke()) {
@@ -1074,7 +1074,7 @@ const char* bridge_builder_t::renovate(player_t* player, koord3d pos_start, wayt
 		sint16 height = gr->get_hoehe() - gr_bottom->get_pos().z;
 		ribi_t::ribi ribi = gr->get_weg_ribi_unmasked(wegtyp);
 		if (desc->get_pillar() > 0 && !gr->ist_karten_boden()) {
-			koord zv((ribi_t::ribi)(ribi & ribi_t::northeast));
+			koord zv((ribi_t::ribi)(ribi & ribi_t::upper_half));
 			// make a new pillar here
 			koord3d pos = gr->get_pos();
 			if (desc->get_pillar() == 1  ||  (pos.x * zv.x + pos.y * zv.y) % desc->get_pillar() == 0) {
@@ -1138,8 +1138,8 @@ const char *bridge_builder_t::remove(player_t *player, koord3d pos_start, waytyp
 			}
 			else {
 				ribi_t::ribi r = wegtyp==powerline_wt ? from->get_leitung()->get_ribi() : from->get_weg_nr(0)->get_ribi_unmasked();
-				ribi_t::ribi dir1 = r & ribi_t::northeast;
-				ribi_t::ribi dir2 = r & ribi_t::southwest;
+				ribi_t::ribi dir1 = r & ribi_t::upper_half;
+				ribi_t::ribi dir2 = r & ribi_t::lower_half;
 
 				grund_t *to;
 				// test if we are at the end of a bridge:

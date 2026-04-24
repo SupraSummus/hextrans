@@ -259,7 +259,16 @@ public:
 		northwest = 1 << 3, // 8   ─ neighbours[3]
 		north     = 1 << 4, // 16  ─ neighbours[4]
 		northeast = 1 << 5, // 32  ─ neighbours[5]
-		all       = 63      ///< all 6 edges set
+		all       = 63,     ///< all 6 edges set
+
+		/// The 3 "upper" hex edges (N, NE, NW) — exactly one bit per
+		/// hex axis.  Masking any 2-bit opposite-pair ribi with this
+		/// extracts one end: N-S → N, NE-SW → NE, NW-SE → NW.  The
+		/// square-era "pick one end" idiom used the 4-bit combo
+		/// constants `northeast` (N|E) and `southwest` (S|W) — under
+		/// hex those are single edges and drop 2 of 3 bridge axes.
+		upper_half = north | northeast | northwest,
+		lower_half = south | southeast | southwest
 	};
 	typedef uint8 ribi;
 
