@@ -420,9 +420,10 @@ call_tool_work build_bridge_at(player_t* pl, koord3d start, const bridge_desc_t*
 
 call_tool_work set_slope(player_t* pl, koord3d start, my_slope_t slope)
 {
-	// communicate per default_param
+	// communicate per default_param.  Buffer wide enough for 3^6 = 729
+	// slope values and the 800-range terraform sentinels.
 	static char buf[8];
-	sprintf(buf, "%2d", (uint8)slope);
+	sprintf(buf, "%d", (int)(slope_t::type)slope);
 	static tool_setslope_t tool;
 	// we do not want our slopes translated to double-height (even for single-height paksets), they are already in the double-height system
 	tool.old_slope_compatibility_mode = false;

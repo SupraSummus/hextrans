@@ -55,26 +55,7 @@ function test_way_road_build_single_tile()
 }
 
 
-// HEX-PORT PENDING — removed from all_tests.nut.
-//
-// Invariant under test: a straight road can be built between two
-// endpoints on flat ground; the way-pattern reflects the axis; a
-// perpendicular road added later produces T-junction connectivity;
-// out-of-bounds or off-height targets fail cleanly; costs and
-// maintenance track the tile count. The invariant survives the port.
-//
-// Why this fails today: endpoints (2,1)→(2,6) define a square-axis
-// line, the second leg (2,2)→(6,2) is the square-perpendicular axis,
-// and `ASSERT_WAY_PATTERN` matrices encode 4-bit ribi
-// (dir.south/northsouth/north/east/west and the composite
-// northeastwest '7', eastwest 'A', northsouthwest 'D', etc.). None of
-// these directions survive the port verbatim — hex has 6 edge
-// directions and `ribi_t` will widen to 6 bits.
-//
-// Restoration plan: rewrite after `ribi_t` widens and
-// `ASSERT_WAY_PATTERN` handles 6-bit ribi. Choose a pair of
-// non-parallel hex axes for the two legs so the T-junction
-// assertion still makes sense.
+// test_way_road_build_straight: HEX-PORT PENDING.
 function test_way_road_build_straight()
 {
 	local default_cash = 200000 * 100
@@ -246,6 +227,7 @@ function test_way_road_build_straight()
 }
 
 
+// test_way_road_build_bend: HEX-PORT PENDING.
 function test_way_road_build_bend()
 {
 	local pl   = player_x(0)
@@ -320,21 +302,7 @@ function test_way_road_build_bend()
 }
 
 
-// HEX-PORT PENDING — removed from all_tests.nut.
-//
-// Invariant under test: building many ways that share an axis produces
-// the right connectivity; ways can be built on different levels;
-// parallel rail + road on adjacent rows don't merge. Invariant is
-// valuable under hex.
-//
-// Why this fails today: the test builds along the x-axis (a
-// square-grid axis) and asserts on a 16×16 way-pattern matrix
-// encoding 4-bit ribi (`2` = east, `8` = west, `A` = eastwest). The
-// pattern shape itself (a diagonal staircase of segments) is only
-// meaningful on a square grid.
-//
-// Restoration plan: rewrite with a hex axis for the "parallel" runs
-// and a hex-ribi matrix once `ASSERT_WAY_PATTERN` handles 6-bit ribi.
+// test_way_road_build_parallel: HEX-PORT PENDING.
 function test_way_road_build_parallel()
 {
 	local pl   = player_x(0)
@@ -436,20 +404,7 @@ function test_way_road_build_parallel()
 }
 
 
-// HEX-PORT PENDING — removed from all_tests.nut.
-//
-// Invariant under test: a road cannot be built directly under a
-// powerline, but can be built adjacent to or ending under one; removing
-// the powerline frees the ground for road. Valuable under hex.
-//
-// Why this fails today: the test lays a rectangular powerline loop
-// (1,1)→(3,1)→(3,3)→(1,3)→(1,1) and uses ASSERT_WAY_PATTERN with
-// 4-bit ribi digits (6/A/C/5/3/9 = southeast/eastwest/southwest/
-// northsouth/northeast/northwest). Rectangle and 4-bit ribi both go
-// away under hex.
-//
-// Restoration plan: rebuild with a hex-shaped powerline loop (e.g. a
-// unit hex ring around a central tile) and a 6-bit-ribi ASSERT helper.
+// test_way_road_build_below_powerline: HEX-PORT PENDING.
 function test_way_road_build_below_powerline()
 {
 	local pl = player_x(0)
@@ -669,20 +624,7 @@ function test_way_road_build_below_powerline()
 }
 
 
-// HEX-PORT PENDING — removed from all_tests.nut.
-//
-// Invariant under test: road and rail form a crossing when they meet
-// at a single tile; if the road is too fast for a crossing, the build
-// fails and nothing gets placed; the crossing flags (is_crossing,
-// has_two_ways) flip correctly. Invariant survives the port.
-//
-// Why this fails today: rail runs along (3,1)→(3,3) and road along
-// (2,2)→(4,2) — the classic square-perpendicular pair, which does not
-// exist on a hex grid (6 axes, not 2 orthogonal ones). Way patterns
-// also use 4-bit ribi.
-//
-// Restoration plan: pick a pair of hex axes whose meeting point is
-// one tile, and rewrite the patterns against 6-bit ribi.
+// test_way_road_build_crossing: HEX-PORT PENDING.
 function test_way_road_build_crossing()
 {
 	local pl = player_x(0)
@@ -767,19 +709,7 @@ function test_way_road_build_crossing()
 }
 
 
-// HEX-PORT PENDING — removed from all_tests.nut.
-//
-// Invariant under test: upgrading road speed past a crossing's limit
-// keeps the crossing but caps the road's effective speed there; going
-// the other way (downgrading) lifts the cap. Invariant survives the
-// port.
-//
-// Why this fails today: same perpendicular rail/road crossing setup
-// at (3,*)/( *,2) as test_way_road_build_crossing, same 4-bit ribi
-// assertions.
-//
-// Restoration plan: bundled with the rest of the crossing tests —
-// hex-axis pair + 6-bit ribi assertions.
+// test_way_road_upgrade_crossing: HEX-PORT PENDING.
 function test_way_road_upgrade_crossing()
 {
 	local pl = player_x(0)
@@ -855,6 +785,7 @@ function test_way_road_upgrade_crossing()
 }
 
 
+// test_way_road_upgrade_downgrade: HEX-PORT PENDING.
 function test_way_road_upgrade_downgrade()
 {
 	local pl = player_x(0)
@@ -967,6 +898,7 @@ function test_way_road_upgrade_downgrade()
 }
 
 
+// test_way_road_upgrade_downgrade_across_bridge: HEX-PORT PENDING.
 function test_way_road_upgrade_downgrade_across_bridge()
 {
 	local pl = player_x(0)
@@ -1095,6 +1027,7 @@ function test_way_road_upgrade_downgrade_across_bridge()
 }
 
 
+// test_way_road_cityroad_build: HEX-PORT PENDING.
 function test_way_road_cityroad_build()
 {
 	local public_pl = player_x(1)
@@ -1149,6 +1082,7 @@ function test_way_road_cityroad_build()
 }
 
 
+// test_way_road_cityroad_upgrade_with_cityroad: HEX-PORT PENDING.
 function test_way_road_cityroad_upgrade_with_cityroad()
 {
 	local public_pl = player_x(1)
@@ -1188,6 +1122,7 @@ function test_way_road_cityroad_upgrade_with_cityroad()
 }
 
 
+// test_way_road_cityroad_downgrade_with_cityroad: HEX-PORT PENDING.
 function test_way_road_cityroad_downgrade_with_cityroad()
 {
 	local public_pl = player_x(1)
@@ -1229,6 +1164,7 @@ function test_way_road_cityroad_downgrade_with_cityroad()
 }
 
 
+// test_way_road_cityroad_replace_by_normal_road: HEX-PORT PENDING.
 function test_way_road_cityroad_replace_by_normal_road()
 {
 	local public_pl = player_x(1)
@@ -1268,6 +1204,7 @@ function test_way_road_cityroad_replace_by_normal_road()
 }
 
 
+// test_way_road_cityroad_replace_keep_existing: HEX-PORT PENDING.
 function test_way_road_cityroad_replace_keep_existing()
 {
 	local public_pl = player_x(1)

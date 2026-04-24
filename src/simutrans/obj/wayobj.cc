@@ -248,7 +248,7 @@ void wayobj_t::rotate90()
 {
 	obj_t::rotate90();
 	dir = ribi_t::rotate90( dir);
-	hang = slope_t::rotate90( hang );
+	hang = slope_t::rotate60( hang );
 }
 
 

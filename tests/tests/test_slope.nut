@@ -32,6 +32,7 @@ function test_slope_to_dir()
 }
 
 
+// test_slope_can_set: HEX-PORT PENDING.
 function test_slope_can_set()
 {
 	local pl = player_x(0)
@@ -174,6 +175,7 @@ function test_slope_max_height_diff()
 }
 
 
+// test_slope_get_price: HEX-PORT PENDING.
 function test_slope_get_price()
 {
 	local pl = player_x(0)

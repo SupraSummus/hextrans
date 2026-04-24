@@ -505,18 +505,25 @@ class dir {
 }
 
 class slope {
-	static flat=0
-	static north = 3+1     ///< North slope
-	static west = 9+3      ///< West slope
-	static east = 27+1     ///< East slope
-	static south = 27+9    ///< South slope
-	static northwest = 27  ///< NW corner
-	static northeast = 9   ///< NE corner
-	static southeast = 3   ///< SE corner
-	static southwest = 1   ///< SW corner
-	static raised = 80     ///< special meaning: used as slope of bridgeheads
-	static all_up_slope   = 82 ///< used for terraforming tools
-	static all_down_slope = 83 ///< used for terraforming tools
+	// Base-3 6-corner encoding, matches slope_t::type in
+	// src/simutrans/dataobj/ribi.h.  Digit positions follow
+	// hex_corner_t: E=1, SE=3, SW=9, W=27, NW=81, NE=243.
+	static flat = 0
+	static southeast = 3     ///< SE corner raised
+	static southwest = 9     ///< SW corner raised
+	static northwest = 81    ///< NW corner raised
+	static northeast = 243   ///< NE corner raised
+	static north = 3 + 9     ///< North slope: low edge N, S corners raised = 12
+	static south = 81 + 243  ///< South slope: low edge S, N corners raised = 324
+	static east  = 81 + 9    ///< East slope: 2 west corners raised = 90
+	static west  = 243 + 3   ///< West slope: 2 east corners raised = 246
+	// `raised` here is the single-height "all corners 1" value, used
+	// by scripts as the iteration bound over "interesting" single-
+	// height slopes — NOT the same as C++ `slope_t::raised`, which is
+	// the bridgehead sentinel (= all_up_two = 728).
+	static raised = 1 + 3 + 9 + 27 + 81 + 243  ///< all 6 corners at height 1 = 364
+	static all_up_slope   = 801 ///< used for terraforming tools (matches ALL_UP_SLOPE in simconst.h, outside slope range)
+	static all_down_slope = 802 ///< used for terraforming tools (matches ALL_DOWN_SLOPE in simconst.h, outside slope range)
 }
 
 class time_x {
