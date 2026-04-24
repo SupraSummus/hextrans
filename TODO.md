@@ -346,13 +346,12 @@ visual states under hex, 8 slots in the current dir enum.
 
 `display/viewport.cc` projects world `(x, y, z)` to screen using a
 2:1 isometric "diamond" transform.  Replace with a hex-aware
-projection that KEEPS the isometric angle — the same look-and-feel
-as upstream Simutrans, not the top-down projection the spike uses.
-That means "flat-top hexes seen at the existing isometric tilt",
-not `hex_spike.cc`'s `hex_to_px` / `px_to_hex`; those are only
-useful as reference for the cube-round mouse-pick inverse.  The new
+projection that KEEPS the isometric angle — flat-top hexes seen at
+the existing isometric tilt, not a top-down projection.  The new
 projection still has to line up with the existing 2:1 sprite raster
 so the botched square-tile art stays legible during the transition.
+Mouse-picking is the inverse transform plus a cube-round to snap to
+the nearest hex.
 
 ## Save format version bump
 
@@ -362,11 +361,3 @@ once the structural changes settle.  Either reject old saves
 cleanly or write a one-shot square→hex converter (hard because 4
 corners do not map cleanly to 6).
 
-## Spike polish (optional)
-
-`tools/hex_spike/` does what it set out to do.  If we want it to
-remain a regression test for the geometry code as the port
-progresses, the spike's `height_at` is more elaborate than necessary
-(full barycentric within 6 wedges where nearest-corner shading
-would do) and could be simplified for clarity.  Not blocking
-anything.

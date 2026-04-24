@@ -138,7 +138,7 @@ public:
  *
  * These primitives are the foundation that per-vertex height storage,
  * the slope_t rewrite (to 6-corner encoding) and the viewport
- * projection all build on. Lifted from tools/hex_spike/hex_spike.cc.
+ * projection all build on.
  */
 struct hex_corner_t {
 	enum type : uint8 {

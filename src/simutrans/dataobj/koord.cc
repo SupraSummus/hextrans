@@ -113,9 +113,7 @@ void koord::rdwr(loadsave_t *file)
 }
 
 
-// Hex vertex topology — see koord.h for the convention. This is the
-// production version of the spike's vertex_owners() in
-// tools/hex_spike/hex_spike.cc.
+// Hex vertex topology — see koord.h for the convention.
 void vertex_owners(koord tile, hex_corner_t::type c, hex_vertex_t out[3])
 {
 	const uint8 dir_a = (uint8)(((uint8)c + 5) % 6);
