@@ -342,6 +342,12 @@ function test_terraform_raise_lower_land_below_way()
 
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 2, 0), coord3d(4, 4, 0), road_desc, true), null)
 
+	// HEX-PORT: grid_raise(gx, gy) lowers the NW corner of tile (gx, gy)
+	// on hex, so it touches a way tile when (gx, gy) is one of the way
+	// tiles OR a direct neighbour through the hex propagation rules.
+	// The SE-of-way grid-points (5, 5) no longer land on a way tile
+	// under hex because hex vertex-sharing is 3-wide, not 4-wide.
+
 	// raise below way
 	{
 		ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 2, 0)), "Tile not empty.")
@@ -351,7 +357,6 @@ function test_terraform_raise_lower_land_below_way()
 		ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(5, 2, 0)), "Tile not empty.")
 		ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(5, 3, 0)), "Tile not empty.")
 		ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(5, 4, 0)), "Tile not empty.")
-		ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(5, 5, 0)), "Tile not empty.")
 	}
 
 	// and lower
@@ -363,7 +368,6 @@ function test_terraform_raise_lower_land_below_way()
 		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(5, 2, 0)), "Tile not empty.")
 		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(5, 3, 0)), "Tile not empty.")
 		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(5, 4, 0)), "Tile not empty.")
-		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(5, 5, 0)), "Tile not empty.")
 	}
 
 	// set slope up

@@ -56,17 +56,32 @@ koord::koord(ribi_t::ribi r) : x(0), y(0)
 
 
 // Step toward the raised side of a slope.  Used by bridge / tunnel /
-// ramp builders as "which way does this slope face uphill".  Under
-// the 6-corner base-3 encoding this is a short switch — only the
-// 4 square-named 2-corner slopes at heights 1 and 2 have a koord
-// direction representable today; the 4 hex-only edge slopes fall
-// through to (0, 0) until bridge builders gain hex-direction
-// awareness.
+// ramp builders as "which way does this slope face uphill".  The 6
+// hex edge slopes (2 adjacent corners raised, at single and double
+// height) each map to one of the 6 hex neighbours: edge between
+// corners i and (i+1)%6 of the centre tile has the neighbour at
+// koord::neighbours[i] across it, and that neighbour direction is
+// the uphill step.  The 2 legacy "square diagonal" slopes (east =
+// NW+SW, west = NE+SE) kept as-is for backwards compatibility with
+// square callers until those get audited.
 koord::koord(slope_t::type slope) : x(0), y(0)
 {
 	switch (slope) {
-		case slope_t::north:     case 2 * slope_t::north: y =  1; break; // uphill S
-		case slope_t::south:     case 2 * slope_t::south: y = -1; break; // uphill N
+		// 6 hex edge slopes (slope.north / .south are aliases for
+		// raised_SE+raised_SW / raised_NW+raised_NE respectively).
+		case slope_t::raised_E  + slope_t::raised_SE:
+		case 2 * (slope_t::raised_E  + slope_t::raised_SE): x =  1;          break; // uphill SE (neighbours[0])
+		case slope_t::north:     case 2 * slope_t::north:   y =  1;          break; // uphill S  (neighbours[1])
+		case slope_t::raised_SW + slope_t::raised_W:
+		case 2 * (slope_t::raised_SW + slope_t::raised_W):  x = -1; y =  1;  break; // uphill SW (neighbours[2])
+		case slope_t::raised_W  + slope_t::raised_NW:
+		case 2 * (slope_t::raised_W  + slope_t::raised_NW): x = -1;          break; // uphill NW (neighbours[3])
+		case slope_t::south:     case 2 * slope_t::south:   y = -1;          break; // uphill N  (neighbours[4])
+		case slope_t::raised_NE + slope_t::raised_E:
+		case 2 * (slope_t::raised_NE + slope_t::raised_E):  x =  1; y = -1;  break; // uphill NE (neighbours[5])
+
+		// Legacy square-diagonal slopes (NW+SW and NE+SE): kept for
+		// square callers; approximate uphill on the hex grid.
 		case slope_t::east:      case 2 * slope_t::east:  x = -1; break; // uphill hex-NW ≈ W
 		case slope_t::west:      case 2 * slope_t::west:  x =  1; break; // uphill hex-SE ≈ E
 		default: break;

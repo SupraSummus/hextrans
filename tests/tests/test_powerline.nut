@@ -187,6 +187,7 @@ function test_powerline_build_powerbridge_above_powerline()
 }
 
 
+// test_powerline_build_transformer: HEX-PORT PENDING.
 function test_powerline_build_transformer()
 {
 	local pl = player_x(0)

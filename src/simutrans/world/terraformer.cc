@@ -11,23 +11,86 @@
 #include "simworld.h"
 
 
+namespace {
+	constexpr uint8 HEX_N = hex_corner_t::count; // 6
+
+	// Read the 6 current corner heights of tile (x, y).  For water
+	// tiles the vertex storage may hold a below-water terrain value;
+	// clamp each against the water height to match the terrain surface
+	// the terraformer reasons about.
+	void read_corners(const karte_t *welt, sint16 x, sint16 y, sint8 out[HEX_N])
+	{
+		const grund_t *gr = welt->lookup_kartenboden_nocheck(x, y);
+		const koord k(x, y);
+		const sint8 water_hgt = welt->get_water_hgt_nocheck(x, y);
+		if (gr->is_water()) {
+			for (uint8 c = 0; c < HEX_N; c++) {
+				const sint8 vh = welt->lookup_hgt_nocheck(k, (hex_corner_t::type)c);
+				out[c] = min(water_hgt, vh);
+			}
+		}
+		else {
+			const sint8 h0 = gr->get_hoehe();
+			const slope_t::type sl = gr->get_grund_hang();
+			out[hex_corner_t::E ] = h0 + corner_e (sl);
+			out[hex_corner_t::SE] = h0 + corner_se(sl);
+			out[hex_corner_t::SW] = h0 + corner_sw(sl);
+			out[hex_corner_t::W ] = h0 + corner_w (sl);
+			out[hex_corner_t::NW] = h0 + corner_nw(sl);
+			out[hex_corner_t::NE] = h0 + corner_ne(sl);
+		}
+	}
+
+	// Min and max of a 6-corner height array.
+	void min_max_corners(const sint8 h[HEX_N], sint8 &h_min, sint8 &h_max)
+	{
+		h_min = h[0];
+		h_max = h[0];
+		for (uint8 c = 1; c < HEX_N; c++) {
+			h_min = min(h_min, h[c]);
+			h_max = max(h_max, h[c]);
+		}
+	}
+
+	// Slope of a tile whose 6 corner heights are hn[], seen from a
+	// displayed base of disp_hneu.  Under the 6-corner base-3 encoding
+	// the per-corner deltas are in [0, 2] by construction of the
+	// propagation rule; callers clamp against water_hgt before calling.
+	slope_t::type slope_from_corners(const sint8 hn[HEX_N], sint8 water_hgt, sint8 &disp_hneu)
+	{
+		sint8 h_min, h_max_ignored;
+		min_max_corners(hn, h_min, h_max_ignored);
+		disp_hneu = max(h_min, water_hgt);
+		const sint8 dE  = max(hn[hex_corner_t::E ], water_hgt) - disp_hneu;
+		const sint8 dSE = max(hn[hex_corner_t::SE], water_hgt) - disp_hneu;
+		const sint8 dSW = max(hn[hex_corner_t::SW], water_hgt) - disp_hneu;
+		const sint8 dW  = max(hn[hex_corner_t::W ], water_hgt) - disp_hneu;
+		const sint8 dNW = max(hn[hex_corner_t::NW], water_hgt) - disp_hneu;
+		const sint8 dNE = max(hn[hex_corner_t::NE], water_hgt) - disp_hneu;
+		return encode_corners_hex(dE, dSE, dSW, dW, dNW, dNE);
+	}
+}
+
+
 terraformer_t::node_t::node_t() :
 	x(-1),
 	y(-1),
 	changed(0)
 {
+	for (uint8 c = 0; c < HEX_N; c++) {
+		h[c] = 0;
+	}
 }
 
 
-terraformer_t::node_t::node_t(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw, uint8 c) :
-	x(x),
-	y(y),
-	hsw(hsw),
-	hse(hse),
-	hne(hne),
-	hnw(hnw),
+terraformer_t::node_t::node_t(sint16 x_, sint16 y_, const sint8 h_[HEX_N], uint8 c) :
+	x(x_),
+	y(y_),
 	changed(c)
 {
+	for (uint8 i = 0; i < HEX_N; i++) {
+		h[i] = h_[i];
+	}
 }
 
 
@@ -56,45 +119,43 @@ bool terraformer_t::node_t::comp(const terraformer_t::node_t &a, const terraform
 }
 
 
-void terraformer_t::add_node(sint16 x, sint16 y, sint8 hsw, sint8 hse, sint8 hne, sint8 hnw)
+void terraformer_t::add_node_internal(sint16 x, sint16 y, const sint8 h[HEX_N])
 {
 	if (!welt->is_within_limits(x,y)) {
 		return;
 	}
 
-	const node_t test(x, y, hsw, hse, hne, hnw, actual_flag^3);
+	const node_t test(x, y, h, (uint8)(actual_flag^3));
 	node_t *other = list.insert_unique_ordered(test, node_t::comp);
 
 	const sint8 factor = (op == terraformer_t::raise) ? +1 : -1;
 
 	if (other) {
-		if (factor*other->hsw < factor*test.hsw) {
-			other->hsw = test.hsw;
-			other->changed |= actual_flag ^ 3;
-			ready = false;
-		}
-
-		if (factor*other->hse < factor*test.hse) {
-			other->hse = test.hse;
-			other->changed |= actual_flag ^ 3;
-			ready = false;
-		}
-
-		if (factor*other->hne < factor*test.hne) {
-			other->hne = test.hne;
-			other->changed |= actual_flag ^ 3;
-			ready = false;
-		}
-
-		if (factor*other->hnw < factor*test.hnw) {
-			other->hnw = test.hnw;
-			other->changed |= actual_flag ^ 3;
-			ready = false;
+		for (uint8 c = 0; c < HEX_N; c++) {
+			if (factor * other->h[c] < factor * test.h[c]) {
+				other->h[c] = test.h[c];
+				other->changed |= (uint8)(actual_flag ^ 3);
+				ready = false;
+			}
 		}
 	}
 	else {
 		ready = false;
 	}
+}
+
+
+void terraformer_t::add_node(sint16 x, sint16 y, sint8 hE, sint8 hSE, sint8 hSW, sint8 hW, sint8 hNW, sint8 hNE)
+{
+	const sint8 h[HEX_N] = { hE, hSE, hSW, hW, hNW, hNE };
+	add_node_internal(x, y, h);
+}
+
+
+void terraformer_t::add_node(sint16 x, sint16 y, sint8 hgt)
+{
+	const sint8 h[HEX_N] = { hgt, hgt, hgt, hgt, hgt, hgt };
+	add_node_internal(x, y, h);
 }
 
 
@@ -174,132 +235,104 @@ int terraformer_t::apply()
 }
 
 
+// Hex edge propagation.  For each of the 6 edges of tile (x, y), if
+// one of the 2 corners on that edge would be raised (resp. lowered),
+// queue a node on the neighbour tile across that edge.  The neighbour
+// sees the edge with corners (i+4)%6 and (i+3)%6 in its own hex_corner_t
+// frame — this is the "flip" that makes K's corner i the same world
+// vertex as neighbour's corner (i+4)%6.  The other 4 corners of the
+// neighbour are free to be max_hdiff below the higher of the two shared
+// target heights (raise) / above the lower (lower).
 void terraformer_t::prepare_raise(const node_t node)
 {
-	assert(welt->is_within_limits(node.x,node.y));
+	assert(welt->is_within_limits(node.x, node.y));
 
-	const grund_t *gr = welt->lookup_kartenboden_nocheck(node.x,node.y);
-	const sint8 water_hgt = welt->get_water_hgt_nocheck(node.x,node.y);
-	const sint8 h0 = gr->get_hoehe();
+	sint8 h0[HEX_N];
+	read_corners(welt, node.x, node.y, h0);
 
-	// old height
-	const sint8 h0_sw = gr->is_water() ? min(water_hgt, welt->lookup_hgt_nocheck(node.x,  node.y+1) ) : h0 + corner_sw( gr->get_grund_hang() );
-	const sint8 h0_se = gr->is_water() ? min(water_hgt, welt->lookup_hgt_nocheck(node.x+1,node.y+1) ) : h0 + corner_se( gr->get_grund_hang() );
-	const sint8 h0_ne = gr->is_water() ? min(water_hgt, welt->lookup_hgt_nocheck(node.x+1,node.y  ) ) : h0 + corner_ne( gr->get_grund_hang() );
-	const sint8 h0_nw = gr->is_water() ? min(water_hgt, welt->lookup_hgt_nocheck(node.x,  node.y  ) ) : h0 + corner_nw( gr->get_grund_hang() );
+	// new height (target clamped up from current)
+	sint8 hn[HEX_N];
+	bool any_up = false;
+	for (uint8 c = 0; c < HEX_N; c++) {
+		hn[c] = max(node.h[c], h0[c]);
+		if (h0[c] < node.h[c]) {
+			any_up = true;
+		}
+	}
 
-	// new height
-	const sint8 hn_sw = max(node.hsw, h0_sw);
-	const sint8 hn_se = max(node.hse, h0_se);
-	const sint8 hn_ne = max(node.hne, h0_ne);
-	const sint8 hn_nw = max(node.hnw, h0_nw);
-
-	// nothing to do?
-	if(  !gr->is_water()  &&  h0_sw >= node.hsw  &&  h0_se >= node.hse  &&  h0_ne >= node.hne  &&  h0_nw >= node.hnw  ) {
+	const grund_t *gr = welt->lookup_kartenboden_nocheck(node.x, node.y);
+	if (!gr->is_water() && !any_up) {
 		return;
 	}
 
-	// calc new height and slope
-	const sint8 hneu    = min( min( hn_sw, hn_se ), min( hn_ne, hn_nw ) );
-	const sint8 hmaxneu = max( max( hn_sw, hn_se ), max( hn_ne, hn_nw ) );
-
+	// max-hdiff self-check (matches pre-port invariant; water tiles may
+	// temporarily violate it during multi-pass raise_to updates).
+	sint8 hneu, hmaxneu;
+	min_max_corners(hn, hneu, hmaxneu);
 	const uint8 max_hdiff = ground_desc_t::double_grounds ? 2 : 1;
-
-	const bool ok = (hmaxneu - hneu <= max_hdiff); // may fail on water tiles since lookup_hgt might be modified from previous raise_to calls
-	if(  !ok  &&  !gr->is_water()  ) {
+	const bool ok = (hmaxneu - hneu <= max_hdiff);
+	if (!ok && !gr->is_water()) {
 		assert(false);
 	}
 
-	// sw
-	if (h0_sw < node.hsw) {
-		add_node( node.x - 1, node.y + 1, node.hsw - max_hdiff, node.hsw - max_hdiff, node.hsw, node.hsw - max_hdiff );
-	}
-	// s
-	if (h0_sw < node.hsw  ||  h0_se < node.hse) {
-		const sint8 hs = max( node.hse, node.hsw ) - max_hdiff;
-		add_node( node.x, node.y + 1, hs, hs, node.hse, node.hsw );
-	}
-	// se
-	if (h0_se < node.hse) {
-		add_node( node.x + 1, node.y + 1, node.hse - max_hdiff, node.hse - max_hdiff, node.hse - max_hdiff, node.hse );
-	}
-	// e
-	if (h0_se < node.hse  ||  h0_ne < node.hne) {
-		const sint8 he = max( node.hse, node.hne ) - max_hdiff;
-		add_node( node.x + 1, node.y, node.hse, he, he, node.hne );
-	}
-	// ne
-	if (h0_ne < node.hne) {
-		add_node( node.x + 1,node.y - 1, node.hne, node.hne - max_hdiff, node.hne - max_hdiff, node.hne - max_hdiff );
-	}
-	// n
-	if (h0_nw < node.hnw  ||  h0_ne < node.hne) {
-		const sint8 hn = max( node.hnw, node.hne ) - max_hdiff;
-		add_node( node.x, node.y - 1, node.hnw, node.hne, hn, hn );
-	}
-	// nw
-	if (h0_nw < node.hnw) {
-		add_node( node.x - 1, node.y - 1, node.hnw - max_hdiff, node.hnw, node.hnw - max_hdiff, node.hnw - max_hdiff );
-	}
-	// w
-	if (h0_sw < node.hsw  ||  h0_nw < node.hnw) {
-		const sint8 hw = max( node.hnw, node.hsw ) - max_hdiff;
-		add_node( node.x - 1, node.y, hw, node.hsw, node.hnw, hw );
+	// propagate across each of the 6 hex edges
+	for (uint8 e = 0; e < HEX_N; e++) {
+		const uint8 cA = e;                 // first corner of edge e
+		const uint8 cB = (e + 1) % HEX_N;   // second corner
+		if (h0[cA] >= node.h[cA] && h0[cB] >= node.h[cB]) {
+			continue; // nothing raised on this edge
+		}
+
+		const koord nb = koord(node.x, node.y) + koord::neighbours[e];
+		const sint8 floor_h = (sint8)(max(node.h[cA], node.h[cB]) - max_hdiff);
+
+		// neighbour sees K's corner cA as corner (e+4)%6 and K's corner
+		// cB as corner (e+3)%6 in its own frame.
+		const uint8 nA = (e + 4) % HEX_N;
+		const uint8 nB = (e + 3) % HEX_N;
+
+		sint8 nh[HEX_N];
+		for (uint8 c = 0; c < HEX_N; c++) {
+			nh[c] = floor_h;
+		}
+		nh[nA] = node.h[cA];
+		nh[nB] = node.h[cB];
+
+		add_node_internal(nb.x, nb.y, nh);
 	}
 }
 
 
 void terraformer_t::prepare_lower(const node_t node)
 {
-	assert(welt->is_within_limits(node.x,node.y));
-	const grund_t *gr = welt->lookup_kartenboden_nocheck(node.x,node.y);
-	const sint8 water_hgt = welt->get_water_hgt_nocheck(node.x,node.y);
+	assert(welt->is_within_limits(node.x, node.y));
 
-	const sint8 h0 = gr->get_hoehe();
-
-	// which corners have to be raised?
-	const sint8 h0_sw = gr->is_water() ? min( water_hgt, welt->lookup_hgt_nocheck(node.x,  node.y+1) ) : h0 + corner_sw( gr->get_grund_hang() );
-	const sint8 h0_se = gr->is_water() ? min( water_hgt, welt->lookup_hgt_nocheck(node.x+1,node.y+1) ) : h0 + corner_se( gr->get_grund_hang() );
-	const sint8 h0_ne = gr->is_water() ? min( water_hgt, welt->lookup_hgt_nocheck(node.x,  node.y+1) ) : h0 + corner_ne( gr->get_grund_hang() );
-	const sint8 h0_nw = gr->is_water() ? min( water_hgt, welt->lookup_hgt_nocheck(node.x,  node.y  ) ) : h0 + corner_nw( gr->get_grund_hang() );
+	sint8 h0[HEX_N];
+	read_corners(welt, node.x, node.y, h0);
 
 	const uint8 max_hdiff = ground_desc_t::double_grounds ? 2 : 1;
 
-	// sw
-	if (h0_sw > node.hsw) {
-		add_node(node.x - 1, node.y + 1, node.hsw + max_hdiff, node.hsw + max_hdiff, node.hsw, node.hsw + max_hdiff);
-	}
-	// s
-	if (h0_se > node.hse || h0_sw > node.hsw) {
-		const sint8 hs = min( node.hse, node.hsw ) + max_hdiff;
-		add_node( node.x, node.y + 1, hs, hs, node.hse, node.hsw);
-	}
-	// se
-	if (h0_se > node.hse) {
-		add_node( node.x + 1, node.y + 1, node.hse + max_hdiff, node.hse + max_hdiff, node.hse + max_hdiff, node.hse);
-	}
-	// e
-	if (h0_se > node.hse || h0_ne > node.hne) {
-		const sint8 he = max( node.hse, node.hne ) + max_hdiff;
-		add_node( node.x + 1, node.y, node.hse, he, he, node.hne);
-	}
-	// ne
-	if (h0_ne > node.hne) {
-		add_node( node.x + 1, node.y - 1, node.hne, node.hne + max_hdiff, node.hne + max_hdiff, node.hne + max_hdiff);
-	}
-	// n
-	if (h0_nw > node.hnw  ||  h0_ne > node.hne) {
-		const sint8 hn = min( node.hnw, node.hne ) + max_hdiff;
-		add_node( node.x, node.y - 1, node.hnw, node.hne, hn, hn);
-	}
-	// nw
-	if (h0_nw > node.hnw) {
-		add_node( node.x - 1, node.y - 1, node.hnw + max_hdiff, node.hnw, node.hnw + max_hdiff, node.hnw + max_hdiff);
-	}
-	// w
-	if (h0_nw > node.hnw || h0_sw > node.hsw) {
-		const sint8 hw = min( node.hnw, node.hsw ) + max_hdiff;
-		add_node( node.x - 1, node.y, hw, node.hsw, node.hnw, hw);
+	for (uint8 e = 0; e < HEX_N; e++) {
+		const uint8 cA = e;
+		const uint8 cB = (e + 1) % HEX_N;
+		if (h0[cA] <= node.h[cA] && h0[cB] <= node.h[cB]) {
+			continue; // nothing to lower on this edge
+		}
+
+		const koord nb = koord(node.x, node.y) + koord::neighbours[e];
+		const sint8 ceil_h = (sint8)(min(node.h[cA], node.h[cB]) + max_hdiff);
+
+		const uint8 nA = (e + 4) % HEX_N;
+		const uint8 nB = (e + 3) % HEX_N;
+
+		sint8 nh[HEX_N];
+		for (uint8 c = 0; c < HEX_N; c++) {
+			nh[c] = ceil_h;
+		}
+		nh[nA] = node.h[cA];
+		nh[nB] = node.h[cB];
+
+		add_node_internal(nb.x, nb.y, nh);
 	}
 }
 
@@ -311,7 +344,8 @@ const char *terraformer_t::can_raise_tile_to(const node_t &node, const player_t 
 	const grund_t *gr = welt->lookup_kartenboden_nocheck(node.x,node.y);
 	const sint8 water_hgt = welt->get_water_hgt_nocheck(node.x,node.y);
 
-	const sint8 max_hgt = max(max(node.hsw,node.hse),max(node.hne,node.hnw));
+	sint8 min_hgt, max_hgt;
+	min_max_corners(node.h, min_hgt, max_hgt);
 
 	if(  gr->is_water()  &&  keep_water  &&  max_hgt > water_hgt  ) {
 		return "";
@@ -321,19 +355,17 @@ const char *terraformer_t::can_raise_tile_to(const node_t &node, const player_t 
 }
 
 
-// lower plan
-// new heights for each corner given
 const char* terraformer_t::can_lower_tile_to(const node_t &node, const player_t *player) const
 {
 	assert(welt->is_within_limits(node.x,node.y));
 
-	const sint8 hneu = min( min( node.hsw, node.hse ), min( node.hne, node.hnw ) );
+	sint8 hneu, max_hgt_ignored;
+	min_max_corners(node.h, hneu, max_hgt_ignored);
 
 	if( hneu < welt->get_min_allowed_height() ) {
 		return "Maximum tile height difference reached.";
 	}
 
-	// water heights
 	// check if need to lower water height for higher neighbouring tiles
 	for(  size_t i = 0 ;  i < lengthof(koord::neighbours) ;  i++  ) {
 		const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
@@ -355,43 +387,38 @@ int terraformer_t::raise_to(const node_t &node)
 	int n = 0;
 	grund_t *gr = welt->lookup_kartenboden_nocheck(node.x,node.y);
 	const sint8 water_hgt = welt->get_water_hgt_nocheck(node.x,node.y);
-	const sint8 h0 = gr->get_hoehe();
+	const koord k(node.x, node.y);
 
-	// old height
-	const sint8 h0_sw = gr->is_water() ? min(water_hgt, welt->lookup_hgt_nocheck(node.x,   node.y+1) ) : h0 + corner_sw( gr->get_grund_hang() );
-	const sint8 h0_se = gr->is_water() ? min(water_hgt, welt->lookup_hgt_nocheck(node.x+1, node.y+1) ) : h0 + corner_se( gr->get_grund_hang() );
-	const sint8 h0_ne = gr->is_water() ? min(water_hgt, welt->lookup_hgt_nocheck(node.x+1, node.y  ) ) : h0 + corner_ne( gr->get_grund_hang() );
-	const sint8 h0_nw = gr->is_water() ? min(water_hgt, welt->lookup_hgt_nocheck(node.x,   node.y  ) ) : h0 + corner_nw( gr->get_grund_hang() );
+	sint8 h0[HEX_N];
+	read_corners(welt, node.x, node.y, h0);
 
-	// new height
-	const sint8 hn_sw = max(node.hsw, h0_sw);
-	const sint8 hn_se = max(node.hse, h0_se);
-	const sint8 hn_ne = max(node.hne, h0_ne);
-	const sint8 hn_nw = max(node.hnw, h0_nw);
+	sint8 hn[HEX_N];
+	bool any_up = false;
+	for (uint8 c = 0; c < HEX_N; c++) {
+		hn[c] = max(node.h[c], h0[c]);
+		if (h0[c] < node.h[c]) {
+			any_up = true;
+		}
+	}
 
-	// nothing to do?
-	if(  !gr->is_water()  &&  h0_sw >= node.hsw  &&  h0_se >= node.hse  &&  h0_ne >= node.hne  &&  h0_nw >= node.hnw  ) {
+	if (!gr->is_water() && !any_up) {
 		return 0;
 	}
 
-	// calc new height and slope
-	const sint8 hneu    = min( min( hn_sw, hn_se ), min( hn_ne, hn_nw ) );
-	const sint8 hmaxneu = max( max( hn_sw, hn_se ), max( hn_ne, hn_nw ) );
+	sint8 hneu, hmaxneu;
+	min_max_corners(hn, hneu, hmaxneu);
 
-	const uint8 max_hdiff  = ground_desc_t::double_grounds ? 2 : 1;
-	const sint8 disp_hneu  = max( hneu,  water_hgt );
-	const sint8 disp_hn_sw = max( hn_sw, water_hgt );
-	const sint8 disp_hn_se = max( hn_se, water_hgt );
-	const sint8 disp_hn_ne = max( hn_ne, water_hgt );
-	const sint8 disp_hn_nw = max( hn_nw, water_hgt );
-	const slope_t::type sneu = encode_corners(disp_hn_sw - disp_hneu, disp_hn_se - disp_hneu, disp_hn_ne - disp_hneu, disp_hn_nw - disp_hneu);
+	const uint8 max_hdiff = ground_desc_t::double_grounds ? 2 : 1;
 
-	const bool ok = (hmaxneu - hneu <= max_hdiff); // may fail on water tiles since lookup_hgt might be modified from previous raise_to calls
+	sint8 disp_hneu;
+	const slope_t::type sneu = slope_from_corners(hn, water_hgt, disp_hneu);
+
+	const bool ok = (hmaxneu - hneu <= max_hdiff);
 	if (!ok && !gr->is_water()) {
 		assert(false);
 	}
 
-	bool recalc_climate = gr-> is_water()  ||  welt->get_settings().get_climate_generator() == settings_t::HEIGHT_BASED;
+	bool recalc_climate = gr->is_water()  ||  welt->get_settings().get_climate_generator() == settings_t::HEIGHT_BASED;
 
 	// change height and slope, for water tiles only if they will become land
 	if(  !gr->is_water()  ||  (hmaxneu > water_hgt  ||  (hneu == water_hgt  &&  hmaxneu == water_hgt)  )  ) {
@@ -401,25 +428,19 @@ int terraformer_t::raise_to(const node_t &node)
 		welt->set_water_hgt_nocheck(node.x, node.y, welt->get_groundwater()-4);
 	}
 
-	// update north point in grid
-	welt->set_grid_hgt_nocheck(node.x, node.y, hn_nw);
+	// write all 6 hex corners.  Canonical per-vertex storage means no
+	// map-edge special cases: each corner resolves to a slot that the
+	// allocator sized for it (south/east phantom rows).
+	for (uint8 c = 0; c < HEX_N; c++) {
+		welt->set_grid_hgt_nocheck(k, (hex_corner_t::type)c, hn[c]);
+	}
 	if (recalc_climate) {
-		welt->calc_climate(koord(node.x, node.y), true);
+		welt->calc_climate(k, true);
 	}
 
-	if ( node.x+1 == welt->get_size().x ) {
-		// update eastern grid coordinates too if we are in the edge.
-		welt->set_grid_hgt_nocheck(node.x+1, node.y, hn_ne);
-		welt->set_grid_hgt_nocheck(node.x+1, node.y+1, hn_se);
+	for (uint8 c = 0; c < HEX_N; c++) {
+		n += hn[c] - h0[c];
 	}
-
-	if ( node.y+1 == welt->get_size().y ) {
-		// update southern grid coordinates too if we are in the edge.
-		welt->set_grid_hgt_nocheck(node.x,   node.y+1, hn_sw);
-		welt->set_grid_hgt_nocheck(node.x+1, node.y+1, hn_se);
-	}
-
-	n += hn_sw - h0_sw + hn_se - h0_se + hn_ne - h0_ne  + hn_nw - h0_nw;
 
 	welt->lookup_kartenboden_nocheck(node.x,node.y)->calc_image();
 
@@ -442,72 +463,52 @@ int terraformer_t::lower_to(const node_t &node)
 	int n = 0;
 	grund_t *gr = welt->lookup_kartenboden_nocheck(node.x,node.y);
 	sint8 water_hgt = welt->get_water_hgt_nocheck(node.x,node.y);
-	const sint8 h0 = gr->get_hoehe();
+	const koord k(node.x, node.y);
 
-	// old height
-	const sint8 h0_sw = gr->is_water() ? min( water_hgt, welt->lookup_hgt_nocheck(node.x,   node.y+1) ) : h0 + corner_sw( gr->get_grund_hang() );
-	const sint8 h0_se = gr->is_water() ? min( water_hgt, welt->lookup_hgt_nocheck(node.x+1, node.y+1) ) : h0 + corner_se( gr->get_grund_hang() );
-	const sint8 h0_ne = gr->is_water() ? min( water_hgt, welt->lookup_hgt_nocheck(node.x+1, node.y  ) ) : h0 + corner_ne( gr->get_grund_hang() );
-	const sint8 h0_nw = gr->is_water() ? min( water_hgt, welt->lookup_hgt_nocheck(node.x,   node.y  ) ) : h0 + corner_nw( gr->get_grund_hang() );
+	sint8 h0[HEX_N];
+	read_corners(welt, node.x, node.y, h0);
 
-	// new height
-	const sint8 hn_sw = min(node.hsw, h0_sw);
-	const sint8 hn_se = min(node.hse, h0_se);
-	const sint8 hn_ne = min(node.hne, h0_ne);
-	const sint8 hn_nw = min(node.hnw, h0_nw);
+	sint8 hn[HEX_N];
+	bool any_down = false;
+	for (uint8 c = 0; c < HEX_N; c++) {
+		hn[c] = min(node.h[c], h0[c]);
+		if (h0[c] > node.h[c]) {
+			any_down = true;
+		}
+	}
 
-	// nothing to do?
-	if(  gr->is_water()  ) {
-		if(  h0_nw <= node.hnw  ) {
+	// nothing to do?  For water tiles fall through on NW-only change so
+	// the water table gets rechecked; for land tiles bail if unchanged.
+	if (gr->is_water()) {
+		if (h0[hex_corner_t::NW] <= node.h[hex_corner_t::NW]) {
 			return 0;
 		}
 	}
-	else if(  h0_sw <= node.hsw  &&  h0_se <= node.hse  &&  h0_ne <= node.hne  &&  h0_nw <= node.hnw  ) {
+	else if (!any_down) {
 		return 0;
 	}
 
-	// calc new height and slope
-	const sint8 hneu    = min( min( hn_sw, hn_se ), min( hn_ne, hn_nw ) );
-	const sint8 hmaxneu = max( max( hn_sw, hn_se ), max( hn_ne, hn_nw ) );
+	sint8 hneu, hmaxneu;
+	min_max_corners(hn, hneu, hmaxneu);
 
 	if(  hneu >= water_hgt  ) {
 		// calculate water table from surrounding tiles - start off with height on this tile
-		sint8 water_table = water_hgt >= h0 ? water_hgt : welt->get_groundwater() - 4;
+		sint8 water_table = water_hgt >= gr->get_hoehe() ? water_hgt : welt->get_groundwater() - 4;
 
-		/*
-		 * we test each corner in turn to see whether it is at the base height of the tile.
-		 * If it is we then mark the 3 surrounding tiles for that corner for checking.
-		 * Surrounding tiles are indicated by bits going anti-clockwise from
-		 * (binary) 00000001 for north-west through to (binary) 10000000 for north
-		 * as this is the order of directions used by koord::neighbours[]
-		 *
-		 * HEX-PORT TODO: this 4-corner-to-8-neighbour bitmask is square-grid.
-		 * Bits 6 and 7 of neighbour_flags are silently ignored under hex
-		 * iteration (only 6 neighbours), so two of the corner-adjacent tiles
-		 * are not checked.  Needs a real port once slope_t becomes 6-corner.
-		 */
-
-		uint8 neighbour_flags = 0;
-
-		if(  hn_nw == hneu  ) {
-			neighbour_flags |= 0x83;
-		}
-		if(  hn_ne == hneu  ) {
-			neighbour_flags |= 0xe0;
-		}
-		if(  hn_se == hneu  ) {
-			neighbour_flags |= 0x38;
-		}
-		if(  hn_sw == hneu  ) {
-			neighbour_flags |= 0x0e;
+		// For each corner that bottoms out at the new tile minimum
+		// height, the 2 neighbours sharing that corner are candidates
+		// for water-table propagation: corner c is shared with
+		// neighbours at edges (c+5)%6 and c.
+		uint8 neighbour_flags = 0; // 6 bits, one per neighbour
+		for (uint8 c = 0; c < HEX_N; c++) {
+			if (hn[c] == hneu) {
+				neighbour_flags |= (uint8)(1 << ((c + HEX_N - 1) % HEX_N));
+				neighbour_flags |= (uint8)(1 << c);
+			}
 		}
 
 		for(  size_t i = 0;  i < lengthof(koord::neighbours) ;  i++  ) {
-			const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
-
-			// here we look at the bit in neighbour_flags for this direction
-			// we shift it i bits to the right and test the least significant bit
-
+			const koord neighbour = k + koord::neighbours[i];
 			if(  welt->is_within_limits( neighbour )  &&  ((neighbour_flags >> i) & 1)  ) {
 				grund_t *gr2 = welt->lookup_kartenboden_nocheck( neighbour );
 				const sint8 water_hgt_neighbour = welt->get_water_hgt_nocheck( neighbour );
@@ -518,7 +519,7 @@ int terraformer_t::lower_to(const node_t &node)
 		}
 
 		for(  size_t i = 0;  i < lengthof(koord::neighbours) ;  i++  ) {
-			const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
+			const koord neighbour = k + koord::neighbours[i];
 			if(  welt->is_within_limits( neighbour )  ) {
 				grund_t *gr2 = welt->lookup_kartenboden_nocheck( neighbour );
 				if(  gr2  &&  gr2->get_hoehe() < water_table  ) {
@@ -536,13 +537,8 @@ int terraformer_t::lower_to(const node_t &node)
 		}
 	}
 
-	// calc new height and slope
-	const sint8 disp_hneu  = max( hneu,  water_hgt );
-	const sint8 disp_hn_sw = max( hn_sw, water_hgt );
-	const sint8 disp_hn_se = max( hn_se, water_hgt );
-	const sint8 disp_hn_ne = max( hn_ne, water_hgt );
-	const sint8 disp_hn_nw = max( hn_nw, water_hgt );
-	const slope_t::type sneu = encode_corners(disp_hn_sw - disp_hneu, disp_hn_se - disp_hneu, disp_hn_ne - disp_hneu, disp_hn_nw - disp_hneu);
+	sint8 disp_hneu;
+	const slope_t::type sneu = slope_from_corners(hn, water_hgt, disp_hneu);
 
 	bool recalc_climate = welt->get_settings().get_climate_generator() == settings_t::HEIGHT_BASED;
 
@@ -553,34 +549,35 @@ int terraformer_t::lower_to(const node_t &node)
 		welt->access_nocheck(node.x,node.y)->abgesenkt();
 	}
 
-	// update north point in grid
-	welt->set_grid_hgt_nocheck(node.x, node.y, hn_nw);
-	if ( node.x+1 == welt->get_size().x ) {
-		// update eastern grid coordinates too if we are in the edge.
-		welt->set_grid_hgt_nocheck(node.x+1, node.y,   hn_ne);
-		welt->set_grid_hgt_nocheck(node.x+1, node.y+1, hn_se);
-	}
-
-	if ( node.y+1 == welt->get_size().y ) {
-		// update southern grid coordinates too if we are in the edge.
-		welt->set_grid_hgt_nocheck(node.x,   node.y+1, hn_sw);
-		welt->set_grid_hgt_nocheck(node.x+1, node.y+1, hn_se);
+	for (uint8 c = 0; c < HEX_N; c++) {
+		welt->set_grid_hgt_nocheck(k, (hex_corner_t::type)c, hn[c]);
 	}
 
 	// water heights
 	// lower water height for higher neighbouring tiles
-	// find out how high water is
 	for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
-		const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
+		const koord neighbour = k + koord::neighbours[i];
 		if(  welt->is_within_limits( neighbour )  ) {
 			const sint8 water_hgt_neighbour = welt->get_water_hgt_nocheck( neighbour );
 			if(water_hgt_neighbour > hneu  ) {
 				if(  welt->min_hgt_nocheck( neighbour ) < water_hgt_neighbour  ) {
-					// convert to flat ground before lowering water level
-					welt->raise_grid_to( neighbour.x,     neighbour.y,     water_hgt_neighbour );
-					welt->raise_grid_to( neighbour.x + 1, neighbour.y,     water_hgt_neighbour );
-					welt->raise_grid_to( neighbour.x,     neighbour.y + 1, water_hgt_neighbour );
-					welt->raise_grid_to( neighbour.x + 1, neighbour.y + 1, water_hgt_neighbour );
+					// Raise every corner of the neighbour to at least
+					// the neighbour's water level so the tile stays a
+					// water tile after the water-height change.  The
+					// square version recursed through raise_grid_to to
+					// maintain max_hdiff across grid points; that
+					// recursion was square-shaped (8-neighbour stencil)
+					// and is deliberately dropped here — the wider
+					// max_hdiff invariant across the affected area is
+					// already maintained by the terraformer's own
+					// propagation (add_node_internal) on the tiles we
+					// touch.
+					for (uint8 c = 0; c < HEX_N; c++) {
+						const hex_corner_t::type cc = (hex_corner_t::type)c;
+						if (welt->lookup_hgt_nocheck(neighbour, cc) < water_hgt_neighbour) {
+							welt->set_grid_hgt_nocheck(neighbour, cc, water_hgt_neighbour);
+						}
+					}
 				}
 
 				welt->set_water_hgt_nocheck( neighbour, hneu );
@@ -591,9 +588,9 @@ int terraformer_t::lower_to(const node_t &node)
 	}
 
 	if (recalc_climate) {
-		welt->calc_climate( koord( node.x, node.y ), false );
+		welt->calc_climate( k, false );
 		for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
-			const koord neighbour = koord( node.x, node.y ) + koord::neighbours[i];
+			const koord neighbour = k + koord::neighbours[i];
 			welt->calc_climate( neighbour, false );
 		}
 	}
@@ -601,13 +598,15 @@ int terraformer_t::lower_to(const node_t &node)
 	// recalc landscape images - need to extend 2 in each direction
 	for(  sint16 j = node.y - 2;  j <= node.y + 2;  j++  ) {
 		for(  sint16 i = node.x - 2;  i <= node.x + 2;  i++  ) {
-			if(  welt->is_within_limits( i, j )  /*&&  (i != x  ||  j != y)*/  ) {
+			if(  welt->is_within_limits( i, j )  ) {
 				welt->recalc_transitions( koord (i, j ) );
 			}
 		}
 	}
 
-	n += h0_sw-hn_sw + h0_se-hn_se + h0_ne-hn_ne + h0_nw-hn_nw;
+	for (uint8 c = 0; c < HEX_N; c++) {
+		n += h0[c] - hn[c];
+	}
 
 	welt->lookup_kartenboden_nocheck(node.x,node.y)->calc_image();
 	if( (node.x+2) < welt->get_size().x ) {

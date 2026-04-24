@@ -50,14 +50,11 @@ height and setslope returns "" for pakset without `double_grounds`.
 Rewriting the iteration to walk `interesting_slopes()` (already
 hex-aware — 15 single-height slopes) gets these past the iteration
 itself — the `test_depot_build_sloped` and `test_halt_build_rail_single_tile`
-bodies carry that port today — but two concrete downstream symptoms
-still block restoration: `command_x.build_way` from a flat N
+bodies carry that port today — but the remaining downstream symptom
+still blocks restoration: `command_x.build_way` from a flat N
 neighbour onto a `slope.north` tile returns "" instead of null (the
-wegbauer slope-compat check looks keyed on square corner positions),
-and `setslope(all_up_slope)` a few z-levels deep trips the max-
-tile-height-diff guard (terraformer.cc still walks the 4-neighbour
-set).  Both surface before any assertion about what's being built,
-so re-enabling is a one-line flip once those fixes land.
+wegbauer slope-compat check looks keyed on square corner positions).
+Re-enabling is a one-line flip once that fix lands.
 `test_halt_build_multi_tile` additionally runs a `tool_remove_way`
 over a bridge span whose footprint changed; fold into the bridge-
 geometry port.
@@ -99,10 +96,15 @@ restore after the region-selection tools are hex-aware.
 `test_building_build_multi_tile_sloped`,
 `test_terraform_raise_lower_land_at_water_corner` and
 `test_terraform_raise_lower_land_at_water_edge` depend on 4-way
-vertex sharing (hex shares 3 per vertex).  The tests' slope-name
-aliases survive the encoding change but `grid_raise` still uses
-square 4-tile vertex geometry.  Restore after per-vertex height
-storage lands.
+vertex sharing (hex shares 3 per vertex).  With the terraformer
+now hex-correct, `grid_raise` propagates to the 3 hex-vertex owners
+rather than 4 square-vertex owners, so the tests' specific
+assertions (4 tiles with 4 specific slopes each, 2x2 water-corner
+reachability patterns) no longer hold.  These need per-test coord
+rewrites, not a deeper engine fix — the invariants ("raising a
+vertex affects the tiles sharing it", "lowering into water connects
+reachable water tiles") survive, but the test bodies bake in square
+arithmetic throughout.
 
 **Flood-fill / region walkers.**
 `test_terraform_raise_lower_water_level` uses a rectangular
@@ -119,6 +121,20 @@ connects to the producer.  Under hex iteration the mine is found
 first.  Needs a real policy choice in `suche_fab_neighbour` (prefer
 producers?  prefer nearest?), not a test edit.
 
+**Hill-with-sloped-neighbours test setup.**
+`test_halt_build_on_tunnel_entrance`, `test_halt_make_public_underground`,
+and `test_powerline_build_transformer` each build their terrain by
+raising the 4 corners of a 2x2 grid-point square — which under
+square-terraformer propagation produced one raised tile plus 4
+cardinal single-slope neighbours.  Under hex's 3-way vertex sharing
+that pattern raises only 3 corners of the centre tile and misses
+the hex-only edges on the neighbours.  Migrating via
+`setslope(all_up_slope) + setslope(single_edge)` produces the right
+grund_t slopes but leaves the per-vertex height storage inconsistent —
+same root cause as the NW-corner-only writer bug below.  Unblocks
+together with that fix; listed here just so the tests don't stay
+invisible in the NW-corner-only cluster description.
+
 ## Per-vertex height storage — remaining writer-side ports
 
 Storage is per-hex-vertex (see `documentation/hex-vertex-storage.md`,
@@ -130,32 +146,31 @@ of any shared vertex all resolve to the same slot and get the same
 noise value by construction.
 
 Other writers still use the legacy `set_grid_hgt_nocheck(x, y)` API
-(which lands in the E slot only) and need porting next: `terraformer.cc`'s
-raise/lower bitmask (still 4-corner-to-8-neighbour, tagged `HEX-PORT TODO`);
-the `simtool.cc` water-raise flood-fill (square 4-neighbour); the
-heightfield-load path in `karte_t::init_tiles` (replicates the last
-square-grid row into the doubled slot layout — needs a hex-aware
-importer or a clean rejection);  `karte_t::rotate90`'s heightmap-rotation
-loop (90° is not a valid hex symmetry; the whole rotation path needs
-a refusal or a real hex rotation, tied to the viewport port).
-`perlin_hoehe`'s own rotation code is still the legacy 90° square
-formula — it produces a deterministic but geometrically wrong map
-when rotation != 0; fix in the same pass as `rotate90`.
+(which lands in the E slot only) and need porting next: the `simtool.cc`
+water-raise flood-fill (square 4-neighbour); the heightfield-load path
+in `karte_t::init_tiles` (replicates the last square-grid row into the
+doubled slot layout — needs a hex-aware importer or a clean rejection);
+`karte_t::rotate90`'s heightmap-rotation loop (90° is not a valid hex
+symmetry; the whole rotation path needs a refusal or a real hex
+rotation, tied to the viewport port).  `perlin_hoehe`'s own rotation
+code is still the legacy 90° square formula — it produces a
+deterministic but geometrically wrong map when rotation != 0; fix in
+the same pass as `rotate90`.
 
 The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
 `surface.h` routes every `(x, y)` to the E canonical slot of tile
-`(x-1, y-1)` — NOT to any named corner of tile `(x, y)`.  The 55
-remaining shim call sites across 13 files audit into 6 clusters
-with different retirement triggers:
+`(x-1, y-1)` — NOT to any named corner of tile `(x, y)`.  Remaining
+shim call sites audit into these clusters with different retirement
+triggers:
 
-*Square-corner writer ritual* — `terraformer.cc` (10 sites) raise/
-lower writes 4 "corners" at `(node.x, node.y)`, `(node.x+1, node.y)`,
-`(node.x, node.y+1)`, `(node.x+1, node.y+1)`, and `simtool.cc:2302-2312`
-(8 sites) does the same for partial-water grid heights.  Under hex
-these four shim coords land on four unrelated tiles' E corners, not
-on four corners of a single tile.  Blocked on the terraformer /
-slope-topology port; when it lands, the writes gain a hex-corner
-name.
+*Square-corner writer ritual (partial)* — `simtool.cc:2302-2312`
+(8 sites) writes 4 "corners" at `(k, k)`, `(k+1, k)`, `(k, k+1)`,
+`(k+1, k+1)` for partial-water grid heights in
+`tool_change_water_height_t`.  Under hex these four shim coords land
+on four unrelated tiles' E corners.  Blocked on the water-flood-fill
+port; once that lands, the writes gain a hex-corner name.  The
+terraformer portion of this cluster retired with the 6-edge
+propagation port.
 
 *Square-corner reader ritual* — `surface.cc` 12 sites in the
 `recalc_natural_slope` `[8][4]` scaffold already flagged.  Blocked
