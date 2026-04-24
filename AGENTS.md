@@ -85,6 +85,34 @@ context that produced it.
 The aim is for `TODO.md` to remain a useful, current map of "what
 still needs doing". A growing TODO file is fine; a stale one is not.
 
+## Commit message rules
+
+The commit message describes the change the author has chosen to
+make. Scope (what's in vs out of this commit) is the author's call;
+these rules are about what the message itself should say once that
+scope is picked.
+
+Subject: short, present-tense, describes the change. Use a scope
+prefix and keep it consistent across commits in the same area
+(`hex-port:`, `hex-port tests:`, `AGENTS.md:` — not `hex port` one
+day and `hex-port` the next). Leave metrics ("152/152 tests pass",
+"CI is green") out of the subject; mention them in the body if they
+matter for context.
+
+Body: explain *why*, not *what* — the diff already shows what
+changed. Call out the non-obvious trade-offs, the alternatives
+considered and rejected, and anything deliberately left as a stub or
+shim (with the trigger that will unblock cleanup: which follow-up
+commit, decision, or port step retires it). If the change has a
+surprising consequence for a reader who understands the codebase but
+not this commit, spell it out. Skip running commentary about how the
+commit came together.
+
+Length follows substance. A one-line subject with no body is fine
+for a mechanical rename or an obvious fix. Long bodies are fine when
+there genuinely is that much non-obvious context to capture; don't
+pad a thin change with narrative to make it look weightier.
+
 ## Tests and the hex port
 
 The scenario tests under `tests/` encode gameplay invariants. Many of
