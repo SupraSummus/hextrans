@@ -39,16 +39,6 @@ across_tunnel_slope}`, `test_way_tunnel_make_public`,
 Several crossing cases additionally need a hex-axis pair to replace
 the square-perpendicular setup.
 
-**`0..slope.raised` enumerations.**  A few tests iterate every
-numeric slope value — cheap at 80 slopes, bad at 729.  Fix is to
-enumerate only "interesting" slopes (6 hex edge slopes +
-single-corner raised + all_up_one/two + a few composites) or to
-reset funds inside the loop.  Affected: `test_slope_can_set` (O(n²)
-— times out), `test_slope_get_price` (plus hardcodes RESTORE_SLOPE's
-old value 84), `test_halt_build_rail_single_tile` (exhausts funds),
-`test_way_bridge_planner` (plus hardcodes `working_slopes =
-[slope.north]` which is hex-axis-incomplete).
-
 **Per-vertex grid topology.**
 `test_building_build_multi_tile_sloped`,
 `test_terraform_raise_lower_land_at_water_corner` and
