@@ -132,7 +132,7 @@ SQInteger ribi_to_coord(HSQUIRRELVM vm)
 {
 	const uint8 ribi = param<uint8>::get(vm, 2);
 	if ((ribi & ~(uint8)ribi_t::all) != 0) {
-		return sq_raise_error(vm, "Invalid dir %hhu (valid values are 0..15)", ribi);
+		return sq_raise_error(vm, "Invalid dir %hhu (valid values are 0..63)", ribi);
 	}
 
 	koord k( (ribi_t::ribi)ribi );

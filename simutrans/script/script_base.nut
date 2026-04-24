@@ -484,24 +484,35 @@ class schedule_entry_x extends coord3d {
 }
 
 class dir {
-	static none           = 0
-	static north          = 1
-	static east           = 2
-	static northeast      = 3
-	static south          = 4
-	static northsouth     = 5
-	static southeast      = 6
-	static northsoutheast = 7
-	static west           = 8
-	static northwest      = 9
-	static eastwest       = 10
-	static northeastwest  = 11
-	static southwest      = 12
-	static northsouthwest = 13
-	static southeastwest  = 14
-	static all            = 15
+	// Single-edge directions.  Bit layout matches ribi_t::_ribi in
+	// src/simutrans/dataobj/ribi.h: the 6 bits run SE, S, SW, NW, N,
+	// NE in koord::neighbours[] order.  Flat-top hex has no due-east
+	// or due-west edge, so the old `east` / `west` constants are gone
+	// — callers that want the old E/W should use southeast / northwest
+	// (the closest hex edges in the current 2:1 isometric viewport,
+	// see TODO.md → viewport port) or explicitly pick between the two
+	// hex axes that used to be collapsed onto square E / W.
+	static none      = 0
+	static southeast = 1    // bit 0, neighbours[0]
+	static south     = 2    // bit 1, neighbours[1]
+	static southwest = 4    // bit 2, neighbours[2]
+	static northwest = 8    // bit 3, neighbours[3]
+	static north     = 16   // bit 4, neighbours[4]
+	static northeast = 32   // bit 5, neighbours[5]
+	static all       = 63
 
-	static nsew = [1, 4, 2, 8]
+	// Straight axes: the 3 opposite-edge 2-bit combos.  Flat-top hex
+	// has 3 axes (N-S, NE-SW, NW-SE) at 60° spacing; the old 4-bit
+	// `eastwest` axis is gone.
+	static northsouth          = 16 | 2    // N  | S  = 18
+	static northeast_southwest = 32 | 4    // NE | SW = 36
+	static northwest_southeast = 8  | 1    // NW | SE = 9
+
+	// Neighbour-index lookup: nsew[i] = 1 << i, in koord::neighbours[]
+	// order (SE, S, SW, NW, N, NE).  Kept under the old name for grep-
+	// continuity; rename together with ribi_t::nesw once the square-
+	// era callers are all gone.
+	static nsew = [1, 2, 4, 8, 16, 32]
 }
 
 class slope {
