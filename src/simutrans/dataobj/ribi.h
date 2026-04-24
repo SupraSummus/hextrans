@@ -232,48 +232,44 @@ static inline slope_t::type slope_from_slope4(slope4_t sl, sint8 pak_height_fact
 /**
  * Directions in simutrans.
  * ribi_t = Richtungs-Bit = Directions-Bitfield
+ *
+ * HEX-PORT: 6-bit bitfield, one bit per flat-top hex edge.  Bit i
+ * corresponds to koord::neighbours[i], i.e. iterating bits 0..5 visits
+ * neighbours in the same order (SE, S, SW, NW, N, NE).  Combinations
+ * still fit in uint8 (64 distinct values).
+ *
+ * The 4-direction combo constants (northsouth, eastwest, northeastwest,
+ * ...) and the due-east / due-west single directions are GONE — flat-top
+ * hex has no due-east or due-west edge.  Callers that used them must be
+ * ported to explicit hex axes.  The name `northeast` now means a
+ * single-edge direction (bit 5), not "north OR east" as in the 4-bit
+ * layout.
  */
 class ribi_t {
-	/// Static lookup table
-	static const int flags[16];
-
-	/// Named constants for properties of directions
-	enum {
-		single      = 1 << 0, ///< only one bit set, way ends here
-		straight_ns = 1 << 1, ///< contains straight n/s connection
-		straight_ew = 1 << 2, ///< contains straight e/w connection
-		bend        = 1 << 3, ///< is a bend
-		twoway      = 1 << 4, ///< two bits set
-		threeway    = 1 << 5  ///< three bits set
-	};
-
 public:
 	/**
-	 * Named constants for all possible directions.
-	 * 1=North, 2=East, 4=South, 8=West
+	 * Named constants for the 6 single hex-edge directions.  Bit
+	 * positions match koord::neighbours[] ordering.
 	 */
 	enum _ribi {
-		none           = 0,
-		north          = 1,
-		east           = 2,
-		northeast      = 3,
-		south          = 4,
-		northsouth     = 5,
-		southeast      = 6,
-		northsoutheast = 7,
-		west           = 8,
-		northwest      = 9,
-		eastwest       = 10,
-		northeastwest  = 11,
-		southwest      = 12,
-		northsouthwest = 13,
-		southeastwest  = 14,
-		all            = 15
+		none      = 0,
+		southeast = 1 << 0, // 1   ─ neighbours[0]
+		south     = 1 << 1, // 2   ─ neighbours[1]
+		southwest = 1 << 2, // 4   ─ neighbours[2]
+		northwest = 1 << 3, // 8   ─ neighbours[3]
+		north     = 1 << 4, // 16  ─ neighbours[4]
+		northeast = 1 << 5, // 32  ─ neighbours[5]
+		all       = 63      ///< all 6 edges set
 	};
 	typedef uint8 ribi;
 
 	/**
-	 * Named constants to translate direction to image number for vehicles, signs.
+	 * Direction image index for vehicles / signs.  Still a 4-direction
+	 * enum for sprite-raster reasons; porting this is tied to the
+	 * viewport projection (see TODO.md) and a real hex sprite set.
+	 * For now the enum keeps its 8 values but callers that consume
+	 * `get_dir()` on a hex ribi land on whichever 4 of 6 edges the
+	 * dirs[] table chooses to project onto the square dir enum.
 	 */
 	enum _dir {
 		dir_invalid   = 0,
@@ -288,83 +284,141 @@ public:
 	};
 	typedef uint8 dir;
 
-private:
-	/// Lookup table to compute backward direction
-	static const ribi backwards[16];
-	/// Lookup table ...
-	static const ribi doppelr[16];
-	/// Lookup table to convert ribi to dir.
-	static const dir  dirs[16];
-
 public:
-	/// Lookup table to convert ribi mask to string
-	static const char names[16][5];
+	/// Printable name per ribi value, 6 one-char columns + NUL.  Column
+	/// order matches koord::neighbours[]: SE, S, SW, NW, N, NE; set bit
+	/// shows a letter, unset bit a space.  Runtime-initialised in
+	/// ribi.cc (not a compile-time literal — 64 entries are noise to
+	/// hand-write, and the array is only used for debug prints).
+	static char names[64][7];
 
-	/// Table containing the four compass directions (now as function)
+	/// Accessor for the 6 compass directions as single-bit ribis:
+	/// nesw[i] = 1 << i, matching koord::neighbours[i].  Name kept
+	/// for grep-continuity with callers mid-port; rename when the
+	/// 4-direction-era callers are all gone.
 	struct _nesw {
-		ribi operator [] ( const uint8 i ) const { return 1<<i; }
+		ribi operator [] ( const uint8 i ) const { return (ribi)(1<<i); }
 	};
 	static const _nesw nesw;
 
-	/// Convert building layout to ribi (four rotations), use doppelt in case of two rotations
-	static const ribi layout_to_ribi[4]; // building layout to ribi (for four rotations, for two use doppelt()!
+	/// Convert building layout index → ribi, 6 hex rotations.  Callers
+	/// that semantically wanted 4 rotations (square-era buildings) need
+	/// auditing — `layout_to_ribi[4]` is gone.
+	static const ribi layout_to_ribi[6];
 
 	static bool is_perpendicular(ribi x, ribi y);
 
-#ifdef RIBI_LOOKUP
-	static bool is_twoway(ribi x) { return (flags[x]&twoway)!=0; }
-	static bool is_threeway(ribi x) { return (flags[x]&threeway)!=0; }
-	static bool is_single(ribi x) { return (flags[x] & single) != 0; }
-	static bool is_bend(ribi x) { return (flags[x] & bend) != 0; }
-	static bool is_straight(ribi x) { return (flags[x] & (straight_ns | straight_ew)) != 0; }
-	static bool is_straight_ns(ribi x) { return (flags[x] & straight_ns) != 0; }
-	static bool is_straight_ew(ribi x) { return (flags[x] & straight_ew) != 0; }
-
-	/// Convert single/straight direction into their doubled form (n, ns -> ns), map all others to zero
-	static ribi doubles(ribi x) { return doppelr[x]; }
-
-	/// Backward direction for single ribi's, bitwise-NOT for all others
-	static ribi backward(ribi x) { return backwards[x]; }
-
-	/// Convert ribi to dir
-	static dir get_dir(ribi x) { return dirs[x]; }
-#else
+	static uint8 get_numways(ribi x) {
 #ifdef USE_GCC_POPCOUNT
-	static uint8 get_numways(ribi x) { return (__builtin_popcount(x)); }
-	static bool is_twoway(ribi x) { return get_numways(x) == 2; }
-	static bool is_threeway(ribi x) { return get_numways(x) > 2; }
-	static bool is_single(ribi x) { return get_numways(x) == 1; }
+		return (uint8)__builtin_popcount(x);
 #else
-	static bool is_twoway(ribi x) { return (0x1668 >> x) & 1; }
-	static bool is_threeway(ribi x) { return (0xE880 >> x) & 1; }
-	static bool is_single(ribi x) { return (0x0116 >> x) & 1; }
+		uint8 n = 0;
+		for (uint8 b = x; b; b &= (uint8)(b-1)) { n++; }
+		return n;
 #endif
-	static bool is_bend(ribi x) { return (0x1248 >> x) & 1; }
-	static bool is_straight(ribi x) { return (0x0536 >> x) & 1; }
-	static bool is_straight_ns(ribi x) { return (0x0032 >> x) & 1; }
-	static bool is_straight_ew(ribi x) { return (0x0504 >> x) & 1; }
+	}
+	static bool is_single(ribi x)   { return get_numways(x) == 1; }
+	static bool is_twoway(ribi x)   { return get_numways(x) == 2; }
+	static bool is_threeway(ribi x) { return get_numways(x) >= 3; }
 
-	static ribi doubles(ribi x) { return (INT64_C(0x00000A0A00550A50) >> (x * 4)) & 0x0F; }
-	static ribi backward(ribi x) { return (INT64_C(0x01234A628951C84F) >> (x * 4)) & 0x0F; }
-
-	/// Convert ribi to dir
-	static dir get_dir(ribi x) { return (INT64_C(0x0002007103006540) >> (x * 4)) & 0x7; }
-#endif
-	/**
-	 * Same as backward, but for single directions only.
-	 * Effectively does bit rotation. Avoids lookup table backwards.
-	 * @returns backward(x) for single ribis, 0 for x==0.
-	 */
-	static inline ribi reverse_single(ribi x) {
-		return ((x  |  x<<4) >> 2) & 0xf;
+	/// True iff @p x's set bits all lie on a single hex axis, i.e.
+	/// x is non-empty and its bits are a subset of one of the 3
+	/// straight axis masks: {N, S}, {NE, SW}, {NW, SE}.  Matches the
+	/// old 4-bit semantic — is_straight was true for any single
+	/// direction and for the two axis-pair combos (N|S, E|W) — just
+	/// extended to the 3 hex axes.  Used by way/signal/station code
+	/// to decide "can we lay a straight object here".
+	static bool is_straight(ribi x) {
+		const ribi ns   = (ribi)(north     | south);
+		const ribi nesw = (ribi)(northeast | southwest);
+		const ribi nwse = (ribi)(northwest | southeast);
+		return x != none
+		    && ((x & ~ns) == 0 || (x & ~nesw) == 0 || (x & ~nwse) == 0);
+	}
+	/// True iff @p x's set bits are all on the N-S axis (north,
+	/// south, or both).  Hex-only predicates for the other two axes
+	/// (NE-SW, NW-SE) deliberately don't exist yet — callers using
+	/// is_straight_ns historically split 2-axis logic, and hex has
+	/// 3 axes; those callers need explicit triage.
+	static bool is_straight_ns(ribi x) {
+		const ribi ns = (ribi)(north | south);
+		return x != none && (x & ~ns) == 0;
 	}
 
-	/// Rotate 90 degrees to the right. Does bit rotation.
-	static ribi rotate90(ribi x) { return ((x  |  x<<4) >> 3) & 0xf; }
-	/// Rotate 90 degrees to the left. Does bit rotation.
-	static ribi rotate90l(ribi x) { return ((x  |  x<<4) >> 1) & 0xf; }
-	static ribi rotate45(ribi x) { return (is_single(x) ? x|rotate90(x) : x&rotate90(x)); } // 45 to the right
-	static ribi rotate45l(ribi x) { return (is_single(x) ? x|rotate90l(x) : x&rotate90l(x)); } // 45 to the left
+	/// Bend: exactly two bits set, NOT opposite (i.e. a real corner).
+	static bool is_bend(ribi x) { return is_twoway(x) && !is_straight(x); }
+
+	/// Bitwise opposite: flip each set bit to its 180°-opposite hex
+	/// edge.  Bits 0↔3, 1↔4, 2↔5 — a 3-position rotation of the
+	/// 6-bit word.  For single-bit ribis returns the opposite single
+	/// direction; backward(none) = none, backward(all) = all.  NOTE:
+	/// the old 4-bit semantics had backward(none) = all and
+	/// backward(all) = none, which were quirks of the bitwise-NOT
+	/// implementation; the hex version is the clean "flip each edge".
+	static ribi backward(ribi x) {
+		return (ribi)(((x << 3) | (x >> 3)) & 0x3f);
+	}
+
+	/// Straight-axis extension of a single direction (e.g. N → N|S);
+	/// 0 for non-single inputs.
+	static ribi doubles(ribi x) {
+		return is_single(x) ? (ribi)(x | backward(x)) : (ribi)0;
+	}
+
+	/// Convert ribi to dir (sprite-raster index).  Still projects onto
+	/// the 8-value square dir enum until the viewport/sprite port
+	/// lands.  Multi-bit inputs and NE/SE/etc. that don't have a
+	/// square-era dir slot return dir_invalid.
+	static dir get_dir(ribi x);
+
+	/// Alias for `backward`.  Under the old 4-bit layout this was a
+	/// bit-rotation fast path for single-direction ribis (while
+	/// `backward` went through a lookup table); under hex the two
+	/// converge on the same rotate-by-3 expression.  Kept for
+	/// grep-continuity with existing callers.
+	static inline ribi reverse_single(ribi x) { return backward(x); }
+
+	/// Rotate 60° clockwise (bit i → bit (i+1) mod 6).  The old
+	/// rotate90 is gone — a hex step is 60°, not 90°.  Callers that
+	/// semantically wanted a quarter-turn (building-layout 4-cycles)
+	/// are broken and need explicit auditing.
+	static ribi rotate60(ribi x) {
+		return (ribi)(((x << 1) | (x >> 5)) & 0x3f);
+	}
+	/// Rotate 60° counter-clockwise.
+	static ribi rotate60l(ribi x) {
+		return (ribi)(((x >> 1) | (x << 5)) & 0x3f);
+	}
+
+	/// Rotate a ribi by the amount the world rotates when the user
+	/// issues a 90° map-rotate (`karte_t::rotate90`).  Called from
+	/// every `obj_t::rotate90()` override that holds a ribi (ways,
+	/// vehicles, signs, water flow, etc.).
+	///
+	/// Stubbed as `rotate60` — one-step rotation, matching the
+	/// "single-bit rotation" semantic the old 4-ribi `rotate90` had
+	/// on a 4-direction grid.  90° is not a hex symmetry and
+	/// `karte_t::rotate90` is itself scheduled for redesign (see
+	/// TODO.md); when that decision lands, update this one function
+	/// body — callers don't change.
+	static ribi rotate_for_map_rotate90(ribi x) { return rotate60(x); }
+
+	/// Rotate a ribi to the "perpendicular axis" of @p x — the axis
+	/// used by square-era crossroads collision-avoidance, broad-tunnel
+	/// side tiles, canal orthogonality, diagonal-bend detection, and
+	/// similar concepts that asked "what's 90° off this direction?".
+	///
+	/// Flat-top hex has no 90° axis relation; there are 3 hex axes
+	/// (N-S, NE-SW, NW-SE) at 60° spacing.  Stubbed as `rotate60`:
+	/// the "one step over" relation — same single-bit rotation the
+	/// old `rotate90` carried on a 4-ribi, reinterpreted for the
+	/// 6-ribi.  Per-caller review during the crossings-port cluster
+	/// may pick something different per site (test both neighbour
+	/// axes, redesign the check entirely).  The helper centralises
+	/// the stub choice and names the audit surface.
+	static ribi rotate_perpendicular(ribi x)   { return rotate60(x); }
+	/// Counter-clockwise companion to `rotate_perpendicular`.
+	static ribi rotate_perpendicular_l(ribi x) { return rotate60l(x); }
 };
 
 /**

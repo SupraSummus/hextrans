@@ -35,12 +35,9 @@ class loadsave_t;
  *     sit at angles 0°, 60°, 120°, 180°, 240°, 300° from the centre.
  * koord::neighbours[] is ordered clockwise starting from the SE
  * neighbour, see koord.cc.  Edge labels in the comments there refer
- * to the EDGE convention above.
- *
- * koord::nesw[4] and the koord::north/south/east/west constants still
- * encode the legacy 4-direction (square) model and remain tied to the
- * ribi system, which is still 4-bit; they will be retired when ribi
- * is widened to 6 hex directions.
+ * to the EDGE convention above.  Bit position in ribi_t::ribi matches
+ * the neighbours[] index — iterating bits 0..5 visits neighbours in
+ * the same order.
  */
 class koord
 {
@@ -56,8 +53,16 @@ public:
 	koord() : x(0), y(0) {}
 
 	koord(sint16 xp, sint16 yp) : x(xp), y(yp) {}
-	koord(ribi_t::ribi ribi) { *this = from_ribi[ribi]; }
-	koord(slope_t::type slope); // defined in koord.cc
+	koord(ribi_t::ribi ribi);   // defined in koord.cc
+	koord(slope_t::type slope); // uphill direction of a slope (koord.cc)
+
+	// Static factory for the displacement of a hex-edge ribi.  Enum
+	// literals (e.g. `ribi_t::northwest`) convert to both `ribi_t::ribi`
+	// (uint8) and `slope_t::type` (sint16), leaving the two single-arg
+	// constructors above ambiguous when called with a literal.  Use
+	// this factory at sites that pass an enum literal directly; the
+	// constructor still works for variables of type `ribi_t::ribi`.
+	static koord step(ribi_t::ribi r);
 
 	// use this instead of koord(simrand(x),simrand(y)) to avoid
 	// different order on different compilers
@@ -114,22 +119,15 @@ public:
 	}
 
 	static const koord invalid;
-	static const koord north;
-	static const koord south;
-	static const koord east;
-	static const koord west;
-	// Legacy 4-cardinal directions, tied to the (still-square) ribi
-	// system: koord::nesw[i] is the displacement matching the ribi
-	// direction at ribi_t::nesw[i]. Will be retired with the ribi
-	// widening.
-	static const koord nesw[4];
 	// 6 hex neighbours (flat-top axial), clockwise starting from the SE
 	// neighbour: SE, S, SW, NW, N, NE. Iterate with
-	// for (size_t i = 0; i < lengthof(koord::neighbours); i++).
+	//   for (size_t i = 0; i < lengthof(koord::neighbours); i++).
+	// Bit position in ribi_t::ribi matches the index: bit i set ↔
+	// neighbours[i] is part of the ribi.  koord::nesw[4] and
+	// koord::north/south/east/west retired with the ribi widening —
+	// use koord::neighbours[i] directly, or koord(ribi_t::north) for
+	// a named direction step.
 	static const koord neighbours[6];
-
-private:
-	static const koord from_ribi[16];
 };
 
 

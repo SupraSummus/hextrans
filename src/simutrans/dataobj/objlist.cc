@@ -382,7 +382,7 @@ bool objlist_t::intern_add_moving(obj_t* new_obj)
 	   NE, E, SE, S) must be prepended, first one in front. */
 	auto v = static_cast<const vehicle_base_t*>(new_obj);
 	const uint8 direction = v->get_direction();
-	if (direction == ribi_t::north || (direction & ribi_t::west)) {
+	if (direction == ribi_t::north || (direction & ribi_t::northwest)) {
 		start = end; // append
 	}
 
@@ -666,14 +666,14 @@ void objlist_t::rotate90_moving()
 	   shouldn't really happen. */
 
 	static const uint append_dirs = (
-		(1 << ribi_t::southwest) | (1 << ribi_t::west) |
+		(1 << ribi_t::southwest) | (1 << ribi_t::northwest) |
 		(1 << ribi_t::northwest) | (1 << ribi_t::north));
 	static const uint rotated_append_dirs = (
 		(1 << ribi_t::southeast) | (1 << ribi_t::south) |
-		(1 << ribi_t::southwest) | (1 << ribi_t::west));
+		(1 << ribi_t::southwest) | (1 << ribi_t::northwest));
 	static const uint rotated_mirror_dirs = (
-		(1 << ribi_t::northeast) | (1 << ribi_t::east) |
-		(1 << ribi_t::southwest) | (1 << ribi_t::west));
+		(1 << ribi_t::northeast) | (1 << ribi_t::southeast) |
+		(1 << ribi_t::southwest) | (1 << ribi_t::northwest));
 
 	auto rotated_disp_lane = [] (uint& dir_mask, const obj_t* o) {
 		auto v = static_cast<const vehicle_base_t*>(o);
@@ -1337,7 +1337,7 @@ inline bool local_display_obj_vh(const obj_t *draw_obj, const sint16 xpos, const
 		if(  ontile  ||  (veh_ribi & ribi) == ribi  ||  (ribi_t::backward(veh_ribi) & ribi )== ribi  ||  draw_obj->get_typ() == obj_t::air_vehicle  ) {
 			// activate clipping only for our direction masked by the ribi argument
 			// use non-convex clipping (16) only if we are on the currently drawn tile or its n/w neighbours
-			gfx->activate_ribi_clip( ((veh_ribi|ribi_t::backward(veh_ribi))&ribi) | (ontile  ||  ribi == ribi_t::north  ||  ribi == ribi_t::west ? 16 : 0)  CLIP_NUM_PAR);
+			gfx->activate_ribi_clip( ((veh_ribi|ribi_t::backward(veh_ribi))&ribi) | (ontile  ||  ribi == ribi_t::north  ||  ribi == ribi_t::northwest ? 16 : 0)  CLIP_NUM_PAR);
 			draw_obj->display( xpos, ypos  CLIP_NUM_PAR);
 		}
 		return true;

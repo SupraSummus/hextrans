@@ -175,9 +175,10 @@ void pedestrian_t::rdwr(loadsave_t *file)
 
 void pedestrian_t::calc_disp_lane()
 {
-	// walking in the back or the front
+	// walking in the back or the front.  HEX-PORT: "heading left on
+	// screen" under the 2:1 isometric hex projection is S, SW, or NW.
 	disp_lane = on_left ? 0 : 4;
-	if ((direction & ribi_t::south) || direction == ribi_t::west)
+	if ((direction & (ribi_t::south | ribi_t::southwest | ribi_t::northwest)) != 0)
 		disp_lane ^= 4;
 }
 
@@ -229,8 +230,8 @@ void pedestrian_t::generate_pedestrians_at(grund_t *bd, int &count)
 int pedestrian_t::generate_pedestrians_near(grund_t *gr, int count)
 {
 	generate_pedestrians_at(gr, count);
-	for (int i = 0; i < 4 && count>0; i++) {
-		if (grund_t *gr_next = welt->lookup_kartenboden(gr->get_pos().get_2d() + koord::nesw[i])) {
+	for (int i = 0; i < 6 && count>0; i++) {
+		if (grund_t *gr_next = welt->lookup_kartenboden(gr->get_pos().get_2d() + koord::neighbours[i])) {
 			generate_pedestrians_at(gr_next, count);
 		}
 	}
@@ -300,11 +301,12 @@ void pedestrian_t::hop(grund_t *gr)
 	// all possible directions
 	ribi_t::ribi ribi = weg->get_ribi_unmasked() & (~reverse_direction);
 	// randomized offset
-	const uint8 offset = (ribi > 0  &&  ribi_t::is_single(ribi)) ? 0 : sim_async_rand(4);
+	// HEX-PORT: 4 → 6 direction iteration; mask 3 → modulo 6.
+	const uint8 offset = (ribi > 0  &&  ribi_t::is_single(ribi)) ? 0 : sim_async_rand(6);
 
 	ribi_t::ribi new_direction = ribi_t::none;
-	for(uint r = 0; r < 4; r++) {
-		new_direction = ribi_t::nesw[ (r+offset) & 3];
+	for(uint r = 0; r < 6; r++) {
+		new_direction = ribi_t::nesw[ (r+offset) % 6];
 
 		if(  (ribi & new_direction)!=0  &&  gr->get_neighbour(to, road_wt, new_direction) ) {
 			// this is our next target
@@ -321,7 +323,12 @@ void pedestrian_t::hop(grund_t *gr)
 			direction = calc_set_direction(from, pos_next);
 		}
 		else {
-			ribi_t::ribi turn_ribi = on_left ? ribi_t::rotate90l(current_direction) : ribi_t::rotate90(current_direction);
+			// HEX-PORT: 90° turn (cross-street) → 120° = 2× rotate60
+			// (closest hex symmetry), see TODO.md vehicle rendering
+			// notes.
+			ribi_t::ribi turn_ribi = on_left
+				? ribi_t::rotate_perpendicular_l(current_direction)
+				: ribi_t::rotate60 (ribi_t::rotate60 (current_direction));
 
 			if (turn_ribi == new_direction) {
 				// short diagonal (turn but do not cross street)

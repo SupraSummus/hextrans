@@ -904,13 +904,16 @@ static void simgraph16_pop_clip_rect(CLIP_NUM_DEF0)
 /*
  * Add clipping line through (x0,y0) and (x1,y1)
  * with associated ribi
- * if ribi & 16 then non-convex clipping.
+ * if ribi & 0x40 then non-convex clipping.
+ * HEX-PORT: non-convex flag moved from bit 4 (value 16) to bit 6
+ * (value 64) — bit 4 is now the hex N ribi bit and clashed with
+ * ribi_t::north (=16).  Mask for the ribi portion widened 15→63.
  */
 static void simgraph16_add_poly_clip(int x0,int y0, int x1, int y1, int ribi  CLIP_NUM_DEF)
 {
 	if(  CR.number_of_clips < MAX_POLY_CLIPS  ) {
-		CR.poly_clips[CR.number_of_clips].clip_from_to( x0, y0, x1, y1, ribi&16 );
-		CR.clip_ribi[CR.number_of_clips] = ribi&15;
+		CR.poly_clips[CR.number_of_clips].clip_from_to( x0, y0, x1, y1, ribi&0x40 );
+		CR.clip_ribi[CR.number_of_clips] = ribi&0x3f;
 		CR.number_of_clips++;
 	}
 }
@@ -922,7 +925,7 @@ static void simgraph16_add_poly_clip(int x0,int y0, int x1, int y1, int ribi  CL
 static void simgraph16_clear_all_poly_clip(CLIP_NUM_DEF0)
 {
 	CR.number_of_clips = 0;
-	CR.active_ribi = 15; // set all to active
+	CR.active_ribi = 0x3f; // set all 6 hex edges to active
 }
 
 
@@ -942,7 +945,7 @@ static inline void init_ranges(int y  CLIP_NUM_DEF)
 {
 	for(  uint8 i = 0;  i < CR.number_of_clips;  i++  ) {
 		if(  (CR.clip_ribi[i] & CR.active_ribi)  ) {
-			CR.poly_clips[i].get_x_range( y, CR.xranges[i], CR.active_ribi & 16 );
+			CR.poly_clips[i].get_x_range( y, CR.xranges[i], CR.active_ribi & 0x40 );
 		}
 	}
 }
@@ -4294,6 +4297,13 @@ static void simgraph16_draw_filled_circle(scr_coord_val x0, scr_coord_val y0, in
 }
 
 
+// HEX-PORT: signal direction indicator is square-era, distinguishing
+// "diagonal" (NE-SW or NW-SE axis) from "straight" (N-S or E-W axis)
+// to pick a sprite orientation.  Under flat-top hex the 3 axes are
+// N-S, NE-SW, NW-SE — the old "is_diagonal" now covers 2 of 3 axes
+// and "straight" only N-S.  ribi_t::east → southeast, west → northwest
+// for single-edge tests below.  The sprite geometry is wrong under
+// hex; a proper rewrite waits for the sprite / viewport port.
 static void simgraph16_draw_signal_direction(scr_coord_val x, scr_coord_val y, uint8 way_dir, uint8 sig_dir, PIXVAL col1, PIXVAL col1_dark, bool is_diagonal, uint8 slope)
 {
 	uint8 width        = is_diagonal ? g_simgraph16.current_tile_raster_width/6*0.353 : g_simgraph16.current_tile_raster_width/6;
@@ -4315,12 +4325,12 @@ static void simgraph16_draw_signal_direction(scr_coord_val x, scr_coord_val y, u
 			for (uint8 xoff = 0; xoff < width/2; xoff++) {
 				const uint8 yoff = (uint8)((xoff+1)/2);
 				// up
-				if (sig_dir & ribi_t::east || sig_dir & ribi_t::south) {
+				if (sig_dir & ribi_t::southeast || sig_dir & ribi_t::south) {
 					simgraph16_draw_vline_clipped(x + xoff, y+yoff, width/4 - yoff, col1, true CLIP_NUM_DEFAULT);
 					simgraph16_draw_vline_clipped(x-xoff-1, y+yoff, width/4 - yoff, col1, true CLIP_NUM_DEFAULT);
 				}
 				// down
-				if (sig_dir & ribi_t::west || sig_dir & ribi_t::north) {
+				if (sig_dir & ribi_t::northwest || sig_dir & ribi_t::north) {
 					simgraph16_draw_vline_clipped(x+xoff,   y+g_simgraph16.current_tile_raster_width/6,              width/4-yoff, col1,      true CLIP_NUM_DEFAULT);
 					simgraph16_draw_vline_clipped(x+xoff,   y+g_simgraph16.current_tile_raster_width/6+width/4-yoff, thickness,    col1_dark, true CLIP_NUM_DEFAULT);
 					simgraph16_draw_vline_clipped(x-xoff-1, y+g_simgraph16.current_tile_raster_width/6,              width/4-yoff, col1,      true CLIP_NUM_DEFAULT);
@@ -4328,7 +4338,7 @@ static void simgraph16_draw_signal_direction(scr_coord_val x, scr_coord_val y, u
 				}
 			}
 			// up
-			if (sig_dir & ribi_t::east || sig_dir & ribi_t::south) {
+			if (sig_dir & ribi_t::southeast || sig_dir & ribi_t::south) {
 				gfx->draw_rect_clipped(x - width/2, y + width/4, width, thickness, col1_dark, true CLIP_NUM_DEFAULT);
 			}
 		}
@@ -4342,12 +4352,12 @@ static void simgraph16_draw_signal_direction(scr_coord_val x, scr_coord_val y, u
 			for (uint8 xoff = 0; xoff < width*2; xoff++) {
 				const uint8 h = width*2 - (scr_coord_val)(xoff + 1);
 				// left
-				if (sig_dir & ribi_t::north || sig_dir & ribi_t::east) {
+				if (sig_dir & ribi_t::north || sig_dir & ribi_t::southeast) {
 					simgraph16_draw_vline_clipped(x - xoff - width*2, y + (scr_coord_val)((xoff+1)/2),   h,         col1,      true CLIP_NUM_DEFAULT);
 					simgraph16_draw_vline_clipped(x - xoff - width*2, y + (scr_coord_val)((xoff+1)/2)+h, thickness, col1_dark, true CLIP_NUM_DEFAULT);
 				}
 				// right
-				if (sig_dir & ribi_t::south || sig_dir & ribi_t::west) {
+				if (sig_dir & ribi_t::south || sig_dir & ribi_t::northwest) {
 					simgraph16_draw_vline_clipped(x + xoff + width*2, y + (scr_coord_val)((xoff+1)/2),   h,         col1,      true CLIP_NUM_DEFAULT);
 					simgraph16_draw_vline_clipped(x + xoff + width*2, y + (scr_coord_val)((xoff+1)/2)+h, thickness, col1_dark, true CLIP_NUM_DEFAULT);
 				}
@@ -4363,14 +4373,14 @@ static void simgraph16_draw_signal_direction(scr_coord_val x, scr_coord_val y, u
 				simgraph16_draw_vline_clipped( x + xoff, y - slope_offset_y + (scr_coord_val)(xoff/2) + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
 			}
 		}
-		if (sig_dir & ribi_t::east) {
+		if (sig_dir & ribi_t::southeast) {
 			scr_coord_val slope_offset_y = corner_se( slope )*TILE_HEIGHT_STEP;
 			for (uint8 xoff = 0; xoff < width; xoff++) {
 				simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);
 				simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y + (scr_coord_val)(xoff/2) + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
 			}
 		}
-		if (sig_dir & ribi_t::west) {
+		if (sig_dir & ribi_t::northwest) {
 			scr_coord_val slope_offset_y = corner_nw( slope )*TILE_HEIGHT_STEP;
 			for (uint8 xoff = 0; xoff < width; xoff++) {
 				simgraph16_draw_vline_clipped(x + xoff, y - slope_offset_y + height*2 - (scr_coord_val)(xoff/2) + 1, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);

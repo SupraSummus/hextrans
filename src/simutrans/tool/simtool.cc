@@ -271,9 +271,9 @@ static halthandle_t suche_nahe_haltestelle(player_t *player, karte_t *welt, koor
 	// first we try to connect to a stop straight in our direction; otherwise our station may break during construction
 	if(  bd->hat_wege()  ) {
 		ribi_t::ribi ribi = bd->get_weg_nr(0)->get_ribi_unmasked();
-		for(  int i=0;  i<4;  i++ ) {
+		for(  int i=0;  i<6;  i++ ) {
 			if(  ribi_t::nesw[i] & ribi ) {
-				if(  planquadrat_t* plan=welt->access(k+koord::nesw[i])  ) {
+				if(  planquadrat_t* plan=welt->access(k+koord::neighbours[i])  ) {
 					my_halt = plan->get_halt( player );
 					if(  my_halt.is_bound()  ) {
 						return my_halt;
@@ -890,17 +890,17 @@ const char *tool_remover_t::work( player_t *player, koord3d pos )
 
 	// must recalc neighbourhood for slopes etc.
 	if(pos.x>1) {
-		welt->lookup_kartenboden(pos.get_2d()+koord::west)->calc_image();
+		welt->lookup_kartenboden(pos.get_2d()+koord::step(ribi_t::northwest))->calc_image();
 	}
 	if(pos.y>1) {
-		welt->lookup_kartenboden(pos.get_2d()+koord::north)->calc_image();
+		welt->lookup_kartenboden(pos.get_2d()+koord::step(ribi_t::north))->calc_image();
 	}
 
 	if(pos.x<welt->get_size().x-1) {
-		welt->lookup_kartenboden(pos.get_2d()+koord::east)->calc_image();
+		welt->lookup_kartenboden(pos.get_2d()+koord::step(ribi_t::southeast))->calc_image();
 	}
 	if(pos.y<welt->get_size().y-1) {
-		welt->lookup_kartenboden(pos.get_2d()+koord::south)->calc_image();
+		welt->lookup_kartenboden(pos.get_2d()+koord::step(ribi_t::south))->calc_image();
 	}
 
 	return NULL;
@@ -1463,8 +1463,8 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 		const sint8 test_hgt = hgt+(new_slope!=0);
 
 		if(  gr1->get_typ()==grund_t::boden  ) {
-			for(  sint16 i = 0 ;  i < 4 ;  i++  ) {
-				const koord neighbour = k + koord::nesw[i];
+			for(  sint16 i = 0 ;  i < 6 ;  i++  ) {
+				const koord neighbour = k + koord::neighbours[i];
 
 				const grund_t *gr_neighbour=welt->lookup_kartenboden(neighbour);
 				if(gr_neighbour) {
@@ -2802,7 +2802,7 @@ const char *tool_build_way_t::calc_route( way_builder_t &bauigel, const koord3d 
 		if (weg_t *w=gr->get_weg(desc->get_wtyp())) {
 			// we start on a way; but if it is an end, maybe continue building a parallel way
 			if (ribi_t::is_single(w->get_ribi_unmasked())) {
-				koord zv = (koord)(ribi_t::rotate90(w->get_ribi_unmasked()));
+				koord zv = (koord)(ribi_t::rotate_perpendicular(w->get_ribi_unmasked()));
 				if (grund_t* gr = welt->lookup(start + zv)) {
 					// is there a parallel way?
 					assume_parallel = gr->get_weg(desc->get_wtyp());
@@ -3702,8 +3702,11 @@ const char *tool_wayremover_t::do_work( player_t *player, const koord3d &start, 
 			}
 
 			// now the tricky part: delete just part of a way (or everything, if possible)
-			// calculate remaining directions
-			ribi_t::ribi rem = 15 ^ ( verbindung.get_route().get_ribi(i) );
+			// calculate remaining directions.  HEX-PORT: was `15 ^ ribi`
+			// (4-bit all); under hex the upper 2 bits (N, NE) were
+			// silently masked off, so removing a way also stripped
+			// any unrelated N/NE ribi from a crossing tile.
+			ribi_t::ribi rem = (ribi_t::ribi)(ribi_t::all ^ verbindung.get_route().get_ribi(i));
 			// if start=end tile then delete every direction
 			if(  verbindung.get_count() <= 1  ) {
 				rem = 0;
@@ -4329,23 +4332,23 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 		case slope_t::south:
 		case slope_t::south*2:
 			layout = 0;
-			dx2 = koord::west;
+			dx2 = koord::step(ribi_t::northwest);
 			break;
 		case slope_t::east:
 		case slope_t::east*2:
 			layout = 1;
-			dx2 = koord::north;
+			dx2 = koord::step(ribi_t::north);
 			break;
 		case slope_t::north:
 		case slope_t::north*2:
 			layout = 2;
-			dx2 = koord::west;
+			dx2 = koord::step(ribi_t::northwest);
 			bau_pos = last_k;
 			break;
 		case slope_t::west:
 		case slope_t::west*2:
 			layout = 3;
-			dx2 = koord::north;
+			dx2 = koord::step(ribi_t::north);
 			bau_pos = last_k;
 			break;
 	}
@@ -4458,8 +4461,8 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 	// first: find the next water
 	ribi_t::ribi water_dir = 0;
 	uint8        total_dir = 0;
-	for(  uint8 i=0;  i<4;  i++  ) {
-		if(  grund_t *gr = welt->lookup_kartenboden(k+koord::nesw[i])  ) {
+	for(  uint8 i=0;  i<6;  i++  ) {
+		if(  grund_t *gr = welt->lookup_kartenboden(k+koord::neighbours[i])  ) {
 			if(  gr->is_water()  &&  gr->get_hoehe() == pos.z) {
 				water_dir |= ribi_t::nesw[i];
 				total_dir ++;
@@ -4474,14 +4477,14 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 
 	// prefer layouts that reach an existing halt
 	ribi_t::ribi halt_dir = 0;
-	halthandle_t test_halt[4];
+	halthandle_t test_halt[6];
 
-	for(  uint8 ii=0;  ii<4;  ii++  ) {
+	for(  uint8 ii=0;  ii<6;  ii++  ) {
 
 		if(  (water_dir & ribi_t::nesw[ii]) == 0  ) {
 			continue;
 		}
-		const koord dx = koord::nesw[ii];
+		const koord dx = koord::neighbours[ii];
 		const char *last_error = NULL;
 
 		for(int i=0;  i<=len;  i++  ) {
@@ -4545,13 +4548,18 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 	halthandle_t halt;
 
 	koord bau_pos = k;
-	for(  uint8 i=0;  i<4;  i++  ) {
+	for(  uint8 i=0;  i<6;  i++  ) {
 		if(  water_dir & ribi_t::nesw[i]  ) {
-			dx = koord::nesw[i];
+			dx = koord::neighbours[i];
 			halt = test_halt[i];
 			koord last_k = k + dx*len;
-			// layout: north 2, west 3, south 0, east 1
-			static const uint8 nesw_to_layout[4] = { 2, 1, 0, 3 };
+			// HEX-PORT: nesw → layout (inverse of layout_to_ribi[6]).
+			// nesw indices match koord::neighbours[]: SE,S,SW,NW,N,NE.
+			// layout_to_ribi[6] = {S,SE,N,NW,NE,SW}.  So inverse:
+			//   nesw[0]=SE → layout 1; nesw[1]=S  → layout 0;
+			//   nesw[2]=SW → layout 5; nesw[3]=NW → layout 3;
+			//   nesw[4]=N  → layout 2; nesw[5]=NE → layout 4.
+			static const uint8 nesw_to_layout[6] = { 1, 0, 5, 3, 2, 4 };
 			layout = nesw_to_layout[i];
 			if(  layout>=2  ) {
 				// reverse construction in these directions
@@ -4712,7 +4720,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 			if(  !ribi_t::is_straight(ribi)  ) {
 				return p_error;
 			}
-			layout = (ribi & ribi_t::northsouth)?0 :1;
+			layout = (ribi & (ribi_t::ribi)(ribi_t::north | ribi_t::south))?0 :1;
 		}
 		else if(  desc->get_all_layouts()==4  ) {
 			// terminal station
@@ -4726,9 +4734,9 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 
 			switch(ribi) {
 				case ribi_t::south: layout = 0;  break;
-				case ribi_t::east:  layout = 1;    break;
+				case ribi_t::southeast:  layout = 1;    break;
 				case ribi_t::north: layout = 2;    break;
-				case ribi_t::west:  layout = 3;    break;
+				case ribi_t::northwest:  layout = 3;    break;
 			}
 		}
 		else {
@@ -4752,17 +4760,17 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 
 			grund_t *gr;
 			sint32 neighbour_layout[] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
-			for(  unsigned i=0;  i<4;  i++  ) {
+			for(  unsigned i=0;  i<6;  i++  ) {
 				// oriented buildings here - get neighbouring layouts
-				gr = welt->lookup(koord3d(k+koord::nesw[i],offset));
+				gr = welt->lookup(koord3d(k+koord::neighbours[i],offset));
 				if(!gr) {
 					// check whether bridge end tile
-					grund_t * gr_tmp = welt->lookup(koord3d(k+koord::nesw[i],offset-1));
+					grund_t * gr_tmp = welt->lookup(koord3d(k+koord::neighbours[i],offset-1));
 					if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 						gr = gr_tmp;
 					}
 					else {
-						grund_t * gr_tmp = welt->lookup(koord3d(k+koord::nesw[i],offset-2));
+						grund_t * gr_tmp = welt->lookup(koord3d(k+koord::neighbours[i],offset-2));
 						if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 2) {
 							gr = gr_tmp;
 						}
@@ -5659,7 +5667,7 @@ const char *tool_build_roadsign_t::place_sign_intern(player_t *player, grund_t *
 			// add a new roadsign at position zero!
 			// if single way, we need to reduce the allowed ribi to one
 			if (desc->is_single_way() || desc->is_choose_sign()) {
-				for(  int i=0;  i<4;  i++  ) {
+				for(  int i=0;  i<6;  i++  ) {
 					if ((dir & ribi_t::nesw[i]) != 0) {
 						dir = ribi_t::nesw[i];
 						break;
@@ -5773,9 +5781,9 @@ const char* tool_build_depot_t::tool_depot_aux(player_t* player, koord3d pos, co
 		}
 		switch (ribi) {
 			//case ribi_t::south:layout = 0;  break;
-			case ribi_t::east:  layout = 1;    break;
+			case ribi_t::southeast:  layout = 1;    break;
 			case ribi_t::north: layout = 2;    break;
-			case ribi_t::west:  layout = 3;    break;
+			case ribi_t::northwest:  layout = 3;    break;
 		}
 	}
 	else if (desc->get_all_layouts() == 2) {
@@ -5783,7 +5791,12 @@ const char* tool_build_depot_t::tool_depot_aux(player_t* player, koord3d pos, co
 		if (!ribi_t::is_straight(ribi)) {
 			return "Depots must be built on flat dead-end way tiles!";
 		}
-		layout = ribi_t::is_straight_ew(ribi);
+		// HEX-PORT: 2-layout depots pick layout 0 (N-S axis) or 1
+		// (old E-W axis = hex SE-NW under the 2:1 iso rename).  The
+		// 3rd hex axis (NE-SW) can't be served by a 2-layout depot —
+		// real hex depots need 3 layouts.  Tracked in building
+		// cluster TODO.
+		layout = (ribi == (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest));
 	}
 	else {
 		dbg->warning("tool_build_depot_t::tool_depot_aux()", "Broken depot name \"%s\"", desc->get_name());
@@ -6710,8 +6723,20 @@ const char *tool_stop_mover_t::do_work( player_t *player, const koord3d &last_po
 					// all connected tiles for start pos
 					uint8 ribi = welt->lookup(last_pos)->get_weg_ribi_unmasked(wt);
 					koord delta = ribi_t::is_straight_ns(ribi) ? koord(0,1) : koord(1,0);
+					// HEX-PORT: the old platform walk tested `ribi & 12`
+					// (= S|W in the 4-bit layout, "forward half") and
+					// `ribi & 3` (N|E, "backward half").  Under hex the
+					// same numeric masks pick SW|NW and SE|S — wrong.
+					// The correct hex check is "the ribi bit matching
+					// the forward delta" — delta is either (0,1)=S or
+					// (1,0)=SE, so `ribi_type(delta)` gives the
+					// forward-bit and its backward gives the reverse.
+					// Platforms along the NE-SW and other hex axes
+					// aren't handled by this 2-axis logic.
+					const ribi_t::ribi fwd = ribi_type(delta);
+					const ribi_t::ribi rev = ribi_t::backward(fwd);
 					koord3d start_pos=last_pos;
-					while(ribi&12) {
+					while(ribi & fwd) {
 						koord3d test_pos = start_pos+delta;
 						grund_t *gr = welt->lookup(test_pos);
 						if(!gr  ||  !gr->is_halt()  ||  (ribi=gr->get_weg_ribi_unmasked(wt))==0) {
@@ -6720,7 +6745,7 @@ const char *tool_stop_mover_t::do_work( player_t *player, const koord3d &last_po
 						start_pos = test_pos;
 					}
 					// now add all of them
-					while(ribi&3) {
+					while(ribi & rev) {
 						koord3d test_pos = start_pos-delta;
 						grund_t *gr = welt->lookup(test_pos);
 						old_platform.append(start_pos);

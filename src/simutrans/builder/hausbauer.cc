@@ -448,10 +448,10 @@ void hausbauer_t::remove( player_t *player, gebaeude_t *gb )
 		}
 
 		// there might be walls from foundations left => thus some tiles may need to be redrawn
-		if (grund_t* gr = welt->lookup_kartenboden(newk + koord::east)) {
+		if (grund_t* gr = welt->lookup_kartenboden(newk + koord::step(ribi_t::southeast))) {
 			gr->calc_image();
 		}
-		if (grund_t* gr = welt->lookup_kartenboden(newk + koord::south)) {
+		if (grund_t* gr = welt->lookup_kartenboden(newk + koord::step(ribi_t::south))) {
 			gr->calc_image();
 		}
 		welt->set_grid_hgt_nocheck(newk, new_hgt + corner_nw(new_slope));
@@ -638,17 +638,17 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 
 		// detect if we are connected at far (north/west) end
 		sint8 offset = welt->lookup( pos )->get_weg_yoff()/TILE_HEIGHT_STEP;
-		koord3d checkpos = pos+koord3d( (layout & 1 ? koord::east : koord::south), offset);
+		koord3d checkpos = pos+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)), offset);
 		grund_t * gr = welt->lookup( checkpos );
 
 		if(!gr) {
 			// check whether bridge end tile
-			grund_t * gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::east : koord::south),offset - 1) );
+			grund_t * gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)),offset - 1) );
 			if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 				gr = gr_tmp;
 			}
 			else {
-				gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::east : koord::south),offset - 2) );
+				gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)),offset - 2) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 2) {
 					gr = gr_tmp;
 				}
@@ -685,15 +685,15 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 		}
 
 		// detect if near (south/east) end
-		gr = welt->lookup( pos+koord3d( (layout & 1 ? koord::west : koord::north), offset) );
+		gr = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)), offset) );
 		if(!gr) {
 			// check whether bridge end tile
-			grund_t * gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::west : koord::north),offset - 1) );
+			grund_t * gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)),offset - 1) );
 			if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 				gr = gr_tmp;
 			}
 			else {
-				gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::west : koord::north),offset - 2) );
+				gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)),offset - 2) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 2) {
 					gr = gr_tmp;
 				}

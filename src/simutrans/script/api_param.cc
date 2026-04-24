@@ -72,15 +72,19 @@ namespace script_api {
 
 	void coordinate_transform_t::ribi_w2sq(ribi_t::ribi &r)
 	{
+		// HEX-PORT: was a 4-bit cyclic rotation by `rotation` steps,
+		// paired with the square rotate90 (one step = 90°).  Under
+		// hex the ribi is 6 bits and one step = 60° — matches
+		// `ribi_t::rotate_for_map_rotate90`.  Cycle within 6 bits.
 		if (rotation) {
-			r = ( ( (r << 4) | r) >> rotation) & 15;
+			r = ( ( (r << 6) | r) >> rotation) & 0x3f;
 		}
 	}
 
 	void coordinate_transform_t::ribi_sq2w(ribi_t::ribi &r)
 	{
 		if (rotation) {
-			r = ( ( (r << 4) | r) << rotation) >> 4 & 15;
+			r = ( ( (r << 6) | r) << rotation) >> 6 & 0x3f;
 		}
 	}
 

@@ -111,6 +111,7 @@ function test_way_bridge_build_ground()
 }
 
 
+// test_way_bridge_build_at_slope: HEX-PORT PENDING.
 function test_way_bridge_build_at_slope()
 {
 	local start_pos = coord3d(2, 1, 0)
@@ -276,6 +277,7 @@ function test_way_bridge_build_at_slope()
 }
 
 
+// test_way_bridge_build_at_slope_stacked: HEX-PORT PENDING.
 function test_way_bridge_build_at_slope_stacked()
 {
 	local remover = command_x(tool_remove_way)
@@ -510,6 +512,7 @@ function test_way_bridge_build_above_way()
 }
 
 
+// test_way_bridge_build_above_runway: HEX-PORT PENDING.
 function test_way_bridge_build_above_runway()
 {
 	local pl = player_x(0)
@@ -580,6 +583,7 @@ function test_way_bridge_build_above_runway()
 }
 
 
+// test_way_bridge_planner: HEX-PORT PENDING.
 function test_way_bridge_planner()
 {
 	local pl = player_x(0)

@@ -70,19 +70,23 @@ road_user_t::road_user_t(grund_t* bd, uint16 random) :
 
 	weg_next = random;
 
-	// randomized offset
-	uint8 offset = random & 3;
+	// randomized offset.  HEX-PORT: 4 directions → 6, mask 3→6 (modulo).
+	uint8 offset = random % 6;
 	direction = ribi_t::nesw[offset];
 
 	grund_t *to = NULL;
-	for(uint8 r = 0; r < 4; r++) {
-		ribi_t::ribi ribi = ribi_t::nesw[ (r + offset) &3];
+	for(uint8 r = 0; r < 6; r++) {
+		ribi_t::ribi ribi = ribi_t::nesw[ (r + offset) % 6];
 		if( (ribi & road_ribi)!=0  &&  bd->get_neighbour(to, road_wt, ribi)) {
 			direction = ribi;
 			break;
 		}
 	}
 
+	// HEX-PORT: same 2:1 isometric projection as vehicle_base
+	// calc_set_direction; SE takes over the old "east" offsets, NW
+	// takes over the old "west" offsets, NE/SW use the doubled
+	// screen-x step.
 	switch(direction) {
 		case ribi_t::north:
 			dx = 2;
@@ -92,13 +96,21 @@ road_user_t::road_user_t(grund_t* bd, uint16 random) :
 			dx = -2;
 			dy = 1;
 			break;
-		case ribi_t::east:
+		case ribi_t::southeast:
 			dx = 2;
 			dy = 1;
 			break;
-		case ribi_t::west:
+		case ribi_t::northwest:
 			dx = -2;
 			dy = -1;
+			break;
+		case ribi_t::northeast:
+			dx = 4;
+			dy = 0;
+			break;
+		case ribi_t::southwest:
+			dx = -4;
+			dy = 0;
 			break;
 	}
 
@@ -686,17 +698,19 @@ grund_t* private_car_t::hop_check()
 		}
 
 #ifdef DESTINATION_CITYCARS
-		static weighted_vector_tpl<koord3d> posliste(4);
+		// HEX-PORT: 4 → 6 direction iteration; `koord::nesw` retired,
+		// use `koord::neighbours`.
+		static weighted_vector_tpl<koord3d> posliste(6);
 		posliste.clear();
-		const uint8 offset = ribi_t::is_single(ribi) ? 0 : simrand(4);
-		for(uint8 r = 0; r < 4; r++) {
-			if(  get_pos().get_2d()==koord::nesw[r]+pos_next.get_2d()  ) {
+		const uint8 offset = ribi_t::is_single(ribi) ? 0 : simrand(6);
+		for(uint8 r = 0; r < 6; r++) {
+			if(  get_pos().get_2d()==koord::neighbours[r]+pos_next.get_2d()  ) {
 				continue;
 			}
 #else
-		const uint8 offset = ribi_t::is_single(ribi) ? 0 : simrand(4);
-		for(uint8 i = 0; i < 4; i++) {
-			const uint8 r = (i+offset)&3;
+		const uint8 offset = ribi_t::is_single(ribi) ? 0 : simrand(6);
+		for(uint8 i = 0; i < 6; i++) {
+			const uint8 r = (i+offset) % 6;
 #endif
 			if(  (ribi&ribi_t::nesw[r])!=0  ) {
 				grund_t *to;
@@ -869,10 +883,10 @@ void private_car_t::calc_disp_lane()
 	disp_lane = welt->get_settings().is_drive_left() ? 1 : 3;
 	ribi_t::ribi dir = get_direction();
 	/* disp_lane is valid for vehicles moving to the right side of
-	   the screen, must be mirrored if SE <= heading < NW, and also
-	   if overtaking as there are five "display lanes" in simutrans
-	   which determine their drawing order. */
-	bool heading_left = (dir & ribi_t::south) || dir == ribi_t::west;
+	   the screen, must be mirrored if heading left on screen.  Under
+	   the 2:1 isometric hex projection the three left-heading edges
+	   are S, SW, NW (screen-x decreases). */
+	bool heading_left = (dir & (ribi_t::south | ribi_t::southwest | ribi_t::northwest)) != 0;
 	if (heading_left ^ is_overtaking()) {
 		disp_lane ^= 2;
 	}
@@ -1032,8 +1046,8 @@ bool private_car_t::can_overtake( overtaker_t *other_overtaker, sint32 other_spe
 			// check for entries/exits/bridges, if necessary
 			ribi_t::ribi rib = str->get_ribi();
 			bool found_one = false;
-			for(  int r=0;  r<4;  r++  ) {
-				if(  (rib&ribi_t::nesw[r])==0  ||  check_pos.get_2d()+koord::nesw[r]==pos_prev) {
+			for(  int r=0;  r<6;  r++  ) {
+				if(  (rib&ribi_t::nesw[r])==0  ||  check_pos.get_2d()+koord::neighbours[r]==pos_prev) {
 					continue;
 				}
 				if(gr->get_neighbour(to, road_wt, ribi_t::nesw[r])) {
@@ -1100,8 +1114,8 @@ bool private_car_t::can_overtake( overtaker_t *other_overtaker, sint32 other_spe
 		if(  ribi_t::is_threeway(str->get_ribi())  ||  to==NULL  ) {
 			// check for crossings/bridges, if necessary
 			bool found_one = false;
-			for(  int r=0;  r<4;  r++  ) {
-				if(check_pos.get_2d()+koord::nesw[r]==pos_prev) {
+			for(  int r=0;  r<6;  r++  ) {
+				if(check_pos.get_2d()+koord::neighbours[r]==pos_prev) {
 					continue;
 				}
 				if(gr->get_neighbour(to, road_wt, ribi_t::nesw[r])) {

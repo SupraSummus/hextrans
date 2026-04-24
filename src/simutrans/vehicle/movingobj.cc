@@ -161,7 +161,9 @@ movingobj_t::movingobj_t(koord3d pos, const groundobj_desc_t *b ) : vehicle_base
 	movingobjtype = movingobj_typen.index_of(b);
 	weg_next = 0;
 	timetochange = 0; // will do random direct change anyway during next step
-	direction = calc_set_direction( koord3d(0,0,0), koord3d(koord::west,0) );
+	// HEX-PORT: was koord::west = (-1, 0); under hex that displacement
+	// is the NW neighbour.
+	direction = calc_set_direction( koord3d(0,0,0), koord3d(koord::step(ribi_t::northwest),0) );
 	calc_image();
 }
 
@@ -355,11 +357,11 @@ grund_t* movingobj_t::hop_check()
 		// direction change needed
 		timetochange = simrand(speed_to_kmh(get_desc()->get_speed())/3);
 		const koord pos=pos_next.get_2d();
-		const grund_t *to[4];
+		const grund_t *to[6];
 		uint8 until=0;
 		// find all tiles we can go
-		for(  int i=0;  i<4;  i++  ) {
-			const grund_t *check = welt->lookup_kartenboden(pos+koord::nesw[i]);
+		for(  int i=0;  i<6;  i++  ) {
+			const grund_t *check = welt->lookup_kartenboden(pos+koord::neighbours[i]);
 			if(check_next_tile(check)  &&  check->get_pos()!=get_pos()) {
 				to[until++] = check;
 			}
