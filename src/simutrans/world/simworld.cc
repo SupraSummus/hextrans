@@ -302,36 +302,61 @@ void karte_t::recalc_season_snowline(bool set_pending)
 }
 
 
+sint32 karte_t::perlin_hoehe(settings_t const* const sets, koord tile, hex_corner_t::type c, koord const size)
+{
+	// Amplitude is the top highness of the mountains; frequency is
+	// landscape 'roughness'; amplitude may not be greater than 160.0.
+	// Don't allow frequencies higher than 0.8 — breaks AI pathfinding.
+	// Frequency values of 0.5 .. 0.7 seem to be ok, less is boring
+	// flat, more is too crumbled.  Old defaults: f=0.6, a=160.0.
+	//
+	// HEX-PORT: rotation is the legacy 90° square formula — broken
+	// for hex (90° is not a hex symmetry) but deterministic.  Tied
+	// to the rotate90 + viewport port in TODO.md.
+	switch( sets->get_rotation() ) {
+		case 1: tile = koord(tile.y, size.x - tile.x); break;
+		case 2: tile = koord(size.x - tile.x, size.y - tile.y); break;
+		case 3: tile = koord(size.y - tile.y, tile.x); break;
+	}
+	tile = tile + koord(sets->get_origin_x(), sets->get_origin_y());
+
+	const hex_pos_t p = hex_vertex_pos({tile, c});
+	return ((int)(perlin_noise_2D(p.x, p.y, sets->get_map_roughness()) * (double)sets->get_max_mountain_height())) / 16;
+}
+
+
+void karte_t::set_vertex_heights_from_perlin(koord tile, koord rot_size)
+{
+	set_grid_hgt_nocheck(tile, hex_corner_t::E,  (sint8) perlin_hoehe(&settings, tile, hex_corner_t::E,  rot_size));
+	set_grid_hgt_nocheck(tile, hex_corner_t::SE, (sint8) perlin_hoehe(&settings, tile, hex_corner_t::SE, rot_size));
+}
+
+
 void karte_t::perlin_hoehe_loop( sint16 x_min, sint16 x_max, sint16 y_min, sint16 y_max )
 {
+	// HEX-PORT: two canonical vertex slots (E, SE) per tile;
+	// world_xy_loop with GRIDS_FLAG gives (x, y) ∈ [0, W+1) × [0, H+1),
+	// which we treat as canonical tiles (x-1, y-1) covering
+	// q ∈ [-1, W-1], r ∈ [-1, H-1].  The south-phantom r = H row
+	// is filled separately by fill_south_phantom_heights().
 	for(  int y = y_min;  y < y_max;  y++  ) {
-		for(  int x = x_min; x < x_max;  x++  ) {
-			// loop all tiles
-			koord k(x,y);
-			sint16 const h = perlin_hoehe(&settings, k, koord(0, 0));
-			set_grid_hgt_nocheck( k, (sint8) h);
+		for(  int x = x_min;  x < x_max;  x++  ) {
+			set_vertex_heights_from_perlin(koord(x - 1, y - 1), koord(0, 0));
 		}
 	}
 }
 
 
-sint32 karte_t::perlin_hoehe(settings_t const* const sets, koord k, koord const size)
+void karte_t::fill_south_phantom_heights()
 {
-	// replace the fixed values with your settings. Amplitude is the top highness of the mountains,
-	// frequency is something like landscape 'roughness'; amplitude may not be greater than 160.0 !!!
-	// please don't allow frequencies higher than 0.8, it'll break the AI's pathfinding.
-	// Frequency values of 0.5 .. 0.7 seem to be ok, less is boring flat, more is too crumbled
-	// the old defaults are given here: f=0.6, a=160.0
-	switch( sets->get_rotation() ) {
-		// 0: do nothing
-		case 1: k = koord(k.y,size.x-k.x); break;
-		case 2: k = koord(size.x-k.x,size.y-k.y); break;
-		case 3: k = koord(size.y-k.y,k.x); break;
+	// HEX-PORT: SW corners of south-edge tiles canonicalise to
+	// (q-1, H), one row past the tile grid.  world_xy_loop with
+	// GRIDS_FLAG stops at r = H-1 and can't reach this row, so it
+	// gets a dedicated O(W) pass after perlin_hoehe_loop returns.
+	const sint16 H = cached_grid_size.y;
+	for (sint16 q = -1; q < cached_grid_size.x; q++) {
+		set_vertex_heights_from_perlin(koord(q, H), koord(0, 0));
 	}
-//    double perlin_noise_2D(double x, double y, double persistence);
-//    return ((int)(perlin_noise_2D(x, y, 0.6)*160.0)) & 0xFFFFFFF0;
-	k = k + koord(sets->get_origin_x(), sets->get_origin_y());
-	return ((int)(perlin_noise_2D(k.x, k.y, sets->get_map_roughness())*(double)sets->get_max_mountain_height())) / 16;
 }
 
 
@@ -1806,18 +1831,25 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 			init_perlin_map(new_size.x,new_size.y);
 		}
 		if (  old_size.x > 0  &&  old_size.y > 0  ) {
-			// loop only new tiles:
-			for(  sint16 y = 0;  y<=new_size.y;  y++  ) {
-				for(  sint16 x = (y>old_size.y) ? 0 : old_size.x+1;  x<=new_size.x;  x++  ) {
-					koord k(x,y);
-					sint16 const h = perlin_hoehe(&settings, k, koord(old_size.x, old_size.y));
-					set_grid_hgt_nocheck( k, (sint8) h);
+			// HEX-PORT: iterate canonical tiles in the new region
+			// only.  The copy loop above preserved both E+SE slots
+			// for canonical tiles with q < old_W AND r < old_H;
+			// anything outside that rectangle needs regenerating,
+			// including the south-phantom r = new_H row.
+			const koord rot_size(old_size.x, old_size.y);
+			for (sint16 r = -1; r <= new_size.y; r++) {
+				for (sint16 q = -1; q < new_size.x; q++) {
+					if (q < old_size.x && r < old_size.y) {
+						continue; // preserved by the copy loop
+					}
+					set_vertex_heights_from_perlin(koord(q, r), rot_size);
 				}
-				ls.set_progress( (y*16)/new_size.y );
+				ls.set_progress( ((r + 1) * 16) / (new_size.y + 2) );
 			}
 		}
 		else {
 			world_xy_loop(&karte_t::perlin_hoehe_loop, GRIDS_FLAG);
+			fill_south_phantom_heights();
 			ls.set_progress(2);
 		}
 		exit_perlin_map();

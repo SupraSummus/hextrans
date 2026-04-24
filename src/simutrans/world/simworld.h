@@ -80,15 +80,31 @@ public:
 	enum { AUTO_GENERATED, SCENARIO_WORLD, NEW_WORLD, RESTORED_WORLD, CLIENT_WORLD, LOADED_WORLD } type_of_generation;
 
 	/**
-	 * Height of a point of the map with "perlin noise".
-	 * Uses map roughness and mountain height from @p sets.
+	 * Height at a world vertex via perlin noise.  Uses map roughness
+	 * and mountain height from @p sets.  Shared world vertices are
+	 * self-consistent across their 3 owners by construction — see
+	 * `hex_vertex_pos` in `dataobj/koord.h`.
 	 */
-	static sint32 perlin_hoehe(settings_t const *sets, koord k, koord size);
+	static sint32 perlin_hoehe(settings_t const *sets, koord tile, hex_corner_t::type c, koord size);
 
 	/**
-	 * Loops over tiles setting heights from perlin noise
+	 * Write both canonical vertex heights (E, SE) of @p tile from
+	 * perlin noise.  @p rot_size is the (width, height) used by
+	 * legacy rotation inside perlin_hoehe; pass `koord(0, 0)` when
+	 * rotation is not meaningful.
+	 */
+	void set_vertex_heights_from_perlin(koord tile, koord rot_size);
+
+	/**
+	 * Fills canonical vertex heights for the map interior, one
+	 * `world_xy_loop` y-strip at a time.  Paired with
+	 * `fill_south_phantom_heights()` to cover the south-edge row
+	 * that `GRIDS_FLAG` doesn't reach.
 	 */
 	void perlin_hoehe_loop(sint16, sint16, sint16, sint16);
+
+	/// Fill the hex south-phantom row (canonical r = H) from perlin.
+	void fill_south_phantom_heights();
 
 	enum player_cost {
 		WORLD_CITIZENS = 0,      ///< total people
