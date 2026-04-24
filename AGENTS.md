@@ -11,10 +11,9 @@ easy to miss when grepping or browsing the tree.
 ## Project context
 
 This fork of Simutrans is transitioning from the upstream square-tile
-grid to a **hexagonal grid**. See `tools/hex_spike/findings.md` for
-what a 30-minute prototype surfaced, and **`TODO.md` for the live list
-of items still to do**. Key design decisions (flat-top hex,
-right-prism z-stacking, in-place port) are summarised below.
+grid to a **hexagonal grid**. **`TODO.md`** is the live list of items
+still to do. Key design decisions (flat-top hex, right-prism
+z-stacking, in-place port) are summarised below.
 
 ## Approach
 
