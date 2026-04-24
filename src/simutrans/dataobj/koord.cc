@@ -66,89 +66,24 @@ const koord koord::from_ribi[] = {
 	koord( 0,  0)  // all
 };
 
-const koord koord::from_hang[] = {
-	koord( 0,  0), // 0:flat
-	koord( 0,  0), // 1:
-	koord( 0,  0), // 2:
-	koord( 0,  0), // 3:
-	koord( 0,  1), // 4:north single height slope
-	koord( 0,  0), // 5:
-	koord( 0,  0), // 6:
-	koord( 0,  0), // 7:
-	koord( 0,  1), // 8:north double height slope
-	koord( 0,  0), // 9:
-	koord( 0,  0), // 10:
-	koord( 0,  0), // 11:
-	koord( 1,  0), // 12:west single height slope
-	koord( 0,  0), // 13:
-	koord( 0,  0), // 14:
-	koord( 0,  0), // 15:
-	koord( 0,  0), // 16:
-	koord( 0,  0), // 17:
-	koord( 0,  0), // 18:
-	koord( 0,  0), // 19:
-	koord( 0,  0), // 20:
-	koord( 0,  0), // 21:
-	koord( 0,  0), // 22:
-	koord( 0,  0), // 23:
-	koord( 1,  0), // 24:west double height slope
-	koord( 0,  0), // 25:
-	koord( 0,  0), // 26:
-	koord( 0,  0), // 27:
-	koord(-1,  0), // 28:east single height slope
-	koord( 0,  0), // 29:
-	koord( 0,  0), // 30:
-	koord( 0,  0), // 31:
-	koord( 0,  0), // 32:
-	koord( 0,  0), // 33:
-	koord( 0,  0), // 34:
-	koord( 0,  0), // 35:
-	koord( 0, -1), // 36:south single height slope
-	koord( 0,  0), // 37:
-	koord( 0,  0), // 38:
-	koord( 0,  0), // 39:
-	koord( 0,  0), // 40:
-	koord( 0,  0), // 41:
-	koord( 0,  0), // 42:
-	koord( 0,  0), // 43:
-	koord( 0,  0), // 44:
-	koord( 0,  0), // 45:
-	koord( 0,  0), // 46:
-	koord( 0,  0), // 47:
-	koord( 0,  0), // 48:
-	koord( 0,  0), // 49:
-	koord( 0,  0), // 50:
-	koord( 0,  0), // 51:
-	koord( 0,  0), // 52:
-	koord( 0,  0), // 53:
-	koord( 0,  0), // 54:
-	koord( 0,  0), // 55:
-	koord(-1,  0), // 56:east double height slope
-	koord( 0,  0), // 57:
-	koord( 0,  0), // 58:
-	koord( 0,  0), // 59:
-	koord( 0,  0), // 60:
-	koord( 0,  0), // 61:
-	koord( 0,  0), // 62:
-	koord( 0,  0), // 63:
-	koord( 0,  0), // 64:
-	koord( 0,  0), // 65:
-	koord( 0,  0), // 66:
-	koord( 0,  0), // 67:
-	koord( 0,  0), // 68:
-	koord( 0,  0), // 69:
-	koord( 0,  0), // 70:
-	koord( 0,  0), // 71:
-	koord( 0, -1), // 72:south double height slope
-	koord( 0,  0), // 73:
-	koord( 0,  0), // 74:
-	koord( 0,  0), // 75:
-	koord( 0,  0), // 76:
-	koord( 0,  0), // 77:
-	koord( 0,  0), // 78:
-	koord( 0,  0), // 79:
-	koord( 0,  0)  // 80:
-};
+
+// Step toward the raised side of a slope.  Used by bridge / tunnel /
+// ramp builders as "which way does this slope face uphill".  Under
+// the 6-corner base-3 encoding this is a short switch — only the
+// 4 square-named 2-corner slopes at heights 1 and 2 have a koord
+// direction representable in the 4-bit ribi model; the 4 hex-only
+// edge slopes are zero until ribi widens and the bridge builders
+// gain hex-direction awareness.
+koord::koord(slope_t::type slope) : x(0), y(0)
+{
+	switch (slope) {
+		case slope_t::north:     case 2 * slope_t::north: y =  1; break; // uphill S
+		case slope_t::south:     case 2 * slope_t::south: y = -1; break; // uphill N
+		case slope_t::east:      case 2 * slope_t::east:  x = -1; break; // uphill hex-NW ≈ W
+		case slope_t::west:      case 2 * slope_t::west:  x =  1; break; // uphill hex-SE ≈ E
+		default: break;
+	}
+}
 
 
 void koord::rdwr(loadsave_t *file)
@@ -156,6 +91,22 @@ void koord::rdwr(loadsave_t *file)
 	xml_tag_t k( file, "koord" );
 	file->rdwr_short(x);
 	file->rdwr_short(y);
+}
+
+
+// Hex vertex topology — see koord.h for the convention. This is the
+// production version of the spike's vertex_owners() in
+// tools/hex_spike/hex_spike.cc.
+void vertex_owners(koord tile, hex_corner_t::type c, hex_vertex_t out[3])
+{
+	const uint8 dir_a = (uint8)(((uint8)c + 5) % 6);
+	const uint8 dir_b = (uint8)c;
+	out[0].tile   = tile;
+	out[0].corner = c;
+	out[1].tile   = tile + koord::neighbours[dir_a];
+	out[1].corner = (hex_corner_t::type)(((uint8)c + 2) % 6);
+	out[2].tile   = tile + koord::neighbours[dir_b];
+	out[2].corner = (hex_corner_t::type)(((uint8)c + 4) % 6);
 }
 
 

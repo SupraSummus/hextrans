@@ -378,6 +378,7 @@ function test_transport_generate_pax_invalid_pos()
 }
 
 
+// test_transport_generate_pax_walked: HEX-PORT PENDING.
 function test_transport_generate_pax_walked()
 {
 	ASSERT_EQUAL(command_x(tool_build_way).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 3, 0), "cobblestone_road"), null)
@@ -396,6 +397,7 @@ function test_transport_generate_pax_walked()
 }
 
 
+// test_transport_generate_pax_no_route: HEX-PORT PENDING.
 function test_transport_generate_pax_no_route()
 {
 	ASSERT_EQUAL(command_x(tool_build_way).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 7, 0), "cobblestone_road"), null)
@@ -414,6 +416,7 @@ function test_transport_generate_pax_no_route()
 }
 
 
+// test_transport_pax_valid_route: HEX-PORT PENDING.
 function test_transport_pax_valid_route()
 {
 	local pl = player_x(0)
@@ -511,6 +514,7 @@ function test_transport_pax_valid_route()
 }
 
 
+// test_transport_mail_valid_route: HEX-PORT PENDING.
 function test_transport_mail_valid_route()
 {
 	local pl = player_x(0)
@@ -613,6 +617,7 @@ function test_transport_mail_valid_route()
 }
 
 
+// test_transport_freight_valid_route: HEX-PORT PENDING.
 function test_transport_freight_valid_route()
 {
 	local pl = player_x(0)

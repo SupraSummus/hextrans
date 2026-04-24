@@ -513,7 +513,7 @@ void grund_t::sort_trees()
 void grund_t::rotate90()
 {
 	pos.rotate90( welt->get_size().y-1 );
-	slope = slope_t::rotate90( slope );
+	slope = slope_t::rotate60( slope );
 	// then rotate the things on this tile
 	if (obj_count() == 254) {
 		dbg->warning("grund_t::rotate90()", "Too many stuff on (%s)", pos.get_str());

@@ -73,7 +73,7 @@ public:
 	void set_desc(const way_desc_t *new_desc) { desc = new_desc; }
 
 	int gimme_neighbours(leitung_t **conn);
-	static fabrik_t * suche_fab_4(koord pos);
+	static fabrik_t * suche_fab_neighbour(koord pos);
 
 	leitung_t(loadsave_t *file);
 	leitung_t(koord3d pos, player_t *player);

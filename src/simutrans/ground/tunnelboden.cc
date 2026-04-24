@@ -88,10 +88,11 @@ void tunnelboden_t::calc_image_internal(const bool calc_only_snowline_change)
 	// inside tunnel
 	else if(  !calc_only_snowline_change  ) {
 		clear_back_image();
-		// default tunnel ground images
-		// single or double slope? (single slopes are not divisible by 8)
+		// default tunnel ground images — see boden.cc for the note on
+		// the vanished `slope >> 1` halving trick.  Under 6-corner
+		// base-3 we just use the single-height slope sprite slot.
 		const slope_t::type slope_this = get_disp_slope();
-		const uint8 imageid = (slope_this==slope_t::flat  ||  is_one_high(slope_this)) ? ground_desc_t::slopetable[slope_this] : ground_desc_t::slopetable[slope_this >> 1] + 12;
+		const uint8 imageid = ground_desc_t::slopetable(slope_this);
 		set_image( skinverwaltung_t::tunnel_texture->get_image_id( imageid ) );
 	}
 }

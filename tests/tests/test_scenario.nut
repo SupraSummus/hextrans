@@ -262,6 +262,7 @@ function test_scenario_rules_allow_forbid_way_tool_cube()
 }
 
 
+// test_scenario_rules_allow_forbid_tool_stacked_rect: HEX-PORT PENDING.
 function test_scenario_rules_allow_forbid_tool_stacked_rect()
 {
 	local pl = player_x(0)
@@ -361,6 +362,7 @@ function test_scenario_rules_allow_forbid_tool_stacked_rect()
 }
 
 
+// test_scenario_rules_allow_forbid_tool_stacked_cube: HEX-PORT PENDING.
 function test_scenario_rules_allow_forbid_tool_stacked_cube()
 {
 	local pl = player_x(0)
