@@ -446,18 +446,8 @@ void karte_t::destroy()
 
 	loadingscreen_t ls( translator::translate("Destroying map ..."), max_display_progress, true );
 
-	// rotate the map until it can be saved
+	// HEX-PORT: rotate-until-saveable retry dead — see TODO.md.
 	nosave_warning = false;
-	if(  nosave  ) {
-		max_display_progress += 256;
-		for( int i=0;  i<4  &&  nosave;  i++  ) {
-			DBG_MESSAGE("karte_t::destroy()", "rotating");
-			rotate90();
-		}
-		old_progress += 256;
-		ls.set_max( max_display_progress );
-		ls.set_progress( old_progress );
-	}
 	if(nosave) {
 		dbg->fatal( "karte_t::destroy()","Map cannot be cleanly destroyed in any rotation!" );
 	}
@@ -3693,25 +3683,14 @@ DBG_MESSAGE("karte_t::save(loadsave_t *file)", "start");
 		ls = new loadingscreen_t( translator::translate("Saving map ..."), get_size().y );
 	}
 
-	// rotate the map until it can be saved completely
-	for( int i=0;  i<4  &&  nosave_warning;  i++  ) {
-		rotate90();
-		needs_redraw = true;
+	// HEX-PORT: rotate-until-saveable retries dead — see TODO.md.
+	// Save attempt proceeds with whatever state we have; the error
+	// / warning below still fire.
+	if(  nosave  ) {
+		dbg->error( "karte_t::save()", "Map cannot be saved in any rotation!" );
+		create_win( new news_img("Map may be not saveable in any rotation!"), w_info, magic_none);
+		// still broken, but we try anyway to save it ...
 	}
-	// seems not successful
-	if(nosave_warning) {
-		// but then we try to rotate until only warnings => some buildings may be broken, but factories should be fine
-		for( int i=0;  i<4  &&  nosave;  i++  ) {
-			rotate90();
-			needs_redraw = true;
-		}
-		if(  nosave  ) {
-			dbg->error( "karte_t::save()", "Map cannot be saved in any rotation!" );
-			create_win( new news_img("Map may be not saveable in any rotation!"), w_info, magic_none);
-			// still broken, but we try anyway to save it ...
-		}
-	}
-	// only broken buildings => just warn
 	if(nosave_warning) {
 		dbg->error( "karte_t::save()","Some buildings may be broken by saving!" );
 	}

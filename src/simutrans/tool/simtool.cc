@@ -4590,9 +4590,8 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 		change_layout = true;
 	}
 
-	// oriented buildings here - get neighbouring layouts
-	koord dx2 = dx;
-	dx2.rotate90(0);
+	// Shore direction, perpendicular to the water direction `dx`.
+	koord dx2 = koord::step(ribi_t::rotate_perpendicular(ribi_type(dx)));
 	gr = welt->lookup_kartenboden(k+dx2);
 
 	// find out if middle end or start tile
@@ -4759,7 +4758,9 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 			sint8 offset = bd->get_hoehe()+bd->get_weg_yoff()/TILE_HEIGHT_STEP;
 
 			grund_t *gr;
-			sint32 neighbour_layout[] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+			// Indexed by a single-bit ribi value (max = NE bit = 32).
+			sint32 neighbour_layout[64];
+			for(  size_t i = 0;  i < 64;  i++  ) { neighbour_layout[i] = -1; }
 			for(  unsigned i=0;  i<6;  i++  ) {
 				// oriented buildings here - get neighbouring layouts
 				gr = welt->lookup(koord3d(k+koord::neighbours[i],offset));
@@ -4797,8 +4798,8 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 					layout |= neighbour_layout[ribi & next_own] & 8;
 				}
 				else if(ribi_t::is_straight(ribi & next_own)) {
-					// two neighbours on the same track, use the north/west one
-					layout |= neighbour_layout[ribi & next_own & ribi_t::northwest] & 8;
+					// two neighbours on the same track, use the upper end
+					layout |= neighbour_layout[ribi & next_own & ribi_t::upper_half] & 8;
 				}
 				else if(ribi_t::is_single((~ribi) & waagerecht & next_own)) {
 					// neighbour across break in track
@@ -4807,13 +4808,13 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 				else {
 					// no buildings left and right
 					// oriented buildings left and right
-					if(neighbour_layout[senkrecht & next_own & ribi_t::northwest] != -1) {
+					if(neighbour_layout[senkrecht & next_own & ribi_t::upper_half] != -1) {
 						// just rotate layout
-						layout |= 8-(neighbour_layout[senkrecht & next_own & ribi_t::northwest]&8);
+						layout |= 8-(neighbour_layout[senkrecht & next_own & ribi_t::upper_half]&8);
 					}
 					else {
-						if(neighbour_layout[senkrecht & next_own & ribi_t::southeast] != -1) {
-							layout |= 8-(neighbour_layout[senkrecht & next_own & ribi_t::southeast]&8);
+						if(neighbour_layout[senkrecht & next_own & ribi_t::lower_half] != -1) {
+							layout |= 8-(neighbour_layout[senkrecht & next_own & ribi_t::lower_half]&8);
 						}
 					}
 				}
@@ -7670,10 +7671,7 @@ void tool_rotate90_t::draw_after(scr_coord pos, bool dirty) const
 
 bool tool_rotate90_t::init( player_t * )
 {
-	if(  !env_t::networkmode  ) {
-		welt->rotate90();
-		welt->update_map();
-	}
+	// HEX-PORT: map rotation disabled; see TODO.md.
 	return false;
 }
 
