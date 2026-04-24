@@ -55,13 +55,6 @@ flood-fill; `test_trees_plant_forest` uses a rectangular selection
 for the forest tool.  Both need hex-aware region walkers and
 hex-shaped scaffolds.
 
-**Square-axis halt catchment layouts.**
-`test_transport_generate_pax_{walked,no_route}` and
-`test_transport_{pax,mail,freight}_valid_route` build halts at
-coordinates that rely on `nesw` {N,E,S,W} symmetry.  Under hex
-neighbours the source/halt/destination geometry doesn't align.
-Restore with hex-axis layouts.
-
 **Adjacency-order policy.**
 `test_powerline_build_transformer_multiple` relies on
 `leitung_t::suche_fab_neighbour` iterating in N-first order so a
