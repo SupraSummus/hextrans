@@ -324,22 +324,31 @@ int surface_t::grid_raise(const player_t *player, koord k, const char*&err)
 		const sint16 y = gr->get_pos().y;
 		const sint8 hgt = gr->get_hoehe(corner_to_raise);
 
-		sint8 hsw, hse, hne, hnw;
+		// HEX-PORT: grid_raise still picks one of the 4 legacy square
+		// corners (NW / NE / SW / SE) to raise.  The hex-only E and W
+		// corners are not directly addressable through the grid-point
+		// GUI tool today; they track neighbours via terraformer
+		// propagation.  Pass them as "hgt - o", i.e. the same "non-target"
+		// target height the other 3 square corners get, so they stay
+		// put if already at or above that height.
+		sint8 hE, hSE, hSW, hW, hNW, hNE;
 		if(  !gr->is_water()  ) {
 			const sint8 f = ground_desc_t::double_grounds ?  2 : 1;
 			const sint8 o = ground_desc_t::double_grounds ?  1 : 0;
 
-			hsw = hgt - o + scorner_sw( corner_to_raise ) * f;
-			hse = hgt - o + scorner_se( corner_to_raise ) * f;
-			hne = hgt - o + scorner_ne( corner_to_raise ) * f;
-			hnw = hgt - o + scorner_nw( corner_to_raise ) * f;
+			hSW = hgt - o + scorner_sw( corner_to_raise ) * f;
+			hSE = hgt - o + scorner_se( corner_to_raise ) * f;
+			hNE = hgt - o + scorner_ne( corner_to_raise ) * f;
+			hNW = hgt - o + scorner_nw( corner_to_raise ) * f;
+			hE  = hgt - o;
+			hW  = hgt - o;
 		}
 		else {
-			hsw = hse = hne = hnw = hgt;
+			hE = hSE = hSW = hW = hNW = hNE = hgt;
 		}
 
 		terraformer_t digger(terraformer_t::raise, world());
-		digger.add_node(x, y, hsw, hse, hne, hnw);
+		digger.add_node(x, y, hE, hSE, hSW, hW, hNW, hNE);
 		digger.generate_affected_tile_list();
 
 		err = digger.can_raise_all(player);
@@ -373,15 +382,19 @@ int surface_t::grid_lower(const player_t *player, koord k, const char*&err)
 		const sint16 y = gr->get_pos().y;
 		const sint8 hgt = gr->get_hoehe(corner_to_lower);
 
+		// HEX-PORT: see grid_raise; E and W corners fall through to the
+		// "non-target" height for the same reason.
 		const sint8 f = ground_desc_t::double_grounds ?  2 : 1;
 		const sint8 o = ground_desc_t::double_grounds ?  1 : 0;
-		const sint8 hsw = hgt + o - scorner_sw( corner_to_lower ) * f;
-		const sint8 hse = hgt + o - scorner_se( corner_to_lower ) * f;
-		const sint8 hne = hgt + o - scorner_ne( corner_to_lower ) * f;
-		const sint8 hnw = hgt + o - scorner_nw( corner_to_lower ) * f;
+		const sint8 hSW = hgt + o - scorner_sw( corner_to_lower ) * f;
+		const sint8 hSE = hgt + o - scorner_se( corner_to_lower ) * f;
+		const sint8 hNE = hgt + o - scorner_ne( corner_to_lower ) * f;
+		const sint8 hNW = hgt + o - scorner_nw( corner_to_lower ) * f;
+		const sint8 hE  = hgt + o;
+		const sint8 hW  = hgt + o;
 
 		terraformer_t digger(terraformer_t::lower, world());
-		digger.add_node(x, y, hsw, hse, hne, hnw);
+		digger.add_node(x, y, hE, hSE, hSW, hW, hNW, hNE);
 		digger.generate_affected_tile_list();
 
 		err = digger.can_lower_all(player);
@@ -472,7 +485,7 @@ bool surface_t::flatten_tile(player_t *player, koord k, sint8 hgt, bool keep_wat
 	if(  max_hgt > hgt  ) {
 
 		terraformer_t digger(terraformer_t::lower, world());
-		digger.add_node(k.x, k.y, hgt, hgt, hgt, hgt);
+		digger.add_node(k.x, k.y, hgt);
 		digger.generate_affected_tile_list();
 
 		ok = digger.can_lower_all(player) == NULL;
@@ -484,7 +497,7 @@ bool surface_t::flatten_tile(player_t *player, koord k, sint8 hgt, bool keep_wat
 
 	if(  ok  &&  old_hgt < hgt  ) {
 		terraformer_t digger(terraformer_t::raise, world());
-		digger.add_node(k.x, k.y, hgt, hgt, hgt, hgt);
+		digger.add_node(k.x, k.y, hgt);
 		digger.generate_affected_tile_list();
 
 		ok = digger.can_raise_all(player, keep_water) == NULL;
