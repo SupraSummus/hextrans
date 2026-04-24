@@ -18,7 +18,12 @@
 
 #include "../display/simgraph.h"
 
-static const char *wind_dir_text[4] = { "North", "East", "South", "West" };
+// HEX-PORT: label order matches ribi_t::nesw[0..5] bit positions =
+// SE, S, SW, NW, N, NE.  Old square had only 4 labels (N/E/S/W); the
+// 6-entry list maps directly to the 6 hex edges used by the wind
+// system.  Strings are translation keys — add hex-edge entries to
+// the pakset translations.
+static const char *wind_dir_text[6] = { "Southeast", "South", "Southwest", "Northwest", "North", "Northeast" };
 
 /**
  * set the climate borders
@@ -60,7 +65,7 @@ climate_gui_t::climate_gui_t(settings_t* const sets_par) :
 
 		new_component<gui_label_t>( "Wind direction" );
 		wind_dir.set_focusable( false );
-		for( int i = 0; i < 4; i++ ) {
+		for( int i = 0; i < 6; i++ ) {
 			wind_dir.new_component<gui_scrolled_list_t::const_text_scrollitem_t>( translator::translate( wind_dir_text[i] ), SYSCOL_TEXT );
 			if ((1 << i) == sets->wind_direction) {
 				wind_dir.set_selection(i);

@@ -118,7 +118,7 @@ wayobj_t::~wayobj_t()
 	mark_image_dirty( get_image(), 0 );
 	grund_t *gr = welt->lookup( get_pos() );
 	if( gr ) {
-		for( uint8 i = 0; i < 4; i++ ) {
+		for( uint8 i = 0; i < 6; i++ ) {
 			// Remove ribis from adjacent wayobj.
 			if( ribi_t::nesw[i] & get_dir() ) {
 				grund_t *next_gr;
@@ -247,7 +247,9 @@ void wayobj_t::finish_rd()
 void wayobj_t::rotate90()
 {
 	obj_t::rotate90();
-	dir = ribi_t::rotate90( dir);
+	// HEX-PORT: map-rotate → rotate_for_map_rotate90 (currently one 60° step);
+	// see TODO.md for the karte_t::rotate90 cleanup trigger.
+	dir = ribi_t::rotate_for_map_rotate90(dir );
 	hang = slope_t::rotate60( hang );
 }
 
@@ -309,17 +311,19 @@ void wayobj_t::calc_image()
 			return;
 		}
 
-		// find out whether using diagonals or straight lines
+		// find out whether using diagonals or straight lines.
+		// HEX-PORT: rotate45 → rotate60 (hex step); rotate90 →
+		// rotate_perpendicular (currently one 60° step).
 		if(ribi_t::is_bend(dir)  &&  desc->has_diagonal_image()) {
 			ribi_t::ribi r1 = ribi_t::none, r2 = ribi_t::none;
 
 			// get the ribis of the ways that connect to us
-			// r1 will be 45 degree clockwise ribi (eg northeast->east), r2 will be anticlockwise ribi (eg northeast->north)
-			r1 = find_next_ribi( gr, ribi_t::rotate45(dir), wt );
-			r2 = find_next_ribi( gr, ribi_t::rotate45l(dir), wt );
+			// r1 will be 60° clockwise ribi, r2 will be 60° counter-clockwise ribi
+			r1 = find_next_ribi( gr, ribi_t::rotate60(dir), wt );
+			r2 = find_next_ribi( gr, ribi_t::rotate60l(dir), wt );
 
-			// diagonal if r1 or r2 are our reverse and neither one is 90 degree rotation of us
-			diagonal = (r1 == ribi_t::backward(dir) || r2 == ribi_t::backward(dir)) && r1 != ribi_t::rotate90l(dir) && r2 != ribi_t::rotate90(dir);
+			// diagonal if r1 or r2 are our reverse and neither one is a rotate_perpendicular of us
+			diagonal = (r1 == ribi_t::backward(dir) || r2 == ribi_t::backward(dir)) && r1 != ribi_t::rotate_perpendicular_l(dir) && r2 != ribi_t::rotate_perpendicular(dir);
 
 			if(diagonal) {
 				// with this, we avoid calling us endlessly
@@ -329,7 +333,7 @@ void wayobj_t::calc_image()
 				if(rekursion == 0) {
 					grund_t *to;
 					rekursion++;
-					for(int r = 0; r < 4; r++) {
+					for(int r = 0; r < 6; r++) {
 						if(gr->get_neighbour(to, wt, ribi_t::nesw[r])) {
 							wayobj_t* wo = to->get_wayobj( wt );
 							if(wo) {
@@ -395,7 +399,7 @@ void wayobj_t::extend_wayobj(koord3d pos, player_t *new_owner, ribi_t::ribi dir,
 		wo->set_flag(obj_t::dirty);
 		player_t::book_construction_costs( new_owner,  -desc->get_price(), pos.get_2d(), desc->get_wtyp());
 
-		for( uint8 i = 0; i < 4; i++ ) {
+		for( uint8 i = 0; i < 6; i++ ) {
 		// Extend wayobjects around the new one, that aren't already connected.
 			if( ribi_t::nesw[i] & ~wo->get_dir() ) {
 				grund_t *next_gr;

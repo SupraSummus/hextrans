@@ -204,7 +204,7 @@ static void write_sign_at(player_t* , cbuffer_t& buf, const koord3d pos, const k
 			cnt = 1;
 		}
 		else if (ribi_t::is_straight(weg->get_ribi_unmasked())) {
-			cnt = (d == ribi_t::north || d == ribi_t::east) ^ ow ? 2 : 3;
+			cnt = (d == ribi_t::north || d == ribi_t::southeast) ^ ow ? 2 : 3;
 		}
 		else if (ribi_t::is_bend(weg->get_ribi_unmasked())) {
 			cnt = (d == ribi_t::north || d == ribi_t::south) ^ ow ? 2 : 3;
@@ -439,7 +439,7 @@ public:
 			for (sint16 x = start.x; x <= end.x; x++) {
 				for (sint16 y = start.y; y <= end.y; y++) {
 					ribi_t::ribi dirs[2];
-					dirs[0] = x > start.x ? ribi_t::west : ribi_t::none;
+					dirs[0] = x > start.x ? ribi_t::northwest : ribi_t::none;
 					dirs[1] = y > start.y ? ribi_t::north : ribi_t::none;
 					append_command(koord3d(x, y, z), dirs);
 				}

@@ -16,10 +16,10 @@
 bridge_desc_t::img_t bridge_desc_t::get_straight(ribi_t::ribi ribi, uint8 height) const
 {
 	if(  height>1 && get_background(NS_Segment2, 0)!=IMG_EMPTY  ) {
-		return (ribi & ribi_t::northsouth) ? NS_Segment2 : OW_Segment2;
+		return (ribi & (ribi_t::north | ribi_t::south)) ? NS_Segment2 : OW_Segment2;
 	}
 	else {
-		return (ribi & ribi_t::northsouth) ? NS_Segment : OW_Segment;
+		return (ribi & (ribi_t::north | ribi_t::south)) ? NS_Segment : OW_Segment;
 	}
 }
 
@@ -27,7 +27,7 @@ bridge_desc_t::img_t bridge_desc_t::get_straight(ribi_t::ribi ribi, uint8 height
 // ditto for pillars
 bridge_desc_t::img_t bridge_desc_t::get_pillar(ribi_t::ribi ribi)
 {
-	return (ribi & ribi_t::northsouth) ? NS_Pillar : OW_Pillar;
+	return (ribi & (ribi_t::north | ribi_t::south)) ? NS_Pillar : OW_Pillar;
 }
 
 

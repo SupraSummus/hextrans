@@ -122,7 +122,7 @@ void settings_t::set_default_climates()
 	moisture_water = 1;
 	winter_snowline = 7;
 
-	wind_direction = ribi_t::west; // west wind
+	wind_direction = ribi_t::northwest; // west wind
 }
 
 
@@ -724,9 +724,9 @@ void settings_t::rdwr(loadsave_t *file)
 
 			switch (rotation) {
 				default:
-				case 0: wind_direction = ribi_t::west;  break;
+				case 0: wind_direction = ribi_t::northwest;  break;
 				case 1: wind_direction = ribi_t::north; break;
-				case 2: wind_direction = ribi_t::east;  break;
+				case 2: wind_direction = ribi_t::southeast;  break;
 				case 3: wind_direction = ribi_t::south; break;
 			}
 		}
@@ -758,7 +758,7 @@ void settings_t::rdwr(loadsave_t *file)
 
 	// sometimes broken savegames could have no legal direction for take off ...
 	if( !ribi_t::is_single( wind_direction ) ) {
-		wind_direction = ribi_t::west;
+		wind_direction = ribi_t::northwest;
 	}
 
 	if (file->is_loading()) {

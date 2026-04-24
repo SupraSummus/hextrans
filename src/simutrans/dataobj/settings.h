@@ -131,7 +131,7 @@ private:
 	sint8 tropic_humidity = 75;
 	sint8 desert_humidity = 65;
 
-	ribi_t::ribi wind_direction = ribi_t::west; ///< Wind is coming from this direction. Must be single! (N/W/S/E)
+	ribi_t::ribi wind_direction = ribi_t::northwest; ///< Wind is coming from this direction. Must be a single hex edge. HEX-PORT: default was `west`; picked `northwest` as the nearest hex edge.
 
 	sint8 patch_size_percentage; // average size of a climate patch, if there are overlapping climates
 
@@ -473,7 +473,7 @@ public:
 	void rotate90() {
 		rotation = (rotation+1)&3;
 		set_size( size_y, size_x );
-		wind_direction = ribi_t::rotate90(wind_direction);
+		wind_direction = ribi_t::rotate_for_map_rotate90(wind_direction);
 	}
 	uint8 get_rotation() const { return rotation; }
 
@@ -624,7 +624,7 @@ public:
 
 	/// Wind is coming from this direction
 	ribi_t::ribi get_wind_dir() const { return wind_direction;  }
-	ribi_t::ribi get_approach_dir() const { return wind_direction | ribi_t::rotate90(wind_direction);  }
+	ribi_t::ribi get_approach_dir() const { return wind_direction | ribi_t::rotate60(wind_direction);  } // HEX-PORT: rotate90 → rotate60 (hex 60° step)
 
 	sint8 get_patch_size_percentage() const { return patch_size_percentage; }
 

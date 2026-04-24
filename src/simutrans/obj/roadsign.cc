@@ -260,7 +260,7 @@ void roadsign_t::calc_image()
 	else {
 		// since the places were switched
 		const ribi_t::ribi test_hang = left_offsets ? ribi_t::backward(hang_dir) : hang_dir;
-		if(test_hang==ribi_t::east ||  test_hang==ribi_t::north) {
+		if(test_hang==ribi_t::southeast ||  test_hang==ribi_t::north) {
 			yoff = -TILE_HEIGHT_STEP*hang_diff;
 			after_yoffset = 0;
 		}
@@ -281,7 +281,7 @@ void roadsign_t::calc_image()
 			(grund_t::underground_mode==grund_t::ugm_none  ||  (grund_t::underground_mode==grund_t::ugm_level  &&  gr->get_hoehe()<grund_t::underground_level))   ) {
 			// entering tunnel here: hide the image further in if not undergroud/sliced
 			const ribi_t::ribi tunnel_hang_dir = ribi_t::backward( ribi_type(gr->get_grund_hang()) );
-			if(  tunnel_hang_dir==ribi_t::east ||  tunnel_hang_dir==ribi_t::north  ) {
+			if(  tunnel_hang_dir==ribi_t::southeast ||  tunnel_hang_dir==ribi_t::north  ) {
 				temp_dir &= ~ribi_t::southwest;
 			}
 			else {
@@ -294,7 +294,7 @@ void roadsign_t::calc_image()
 			const sint16 XOFF = 2*desc->get_offset_left();
 			const sint16 YOFF = desc->get_offset_left();
 
-			if(temp_dir&ribi_t::east) {
+			if(temp_dir&ribi_t::southeast) {
 				tmp_image = desc->get_image_id(3);
 				xoff += XOFF;
 				yoff += -YOFF;
@@ -313,7 +313,7 @@ void roadsign_t::calc_image()
 				}
 			}
 
-			if(temp_dir&ribi_t::west) {
+			if(temp_dir&ribi_t::northwest) {
 				foreground_image = desc->get_image_id(2);
 				after_xoffset += -XOFF;
 				after_yoffset += YOFF;
@@ -334,7 +334,7 @@ void roadsign_t::calc_image()
 		}
 		else {
 
-			if(temp_dir&ribi_t::east) {
+			if(temp_dir&ribi_t::southeast) {
 				foreground_image = desc->get_image_id(3);
 			}
 
@@ -347,7 +347,7 @@ void roadsign_t::calc_image()
 				}
 			}
 
-			if(temp_dir&ribi_t::west) {
+			if(temp_dir&ribi_t::northwest) {
 				tmp_image = desc->get_image_id(2);
 			}
 
@@ -382,7 +382,7 @@ void roadsign_t::calc_image()
 			const sint16 YOFF = desc->get_offset_left();
 
 				if(weg_dir&ribi_t::north) {
-					if(weg_dir&ribi_t::east) {
+					if(weg_dir&ribi_t::southeast) {
 						foreground_image = desc->get_image_id(6+direction*8);
 						after_xoffset += 0;
 						after_yoffset += 0;
@@ -393,13 +393,13 @@ void roadsign_t::calc_image()
 						after_yoffset += YOFF;
 					}
 				}
-				else if(weg_dir&ribi_t::east) {
+				else if(weg_dir&ribi_t::southeast) {
 					foreground_image = desc->get_image_id(2+direction*8);
 					after_xoffset += -XOFF;
 					after_yoffset += YOFF;
 				}
 
-				if(weg_dir&ribi_t::west) {
+				if(weg_dir&ribi_t::northwest) {
 					if(weg_dir&ribi_t::south) {
 						tmp_image = desc->get_image_id(7+direction*8);
 						xoff += 0;
@@ -420,18 +420,18 @@ void roadsign_t::calc_image()
 			else {
 				// drive right ...
 				if(weg_dir&ribi_t::south) {
-					if(weg_dir&ribi_t::east) {
+					if(weg_dir&ribi_t::southeast) {
 						foreground_image = desc->get_image_id(4+direction*8);
 					}
 					else {
 						foreground_image = desc->get_image_id(0+direction*8);
 					}
 				}
-				else if(weg_dir&ribi_t::east) {
+				else if(weg_dir&ribi_t::southeast) {
 					foreground_image = desc->get_image_id(2+direction*8);
 				}
 
-				if(weg_dir&ribi_t::west) {
+				if(weg_dir&ribi_t::northwest) {
 					if(weg_dir&ribi_t::north) {
 						tmp_image = desc->get_image_id(5+direction*8);
 					}
@@ -499,12 +499,17 @@ sync_result roadsign_t::sync_step(uint32 /*delta_t*/)
 
 		if(state!=new_state) {
 			state = new_state;
+			// HEX-PORT: 2-phase traffic light — state 0 opens the N-S
+			// axis, state 1 opens the old E-W axis (now SE-NW under
+			// the 2:1 iso rename).  Flat-top hex has a 3rd axis
+			// (NE-SW) that this FSM doesn't serve; tracked under
+			// crossing/3rd-axis notes.
 			switch(new_state) {
 			case 0:
-			  dir = ribi_t::northsouth;
+			  dir = (ribi_t::ribi)(ribi_t::north | ribi_t::south);
 			  break;
 			case 1:
-			  dir = ribi_t::eastwest;
+			  dir = (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest);
 			  break;
 			default: // yellow state
 			  dir = ribi_t::none;
@@ -541,7 +546,9 @@ void roadsign_t::rotate90()
 			trafficlight_win->update_data();
 		}
 	}
-	dir = ribi_t::rotate90( dir );
+	// HEX-PORT: map-rotate → rotate_for_map_rotate90 helper (stubbed to one
+	// 60° step); cleanup trigger tracked in TODO.md.
+	dir = ribi_t::rotate_perpendicular(dir );
 }
 
 

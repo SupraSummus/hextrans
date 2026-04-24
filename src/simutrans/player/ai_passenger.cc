@@ -496,14 +496,27 @@ halthandle_t ai_passenger_t::build_airport(const stadt_t* city, koord pos, int r
 	}
 	// now taxiways
 	way_builder_t bauigel(this);
-	// 3x3 layout, first we make the taxiway cross
+	// HEX-PORT: 3x3 airport layout was square-era, with a taxiway
+	// cross along N-S and E-W.  Under flat-top hex, those four
+	// displacements are N=(0,-1), S=(0,1), SE=(1,0), NW=(-1,0).  The
+	// N-S cross is still a real hex axis; the old "E-W" cross is now
+	// a NW-SE hex axis.  We keep the 4-corner airport geometry
+	// intact so the builder compiles and produces SOMETHING on a
+	// hex map, but the resulting airport is diamond-shaped rather
+	// than square and the taxiway topology is likely wrong — a
+	// proper hex airport layout is tracked in TODO.md building
+	// cluster.
+	const koord hex_N ( 0, -1);  // ribi_t::north
+	const koord hex_S ( 0,  1);  // ribi_t::south
+	const koord hex_SE( 1,  0);  // ribi_t::southeast — old square E
+	const koord hex_NW(-1,  0);  // ribi_t::northwest — old square W
 	koord center=pos+dx;
 	bauigel.init_builder( way_builder_t::luft, taxi_desc, NULL, NULL );
-	bauigel.calc_straight_route( welt->lookup_kartenboden(center+koord::north)->get_pos(), welt->lookup_kartenboden(center+koord::south)->get_pos() );
+	bauigel.calc_straight_route( welt->lookup_kartenboden(center+hex_N)->get_pos(), welt->lookup_kartenboden(center+hex_S)->get_pos() );
 	assert(bauigel.get_count()-1 > 1);
 	bauigel.build();
 	bauigel.init_builder( way_builder_t::luft, taxi_desc, NULL, NULL );
-	bauigel.calc_straight_route( welt->lookup_kartenboden(center+koord::west)->get_pos(), welt->lookup_kartenboden(center+koord::east)->get_pos() );
+	bauigel.calc_straight_route( welt->lookup_kartenboden(center+hex_NW)->get_pos(), welt->lookup_kartenboden(center+hex_SE)->get_pos() );
 	assert(bauigel.get_count()-1 > 1);
 	bauigel.build();
 	// now try to connect one of the corners with a road
@@ -530,10 +543,10 @@ halthandle_t ai_passenger_t::build_airport(const stadt_t* city, koord pos, int r
 
 	if(rotation==-1) {
 		// if we every get here that means no connection road => remove airport
-		welt->lookup_kartenboden(center+koord::north)->remove_everything_from_way( this, air_wt, ribi_t::none );
-		welt->lookup_kartenboden(center+koord::south)->remove_everything_from_way( this, air_wt, ribi_t::none );
-		welt->lookup_kartenboden(center+koord::west)->remove_everything_from_way( this, air_wt, ribi_t::none );
-		welt->lookup_kartenboden(center+koord::east)->remove_everything_from_way( this, air_wt, ribi_t::none );
+		welt->lookup_kartenboden(center+hex_N )->remove_everything_from_way( this, air_wt, ribi_t::none );
+		welt->lookup_kartenboden(center+hex_S )->remove_everything_from_way( this, air_wt, ribi_t::none );
+		welt->lookup_kartenboden(center+hex_NW)->remove_everything_from_way( this, air_wt, ribi_t::none );
+		welt->lookup_kartenboden(center+hex_SE)->remove_everything_from_way( this, air_wt, ribi_t::none );
 		welt->lookup_kartenboden(center)->remove_everything_from_way( this, air_wt, ribi_t::all );
 		return halthandle_t();
 	}
@@ -546,10 +559,10 @@ halthandle_t ai_passenger_t::build_airport(const stadt_t* city, koord pos, int r
 	// get an airport name (even though the hub is the bus stop ... )
 	// now built the bus stop
 	if(!call_general_tool( TOOL_BUILD_STATION, bushalt, busstop_desc->get_name() )) {
-		welt->lookup_kartenboden(center+koord::north)->remove_everything_from_way( this, air_wt, ribi_t::none );
-		welt->lookup_kartenboden(center+koord::south)->remove_everything_from_way( this, air_wt, ribi_t::none );
-		welt->lookup_kartenboden(center+koord::west)->remove_everything_from_way( this, air_wt, ribi_t::none );
-		welt->lookup_kartenboden(center+koord::east)->remove_everything_from_way( this, air_wt, ribi_t::none );
+		welt->lookup_kartenboden(center+hex_N )->remove_everything_from_way( this, air_wt, ribi_t::none );
+		welt->lookup_kartenboden(center+hex_S )->remove_everything_from_way( this, air_wt, ribi_t::none );
+		welt->lookup_kartenboden(center+hex_NW)->remove_everything_from_way( this, air_wt, ribi_t::none );
+		welt->lookup_kartenboden(center+hex_SE)->remove_everything_from_way( this, air_wt, ribi_t::none );
 		welt->lookup_kartenboden(center)->remove_everything_from_way( this, air_wt, ribi_t::all );
 		return halthandle_t();
 	}
@@ -568,15 +581,19 @@ halthandle_t ai_passenger_t::build_airport(const stadt_t* city, koord pos, int r
 	bauigel.build();
 	// now the airstops (only on single tiles, this will always work
 	const building_desc_t* airstop_desc = hausbauer_t::get_random_station(building_desc_t::generic_stop, air_wt, welt->get_timeline_year_month(), 0 );
+	// HEX-PORT: was `koord::nesw[0..3]` = N, E, S, W; use the same 4
+	// displacements under hex naming (N, SE, S, NW) — the 4 taxiway
+	// ends of the 3x3 diamond-layout airport.
+	const koord airport_ends[4] = { hex_N, hex_SE, hex_S, hex_NW };
 	for(  int i=0;  i<4;  i++  ) {
-		if(  koord_distance(center+koord::nesw[i],bushalt)==1  &&  ribi_t::is_single( welt->lookup_kartenboden(center+koord::nesw[i])->get_weg_ribi_unmasked(air_wt) )  ) {
-			call_general_tool( TOOL_BUILD_STATION, center+koord::nesw[i], airstop_desc->get_name() );
+		if(  koord_distance(center+airport_ends[i],bushalt)==1  &&  ribi_t::is_single( welt->lookup_kartenboden(center+airport_ends[i])->get_weg_ribi_unmasked(air_wt) )  ) {
+			call_general_tool( TOOL_BUILD_STATION, center+airport_ends[i], airstop_desc->get_name() );
 		}
 	}
 	// and now the one far away ...
 	for(  int i=0;  i<4;  i++  ) {
-		if(  koord_distance(center+koord::nesw[i],bushalt)>1  &&  ribi_t::is_single( welt->lookup_kartenboden(center+koord::nesw[i])->get_weg_ribi_unmasked(air_wt) )  ) {
-			call_general_tool( TOOL_BUILD_STATION, center+koord::nesw[i], airstop_desc->get_name() );
+		if(  koord_distance(center+airport_ends[i],bushalt)>1  &&  ribi_t::is_single( welt->lookup_kartenboden(center+airport_ends[i])->get_weg_ribi_unmasked(air_wt) )  ) {
+			call_general_tool( TOOL_BUILD_STATION, center+airport_ends[i], airstop_desc->get_name() );
 		}
 	}
 	// success

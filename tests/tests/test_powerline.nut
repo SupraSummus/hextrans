@@ -9,6 +9,7 @@
 //
 
 
+// test_powerline_connect: HEX-PORT PENDING.
 function test_powerline_connect()
 {
 	local pl = player_x(0)
@@ -135,6 +136,7 @@ function test_powerline_connect()
 }
 
 
+// test_powerline_build_below_powerbridge: HEX-PORT PENDING.
 function test_powerline_build_below_powerbridge()
 {
 	local pl = player_x(0)
@@ -155,6 +157,7 @@ function test_powerline_build_below_powerbridge()
 }
 
 
+// test_powerline_build_powerbridge_above_powerline: HEX-PORT PENDING.
 function test_powerline_build_powerbridge_above_powerline()
 {
 	local pl = player_x(0)
@@ -400,6 +403,7 @@ function test_powerline_build_transformer_multiple()
 }
 
 
+// test_powerline_ways: HEX-PORT PENDING.
 function test_powerline_ways()
 {
 	local pl = player_x(0)
@@ -569,6 +573,7 @@ function test_powerline_ways()
 }
 
 
+// test_powerline_remove_powerbridge: HEX-PORT PENDING.
 function test_powerline_remove_powerbridge()
 {
 	local pl = player_x(0)

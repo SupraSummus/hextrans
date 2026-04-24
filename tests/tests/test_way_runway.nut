@@ -9,6 +9,7 @@
 //
 
 
+// test_way_runway_build_rw_flat: HEX-PORT PENDING.
 function test_way_runway_build_rw_flat()
 {
 	local pl = player_x(0)
@@ -120,6 +121,7 @@ function test_way_runway_build_rw_flat()
 }
 
 
+// test_way_runway_build_tw_flat: HEX-PORT PENDING.
 function test_way_runway_build_tw_flat()
 {
 	local pl = player_x(0)
@@ -233,6 +235,7 @@ function test_way_runway_build_tw_flat()
 }
 
 
+// test_way_runway_build_mixed_flat: HEX-PORT PENDING.
 function test_way_runway_build_mixed_flat()
 {
 	local pl = player_x(0)

@@ -30,7 +30,8 @@
 void vehicle_t::rotate90()
 {
 	vehicle_base_t::rotate90();
-	previous_direction = ribi_t::rotate90( previous_direction );
+	// HEX-PORT: rotate90 → rotate_for_map_rotate90 helper.
+	previous_direction = ribi_t::rotate_for_map_rotate90(previous_direction );
 	last_stop_pos.rotate90( welt->get_size().y-1 );
 }
 
@@ -579,7 +580,7 @@ void vehicle_t::hop(grund_t* gr)
 	}
 
 	if(  leading  ) {
-		if(  check_for_finish  &&  (direction==ribi_t::north  ||  direction==ribi_t::west)  ) {
+		if(  check_for_finish  &&  (direction==ribi_t::north  ||  direction==ribi_t::northwest)  ) {
 			steps_next = (steps_next/2)+1;
 		}
 		cnv->add_running_cost( weg );
