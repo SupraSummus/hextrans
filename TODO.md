@@ -41,7 +41,8 @@ rewrite of the propagation patterns these tests probe.
 built ways against 4-bit-ribi shape matrices on square-axis layouts.
 `ribi_t` is now 6 bits; the remaining blocker is the Squirrel-side
 helper learning 6-bit ribi and gaining hex-axis shape matrices.
-Affected: `test_way_bridge_build_ground`, `test_way_bridge_build_above_way`,
+Affected: `test_way_bridge_build_{ground, above_way, at_slope,
+at_slope_stacked, above_runway}`,
 `test_way_road_build_straight / _parallel / _below_powerline /
 _crossing / _upgrade_crossing / _bend / _upgrade_downgrade /
 _upgrade_downgrade_across_bridge / _cityroad_{build,
@@ -58,25 +59,16 @@ across_tunnel_slope}`, `test_way_tunnel_make_public`,
 Several crossing cases additionally need a hex-axis pair to replace
 the square-perpendicular setup.
 
-**Slope iteration over the full 6-corner space.**
-`test_depot_build_sloped`, `test_depot_build_on_tunnel_entrance`,
-`test_halt_build_rail_single_tile`, `test_halt_build_multi_tile`,
-`test_slope_max_height_diff`, `test_way_bridge_build_at_slope` (and
-`_stacked` / `_above_runway` / `_planner`) all iterate over slope
-integers or exercise bridge geometry that assumed 4-corner slopes.
-Under hex the slope space is 3^6 = 729 values; many are double-
-height and setslope returns "" for pakset without `double_grounds`.
-Rewriting the iteration to walk `interesting_slopes()` (already
-hex-aware — 15 single-height slopes) gets these past the iteration
-itself — the `test_depot_build_sloped` and `test_halt_build_rail_single_tile`
-bodies carry that port today — but the remaining downstream symptom
-still blocks restoration: `command_x.build_way` from a flat N
-neighbour onto a `slope.north` tile returns "" instead of null (the
-wegbauer slope-compat check looks keyed on square corner positions).
-Re-enabling is a one-line flip once that fix lands.
-`test_halt_build_multi_tile` additionally runs a `tool_remove_way`
-over a bridge span whose footprint changed; fold into the bridge-
-geometry port.
+**Bridge geometry.**  `test_halt_build_multi_tile` runs a
+`tool_remove_way` over a bridge span whose footprint shifted under
+hex (the "2 tiles on top of each other" sub-test builds a bridge from
+(3, 3) to (3, 5) and tries to remove (3, 2)→(3, 6); the span endpoints
+no longer match).  `test_way_bridge_planner` iterates
+`interesting_slopes()` and asserts which counter-slopes
+`bridge_planner_x.find_end` accepts — the body is hex-ready, but
+the working_slopes whitelist (`[ slope.north ]`) reflects what the
+hex bridge planner actually accepts and may need the 4 hex-only
+edge slopes (NE, SE, SW, NW) once those land.
 
 **Powerline 3rd hex axis.**  `test_powerline_connect / _build_below_powerbridge /
 _build_powerbridge_above_powerline / _build_transformer_multiple /
@@ -141,8 +133,9 @@ first.  Needs a real policy choice in `suche_fab_neighbour` (prefer
 producers?  prefer nearest?), not a test edit.
 
 **Hill-with-sloped-neighbours test setup.**
-`test_halt_build_on_tunnel_entrance`, `test_halt_make_public_underground`,
-and `test_powerline_build_transformer` each build their terrain by
+`test_depot_build_on_tunnel_entrance`, `test_halt_build_on_tunnel_entrance`,
+`test_halt_make_public_underground` and `test_powerline_build_transformer`
+each build their terrain by
 raising the 4 corners of a 2x2 grid-point square — which under
 square-terraformer propagation produced one raised tile plus 4
 cardinal single-slope neighbours.  Under hex's 3-way vertex sharing

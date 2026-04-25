@@ -137,7 +137,6 @@ function test_slope_set_near_map_border()
 }
 
 
-// test_slope_max_height_diff: HEX-PORT PENDING.
 function test_slope_max_height_diff()
 {
 	local pl = player_x(0)
@@ -152,13 +151,13 @@ function test_slope_max_height_diff()
 		ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 4), slope.all_up_slope), "Maximum tile height difference reached.")
 	}
 
-	// diagonally, the height difference is unlimited (technically limited to 2*max_diff)
+	// far-apart tiles have no max-diff constraint between them
 	{
-		ASSERT_EQUAL(setslope(pl, coord3d(2, 3,  0), slope.all_down_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(2, 3, -1), slope.all_down_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(2, 3, -2), slope.all_down_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(2, 3, -3), slope.all_down_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(2, 3, -4), slope.all_down_slope), "Maximum tile height difference reached.")
+		ASSERT_EQUAL(setslope(pl, coord3d(6, 6,  0), slope.all_down_slope), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(6, 6, -1), slope.all_down_slope), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(6, 6, -2), slope.all_down_slope), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(6, 6, -3), slope.all_down_slope), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(6, 6, -4), slope.all_down_slope), "Maximum tile height difference reached.")
 	}
 
 	// and clean up
@@ -167,10 +166,10 @@ function test_slope_max_height_diff()
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 2), slope.all_down_slope), null)
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 1), slope.all_down_slope), null)
 
-	ASSERT_EQUAL(setslope(pl, coord3d(2, 3, -4), slope.all_up_slope), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(2, 3, -3), slope.all_up_slope), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(2, 3, -2), slope.all_up_slope), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(2, 3, -1), slope.all_up_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(6, 6, -4), slope.all_up_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(6, 6, -3), slope.all_up_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(6, 6, -2), slope.all_up_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(6, 6, -1), slope.all_up_slope), null)
 
 	RESET_ALL_PLAYER_FUNDS()
 }

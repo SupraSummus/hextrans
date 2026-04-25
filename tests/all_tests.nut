@@ -68,7 +68,7 @@ all_tests <- [
 	test_depot_build_water,
 	test_depot_build_monorail,
 	test_depot_build_tram,
-	// test_depot_build_sloped: HEX-PORT PENDING.
+	test_depot_build_sloped,
 	// test_depot_build_on_tunnel_entrance: HEX-PORT PENDING.
 	test_depot_build_on_bridge_end,
 	test_depot_build_on_halt,
@@ -100,7 +100,7 @@ all_tests <- [
 	test_groundobj_build_occupied,
 	test_groundobj_build_on_trees,
 	test_groundobj_build_on_slope,
-	// test_halt_build_rail_single_tile: HEX-PORT PENDING.
+	test_halt_build_rail_single_tile,
 	test_halt_build_harbour,
 	test_halt_build_flat_dock_near_water,
 	test_halt_build_flat_dock_near_water_multiple_rotations,
@@ -170,7 +170,7 @@ all_tests <- [
 	test_slope_restore_on_foundation,
 	test_slope_restore_on_bridge,
 	test_slope_restore_on_label,
-	// test_slope_max_height_diff: HEX-PORT PENDING.
+	test_slope_max_height_diff,
 	test_terraform_raise_lower_land,
 	test_terraform_raise_lower_land_at_map_border,
 	test_terraform_raise_lower_land_at_water_center,
