@@ -478,17 +478,51 @@ Revisit when sprite art enters scope.
 
 **Phase A verification gaps.**  No pakset → no visual confirmation
 in this env; `tools/hex_proj_test/` covers the projection math but
-not the rendered result.  Two suspects still to eyeball when a
-pakset is available: edge-of-screen tile coverage (render-loop
-x-start is conservative `-6 + y_phase` and ignores `lt.x` — wastes
-iterations on multithread strips, may miss tiles at unusual aspect
-ratios), and the no-parity centring (square renderer had a
+not the rendered result.  One suspect still to eyeball when a
+pakset is available: the no-parity centring (square renderer had a
 `disp_w/IMG_SIZE & 1` half-row nudge; for hex the natural parity
 is `disp_w/(3·IMG_SIZE/4) & 1`, currently not applied at all).
+At specific window widths the world centre may sit half a tile off
+the screen centre.  Cheap to fix once visible.
 
-**Out of scope.**  Sprite art / pakset regeneration.  Map rotation
-(currently fatal, gated as unreachable) — orthogonal to the
-projection port.
+**Square-art-as-placeholder strategy.**  Real hex pakset art —
+sprite redraws, animator work, per-direction vehicle frames — is
+out of scope.  Reusing the square-iso pakset on the hex lattice
+breaks down into graded levels.  *Free*: existing diamond sprites
+already overlay on the right footprint because the lattice was
+picked to keep the W × W/2 bounding box (see "Sprite raster
+choice" above) — ground textures, single-tile buildings, station
+sprites land on roughly correct pixels with adjacency artefacts
+where neighbouring diamonds overlap.  *Cheap and probably worth
+doing*: a flat-top hex alpha mask applied at ground-sprite blit
+(one mask per `IMG_SIZE`, vertices at `(0, W/4)`, `(W/4, 0)`,
+`(3W/4, 0)`, `(W, W/4)`, `(3W/4, W/2)`, `(W/4, W/2)`) trims the
+diamond-corner overlap to a clean hex boundary; the mask survives
+a real pakset arrival if the boundary matches the new art's
+extent.  *Rough but functional*: the 3rd hex axis (NE-SW) has no
+square-pakset equivalent — way sprites, powerline crossings, and
+several other tile decorations are missing 1/3 of the directions
+outright.  60° pixel-art rotation of the N-S sprites is the
+dumb-transform answer: visually jaggy because axis-aligned shading
+breaks under rotation, but geometrically right.  For the 6 hex
+bend variants vs. 4 square ones, ±60° rotation of two existing
+bends fills the gap.  *Doesn't transform cleanly*: vehicles need
+~18 distinct hex direction states (see "Vehicle direction enum"
+above) vs. typically 4 sprite slots with ~8 rotation frames in
+square pakset art — pixel rotation of vehicles breaks silhouette
+and shading; the realistic plan is `get_dir()` projecting 6 hex
+edges onto whichever 4-slot table the current sprite has, accepting
+visibly wrong direction in roughly 1/3 of cases.  Recommended
+order if a "playable but visibly stubby" demo is wanted before
+real art lands: hex-mask trim first (sticks around through pakset
+replacement), then `get_dir()` 6→4 projection for vehicles (has to
+land anyway).  Skip the 60° way-bend rotations — that's where the
+cost-quality curve gets bad and where pakset replacement most
+likely lands first, so the transform code becomes pure dead weight.
+
+**Out of scope.**  Real hex pakset art (see "Square-art-as-placeholder"
+above for the placeholder roadmap).  Map rotation (currently fatal,
+gated as unreachable) — orthogonal to the projection port.
 
 ## Save format version bump
 
