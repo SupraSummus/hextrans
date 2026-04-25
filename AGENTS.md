@@ -1,12 +1,8 @@
 # AGENTS.md
 
-This file is the canonical agent-facing project doc. `CLAUDE.md` in the
-repo root is a symlink pointing at this file — both names load the same
-content. Edit `AGENTS.md`. The symlink exists so Claude Code (which
-reads `CLAUDE.md` by default) keeps working without forking the
-content; the symlink is checked into git, so a fresh clone gets it for
-free. Mentioning it explicitly here because filesystem symlinks are
-easy to miss when grepping or browsing the tree.
+Canonical agent-facing project doc. `CLAUDE.md` in the repo root
+is a symlink to this file so Claude Code's default load path keeps
+working — edit `AGENTS.md`, both names resolve to it.
 
 ## Project context
 
@@ -143,28 +139,22 @@ those invariants survive the hex port, but the specific assertions
 counts) bake in the square-grid model. When the port breaks a test,
 do not paper over the regression by preserving legacy square data
 structures — parallel neighbour tables, `#ifdef HEX` forks, or silent
-auto-conversion shims. That is parallel types in spirit even if not in
-name, and contradicts the in-place port approach above. Red CI during
-the port transition is more honest than green CI propped up by shims.
+auto-conversion shims. Red CI during the port transition is more
+honest than green CI propped up by shims; if the legacy code path
+needs to stay alive temporarily, use the tripwire pattern above.
 
 Per-test, decide:
 
-*Migrate* when the invariant survives the port and only the assertions
-are square-specific (e.g. asserts 4-way vertex sharing, 4-corner slope
-names, 8-way neighbour iteration). Comment the entry out of
-`tests/all_tests.nut` with a short `// foo: HEX-PORT PENDING.` tag —
-the commented entry is a deliberate in-context registry of what still
-needs attention, so someone scanning the test list notices it without
-cross-referencing. Keep the function body in its test file with a
-one-line `// foo: HEX-PORT PENDING.` tag just above `function
-foo()` (the detail lives in `TODO.md`, not duplicated per-test),
-and add a paragraph to `TODO.md` listing it as pending with the
-trigger for restoration (typically "after per-vertex height storage
-lands" or "after ribi widens to 6 bits"). The function body is left
-in place as part of the live migration plan — while the port is in
-flight it is useful reference for the hex rewrite; delete the
-function, the `all_tests.nut` comment and the TODO entry together
-at restoration time.
+*Migrate* when the invariant survives the port and only the
+assertions are square-specific (e.g. asserts 4-way vertex sharing,
+4-corner slope names, 8-way neighbour iteration). Comment the entry
+out of `tests/all_tests.nut` with a short `// foo: HEX-PORT PENDING.`
+tag, leave the function body in place with the same tag above
+`function foo()`, and add a paragraph to `TODO.md` with the trigger
+for restoration (typically "after per-vertex height storage lands"
+or "after ribi widens to 6 bits"). The detail lives in `TODO.md`,
+not duplicated per-test. Delete the function, the `all_tests.nut`
+comment and the TODO entry together at restoration time.
 
 *Delete* when the invariant is a purely square-grid geometric property
 — e.g. a test that asserts the exact shape of an 8-neighbour climate
@@ -200,10 +190,8 @@ on every push, so any hex regression will surface there. To reproduce
 a CI failure locally, see `documentation/claude-code-web-dev.md` →
 "Running automated tests".
 
-Claude Code on the web checks out a shallow clone, so `git log` only
+Claude Code on the web checks out a shallow clone — `git log` only
 reaches back a handful of commits and `git blame` on older lines
-returns "(grafted)". If you need real history — tracing a square-grid
-convention to its upstream intent, bisecting a regression across the
-port commit, or just following a function's evolution — run `git
-fetch --unshallow origin` first. Default to staying shallow; unshallow
-only when the question actually needs the history.
+returns "(grafted)". Run `git fetch --unshallow origin` when the
+question actually needs history (tracing upstream intent, bisecting
+across the port commit); default to staying shallow.
