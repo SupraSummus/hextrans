@@ -9,6 +9,7 @@
 
 #include "obj_base_desc.h"
 #include "image_array.h"
+#include "synth_overlay.h"
 #include "../simtypes.h"
 #include "../dataobj/ribi.h"
 
@@ -97,12 +98,27 @@ public:
 
 	static image_id get_marker_image(slope_t::type slope_in, bool background)
 	{
+		// Pakset path — legacy 4-corner sprites looked up via the lossy
+		// hex→square projection; always returns something for hex slopes,
+		// which is why the synth precedence flag below is "pick a winner"
+		// today rather than "fall back when missing".  Becomes a real
+		// fallback once a hex-aware pakset can return IMG_EMPTY for
+		// slopes it doesn't cover.
 		uint8 slope = double_grounds ? slope_in : project_to_square_sprite(slope_in);
 		uint8 index = background ? (double_grounds ? (slope % 3) + 3 * ((uint8)(slope / 9)) + 27
 		                                           : ((slope & 1) + ((slope >> 1) & 6) + 8))
 		                         : (double_grounds ?  slope % 27
 		                                           : (slope & 7 ));
-		return marker->get_image(index);
+		const image_id pakset_id = marker->get_image(index);
+
+		// Synth path — algorithmic hex outline.  See
+		// synth_overlay::prefer_over_pakset for the precedence policy.
+		const image_id synth_id = synth_overlay::get_marker(slope_in, background);
+
+		if(  synth_overlay::prefer_over_pakset  ) {
+			return synth_id != IMG_EMPTY ? synth_id : pakset_id;
+		}
+		return pakset_id != IMG_EMPTY ? pakset_id : synth_id;
 	}
 
 	static image_id get_border_image(slope_t::type slope_in)
