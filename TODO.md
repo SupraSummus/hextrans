@@ -76,11 +76,8 @@ _remove_powerbridge / _ways` each expect crossings / powerlines
 on the 2 square-era axes (N-S and old E-W).  Under hex there are
 3 axes and the 3rd (NE-SW) has no powerline crossing sprite or
 connection FSM support (`leitung2.cc` diagonal-image table is keyed
-on 4 old-combo values).  `leitung_t::ribi` is also still a `ribi:4`
-bitfield (`leitung2.h:37`) — `add_ribi` silently drops bits 4-5,
-so any N or NE edge written into a powerline today is lost.  Widen
-to 6 bits in the same pass that grows the diagonal-image table.
-Restore after the crossing-cluster / 3rd-axis work lands.
+on 4 old-combo values).  Restore after the crossing-cluster /
+3rd-axis work lands.
 `_transformer_multiple` additionally depends on
 `leitung_t::suche_fab_neighbour`'s adjacency order — see
 "Adjacency-order policy" below.
@@ -287,6 +284,28 @@ from a different direction.  Pick a direction before any of those
 adjacent items gets done in a way that bakes in rhombus
 assumptions.
 
+## Sim direction model
+
+The simulation should speak full 6-way hex directions everywhere
+(the 6-bit `ribi_t`), without narrowing for the benefit of legacy
+4-direction art.  Sim-side code pattern-matching on square-era ribi
+values (`leitung2.cc` magic 3/6 in the crossing-image picker) or
+bound-checking with `ribi < 16` (`way_desc.h` switch sprites,
+`way_obj_desc.h` crossings) is residual square-grid assumption to
+clean up, not a sim/art compromise to ratify.
+
+The current working hypothesis for where the seam between hex-aware
+sim and 4-direction pakset art lives is the descriptor API
+(`way_desc::get_image_id`, `vehicle_desc` sprite lookup, the
+`ribi_t::_dir` enum and `get_dir()`): sim above the boundary always
+passes a full 6-bit ribi in, descriptor below the boundary owns the
+projection onto whatever sprite table its art actually has, with the
+lossy mappings named and centralised.  This is a hypothesis to test
+as the audit-surface entries below get cleaned up, not a committed
+design — the seam may move once we see what stays clean.  The
+principle (sim is fully hex) is firm; the location of the projection
+layer is not.
+
 ## ribi_t — audit surfaces
 
 These are the shim / stub patterns spread across the caller port
@@ -325,13 +344,14 @@ need sprite representations — every rename site needs re-audit.
 Grep: `HEX-PORT.*east\|HEX-PORT.*west\|\b(southeast|northwest)\b`
 inside rendering-cluster files.
 
-**`crossing_logic_t::get_dir` binary → 3-axis.**  `crossing_logic.cc:291, 368`
-uses `crossing_t::get_dir() ? northwest : north` to scan for
-mergeable neighbours, i.e. binary — handles 2 of 3 hex axes.  Any
-3rd-axis crossing (road+tram on NE-SW, etc.) fails to merge.  Needs
-`crossing_t::get_dir()` to return a 3-valued axis identifier.
-Previously flagged only under the powerline entry; road/rail/tram
-crossings use the same code path.
+**`is_straight_ns` 2-of-3-axis residuals.**  Two callers of the
+2-axis predicate remain: `simtool.cc:6736` picks a `koord(0,1)` vs
+`koord(1,0)` offset, and `leitung2.cc:298` picks one of two powerline
+diagonal sprites.  Same 2-of-3 shape — NE-SW lands on the wrong
+branch.  `simtool` likely takes `ribi_t::straight_axis` directly;
+`leitung2` is bound to the "Powerline 3rd hex axis" sprite cluster
+above and waits on that.  When both fall, `is_straight_ns` and this
+entry retire together.
 
 **`koord_random` / `clip_min` / `clip_max` rhombus caveat.**  These
 are rectangular in axial `(q, r)` — rhombus-shaped in world space
