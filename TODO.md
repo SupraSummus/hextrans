@@ -353,16 +353,65 @@ any pre-port saved game survives a round-trip.  See also the
 vehicle-direction compound-displacement note above — 18 distinct
 visual states under hex, 8 slots in the current dir enum.
 
-## Viewport projection
+## Renderer port
 
-`display/viewport.cc` projects world `(x, y, z)` to screen using a
-2:1 isometric "diamond" transform.  Replace with a hex-aware
-projection that KEEPS the isometric angle — flat-top hexes seen at
-the existing isometric tilt, not a top-down projection.  The new
-projection still has to line up with the existing 2:1 sprite raster
-so the botched square-tile art stays legible during the transition.
-Mouse-picking is the inverse transform plus a cube-round to snap to
-the nearest hex.
+The square renderer assumed a 2:1 iso "diamond" lattice everywhere
+(forward + inverse projection, render-loop iteration, visible-tile
+bbox, slope corners, ribi edges, sprite tables, minimap).  Phase A
+(geometry — viewport projection, render-loop, bbox) has landed in
+`display/hex_proj.h`, `display/viewport.cc`, `display/simview.cc`
+with `tools/hex_proj_test/` as its standalone invariant suite.  The
+remaining renderer work splits into:
+
+**Phase B — per-tile detail.**  6-corner slope rendering
+(`grund_t::display_*`, currently 4-corner), 6-edge way / wall /
+ribi-keyed sprite tables (currently 4-edge with `rotate60` stubs),
+hex cursor outline (`zeiger_t`).  Phase B mutates *what* is drawn
+on each tile; phase A had picked *where* each tile sits.
+
+**Phase C — flow-on.**  Minimap (`gui/minimap.cc`, square pixels
+per tile), per-step vehicle interpolation offsets
+(`vehicle_base_t::calc_set_direction` and friends, square-iso
+baked), label / halt screen-anchor positions.  The last group
+rides along on `get_screen_coord` so positions become hex-correct
+automatically; per-tile drawing under each anchor still assumes
+square geometry until phase B lands.
+
+**Sprite raster choice (pinned design decision).**  The lattice
+the projection runs on is a *clean integer approximation* of hex
+iso, not a regular hex tiling.  With unit `u = IMG_SIZE/4`:
+
+* column step (axial `+q`): `(3·u,  u)`
+* row step    (axial `+r`): `(  0, 2·u)`
+
+Adjacent +q tiles are at screen distance `u·√10` while adjacent +r
+tiles are at `2·u` — the +q axis is ~14% off true regular hex.
+What the lattice *does* preserve: (1) the existing
+`IMG_SIZE × IMG_SIZE/2` bounding box, so legacy diamond sprites
+overlay on the right footprint until pakset art lands; (2) the iso
+2:1 row/column y-ratio, so vehicle motion and z-elevation keep the
+angles they expect; (3) integer fractions of `IMG_SIZE`, so the
+projection stays in fixed-point.  Two alternatives were rejected:
+*hex-width-preserving with true √3 geometry* (irrational, breaks
+fixed-point) and *square-row-spacing-preserving* with row step
+`(0, u)` (halves the hex height, sprites overlap massively).
+Revisit when sprite art enters scope.
+
+**Phase A verification gaps.**  No pakset → no visual confirmation
+in this env; `tools/hex_proj_test/` covers the projection math but
+not the rendered result.  Specific suspects to eyeball when a
+pakset is available: mouse-picking accuracy across the hex's
+Voronoi cell (the test exercises only ±U/3 noise), edge-of-screen
+tile coverage (render-loop x-start is conservative `-6 + y_phase`
+and ignores `lt.x` — wastes iterations on multithread strips, may
+miss tiles at unusual aspect ratios), and the no-parity centring
+(square renderer had a `disp_w/IMG_SIZE & 1` half-row nudge; for
+hex the natural parity is `disp_w/(3·IMG_SIZE/4) & 1`, currently
+not applied at all).
+
+**Out of scope.**  Sprite art / pakset regeneration.  Map rotation
+(currently fatal, gated as unreachable) — orthogonal to the
+projection port.
 
 ## Save format version bump
 

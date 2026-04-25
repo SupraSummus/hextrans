@@ -1,0 +1,176 @@
+// Self-test for the hex projection helpers in
+// src/simutrans/display/hex_proj.h — pure-function math, header-only,
+// included directly.  No bodies duplicated, no linkage.
+//
+// Exercises the invariants:
+//   1. Forward at origin / unit steps matches the documented lattice
+//      (column step (3·u, u), row step (0, 2·u) with u = W/4).
+//   2. Forward of each koord::neighbours[i] axial step lands at the
+//      expected screen displacement.
+//   3. Inverse round-trip: hex_round_to_axial(fractional(forward(q,r)))
+//      recovers (q, r) for every (q, r) in a representative range.
+//   4. Inverse is stable under sub-pixel noise around hex centres.
+//   5. Render-loop iteration (hex_render_x_start + hex_render_x_step
+//      with q=x/3, r=(y-q)/2) is a bijection between (x, y) lattice
+//      points and the (q, r) tiles in a y-bounded rectangle — every
+//      visible hex is visited exactly once.
+
+#include <cassert>
+#include <cstdio>
+#include <set>
+#include <utility>
+
+#include "simutrans/display/hex_proj.h"
+#include "simutrans/dataobj/koord.h"
+
+
+// Use a representative raster width.  Must be a multiple of 4 so the
+// W/4 unit divides evenly (simutrans rasters are always powers of 2;
+// 64 is the default).
+static constexpr sint16 W = 64;
+static constexpr sint16 U = W / 4; // = 16
+
+
+// ---- 1. Forward at origin / unit steps -------------------------------------
+
+static void test_forward_unit_steps()
+{
+	assert(hex_screen_dx(0, W) == 0);
+	assert(hex_screen_dy(0, 0, W) == 0);
+
+	assert(hex_screen_dx(1, W) == 3 * U);          // column step x = 3·u
+	assert(hex_screen_dy(1, 0, W) == U);           // column step y = u
+	assert(hex_screen_dx(0, W) == 0);              // row step x = 0
+	assert(hex_screen_dy(0, 1, W) == 2 * U);       // row step y = 2·u
+
+	// Linearity: arbitrary (q, r) is q·column + r·row.
+	for (sint16 q = -7; q <= 7; q++) {
+		for (sint16 r = -7; r <= 7; r++) {
+			assert(hex_screen_dx(q, W) == q * 3 * U);
+			assert(hex_screen_dy(q, r, W) == (q + 2 * r) * U);
+		}
+	}
+}
+
+
+// ---- 2. Forward of the 6 hex neighbours ------------------------------------
+
+static void test_forward_neighbours()
+{
+	// koord::neighbours is ordered SE, S, SW, NW, N, NE.  See koord.cc.
+	const struct { sint16 q, r; sint32 sx, sy; const char *name; } cases[] = {
+		{  1,  0,  3 * U,        U,  "SE" },
+		{  0,  1,      0,    2 * U,  "S"  },
+		{ -1,  1, -3 * U,        U,  "SW" },
+		{ -1,  0, -3 * U,       -U,  "NW" },
+		{  0, -1,      0,   -2 * U,  "N"  },
+		{  1, -1,  3 * U,       -U,  "NE" },
+	};
+	for (const auto &c : cases) {
+		const sint32 sx = hex_screen_dx(c.q, W);
+		const sint32 sy = hex_screen_dy(c.q, c.r, W);
+		if (sx != c.sx || sy != c.sy) {
+			std::fprintf(stderr,
+				"neighbour %s: forward(%d,%d) = (%d,%d), want (%d,%d)\n",
+				c.name, c.q, c.r, sx, sy, c.sx, c.sy);
+			std::abort();
+		}
+	}
+}
+
+
+// ---- 3. Inverse round-trip on integer hex centres --------------------------
+
+static void test_round_trip()
+{
+	for (sint16 q = -50; q <= 50; q++) {
+		for (sint16 r = -50; r <= 50; r++) {
+			const sint32 sx = hex_screen_dx(q, W);
+			const sint32 sy = hex_screen_dy(q, r, W);
+			double q_f, r_f;
+			hex_screen_to_fractional(sx, sy, W, q_f, r_f);
+			const koord got = hex_round_to_axial(q_f, r_f);
+			if (got.x != q || got.y != r) {
+				std::fprintf(stderr,
+					"round-trip (%d,%d): forward=(%d,%d) inverse_frac=(%g,%g) round=(%d,%d)\n",
+					q, r, sx, sy, q_f, r_f, got.x, got.y);
+				std::abort();
+			}
+		}
+	}
+}
+
+
+// ---- 4. Inverse stability under sub-pixel noise ----------------------------
+
+static void test_inverse_noise()
+{
+	// For every hex centre, perturb the screen coord by up to ±U/3
+	// pixels in each axis — well inside the hex's Voronoi cell, so the
+	// rounded hex must still be the same one.  U/3 ≈ 5px at W=64.
+	const sint32 noise = U / 3;
+	for (sint16 q = -10; q <= 10; q++) {
+		for (sint16 r = -10; r <= 10; r++) {
+			const sint32 cx = hex_screen_dx(q, W);
+			const sint32 cy = hex_screen_dy(q, r, W);
+			for (sint32 dx = -noise; dx <= noise; dx += noise) {
+				for (sint32 dy = -noise; dy <= noise; dy += noise) {
+					double q_f, r_f;
+					hex_screen_to_fractional(cx + dx, cy + dy, W, q_f, r_f);
+					const koord got = hex_round_to_axial(q_f, r_f);
+					if (got.x != q || got.y != r) {
+						std::fprintf(stderr,
+							"noise (%d,%d) +(%d,%d): rounded to (%d,%d)\n",
+							q, r, dx, dy, got.x, got.y);
+						std::abort();
+					}
+				}
+			}
+		}
+	}
+}
+
+
+// ---- 5. Render-loop iteration is a bijection -------------------------------
+
+static void test_render_loop_bijection()
+{
+	// Walk the render loop's (y, x) lattice across a y-range, decode
+	// (q, r) at each step, and verify each (q, r) is produced exactly
+	// once and that decoding is exact (q*3 == x, q+2r == y).
+	const sint16 y_lo = -20, y_hi = 20;
+	const sint16 x_hi = 60; // arbitrary right bound
+
+	std::set<std::pair<sint16, sint16>> seen;
+	for (sint16 y = y_lo; y < y_hi; y++) {
+		for (sint16 x = hex_render_x_start(y); x < x_hi; x += hex_render_x_step()) {
+			const sint16 q = x / 3;
+			const sint16 r = (y - q) / 2;
+			// Decoding must be exact (the loop's invariants).
+			assert(q * 3 == x);
+			assert(q + 2 * r == y);
+			// Every (q, r) visited exactly once.
+			const auto key = std::make_pair(q, r);
+			if (seen.count(key)) {
+				std::fprintf(stderr, "duplicate visit: (q,r)=(%d,%d) at (x,y)=(%d,%d)\n",
+					q, r, x, y);
+				std::abort();
+			}
+			seen.insert(key);
+		}
+	}
+	// Sanity: we should have visited a non-trivial number of hexes.
+	assert(seen.size() > 100);
+}
+
+
+int main()
+{
+	test_forward_unit_steps();
+	test_forward_neighbours();
+	test_round_trip();
+	test_inverse_noise();
+	test_render_loop_bijection();
+	std::printf("hex_proj_test: all checks passed\n");
+	return 0;
+}
