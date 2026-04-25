@@ -35,6 +35,29 @@ Art is out of scope for now. Reuse the existing square-tile sprites
 botched onto the hex grid; porting/regenerating pakset art is a
 separate, much larger task that follows the engine work.
 
+## Tripwires over silent shims
+
+The in-place port leaves legacy functions whose signatures still
+compile but whose semantics no longer hold under the hex model. The
+default move is to replace the body with `dbg->fatal` rather than
+quietly route through the wrong slot. The shim becomes a tripwire:
+some call paths still work, others fire on first use, and the
+ground-truth list of residual sites surfaces as crashes instead of
+silent mis-indexing. `surface_t::lookup_hgt` is the canonical
+example — see commit `a1a7279` for the move from silent shim to
+fatal tripwire and the bugs it shook loose. This is what lets us
+defer mass replacing without ending up with green CI propped up by
+shims; the codebase compiles, honest paths run, dishonest paths
+abort loudly.
+
+Sites that genuinely cannot port yet take a narrow named escape
+hatch — `legacy_grid_hgt` / `legacy_set_grid_hgt_nocheck` preserve
+the old slot semantics for clusters with documented retirement
+triggers in `TODO.md` (e.g. "after the save-format bump", "after
+`recalc_natural_slope` ports"). One escape-hatch name per cluster,
+not per call site; the cluster description lives in `TODO.md`, not
+duplicated across synonymous wrappers.
+
 ## Direction naming convention (pin this — silent-failure landmine)
 
 Flat-top hex has 6 EDGES and 6 VERTICES, and each set has its own
