@@ -20,6 +20,13 @@ jobs:
       # the slow Simutrans build runs.  ~1 second; fails fast on any
       # regression in canonical_vertex / vertex_slot_index.
       run: make -C tools/hex_vertex_test run
+    - name: Hex projection self-test
+      # Sanity-check the renderer-port screen projection in
+      # display/hex_proj.h: forward at unit steps, six-neighbour
+      # offsets, inverse round-trip, sub-pixel cube-round stability,
+      # render-loop bijection.  ~1 second; fails fast on any
+      # regression before the slow Simutrans build runs.
+      run: make -C tools/hex_proj_test run
     - name: Cache
       uses: actions/cache@v4
       with:
