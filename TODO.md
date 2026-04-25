@@ -242,6 +242,16 @@ that already ported — they don't just read six heights, they walk
 six neighbours and compose per-corner data.  Sketch the 6-corner
 equivalent before diving in.
 
+`karte_t::calc_humidity_map_region` branches on `ribi_t::northwest`
+/ `southeast` / `north` for wind direction, leaving NE, SW and
+explicit S unhandled — only 4 of the 6 hex wind directions feed the
+gradient walk.  The gradient itself is a per-tile NE-NW corner pair
+(the hex-port translation of the legacy `lookup(x+1, y) - lookup(x, y)`
+square-axis read), so it's still computing the same horizontal slope
+regardless of wind direction.  Both quirks land together in a
+hex-aware rewrite of the climate generator; tied to the
+"Square-grid terrain-mutation cascade tests" cluster above.
+
 ## ribi_t — audit surfaces
 
 These are the shim / stub patterns spread across the caller port

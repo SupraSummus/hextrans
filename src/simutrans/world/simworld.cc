@@ -5109,7 +5109,12 @@ void karte_t::calc_humidity_map_region( sint16 , sint16 , sint16 xbottom, sint16
 					}
 				}
 				else {
-					sint8 gradient = lookup_hgt_nocheck( x+1, y )-lookup_hgt_nocheck( x, y );
+					// HEX-PORT: same-tile NE-NW corner pair — preserves the
+					// legacy "horizontal slope across this tile" semantics
+					// of `lookup(x+1, y) - lookup(x, y)` and dodges the
+					// boundary read at x = xbottom-1.
+					const koord k(x, y);
+					sint8 gradient = lookup_hgt_nocheck(k, hex_corner_t::NE) - lookup_hgt_nocheck(k, hex_corner_t::NW);
 					current_humidity += settings.get_moisture() + gradient * height_increase;
 				}
 				current_humidity = clamp<sint8>( current_humidity, 0, 100 );
@@ -5136,7 +5141,8 @@ void karte_t::calc_humidity_map_region( sint16 , sint16 , sint16 xbottom, sint16
 					}
 				}
 				else {
-					sint8 gradient = lookup_hgt_nocheck( x+1, y )-lookup_hgt_nocheck( x, y );
+					const koord k(x, y);
+					sint8 gradient = lookup_hgt_nocheck(k, hex_corner_t::NE) - lookup_hgt_nocheck(k, hex_corner_t::NW);
 					current_humidity += settings.get_moisture() + gradient * height_increase;
 				}
 				current_humidity = clamp<sint8>( current_humidity, 0, 100 );
@@ -5180,7 +5186,7 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 					if(  climate_map.at(x,y)==0x7F ) {
 						climate this_climate = arctic_climate; // fallthrough option
 
-						sint8 hgt = lookup_hgt_nocheck(x,y) - groundwater;
+						sint8 hgt = min_hgt_nocheck(koord(x,y)) - groundwater;
 						sint8 temperature = groundwater_temperature - (hgt-groundwater) - simrand(2);
 						sint8 this_humidity = humidity_map.at(x,y) + simrand(5);
 
@@ -5288,7 +5294,7 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 			// for the first passes, we only work on the grid, which is much faster
 			for(  sint16 y = ytop;  y < ybottom;  y++  ) {
 				for(  sint16 x = xtop;  x < xbottom;  x++  ) {
-					sint8 hgt = lookup_hgt_nocheck( x, y );
+					sint8 hgt = min_hgt_nocheck(koord(x, y));
 					if( hgt < groundwater ) {
 						climate_map.at( x, y ) = water_climate;
 					}
@@ -5313,7 +5319,7 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 						if( climate_map.at( x, y ) > arctic_climate ) {
 							// not assigned yet => start with a random allowed climate
 							allowed.clear();
-							sint8 hgt = lookup_hgt_nocheck( x, y );
+							sint8 hgt = min_hgt_nocheck(koord(x, y));
 							for( int cl=1;  cl<MAX_CLIMATES;  cl++ ) {
 								if(  hgt >= settings.get_climate_borders( cl, 0 )  &&  hgt < settings.get_climate_borders( cl, 1 )  ) {
 									allowed.append(cl);
@@ -5336,7 +5342,7 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 										const uint32 threshold = (uint32)( ( 8 * (uint32)((wx*wx)+(wy*wy)) ) / distance );
 
 										if(  threshold > 40  ) {
-											hgt = lookup_hgt_nocheck( x+x_off, y+y_off );
+											hgt = min_hgt_nocheck(koord(x+x_off, y+y_off));
 											// find out if the climate is still allowed here
 											if(  hgt >= settings.get_climate_borders( cl, 0 )  &&  hgt <= settings.get_climate_borders( cl, 1 )  ) 	{
 												climate_map.at( x+x_off, y+y_off ) = cl;
@@ -5360,7 +5366,7 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 			 */
 			for(  sint16 y = ytop;  y < ybottom;  y++  ) {
 				for(  sint16 x = xtop;  x < xbottom;  x++  ) {
-					sint8 hgt = lookup_hgt_nocheck( x, y );
+					sint8 hgt = min_hgt_nocheck(koord(x, y));
 					if( hgt < groundwater ) {
 						climate_map.at( x, y ) = water_climate;
 					}
