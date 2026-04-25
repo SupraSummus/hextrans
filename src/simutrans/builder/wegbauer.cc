@@ -1491,7 +1491,9 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 		// test directions
 		// .. use only those that are allowed by current slope
 		// .. do not go backward
-		const ribi_t::ribi slope_dir = (slope_t::is_way_ns(gr->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::north | ribi_t::south) : ribi_t::none) | (slope_t::is_way_ew(gr->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest) : ribi_t::none);
+		ribi_t::ribi slope_dir = ribi_t::none;
+		if(  slope_t::is_way_ns(gr->get_weg_hang())  ) slope_dir |= ribi_t::north | ribi_t::south;
+		if(  slope_t::is_way_ew(gr->get_weg_hang())  ) slope_dir |= ribi_t::southeast | ribi_t::northwest;
 		const ribi_t::ribi test_dir = (tmp->count & build_straight)==0  ?  slope_dir  & ~ribi_t::backward(straight_dir)
 		                                                                :  straight_dir;
 
@@ -1984,7 +1986,9 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 			// test directions
 			// .. use only those that are allowed by current slope
 			// .. do not go backward
-			const ribi_t::ribi slope_dir = (slope_t::is_way_ns(gr->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::north | ribi_t::south) : ribi_t::none) | (slope_t::is_way_ew(gr->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest) : ribi_t::none);
+			ribi_t::ribi slope_dir = ribi_t::none;
+			if(  slope_t::is_way_ns(gr->get_weg_hang())  ) slope_dir |= ribi_t::north | ribi_t::south;
+			if(  slope_t::is_way_ew(gr->get_weg_hang())  ) slope_dir |= ribi_t::southeast | ribi_t::northwest;
 			const ribi_t::ribi test_dir = (tmp->count & build_straight)==0  ?  slope_dir  & ~ribi_t::backward(straight_dir)
 		                                                                :  straight_dir;
 
@@ -2025,7 +2029,9 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 			// test directions
 			// .. use only those that are allowed by current slope
 			// .. do not go backward
-			const ribi_t::ribi slope_dir = (slope_t::is_way_ns(gu->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::north | ribi_t::south) : ribi_t::none) | (slope_t::is_way_ew(gu->get_weg_hang()) ? (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest) : ribi_t::none);
+			ribi_t::ribi slope_dir = ribi_t::none;
+			if(  slope_t::is_way_ns(gu->get_weg_hang())  ) slope_dir |= ribi_t::north | ribi_t::south;
+			if(  slope_t::is_way_ew(gu->get_weg_hang())  ) slope_dir |= ribi_t::southeast | ribi_t::northwest;
 			const ribi_t::ribi test_dir = (tmp->count & build_straight)==0  ?  slope_dir  & ~ribi_t::backward(straight_dir)
 		                                                                :  straight_dir;
 

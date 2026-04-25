@@ -114,7 +114,11 @@ public:
 	/// Compute the slope opposite to @p x (flip each corner 0↔1 for
 	/// single-height slopes, 0↔2 for double-height).  Returns flat if
 	/// @p x does not allow ways on it.
-	static type opposite(type x) { return is_single(x) ? (is_one_high(x) ? (type)(slope_t::all_up_one - x) : (type)(slope_t::all_up_two - x)) : flat; }
+	static type opposite(type x)
+	{
+		if (!is_single(x)) return flat;
+		return (type)((is_one_high(x) ? slope_t::all_up_one : slope_t::all_up_two) - x);
+	}
 
 	/// Rotate by 60° clockwise (cyclically shift base-3 digits by 1
 	/// position).  The 4-corner rotate90 is gone — hex has 6
