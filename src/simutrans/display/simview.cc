@@ -8,6 +8,7 @@
 #include "../world/simworld.h"
 #include "simview.h"
 #include "simgraph.h"
+#include "hex_proj.h"
 #include "viewport.h"
 
 #include "../simticker.h"
@@ -132,7 +133,6 @@ void main_view_t::display(bool force_dirty)
 		force_dirty = false;
 	}
 
-	const int dpy_width  = screen.w / IMG_SIZE + 2;
 	const int dpy_height = (screen.h*4)/IMG_SIZE;
 
 	const int i_off = viewport->get_world_position().x + viewport->get_viewport_ij_offset().x;
@@ -187,12 +187,22 @@ void main_view_t::display(bool force_dirty)
 	// prepare view
 	rect_t const world_rect(koord(0, 0), welt->get_size());
 
-	koord const estimated_min(((y_min+(-2-((y_min+dpy_width) & 1))) >> 1) + i_off,
-		((y_min-(clip_rr.w - const_x_off) / (IMG_SIZE/2) - 1) >> 1) + j_off);
+	// Hex visible-tile bounding box.  Apply the hex inverse (see
+	// hex_proj.h: q = x/3, r = (y-q)/2 in W/4 coarse units) at the
+	// four corners of the visible (x_units, y_units) rectangle and
+	// take min/max of the (Δq, Δr) range.
+	const int x_min_units = hex_render_x_start(0);              // most-negative across both row phases
+	const int x_max_units = (clip_rr.w - const_x_off) / (IMG_SIZE/4);
+	const int y_max_units = dpy_height + 4*4;
+	const int dq_min = (x_min_units - 2) / 3;                   // round toward -inf
+	const int dq_max = (x_max_units + 2) / 3;                   // round toward +inf
+	const int dr_min = (y_min       - dq_max - 1) / 2;          // min y, max q
+	const int dr_max = (y_max_units - dq_min + 1) / 2;          // max y, min q
 
 	sint16 const worst_case_mountain_extra = (welt->max_height - welt->min_height) / 2;
-	koord const estimated_max((((dpy_height+4*4)+(screen.w - const_x_off) / (IMG_SIZE/2) - 1) >> 1) + i_off + worst_case_mountain_extra,
-		(((dpy_height+4*4)-(-2-(((dpy_height+4*4)+dpy_width) & 1))) >> 1) + j_off + worst_case_mountain_extra);
+	koord const estimated_min(dq_min + i_off, dr_min + j_off);
+	koord const estimated_max(dq_max + i_off + worst_case_mountain_extra,
+	                          dr_max + j_off + worst_case_mountain_extra);
 
 	rect_t view_rect(estimated_min, estimated_max - estimated_min + koord(1, 1));
 	view_rect.mask(world_rect);
@@ -274,11 +284,12 @@ void main_view_t::display(bool force_dirty)
 		const sint16 ypos = y*(IMG_SIZE/4) + const_y_off;
 		plotted = false;
 
-		for( sint16 x = -2-((y+dpy_width) & 1); (x*(IMG_SIZE/2) + const_x_off)<clip_rr.x+clip_rr.w; x += 2 ) {
-
-			const sint16 i = ((y + x) >> 1) + i_off;
-			const sint16 j = ((y - x) >> 1) + j_off;
-			const sint16 xpos = x * (IMG_SIZE / 2) + const_x_off;
+		for( sint16 x = hex_render_x_start(y); (x*(IMG_SIZE/4) + const_x_off)<clip_rr.x+clip_rr.w; x += hex_render_x_step() ) {
+			const sint16 q_delta = x / 3;
+			const sint16 r_delta = (y - q_delta) / 2;
+			const sint16 i = q_delta + i_off;
+			const sint16 j = r_delta + j_off;
+			const sint16 xpos = x * (IMG_SIZE / 4) + const_x_off;
 
 			if(  xpos+IMG_SIZE>0  ) {
 				const planquadrat_t *plan=welt->access(i,j);
@@ -380,9 +391,6 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 	const int const_x_off = viewport->get_x_off();
 	const int const_y_off = viewport->get_y_off();
 
-	const scr_size screen = gfx->get_screen_size();
-	const int dpy_width = screen.w / IMG_SIZE + 2;
-
 	// to save calls to grund_t::get_disp_height
 	const sint8 hmax_ground = (grund_t::underground_mode == grund_t::ugm_level) ? grund_t::underground_level : 127;
 
@@ -395,10 +403,13 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 		// plotted = we plotted something
 		bool plotted = false;
 
-		for(  sint16 x = -2 - ((y  +dpy_width) & 1);  (x * (IMG_SIZE / 2) + const_x_off) < (lt.x + wh.x);  x += 2  ) {
-			const sint16 i = ((y + x) >> 1) + i_off;
-			const sint16 j = ((y - x) >> 1) + j_off;
-			const sint16 xpos = x * (IMG_SIZE / 2) + const_x_off;
+		// Hex render-loop iteration; lattice details in hex_proj.h.
+		for(  sint16 x = hex_render_x_start(y);  (x * (IMG_SIZE / 4) + const_x_off) < (lt.x + wh.x);  x += hex_render_x_step()  ) {
+			const sint16 q_delta = x / 3;
+			const sint16 r_delta = (y - q_delta) / 2;
+			const sint16 i = q_delta + i_off;
+			const sint16 j = r_delta + j_off;
+			const sint16 xpos = x * (IMG_SIZE / 4) + const_x_off;
 
 			if(  xpos + IMG_SIZE > lt.x  ) {
 				const koord pos(i, j);
@@ -471,10 +482,12 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 	for(  int y = y_min;  y < y_max;  y++  ) {
 		const sint16 ypos = y * (IMG_SIZE / 4) + const_y_off;
 
-		for(  sint16 x = -2 - ((y + dpy_width) & 1);  (x * (IMG_SIZE / 2) + const_x_off) < (lt.x + wh.x);  x += 2  ) {
-			const int i = ((y + x) >> 1) + i_off;
-			const int j = ((y - x) >> 1) + j_off;
-			const int xpos = x * (IMG_SIZE / 2) + const_x_off;
+		for(  sint16 x = hex_render_x_start(y);  (x * (IMG_SIZE / 4) + const_x_off) < (lt.x + wh.x);  x += hex_render_x_step()  ) {
+			const int q_delta = x / 3;
+			const int r_delta = (y - q_delta) / 2;
+			const int i = q_delta + i_off;
+			const int j = r_delta + j_off;
+			const int xpos = x * (IMG_SIZE / 4) + const_x_off;
 
 			if(  xpos + IMG_SIZE > lt.x  ) {
 				const planquadrat_t *plan = welt->access(i,j);

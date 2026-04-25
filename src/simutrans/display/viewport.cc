@@ -5,6 +5,7 @@
 
 #include "viewport.h"
 
+#include "hex_proj.h"
 #include "simgraph.h"
 #include "../world/simworld.h"
 #include "../dataobj/environment.h"
@@ -22,8 +23,12 @@ void viewport_t::set_viewport_ij_offset( const koord &k )
 
 koord viewport_t::get_map2d_coord( const koord3d &viewpos ) const
 {
-	// just calculate the offset from the z-position
-
+	// Convert a 3D map coord to the 2D map coord that lands at the same
+	// screen position.  Z bumps the screen-y up by
+	// `tile_raster_scale_y(z*TILE_HEIGHT_STEP, W)`; under hex, axial +r
+	// is the only 1-tile step that adds purely to screen-y (column step
+	// also has a y component, so it can't compensate alone).  Round the
+	// elevation pixel offset to the nearest integer +r step (W/2 each).
 	const sint16 new_yoff = tile_raster_scale_y(viewpos.z*TILE_HEIGHT_STEP,cached_img_size);
 	sint16 lines = 0;
 	if(new_yoff>0) {
@@ -32,7 +37,7 @@ koord viewport_t::get_map2d_coord( const koord3d &viewpos ) const
 	else {
 		lines = (new_yoff - (cached_img_size/4))/(cached_img_size/2);
 	}
-	return world->get_closest_coordinate( viewpos.get_2d() - koord( lines, lines ) );
+	return world->get_closest_coordinate( viewpos.get_2d() - koord(0, lines) );
 }
 
 
@@ -44,17 +49,17 @@ koord viewport_t::get_viewport_coord( const koord& coord ) const
 
 scr_coord viewport_t::get_screen_coord( const koord3d& pos, const koord& off) const
 {
-	// Historic disheartening comment to be preserved:
-	// better not try to twist your brain to follow the retransformation ...
+	// Hex iso projection — see display/hex_proj.h for the lattice.
+	// `scr_pos_2d` is the axial (q, r) delta from the viewport's
+	// top-left tile to the requested tile; add per-pixel raster
+	// offset, z-elevation (screen-y only), and fine pan.
+	const koord scr_pos_2d = get_viewport_coord(pos.get_2d());
 
-	koord scr_pos_2d = get_viewport_coord(pos.get_2d());
-
-	const sint16 x = (scr_pos_2d.x-scr_pos_2d.y)*(cached_img_size/2)
+	const sint32 x = hex_screen_dx(scr_pos_2d.x, cached_img_size)
 		+ tile_raster_scale_x(off.x, cached_img_size)
 		+ x_off;
-	const sint16 y = (scr_pos_2d.x+scr_pos_2d.y)*(cached_img_size/4)
+	const sint32 y = hex_screen_dy(scr_pos_2d.x, scr_pos_2d.y, cached_img_size)
 		+ tile_raster_scale_y(off.y-pos.z*TILE_HEIGHT_STEP, cached_img_size)
-		+ ((cached_disp_width/cached_img_size)&1)*(cached_img_size/4)
 		+ y_off;
 
 	return scr_coord(x,y);
@@ -70,21 +75,36 @@ scr_coord viewport_t::scale_offset( const koord &value )
 // change the center viewport position
 void viewport_t::change_world_position( koord new_ij, sint16 new_xoff, sint16 new_yoff )
 {
-	// truncate new_xoff, modify new_ij.x
-	new_ij.x -= new_xoff/cached_img_size;
-	new_ij.y += new_xoff/cached_img_size;
-	new_xoff %= cached_img_size;
+	// Normalise (ij_off, x_off, y_off) so the fine pan offsets stay
+	// within one tile step.  Under hex, an `ij_off.x` step shifts all
+	// screen positions by `(-3*W/4, -W/4)`; an `ij_off.y` step shifts
+	// by `(0, -W/2)`.  Absorb x first (steps of `3*W/4` in xoff also
+	// drag yoff by `W/4`), then absorb the residual y into r-steps of
+	// `W/2`.
+	const sint16 col_dx = 3 * (cached_img_size / 4); // 3*W/4
+	const sint16 col_dy =     (cached_img_size / 4); // W/4
+	const sint16 row_dy = 2 * (cached_img_size / 4); // W/2
 
-	// truncate new_yoff, modify new_ij.y
-	int lines = 0;
-	if(new_yoff>0) {
-		lines = (new_yoff + (cached_img_size/4))/(cached_img_size/2);
+	int q_steps = 0;
+	if(new_xoff > 0) {
+		q_steps = (new_xoff + col_dx/2) / col_dx;
 	}
-	else {
-		lines = (new_yoff - (cached_img_size/4))/(cached_img_size/2);
+	else if(new_xoff < 0) {
+		q_steps = (new_xoff - col_dx/2) / col_dx;
 	}
-	new_ij -= koord( lines, lines );
-	new_yoff -= (cached_img_size/2)*lines;
+	new_ij.x -= q_steps;
+	new_xoff -= col_dx * q_steps;
+	new_yoff -= col_dy * q_steps;
+
+	int r_steps = 0;
+	if(new_yoff > 0) {
+		r_steps = (new_yoff + row_dy/2) / row_dy;
+	}
+	else if(new_yoff < 0) {
+		r_steps = (new_yoff - row_dy/2) / row_dy;
+	}
+	new_ij.y -= r_steps;
+	new_yoff -= row_dy * r_steps;
 
 	new_ij = world->get_closest_coordinate(new_ij);
 
@@ -133,30 +153,48 @@ void viewport_t::change_world_position( const koord3d& new_ij, bool automatic_un
 
 void viewport_t::change_world_position(const koord3d& pos, const koord& off, scr_coord sc)
 {
-	// see get_viewport_coord and update_cached_values
-	koord scr_pos_2d = pos.get_2d() - view_ij_off;
+	// Pick new (ij_off, x_off, y_off) such that `pos` lands at screen
+	// coord `sc`.  Inverse of `get_screen_coord`.  Under hex, screen-x
+	// only depends on the q-delta; screen-y depends on both q- and
+	// r-deltas, so we solve for q first and absorb the column-y
+	// component before solving for r.
+	const sint32 col_dx = 3 * (cached_img_size / 4); // 3*W/4
+	const sint32 col_dy =     (cached_img_size / 4); // W/4
+	const sint32 row_dy = 2 * (cached_img_size / 4); // W/2
 
-	const sint16 c2 = cached_img_size/2;
-	const sint16 c4 = cached_img_size/4;
+	const sint32 xfix = tile_raster_scale_x(off.x, cached_img_size);
+	const sint32 yfix = tile_raster_scale_y(off.y-pos.z*TILE_HEIGHT_STEP, cached_img_size);
 
-	// see get_screen_coord - do not twist your brain etc
-	// solve (-ijx + ijy)*(cached_img_size/2) + x_off = sc.x - xfix;
-	// note: xfix and yfix need 32-bit precision or will overflow
-	const sint32 xfix = (scr_pos_2d.x - scr_pos_2d.y)*(cached_img_size/2)
-		+ tile_raster_scale_x(off.x, cached_img_size);
+	// Δaxial = (target tile P) - (new view origin).  P is `pos` minus
+	// the constant `view_ij_off` (the centre→top-left offset).
+	const sint32 P_x = pos.x - view_ij_off.x;
+	const sint32 P_y = pos.y - view_ij_off.y;
 
-	// solve (-ijx - ijy)*(cached_img_size/4) + y_off = sc.y - yfix;
-	const sint32 yfix = (scr_pos_2d.x + scr_pos_2d.y)*(cached_img_size/4)
-		+ tile_raster_scale_y(off.y-pos.z*TILE_HEIGHT_STEP, cached_img_size)
-		+ ((cached_disp_width/cached_img_size)&1)*(cached_img_size/4);
+	const sint32 DX = sc.x - xfix;
+	const sint32 DY = sc.y - yfix;
 
-	// calculate center position
-	const sint16 new_ij_x = (-(c2*(sc.y - yfix ))/c4 - (sc.x - xfix) ) / (2*c2);
-	const sint16 new_ij_y = (-(c2*(sc.y - yfix ))/c4 + (sc.x - xfix) ) / (2*c2);
+	// Solve for the integer (dq, dr) closest to the fractional answer,
+	// leaving the residual in (new_x_off, new_y_off).
+	sint32 dq;
+	if(DX >= 0) {
+		dq = (DX + col_dx/2) / col_dx;
+	}
+	else {
+		dq = (DX - col_dx/2) / col_dx;
+	}
+	const sint32 DY_after_dq = DY - col_dy * dq;
+	sint32 dr;
+	if(DY_after_dq >= 0) {
+		dr = (DY_after_dq + row_dy/2) / row_dy;
+	}
+	else {
+		dr = (DY_after_dq - row_dy/2) / row_dy;
+	}
 
-	// set new offsets to solve equation
-	const sint16 new_x_off = sc.x - xfix - (-new_ij_x + new_ij_y) * c2;
-	const sint16 new_y_off = sc.y - yfix - (-new_ij_x - new_ij_y) * c4;
+	const sint16 new_ij_x = P_x - dq;
+	const sint16 new_ij_y = P_y - dr;
+	const sint16 new_x_off = DX - dq * col_dx;
+	const sint16 new_y_off = DY - dq * col_dy - dr * row_dy;
 
 	change_world_position(koord(new_ij_x, new_ij_y), new_x_off, new_y_off);
 }
@@ -168,24 +206,16 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 	const int rw2 = rw1/2;
 	const int rw4 = rw1/4;
 
-	/*
-	* berechnung der basis feldkoordinaten in i und j
-	* this would calculate raster i,j koordinates if there was no height
-	*  die formeln stehen hier zur erinnerung wie sie in der urform aussehen
-
-	int base_i = (screen_x+screen_y)/2;
-	int base_j = (screen_y-screen_x)/2;
-
-	int raster_base_i = (int)floor(base_i / 16.0);
-	int raster_base_j = (int)floor(base_j / 16.0);
-
-	*/
-
-	screen_pos.y += - y_off - rw2 - ((cached_disp_width/rw1)&1)*rw4;
+	// Shift mouse coords relative to the top-left tile's hex centre.
+	// The hex bounding box is W×W/2 (= rw1×rw2), centred at
+	// `(rw2, rw4)` within that box; subtracting fine pan and the
+	// box→centre offset puts the click in the same coordinate frame
+	// the hex inverse expects.
 	screen_pos.x += - x_off - rw2;
+	screen_pos.y += - y_off - rw4;
 
-	const int i_off = rw4*(ij_off.x+get_viewport_ij_offset().x);
-	const int j_off = rw4*(ij_off.y+get_viewport_ij_offset().y);
+	const sint32 view_origin_x = ij_off.x + get_viewport_ij_offset().x;
+	const sint32 view_origin_y = ij_off.y + get_viewport_ij_offset().y;
 
 	bool found = false;
 	// uncomment to: ctrl-key selects ground
@@ -202,11 +232,16 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 	// find matching and visible grund
 	for(sint8 hgt = hmax; hgt>=hmin; hgt--) {
 
-		const int base_i = (screen_pos.x/2 + screen_pos.y   + tile_raster_scale_y((hgt*TILE_HEIGHT_STEP),rw1))/2;
-		const int base_j = (screen_pos.y   - screen_pos.x/2 + tile_raster_scale_y((hgt*TILE_HEIGHT_STEP),rw1))/2;
-
-		found_i = (base_i + i_off) / rw4;;
-		found_j = (base_j + j_off) / rw4;;
+		// Hex inverse: project the click onto the ground plane at
+		// height `hgt` (z lifts sprites by `tile_raster_scale_y(z*TSH)`,
+		// so the inverse adds that back to screen-y), then cube-round
+		// the fractional axial to the nearest hex.
+		const sint32 z_dy = tile_raster_scale_y(hgt*TILE_HEIGHT_STEP, rw1);
+		double q_f, r_f;
+		hex_screen_to_fractional(screen_pos.x, screen_pos.y + z_dy, rw1, q_f, r_f);
+		const koord delta = hex_round_to_axial(q_f, r_f);
+		found_i = view_origin_x + delta.x;
+		found_j = view_origin_y + delta.y;
 
 		gr = world->lookup(koord3d(found_i,found_j,hgt));
 		if (gr != NULL) {
@@ -310,9 +345,16 @@ void viewport_t::metrics_updated()
 	cached_disp_height = screen.h;
 	cached_img_size    = gfx->get_tile_raster_width();
 
+	// `view_ij_off` is the axial (q, r) delta from the view-centre tile
+	// (`ij_off`) to the tile at the screen top-left.  Solving the hex
+	// forward projection for tile-position = centre-screen at top-left
+	// pixel (-disp_w/2, -disp_h/2):
+	//     -view.q · 3·W/4              = -disp_w / 2
+	//     (-view.q + -2·view.r) · W/4  = -disp_h / 2
+	// gives view.q = -2·disp_w / (3·W) and view.r = disp_w/(3·W) - disp_h/W.
 	set_viewport_ij_offset(koord(
-		- cached_disp_width/(2*cached_img_size) - cached_disp_height/cached_img_size,
-		  cached_disp_width/(2*cached_img_size) - cached_disp_height/cached_img_size
+		- 2 * cached_disp_width  / (3 * cached_img_size),
+		      cached_disp_width  / (3 * cached_img_size) - cached_disp_height / cached_img_size
 		) );
 }
 
