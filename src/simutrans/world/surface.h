@@ -287,43 +287,57 @@ public:
 	inline planquadrat_t *access(koord k) const { return access(k.x, k.y); }
 
 public:
-	// HEX-PORT: the legacy grid-point `(x, y)` accessors route each
-	// `(x, y)` to the E canonical slot at index `2 * (x + y*(W+1))`.
-	// This preserves "same (x, y) → same value" for every old caller
-	// while the storage is physically per-hex-vertex.  SE canonical
-	// slots are not touched by the legacy API and remain at whatever
-	// groundwater default the allocator / loader left them at — any
-	// hex-aware reader asking for SE / W / NE corners of a tile that
-	// only ever saw legacy writes will see that default.  That is
-	// the forcing function for the writer-side port (see TODO.md);
-	// do not paper over it with auto-fill shims.  New callers should
-	// use the `(koord tile, hex_corner_t::type c)` overloads below.
+	// HEX-PORT: the legacy grid-point `(x, y)` accessors used to route
+	// each `(x, y)` to the E canonical slot at index `2 * (x + y*(W+1))`.
+	// That shim preserved "same (x, y) → same value" for every old
+	// caller while the storage moved to per-hex-vertex, so the "tile
+	// reference height" readers (grund.cc, simtool.cc, wasser.cc,
+	// wegbauer.cc, ...) and their paired NW-corner-only writers
+	// (hausbauer.cc:457, simtool.cc:1600) silently agreed on a single
+	// wrong slot.  These forms are now fatal — every residual call
+	// site is a crash so we get a ground-truth list of what still
+	// reads/writes via grid point.  See TODO.md's "Tile reference
+	// height readers" cluster.  New callers must use the
+	// `(koord tile, hex_corner_t::type c)` overloads below.
 
 	/**
 	 * @return Height at the grid point x,y - versions without checks for speed
 	 */
-	inline sint8 lookup_hgt_nocheck(sint16 x, sint16 y) const {
-		return grid_hgts[(x + y*(uint32)(cached_grid_size.x+1)) * 2u];
-	}
-
-	inline sint8 lookup_hgt_nocheck(koord k) const { return lookup_hgt_nocheck(k.x, k.y); }
+	sint8 lookup_hgt_nocheck(sint16 x, sint16 y) const;
+	sint8 lookup_hgt_nocheck(koord k) const;
 
 	/**
 	 * @return Height at the grid point x,y
 	 */
-	inline sint8 lookup_hgt(sint16 x, sint16 y) const {
-		return is_within_grid_limits(x, y) ? grid_hgts[(x + y*(uint32)(cached_grid_size.x+1)) * 2u] : groundwater;
-	}
-
-	inline sint8 lookup_hgt(koord k) const { return lookup_hgt(k.x, k.y); }
+	sint8 lookup_hgt(sint16 x, sint16 y) const;
+	sint8 lookup_hgt(koord k) const;
 
 	/**
 	 * Sets grid height.
 	 * Never set grid_hgts manually, always use this method!
 	 */
-	void set_grid_hgt_nocheck(sint16 x, sint16 y, sint8 hgt) { grid_hgts[(x + y*(uint32)(cached_grid_size.x+1)) * 2u] = hgt; }
+	void set_grid_hgt_nocheck(sint16 x, sint16 y, sint8 hgt);
+	void set_grid_hgt_nocheck(koord k, sint8 hgt);
 
-	inline void set_grid_hgt_nocheck(koord k, sint8 hgt) { set_grid_hgt_nocheck(k.x, k.y, hgt); }
+	// HEX-PORT: narrow escape hatch for callers the fatal shim above
+	// would catch but that genuinely cannot port yet.  Two clusters use
+	// it today — the rdwr round-trippers (`grund.cc`, `simplan.cc`) which
+	// are bubble-consistent by construction and retire with the
+	// save-format bump, and the `[8][4]` boundary fallback in
+	// `surface_t::get_neighbour_heights` which retires with the
+	// `recalc_natural_slope` hex port.  Slot semantics are identical to
+	// the old shim (E canonical corner of tile `(x-1, y-1)`); the slot
+	// is geometrically wrong under hex but consistent between paired
+	// reader/writer sites.  Do not add new callers — see TODO.md.
+	inline sint8 legacy_grid_hgt(koord k) const {
+		return is_within_grid_limits(k.x, k.y)
+			? grid_hgts[(k.x + k.y*(uint32)(cached_grid_size.x+1)) * 2u]
+			: groundwater;
+	}
+
+	inline void legacy_set_grid_hgt_nocheck(koord k, sint8 hgt) {
+		grid_hgts[(k.x + k.y*(uint32)(cached_grid_size.x+1)) * 2u] = hgt;
+	}
 
 	// HEX-PORT: hex-aware per-vertex reader/writer.  Reads/writes the
 	// height at world vertex `(tile, corner)` via its canonical slot

@@ -222,7 +222,11 @@ void player_t::display_messages()
 
 	for(income_message_t* const m : messages) {
 
-		const scr_coord scr_pos = vp->get_screen_coord(koord3d(m->pos,welt->lookup_hgt(m->pos)),koord(0,m->alter >> 4)) + scr_coord((gfx->get_tile_raster_width()-gfx->calc_text_width_n(m->str, 0x7FFF))/2,0);
+		// HEX-PORT: min_hgt anchors the floating message at the tile's
+		// lowest corner, replacing the old shim's NW-corner-via-grid
+		// read.  Visually consistent with placing the text on the
+		// ground rather than above it.
+		const scr_coord scr_pos = vp->get_screen_coord(koord3d(m->pos,welt->min_hgt(m->pos)),koord(0,m->alter >> 4)) + scr_coord((gfx->get_tile_raster_width()-gfx->calc_text_width_n(m->str, 0x7FFF))/2,0);
 
 		gfx->draw_text_shadowed( scr_pos.x, scr_pos.y, PLAYER_FLAG|gfx->palette_lookup(player_color_1+3), gfx->palette_lookup(COL_BLACK), m->str, true);
 		if(  m->pos.x < 3  ||  m->pos.y < 3  ) {
