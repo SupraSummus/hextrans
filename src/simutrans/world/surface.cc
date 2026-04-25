@@ -8,12 +8,63 @@
 #include "simworld.h"
 #include "terraformer.h"
 
+#include "../simdebug.h"
 #include "../descriptor/ground_desc.h"
 #include "../ground/grund.h"
 #include "../player/simplay.h"
 
+#if __has_include(<sanitizer/common_interface_defs.h>)
+#  include <sanitizer/common_interface_defs.h>
+#  define HEX_PORT_PRINT_STACK() __sanitizer_print_stack_trace()
+#else
+#  define HEX_PORT_PRINT_STACK() ((void)0)
+#endif
+
 
 #define array_koord(px,py) (px + py * get_size().x)
+
+
+// HEX-PORT: the legacy grid-point `(x, y)` height accessors are fatal
+// during the port.  Every caller must migrate to the `(koord tile,
+// hex_corner_t::type c)` overloads in surface.h.  The `koord` forms
+// forward to their `(x, y)` siblings so one stack frame gives us the
+// full site identity.  HEX_PORT_PRINT_STACK runs first because
+// dbg->fatal calls abort() which ASAN does not backtrace.
+sint8 surface_t::lookup_hgt_nocheck(sint16 x, sint16 y) const
+{
+	HEX_PORT_PRINT_STACK();
+	dbg->fatal("surface_t::lookup_hgt_nocheck(x,y)",
+		"legacy grid-point reader at (%d,%d) — port to the (tile, hex_corner_t) overload", x, y);
+}
+
+sint8 surface_t::lookup_hgt_nocheck(koord k) const
+{
+	return lookup_hgt_nocheck(k.x, k.y);
+}
+
+sint8 surface_t::lookup_hgt(sint16 x, sint16 y) const
+{
+	HEX_PORT_PRINT_STACK();
+	dbg->fatal("surface_t::lookup_hgt(x,y)",
+		"legacy grid-point reader at (%d,%d) — port to the (tile, hex_corner_t) overload", x, y);
+}
+
+sint8 surface_t::lookup_hgt(koord k) const
+{
+	return lookup_hgt(k.x, k.y);
+}
+
+void surface_t::set_grid_hgt_nocheck(sint16 x, sint16 y, sint8 hgt)
+{
+	HEX_PORT_PRINT_STACK();
+	dbg->fatal("surface_t::set_grid_hgt_nocheck(x,y)",
+		"legacy grid-point writer at (%d,%d) hgt=%d — port to the (tile, hex_corner_t) overload", x, y, hgt);
+}
+
+void surface_t::set_grid_hgt_nocheck(koord k, sint8 hgt)
+{
+	set_grid_hgt_nocheck(k.x, k.y, hgt);
+}
 
 
 static sint8 median( sint8 a, sint8 b, sint8 c )
@@ -229,49 +280,49 @@ void surface_t::get_neighbour_heights(const koord k, sint8 neighbour_height[8][4
 			switch(i) {
 				case 0: // nw
 					neighbour_height[i][0] = groundwater;
-					neighbour_height[i][1] = max( lookup_hgt( k+koord(0,0) ), get_water_hgt( k ) );
+					neighbour_height[i][1] = max( legacy_grid_hgt( k+koord(0,0) ), get_water_hgt( k ) );
 					neighbour_height[i][2] = groundwater;
 					neighbour_height[i][3] = groundwater;
 				break;
 				case 1: // w
 					neighbour_height[i][0] = groundwater;
-					neighbour_height[i][1] = max( lookup_hgt( k+koord(0,1) ), get_water_hgt( k ) );
-					neighbour_height[i][2] = max( lookup_hgt( k+koord(0,0) ), get_water_hgt( k ) );
+					neighbour_height[i][1] = max( legacy_grid_hgt( k+koord(0,1) ), get_water_hgt( k ) );
+					neighbour_height[i][2] = max( legacy_grid_hgt( k+koord(0,0) ), get_water_hgt( k ) );
 					neighbour_height[i][3] = groundwater;
 				break;
 				case 2: // sw
 					neighbour_height[i][0] = groundwater;
 					neighbour_height[i][1] = groundwater;
-					neighbour_height[i][2] = max( lookup_hgt( k+koord(0,1) ), get_water_hgt( k ) );
+					neighbour_height[i][2] = max( legacy_grid_hgt( k+koord(0,1) ), get_water_hgt( k ) );
 					neighbour_height[i][3] = groundwater;
 				break;
 				case 3: // s
 					neighbour_height[i][0] = groundwater;
 					neighbour_height[i][1] = groundwater;
-					neighbour_height[i][2] = max( lookup_hgt( k+koord(1,1) ), get_water_hgt( k ) );
-					neighbour_height[i][3] = max( lookup_hgt( k+koord(0,1) ), get_water_hgt( k ) );
+					neighbour_height[i][2] = max( legacy_grid_hgt( k+koord(1,1) ), get_water_hgt( k ) );
+					neighbour_height[i][3] = max( legacy_grid_hgt( k+koord(0,1) ), get_water_hgt( k ) );
 				break;
 				case 4: // se
 					neighbour_height[i][0] = groundwater;
 					neighbour_height[i][1] = groundwater;
 					neighbour_height[i][2] = groundwater;
-					neighbour_height[i][3] = max( lookup_hgt( k+koord(1,1) ), get_water_hgt( k ) );
+					neighbour_height[i][3] = max( legacy_grid_hgt( k+koord(1,1) ), get_water_hgt( k ) );
 				break;
 				case 5: // e
-					neighbour_height[i][0] = max( lookup_hgt( k+koord(1,1) ), get_water_hgt( k ) );
+					neighbour_height[i][0] = max( legacy_grid_hgt( k+koord(1,1) ), get_water_hgt( k ) );
 					neighbour_height[i][1] = groundwater;
 					neighbour_height[i][2] = groundwater;
-					neighbour_height[i][3] = max( lookup_hgt( k+koord(1,0) ), get_water_hgt( k ) );
+					neighbour_height[i][3] = max( legacy_grid_hgt( k+koord(1,0) ), get_water_hgt( k ) );
 				break;
 				case 6: // ne
-					neighbour_height[i][0] = max( lookup_hgt( k+koord(1,0) ), get_water_hgt( k ) );
+					neighbour_height[i][0] = max( legacy_grid_hgt( k+koord(1,0) ), get_water_hgt( k ) );
 					neighbour_height[i][1] = groundwater;
 					neighbour_height[i][2] = groundwater;
 					neighbour_height[i][3] = groundwater;
 				break;
 				case 7: // n
-					neighbour_height[i][0] = max( lookup_hgt( k+koord(0,0) ), get_water_hgt( k ) );
-					neighbour_height[i][1] = max( lookup_hgt( k+koord(1,0) ), get_water_hgt( k ) );
+					neighbour_height[i][0] = max( legacy_grid_hgt( k+koord(0,0) ), get_water_hgt( k ) );
+					neighbour_height[i][1] = max( legacy_grid_hgt( k+koord(1,0) ), get_water_hgt( k ) );
 					neighbour_height[i][2] = groundwater;
 					neighbour_height[i][3] = groundwater;
 				break;

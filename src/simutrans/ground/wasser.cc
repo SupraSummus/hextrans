@@ -65,7 +65,11 @@ void wasser_t::calc_image_internal(const bool calc_only_snowline_change)
 		koord pos2d( get_pos().get_2d() );
 		sint8 height = welt->get_water_hgt( pos2d );\
 
-		sint8 zpos = min( welt->lookup_hgt( pos2d ), height ); // otherwise slope will fail ...
+		// HEX-PORT: min_hgt is the tile's lowest hex corner — the height
+		// at which water actually sits without exceeding any ground
+		// corner.  Replaces the old shim's "NW corner via grid-point"
+		// read; under hex the NW corner alone wasn't a meaningful answer.
+		sint8 zpos = min( welt->min_hgt( pos2d ), height ); // otherwise slope will fail ...
 
 		if(  grund_t::underground_mode == grund_t::ugm_level  &&  grund_t::underground_level < zpos  ) {
 			set_image(IMG_EMPTY);

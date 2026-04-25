@@ -596,7 +596,10 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 			}
 		}
 		else {
-			if(  to->hat_weg(air_wt)  ||  welt->lookup_hgt( to_pos ) < welt->get_water_hgt( to_pos )  ||  !check_powerline( zv, to )  ||  (!to->ist_karten_boden()  &&  to->get_typ() != grund_t::monorailboden)  ||  to->get_typ() == grund_t::brueckenboden  ||  to->get_typ() == grund_t::tunnelboden  ) {
+			// HEX-PORT: min_hgt < water_hgt asks "is any corner below
+			// water level".  Replaces the old shim's NW-corner-via-grid
+			// read.
+			if(  to->hat_weg(air_wt)  ||  welt->min_hgt( to_pos ) < welt->get_water_hgt( to_pos )  ||  !check_powerline( zv, to )  ||  (!to->ist_karten_boden()  &&  to->get_typ() != grund_t::monorailboden)  ||  to->get_typ() == grund_t::brueckenboden  ||  to->get_typ() == grund_t::tunnelboden  ) {
 				// no suitable ground below!
 				return false;
 			}

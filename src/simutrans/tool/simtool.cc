@@ -1593,11 +1593,16 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 				}
 				// correct the grid height
 				if(  gr1->is_water()  ) {
-					sint8 grid_hgt = min( water_hgt, welt->lookup_hgt( k ) );
-					welt->set_grid_hgt_nocheck(k, grid_hgt );
+					// HEX-PORT: clamp the tile's NW corner to no higher
+					// than the water level.  min_hgt is the lowest hex
+					// corner — the natural "tile reference" for a water
+					// tile, which is flat at water_hgt so the min is
+					// always water_hgt.
+					sint8 grid_hgt = min( water_hgt, welt->min_hgt( k ) );
+					welt->set_grid_hgt_nocheck(k, hex_corner_t::NW, grid_hgt );
 				}
 				else {
-					welt->set_grid_hgt_nocheck(k, gr1->get_hoehe()+ corner_nw(gr1->get_grund_hang()) );
+					welt->set_grid_hgt_nocheck(k, hex_corner_t::NW, gr1->get_hoehe()+ corner_nw(gr1->get_grund_hang()) );
 				}
 				minimap_t::get_instance()->calc_map_pixel(k);
 
@@ -2077,12 +2082,17 @@ const char *tool_set_climate_t::do_work( player_t *player, const koord3d &start,
 				if(  cl != water_climate  ) {
 					bool ok = true;
 					if(  gr->is_water()  ) {
-						const sint8 hgt = welt->lookup_hgt(k);
+						// HEX-PORT: min_hgt is the tile's lowest hex corner =
+						// the water surface elevation for a fully-submerged
+						// tile.  Replaces the old shim's NW-corner-via-grid
+						// read.  Neighbour check is "neighbour's lowest
+						// corner is at or above the water surface".
+						const sint8 hgt = welt->min_hgt(k);
 						ok = welt->get_water_hgt(k) == hgt  &&  welt->is_plan_height_changeable( k.x, k.y );
 						for(  size_t i = 0 ;  i < lengthof(koord::neighbours) && ok ;  i++  ) {
 							koord k_neighbour(k + koord::neighbours[i]);
 							if(  welt->is_within_grid_limits(k_neighbour)  ) {
-								ok = welt->lookup_hgt(k_neighbour) >= hgt;
+								ok = welt->min_hgt(k_neighbour) >= hgt;
 							}
 						}
 						if(  ok  ) {

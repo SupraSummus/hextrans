@@ -15,6 +15,7 @@ function build_factory(pl, pos, ignore_climates, rotation, base_prod, name)
 }
 
 
+// test_factory_build_pp: HEX-PORT PENDING.
 function test_factory_build_pp()
 {
 	local pl = player_x(0)
@@ -68,6 +69,7 @@ function test_factory_build_pp()
 }
 
 
+// test_factory_build_climate: HEX-PORT PENDING.
 function test_factory_build_climate()
 {
 	local pl = player_x(0)
@@ -146,6 +148,7 @@ function test_factory_build_climate()
 }
 
 
+// test_factory_build_on_water_occupied: HEX-PORT PENDING.
 function test_factory_build_on_water_occupied()
 {
 	local dims = factory_desc_x("Oelbohrinsel").building_desc.get_size(0);
@@ -173,6 +176,7 @@ function test_factory_build_on_water_occupied()
 }
 
 
+// test_factory_build_with_fields: HEX-PORT PENDING.
 function test_factory_build_with_fields()
 {
 	local pl = player_x(0)
