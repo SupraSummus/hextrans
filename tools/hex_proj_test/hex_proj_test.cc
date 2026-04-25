@@ -105,16 +105,20 @@ static void test_round_trip()
 
 static void test_inverse_noise()
 {
-	// For every hex centre, perturb the screen coord by up to ±U/3
-	// pixels in each axis — well inside the hex's Voronoi cell, so the
-	// rounded hex must still be the same one.  U/3 ≈ 5px at W=64.
-	const sint32 noise = U / 3;
+	// For every hex centre, sweep the screen coord through the full
+	// Voronoi-cell inscribed disc and check the rounded hex is the same
+	// one.  On this lattice the closest neighbours are N and S at
+	// distance 2u, so the inscribed-circle radius is u — perturbations
+	// strictly inside ±u must round back to the centre.  Sample at every
+	// integer pixel; cheap (~1M points) and catches asymmetric rounding
+	// near cell edges that a 3×3 grid can miss.
+	const sint32 noise = U - 1;
 	for (sint16 q = -10; q <= 10; q++) {
 		for (sint16 r = -10; r <= 10; r++) {
 			const sint32 cx = hex_screen_dx(q, W);
 			const sint32 cy = hex_screen_dy(q, r, W);
-			for (sint32 dx = -noise; dx <= noise; dx += noise) {
-				for (sint32 dy = -noise; dy <= noise; dy += noise) {
+			for (sint32 dx = -noise; dx <= noise; dx++) {
+				for (sint32 dy = -noise; dy <= noise; dy++) {
 					double q_f, r_f;
 					hex_screen_to_fractional(cx + dx, cy + dy, W, q_f, r_f);
 					const koord got = hex_round_to_axial(q_f, r_f);
@@ -122,6 +126,56 @@ static void test_inverse_noise()
 						std::fprintf(stderr,
 							"noise (%d,%d) +(%d,%d): rounded to (%d,%d)\n",
 							q, r, dx, dy, got.x, got.y);
+						std::abort();
+					}
+				}
+			}
+		}
+	}
+}
+
+
+// ---- 4b. Inverse picks the screen-closest hex ------------------------------
+
+static void test_inverse_picks_screen_closest()
+{
+	// Mouse picking promises the hex closest to the click in screen
+	// pixels — but `hex_round_to_axial` picks closest in cube-axial
+	// space, which on a regular hex lattice equals screen distance and
+	// on this irregular (3u, 2u) lattice might not.  Sweep a dense grid
+	// of screen points and check the rounded hex matches the actual
+	// screen-closest hex centre by brute force.  Squared distance
+	// against a small candidate set keeps it cheap.
+	for (sint32 sx = -3 * U; sx <= 3 * U; sx++) {
+		for (sint32 sy = -2 * U; sy <= 2 * U; sy++) {
+			double q_f, r_f;
+			hex_screen_to_fractional(sx, sy, W, q_f, r_f);
+			const koord got = hex_round_to_axial(q_f, r_f);
+
+			// Brute-force scan a 5×5 axial window around `got` for any
+			// hex that is *strictly* closer in squared screen distance.
+			// Equidistant ties (cell-boundary clicks) are fine — mouse
+			// picking only promises the closest, not a particular tie
+			// break.  Window size: cube-rounding inside
+			// `hex_round_to_axial` always lands within 1 cube step of
+			// the screen-closest hex, and even a buggy refinement
+			// can't move `got` further than 1 more step away — so any
+			// closer candidate fits in axial Manhattan ≤ 2 from `got`.
+			const sint64 got_dx = hex_screen_dx(got.x, W) - sx;
+			const sint64 got_dy = hex_screen_dy(got.x, got.y, W) - sy;
+			const sint64 got_d2 = got_dx * got_dx + got_dy * got_dy;
+			for (sint16 dq = -2; dq <= 2; dq++) {
+				for (sint16 dr = -2; dr <= 2; dr++) {
+					const sint16 q = got.x + dq;
+					const sint16 r = got.y + dr;
+					const sint64 dx = hex_screen_dx(q, W) - sx;
+					const sint64 dy = hex_screen_dy(q, r, W) - sy;
+					const sint64 d2 = dx * dx + dy * dy;
+					if (d2 < got_d2) {
+						std::fprintf(stderr,
+							"screen-closest (%d,%d): rounded to (%d,%d) (d²=%lld) but (%d,%d) is closer (d²=%lld)\n",
+							sx, sy, got.x, got.y, (long long)got_d2,
+							q, r, (long long)d2);
 						std::abort();
 					}
 				}
@@ -170,6 +224,7 @@ int main()
 	test_forward_neighbours();
 	test_round_trip();
 	test_inverse_noise();
+	test_inverse_picks_screen_closest();
 	test_render_loop_bijection();
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;
