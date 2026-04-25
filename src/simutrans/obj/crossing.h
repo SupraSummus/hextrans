@@ -25,7 +25,10 @@ class crossing_t : public obj_no_info_t
 {
 protected:
 	image_id foreground_image, image;
-	uint8 ns;       // direction
+	// Hex axis along which the chain-walk merges adjacent crossings.
+	// One of `north` / `northwest` / `northeast` (the upper-half ribi
+	// of the axis, also a valid `koord::step` argument) or `none`.
+	ribi_t::ribi axis;
 	uint8 state;    // only needed for loading ...
 	crossing_logic_t *logic;
 	const crossing_desc_t *desc;
@@ -42,7 +45,7 @@ public:
 	waytype_t get_waytype() const OVERRIDE { return invalid_wt; }
 
 	crossing_t(loadsave_t *file);
-	crossing_t(player_t *player, koord3d pos, const crossing_desc_t *desc, uint8 ns = 0);
+	crossing_t(player_t *player, koord3d pos, const crossing_desc_t *desc, ribi_t::ribi axis = ribi_t::none);
 
 	/**
 	 * crossing logic is removed here
@@ -77,7 +80,7 @@ public:
 	// called from the logic directly
 	void state_changed();
 
-	uint8 get_dir() { return ns; }
+	ribi_t::ribi get_axis() const { return axis; }
 
 	void set_logic( crossing_logic_t *l ) { logic = l; }
 	crossing_logic_t *get_logic() { return logic; }

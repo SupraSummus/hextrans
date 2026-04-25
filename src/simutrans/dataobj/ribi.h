@@ -358,6 +358,26 @@ public:
 		return x != none && (x & ~ns) == 0;
 	}
 
+	/// Hex-axis identifier for a straight @p x: returns the upper-half
+	/// representative (`north`, `northwest`, or `northeast`) of the
+	/// axis the set bits lie on, or `none` if @p x is empty or
+	/// non-straight (a bend / multi-axis ribi).  Folds a 6-edge ribi
+	/// onto its 3-axis equivalence class — the natural replacement for
+	/// callers that historically used `is_straight_ns` to split a
+	/// 2-axis world (now 3 axes) and want a single value to walk along.
+	/// The returned ribi is also a valid `koord::step` argument for
+	/// the canonical "forward" direction along that axis.
+	static ribi straight_axis(ribi x) {
+		const ribi ns_axis   = (ribi)(north     | south);
+		const ribi nwse_axis = (ribi)(northwest | southeast);
+		const ribi nesw_axis = (ribi)(northeast | southwest);
+		if (x == none)              return none;
+		if ((x & ~ns_axis)   == 0)  return north;
+		if ((x & ~nwse_axis) == 0)  return northwest;
+		if ((x & ~nesw_axis) == 0)  return northeast;
+		return none;
+	}
+
 	/// Bend: exactly two bits set, NOT opposite (i.e. a real corner).
 	static bool is_bend(ribi x) { return is_twoway(x) && !is_straight(x); }
 
