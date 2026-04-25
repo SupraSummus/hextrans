@@ -185,12 +185,14 @@ static double int_noise(const sint32 x, const sint32 y)
 
 static float *map = 0;
 static sint32 map_w=0;
+static sint32 map_h=0;
 
 void init_perlin_map( sint32 w, sint32 h )
 {
 	map_w = w+2;
-	map = new float[map_w*(h+2)];
-	for(  sint32 y=0;  y<h+2;  y++ ) {
+	map_h = h+2;
+	map = new float[map_w*map_h];
+	for(  sint32 y=0;  y<map_h;  y++ ) {
 		for(  sint32 x=0;  x<map_w;  x++ ) {
 			map[x+(y*map_w)] = (float)int_noise( x-1, y-1 );
 		}
@@ -201,6 +203,7 @@ void init_perlin_map( sint32 w, sint32 h )
 void exit_perlin_map()
 {
 	map_w = 0;
+	map_h = 0;
 	delete [] map;
 	map = 0;
 }
@@ -210,8 +213,14 @@ void exit_perlin_map()
 
 static double smoothed_noise(const int x, const int y)
 {
-	/* this gives a very smooth world */
-	if(map) {
+	// Cache covers x in [-1, map_w-2], y in [-1, map_h-2]; smoothed_noise
+	// reads neighbours at (x±1, y±1) so the all-9-in-cache window is
+	// [0, map_w-3] x [0, map_h-3].  Hex vertex sampling overshoots both
+	// ends — q=-1 / r=-1 borders push integer index to -1, and the
+	// sqrt(3) y-scale plus the freq=32 perlin step pushes integer_Y up
+	// to ~1.3*(H+W/2), past the cache.  Fall through to the int_noise
+	// branch for those.
+	if(map  &&  x >= 0  &&  x <= map_w - 3  &&  y >= 0  &&  y <= map_h - 3) {
 		const double corners =
 			map_noise(x-1, y-1)+map_noise(x+1, y-1)+map_noise(x-1, y+1)+map_noise(x+1, y+1);
 

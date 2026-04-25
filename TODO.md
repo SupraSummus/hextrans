@@ -161,6 +161,17 @@ terrain is self-consistent across shared vertices — the three owners
 of any shared vertex all resolve to the same slot and get the same
 noise value by construction.
 
+`init_perlin_map` in `simrandom.cc` still sizes its `int_noise` cache
+to `(W+2) × (H+2)`, the old square-tile coordinate range.  Hex vertex
+sampling scales x by 1.5 and y by `sqrt(3) * (r + q/2)`, so at the max
+freq=32 perlin step the integer index reaches ~`0.75*W` on x and
+~`1.3*(H + W/2)` on y — well past `H-1` on the south-east half of the
+map.  `smoothed_noise` falls through to the uncached `int_noise` branch
+for those queries, so the result is correct but the cache is doing far
+less work than it could.  Resize once perlin sampling settles — pass
+the actual integer-index extents in, or compute them from `(W, H)` plus
+the hex scale factors at the call site.
+
 The two NW-corner-only writers (`hausbauer.cc:457` and
 `simtool.cc:1600/1597`) are now hex-aware via the
 `(koord, hex_corner_t::NW)` overload — building removal and the
