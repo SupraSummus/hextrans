@@ -22,6 +22,7 @@
 
 #include "simutrans/display/hex_proj.h"
 #include "simutrans/dataobj/koord.h"
+#include "simutrans/dataobj/ribi.h"
 
 
 // Use a representative raster width.  Must be a multiple of 4 so the
@@ -239,7 +240,65 @@ static void test_render_loop_strip_clipped()
 }
 
 
-// ---- 6. Render-loop iteration is a bijection -------------------------------
+// ---- 6. slope_t::project_to_square invariants ------------------------------
+
+static void test_slope_project_to_square_invariants()
+{
+	// Totality: every of the 729 hex slopes projects to a 4-corner
+	// subset (E and W flat) with each square corner at height 0 or 1.
+	for (slope_t::type s = 0; s < slope_t::max_slopes; s++) {
+		const slope_t::type p = slope_t::project_to_square(s);
+		assert(corner_e(p) == 0);
+		assert(corner_w(p) == 0);
+		assert(corner_se(p) <= 1);
+		assert(corner_ne(p) <= 1);
+		assert(corner_sw(p) <= 1);
+		assert(corner_nw(p) <= 1);
+	}
+}
+
+static void test_slope_project_to_square_identity_on_canonicals()
+{
+	// For every 4-corner-only single-height slope (E = W = 0,
+	// max_diff <= 1), the projection is the identity — square pakset
+	// art renders unchanged.
+	for (uint8 sw = 0; sw < 2; sw++)
+	for (uint8 se = 0; se < 2; se++)
+	for (uint8 ne = 0; ne < 2; ne++)
+	for (uint8 nw = 0; nw < 2; nw++) {
+		const slope_t::type s = encode_corners(sw, se, ne, nw);
+		assert(slope_t::project_to_square(s) == s);
+	}
+}
+
+static void test_slope_project_to_square_hex_edges()
+{
+	// The 4 hex-only single-edge slopes collapse pairwise: both
+	// east-side hex edges (NE-edge = E+NE, SE-edge = E+SE) project to
+	// the square "west" slope (NE+SE raised); both west-side hex edges
+	// (NW-edge = W+NW, SW-edge = W+SW) project to "east" (NW+SW).
+	const slope_t::type sq_west = slope_t::raised_NE + slope_t::raised_SE;
+	const slope_t::type sq_east = slope_t::raised_NW + slope_t::raised_SW;
+	assert(slope_t::project_to_square(slope_t::raised_E + slope_t::raised_NE) == sq_west);
+	assert(slope_t::project_to_square(slope_t::raised_E + slope_t::raised_SE) == sq_west);
+	assert(slope_t::project_to_square(slope_t::raised_W + slope_t::raised_NW) == sq_east);
+	assert(slope_t::project_to_square(slope_t::raised_W + slope_t::raised_SW) == sq_east);
+}
+
+static void test_slope_project_to_square_clamping()
+{
+	// Double-height slopes clamp to single height.
+	const slope_t::type sq_north_single = slope_t::raised_SE + slope_t::raised_SW;
+	assert(slope_t::project_to_square(2 * slope_t::north) == sq_north_single);
+	// all_up_one and all_up_two both saturate every square corner.
+	const slope_t::type sq_all_up = slope_t::raised_SW + slope_t::raised_SE
+	                              + slope_t::raised_NE + slope_t::raised_NW;
+	assert(slope_t::project_to_square(slope_t::all_up_one) == sq_all_up);
+	assert(slope_t::project_to_square(slope_t::all_up_two) == sq_all_up);
+}
+
+
+// ---- 7. Render-loop iteration is a bijection -------------------------------
 
 static void test_render_loop_bijection()
 {
@@ -280,6 +339,10 @@ int main()
 	test_inverse_noise();
 	test_inverse_picks_screen_closest();
 	test_render_loop_strip_clipped();
+	test_slope_project_to_square_invariants();
+	test_slope_project_to_square_identity_on_canonicals();
+	test_slope_project_to_square_hex_edges();
+	test_slope_project_to_square_clamping();
 	test_render_loop_bijection();
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;

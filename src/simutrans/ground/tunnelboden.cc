@@ -92,7 +92,7 @@ void tunnelboden_t::calc_image_internal(const bool calc_only_snowline_change)
 		// the vanished `slope >> 1` halving trick.  Under 6-corner
 		// base-3 we just use the single-height slope sprite slot.
 		const slope_t::type slope_this = get_disp_slope();
-		const uint8 imageid = ground_desc_t::slopetable(slope_this);
+		const uint8 imageid = ground_desc_t::project_to_square_sprite(slope_this);
 		set_image( skinverwaltung_t::tunnel_texture->get_image_id( imageid ) );
 	}
 }

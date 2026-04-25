@@ -308,31 +308,33 @@ static image_t* create_texture_from_tile(const image_t* image, const image_t* re
 karte_t *ground_desc_t::world = NULL;
 
 
-// Map a 6-corner slope to the pakset's 15 single-height square sprite
-// indices.  Only slopes whose E and W corners are flat (i.e. encode
-// square-like geometry) have a matching sprite; all others return
-// 0xFF.  Callers must handle the "no sprite" case.
+// 4-corner-canonical sprite-imgnr lookup: for each of the 14
+// distinct single-height 4-corner slopes plus flat, return the
+// pakset's 0..14 sprite index.  Anything else returns 0xFF — used
+// only by the sprite-generation loop below to filter out
+// non-canonicals.  Runtime callers go through
+// `project_to_square_sprite`, which projects every 6-corner slope
+// onto one of these canonicals first.
 //
-// all_up_two (all 6 corners at height 2 — the bridgehead / flat-top
-// sentinel) returns sprite 0 (the flat sprite), since it renders
-// visually as a flat tile at a raised altitude.  Old square code
-// skipped all_up_two in the sprite-generation loop (loop bound 79,
-// not 80) which coincidentally meant climate-sprite lookup for
-// all_up_two read past the end of the climate sprite block.  We fix
-// that by mapping it to the flat sprite explicitly.
-uint8 ground_desc_t::slopetable(slope_t::type slope)
+// `slope_t::all_up_two` is the bridgehead / flat-top sentinel; it
+// projects to "all 4 square corners up", which has no dedicated
+// sprite — we map it to the flat sprite (0) so it renders as a flat
+// tile at the raised altitude.  Old square code skipped all_up_two
+// entirely (sprite loop bound 79 not 80), which incidentally meant
+// climate-sprite lookup read past the end for that slope.
+static uint8 slopetable(slope_t::type slope)
 {
 	switch (slope) {
-		case 0:                                                               return 0;  // flat
-		case slope_t::all_up_two:                                             return 0;  // flat-top bridgehead
-		case slope_t::raised_SW:                                              return 1;  // SW
-		case slope_t::raised_SE:                                              return 2;  // SE
+		case slope_t::flat:                                                   return 0;
+		case slope_t::all_up_two:                                             return 0;
+		case slope_t::raised_SW:                                              return 1;
+		case slope_t::raised_SE:                                              return 2;
 		case slope_t::raised_SE + slope_t::raised_SW:                         return 3;  // slope_t::north
-		case slope_t::raised_NE:                                              return 4;  // NE
+		case slope_t::raised_NE:                                              return 4;
 		case slope_t::raised_NE + slope_t::raised_SW:                         return 5;  // NE+SW
 		case slope_t::raised_NE + slope_t::raised_SE:                         return 6;  // slope_t::west
-		case slope_t::raised_NE + slope_t::raised_SE + slope_t::raised_SW:    return 7;  // 3 south-ish
-		case slope_t::raised_NW:                                              return 8;  // NW
+		case slope_t::raised_NE + slope_t::raised_SE + slope_t::raised_SW:    return 7;
+		case slope_t::raised_NW:                                              return 8;
 		case slope_t::raised_NW + slope_t::raised_SW:                         return 9;  // slope_t::east
 		case slope_t::raised_NW + slope_t::raised_SE:                         return 10; // NW+SE
 		case slope_t::raised_NW + slope_t::raised_SE + slope_t::raised_SW:    return 11;
@@ -341,6 +343,19 @@ uint8 ground_desc_t::slopetable(slope_t::type slope)
 		case slope_t::raised_NW + slope_t::raised_NE + slope_t::raised_SE:    return 14;
 		default: return 0xFF;
 	}
+}
+
+
+// Project any 6-corner slope onto one of the pakset's 15 single-height
+// sprite indices.  `slope_t::project_to_square` does the lossy 6→4
+// math; the table maps the 4-corner result onto a sprite.  All 4
+// square corners raised has no dedicated sprite (reached by
+// all_up_one, all_up_two, and any hex slope that saturates the
+// projection) — render those as flat at the raised altitude.
+uint8 ground_desc_t::project_to_square_sprite(slope_t::type slope)
+{
+	const uint8 imgnr = slopetable(slope_t::project_to_square(slope));
+	return imgnr == 0xFF ? 0 : imgnr;
 }
 
 
@@ -951,6 +966,29 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 			else {
 				alpha_corners_image[dslope * 15 + corners - 1] = IMG_EMPTY;
 				alpha_water_image[dslope * 15 + corners - 1] = IMG_EMPTY;
+			}
+		}
+	}
+
+	// Back-fill hex-corner slopes: every slope still at 255 had no
+	// dedicated sprite generated above, but `project_to_square_sprite`
+	// gives it a square projection.  Point its `doubleslope_to_imgnr`
+	// slot at the imgnr of any already-allocated slope that projects
+	// the same way, so `get_climate_tile`/`get_water_tile`/`get_snow_tile`
+	// (and `get_ground_tile`) return a real sprite for hex slopes
+	// instead of reading past the end of the climate sprite block.
+	// Under double_grounds these slopes already got their own slots
+	// (no projection collapsing), so the loop is a no-op there —
+	// double_grounds + hex sprite generation is a separate problem.
+	for(  int slope = 1;  slope < totalslopes;  slope++  ) {
+		if(  doubleslope_to_imgnr[slope] != 255  ) {
+			continue;
+		}
+		const uint8 sq = project_to_square_sprite(slope);
+		for(  int prev = 0;  prev < totalslopes;  prev++  ) {
+			if(  doubleslope_to_imgnr[prev] != 255  &&  project_to_square_sprite(prev) == sq  ) {
+				doubleslope_to_imgnr[slope] = doubleslope_to_imgnr[prev];
+				break;
 			}
 		}
 	}

@@ -141,6 +141,29 @@ public:
 		            min( corner_nw(high) - corner_nw(low), corner_ne(high) - corner_ne(low) ) );
 	}
 
+	/// Project a 6-corner hex slope onto a 4-corner subset by absorbing
+	/// the 2 hex-only corners (E, W) into their adjacent square corners
+	/// (E → max with SE and NE, W → max with SW and NW), dropping E
+	/// and W, and clamping each square corner to height 1.  Result has
+	/// `corner_e == corner_w == 0` and `max_diff <= 1` always.
+	///
+	/// The square pakset has no sprite for hex corners or double-height
+	/// hex slopes; rendering uses this projection to pick the closest
+	/// legal square sprite.  Lossy on purpose — the 4 hex-only edge
+	/// slopes collapse pairwise (NE-edge and SE-edge → "west"; NW-edge
+	/// and SW-edge → "east"), and double-height hex slopes lose a
+	/// height step.  Centralised here so every consumer lands on the
+	/// same rule until real hex sprite art arrives.
+	static type project_to_square(type slope) {
+		const uint8 e  = corner_e(slope);
+		const uint8 w  = corner_w(slope);
+		const uint8 se = (uint8)min(1, max(corner_se(slope), e));
+		const uint8 ne = (uint8)min(1, max(corner_ne(slope), e));
+		const uint8 sw = (uint8)min(1, max(corner_sw(slope), w));
+		const uint8 nw = (uint8)min(1, max(corner_nw(slope), w));
+		return encode_corners(sw, se, ne, nw);
+	}
+
 	/// Edge slopes that host a way along one direction: 6 genuine hex
 	/// edges (2 adjacent corners raised) plus 2 legacy square-diagonal
 	/// slopes (east = NW+SW, west = NE+SE) — each at single and double
