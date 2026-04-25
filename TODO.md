@@ -442,11 +442,22 @@ bbox, slope corners, ribi edges, sprite tables, minimap).  Phase A
 with `tools/hex_proj_test/` as its standalone invariant suite.  The
 remaining renderer work splits into:
 
-**Phase B — per-tile detail.**  6-corner slope rendering
-(`grund_t::display_*`, currently 4-corner), 6-edge way / wall /
-ribi-keyed sprite tables (currently 4-edge with `rotate60` stubs),
-hex cursor outline (`zeiger_t`).  Phase B mutates *what* is drawn
-on each tile; phase A had picked *where* each tile sits.
+**Phase B — per-tile detail.**  Base ground sprites now project 6→4
+via `slope_t::project_to_square`, so every hex slope picks the
+closest legal square sprite (lossy on the 4 hex-only edge slopes).
+What's left: the climate / water / snow / beach corner-overlay walks
+in `grund_t::display_boden` are still 4-corner via the legacy
+`[8][4]` `get_neighbour_heights`; the alpha-overlay arrays
+(`alpha_image`, `alpha_corners_image`, `alpha_water_image`) are
+`IMG_EMPTY` for hex slopes — no snowline / climate / beach overlay
+visible on them, since alpha-tile generation runs before the
+`doubleslope_to_imgnr` back-fill in `init_ground_textures`; 6-edge
+way / wall / ribi-keyed sprite tables remain 4-edge with `rotate60`
+stubs; hex cursor outline (`zeiger_t`) is unchanged.  Under
+`double_grounds` (pak128) hex slopes also miss the base sprite — the
+textured-tile loop indexes `light_map` with the raw 6-corner value
+past its legacy 4-corner range; the back-fill that covers
+single-grounds (pak64) doesn't apply.
 
 **Phase C — flow-on.**  Minimap (`gui/minimap.cc`, square pixels
 per tile), per-step vehicle interpolation offsets

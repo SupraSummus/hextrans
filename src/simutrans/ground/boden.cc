@@ -134,11 +134,10 @@ void boden_t::calc_image_internal(const bool calc_only_snowline_change)
 	if(  weg  &&  weg->hat_gehweg()  ) {
 		// Single or double slope.  Under the 6-corner base-3 encoding
 		// the old `slope >> 1` halving trick (which assumed each base-3
-		// digit was either 0 or 2) is gone; for double-height slopes
-		// we just fall back to the single-height sprite via
-		// slopetable(slope) returning 0xFF — caller guards against
-		// that below.
-		const uint8 imageid = ground_desc_t::slopetable(slope_this);
+		// digit was either 0 or 2) is gone; for double-height and
+		// hex-corner slopes we project to the closest square
+		// single-height sprite via `project_to_square_sprite`.
+		const uint8 imageid = ground_desc_t::project_to_square_sprite(slope_this);
 
 		if(  (get_hoehe() >= welt->get_snowline()  ||  welt->get_climate(pos.get_2d()) == arctic_climate)  &&  skinverwaltung_t::fussweg->get_image_id(imageid + 1) != IMG_EMPTY  ) {
 			// snow images

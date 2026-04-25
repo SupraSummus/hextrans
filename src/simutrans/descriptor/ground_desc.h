@@ -49,14 +49,13 @@ public:
 
 	static bool double_grounds;
 
-	/// Map a slope value to the pakset's single-height sprite index
-	/// (0..14), or 0xFF if the slope has no single-height sprite.
-	/// Under the 6-corner base-3 encoding there are 729 possible slope
-	/// values but only the 15 single-height slopes whose E and W
-	/// corners are flat (i.e. square-like slopes) map to the pakset's
-	/// 15 single-height sprites.  Hex-corner slopes return 0xFF
-	/// (caller must handle no-sprite case).
-	static uint8 slopetable(slope_t::type slope);
+	/// Project any 6-corner slope onto one of the 15 single-height
+	/// pakset sprites.  Always returns a valid 0..14 — the lossy
+	/// projection absorbs the 2 hex-only corners (E, W) into their
+	/// adjacent square corners, drops them, and clamps to single
+	/// height.  Centralises the 6→4 sprite lookup until real hex art
+	/// lands.
+	static uint8 project_to_square_sprite(slope_t::type slope);
 
 	// returns the pointer to an image structure
 	const image_t *get_image_ptr(uint16 typ, uint16 stage=0) const
@@ -98,7 +97,7 @@ public:
 
 	static image_id get_marker_image(slope_t::type slope_in, bool background)
 	{
-		uint8 slope = double_grounds ? slope_in : slopetable(slope_in);
+		uint8 slope = double_grounds ? slope_in : project_to_square_sprite(slope_in);
 		uint8 index = background ? (double_grounds ? (slope % 3) + 3 * ((uint8)(slope / 9)) + 27
 		                                           : ((slope & 1) + ((slope >> 1) & 6) + 8))
 		                         : (double_grounds ?  slope % 27
@@ -108,7 +107,7 @@ public:
 
 	static image_id get_border_image(slope_t::type slope_in)
 	{
-		uint8 slope = double_grounds ? slope_in : slopetable(slope_in);
+		uint8 slope = double_grounds ? slope_in : project_to_square_sprite(slope_in);
 		uint8 index = double_grounds ? (slope % 3) + 3 * ((uint8)(slope / 9)) : (slope & 1) + ((slope >> 1) & 6);
 		return borders->get_image(index);
 	}
