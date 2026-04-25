@@ -84,23 +84,6 @@ static void write_owner_at(player_t* pl, cbuffer_t& buf, const koord3d pos, cons
 }
 
 
-static void write_city_at(player_t* pl, cbuffer_t& buf, const koord3d pos, const koord3d origin)
-{
-	if (pl->is_public_service()) {
-		if (const grund_t* gr = world()->lookup(pos)) {
-			if (const gebaeude_t* gb = gr->find<gebaeude_t>()) {
-				if (gb->get_tile()->get_offset() == koord(0, 0)) {
-					if (gb->is_townhall()) {
-						koord3d diff = pos - origin;
-						buf.printf("\thm_city_set_population_tl(%ld,[%d,%d,%d])\n", gb->get_stadt()->get_finance_history_month(0, HIST_CITIZENS), diff.x, diff.y, diff.z);
-					}
-				}
-			}
-		}
-	}
-}
-
-
 static void write_townhall_at(player_t */*pl*/, cbuffer_t& buf, const koord3d pos, const koord3d origin)
 {
 	if (const grund_t* gr = world()->lookup(pos)) {
@@ -213,53 +196,6 @@ static void write_sign_at(player_t* , cbuffer_t& buf, const koord3d pos, const k
 		buf.printf("\thm_sign_tl(\"%s\",%d,[%d,%d,%d],%d,%u)\n", sign->get_desc()->get_name(), cnt, diff.x, diff.y, diff.z,
 			sign->get_desc()->get_waytype(),
 			sign->get_desc()->is_traffic_light() ? 512 : sign->get_desc()->get_flags());
-	}
-}
-
-
-static void write_slope_at(player_t* pl, cbuffer_t& buf, const koord3d pos, const koord3d origin)
-{
-	const grund_t* gr = world()->lookup(pos);
-	if (!gr  ||  gr->is_water()  ||  !gr->ist_karten_boden()) {
-		return;
-	}
-	if(!pl->is_public_service()) {
-		// only save used tiles unless public service
-		if (gr->ist_natur()  &&  gr->get_typ()==grund_t::boden) {
-			// do not touch unless its supports an elevated way
-			if (grund_t* el = world()->lookup(pos + koord3d(0, 0, world()->get_settings().get_way_height_clearance()))) {
-				if (el->get_typ() != grund_t::monorailboden) {
-					return;
-				}
-			}
-			else {
-				return;
-			}
-		}
-		if (origin.z > pos.z  &&  (gr->obj_count()==0  ||  gr->obj_bei(0)->get_owner() != pl)) {
-			// do not save tiles below the start unless is mine
-			return;
-		}
-	}
-
-	const koord3d pb = pos - origin;
-	sint8 diff = pb.z;
-	while (diff != 0) {
-		if (diff > 0) {
-			// raise the land
-			buf.printf("\thm_slope_tl(hm_slope.UP,[%d,%d,%d])\n", pb.x, pb.y, pb.z - diff);
-			diff -= 1;
-		}
-		else {
-			// lower the land
-			buf.printf("\thm_slope_tl(hm_slope.DOWN,[%d,%d,%d])\n", pb.x, pb.y, pb.z - diff);
-			diff += 1;
-		}
-	}
-	// check slopes
-	const slope_t::type slp = gr->get_grund_hang();
-	if (slp > 0) {
-		buf.printf("\thm_slope_tl(%d,[%d,%d,%d])\n", slp, pb.x, pb.y, pb.z);
 	}
 }
 
@@ -641,7 +577,6 @@ char const* tool_generate_script_t::do_work(player_t* pl, const koord3d& s, cons
 	write_command(pl, generated_script_buf, write_house_at, k1, k2, begin);
 	if (pl->is_public_service()) {
 		write_command(pl, generated_script_buf, write_owner_at, k1, k2, begin);
-//		write_command(pl, generated_script_buf, write_city_at, k1, k2, begin);
 	}
 
 	if (cmdlen == generated_script_buf.len()) {
