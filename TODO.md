@@ -442,21 +442,30 @@ bbox, slope corners, ribi edges, sprite tables, minimap).  Phase A
 with `tools/hex_proj_test/` as its standalone invariant suite.  The
 remaining renderer work splits into:
 
-**Phase B — per-tile detail.**  Base ground sprites now project 6→4
-via `slope_t::project_to_square`, so every hex slope picks the
-closest legal square sprite (lossy on the 4 hex-only edge slopes).
+**Phase B — per-tile detail.**  Base ground sprites now go through
+`synth_overlay::get_ground` first — algorithmic hex-shaped tiles
+per (slope, climate), full 6-corner fidelity, so the 4 hex-only
+edge slopes are visually distinguishable instead of collapsing
+pairwise onto the legacy `east` / `west` square sprites.  The
+pakset path (square sprites projected via `slope_t::project_to_square`,
+flattened through `doubleslope_to_imgnr`) is the fallback when synth
+isn't initialised or when `synth_overlay::prefer_over_pakset` flips.
 What's left: the climate / water / snow / beach corner-overlay walks
 in `grund_t::display_boden` are still 4-corner via the legacy
 `[8][4]` `get_neighbour_heights`; the alpha-overlay arrays
 (`alpha_image`, `alpha_corners_image`, `alpha_water_image`) are
 `IMG_EMPTY` for hex slopes — no snowline / climate / beach overlay
 visible on them, since alpha-tile generation runs before the
-`doubleslope_to_imgnr` back-fill in `init_ground_textures`; 6-edge
-way / wall / ribi-keyed sprite tables remain 4-edge with `rotate60`
-stubs.  Under `double_grounds` (pak128) hex slopes also miss the
-base sprite — the textured-tile loop indexes `light_map` with the
-raw 6-corner value past its legacy 4-corner range; the back-fill
-that covers single-grounds (pak64) doesn't apply.
+`doubleslope_to_imgnr` back-fill in `init_ground_textures`.  Water
+tiles (`get_water_tile`, deep water + on-slope) still go through
+the pakset path — they need animation stages we don't synthesise
+yet; extend `synth_overlay` with a per-stage water family when the
+animation is in scope.  6-edge way / wall / ribi-keyed sprite tables
+remain 4-edge with `rotate60` stubs.  Under `double_grounds` (pak128)
+hex slopes also miss the pakset fallback for non-synth queries —
+the textured-tile loop indexes `light_map` with the raw 6-corner
+value past its legacy 4-corner range; the back-fill that covers
+single-grounds (pak64) doesn't apply.
 
 **Overlay sprites — extend synth backfill.**  The toggleable grid
 overlay (`get_border_image`) still picks pakset art via
@@ -517,13 +526,17 @@ already overlay on the right footprint because the lattice was
 picked to keep the W × W/2 bounding box (see "Sprite raster
 choice" above) — ground textures, single-tile buildings, station
 sprites land on roughly correct pixels with adjacency artefacts
-where neighbouring diamonds overlap.  *Cheap and probably worth
-doing*: a flat-top hex alpha mask applied at ground-sprite blit
-(one mask per `IMG_SIZE`, vertices at `(0, W/4)`, `(W/4, 0)`,
-`(3W/4, 0)`, `(W, W/4)`, `(3W/4, W/2)`, `(W/4, W/2)`) trims the
-diamond-corner overlap to a clean hex boundary; the mask survives
-a real pakset arrival if the boundary matches the new art's
-extent.  *Rough but functional*: the 3rd hex axis (NE-SW) has no
+where neighbouring diamonds overlap.  *Already landed*: the
+`synth_overlay` algorithmic-pakset path replaces base ground tiles
+entirely with hex-shaped per-climate sprites carrying Lambertian-
+shaded slope faces; the diamond overlap goes away and the 4
+hex-only edge slopes become visually distinct.  An alternative
+that wasn't taken — a flat-top hex alpha mask applied at the blit
+(vertices at `(0, W/4)`, `(W/4, 0)`, `(3W/4, 0)`, `(W, W/4)`,
+`(3W/4, W/2)`, `(W/4, W/2)`) — would have kept pakset texture
+fidelity at the cost of still collapsing 6→4 slopes; revisit if
+the synth flat-colour palette reads as cartoonish next to richer
+pakset textures elsewhere on screen.  *Rough but functional*: the 3rd hex axis (NE-SW) has no
 square-pakset equivalent — way sprites, powerline crossings, and
 several other tile decorations are missing 1/3 of the directions
 outright.  60° pixel-art rotation of the N-S sprites is the
@@ -538,11 +551,11 @@ and shading; the realistic plan is `get_dir()` projecting 6 hex
 edges onto whichever 4-slot table the current sprite has, accepting
 visibly wrong direction in roughly 1/3 of cases.  Recommended
 order if a "playable but visibly stubby" demo is wanted before
-real art lands: hex-mask trim first (sticks around through pakset
-replacement), then `get_dir()` 6→4 projection for vehicles (has to
-land anyway).  Skip the 60° way-bend rotations — that's where the
-cost-quality curve gets bad and where pakset replacement most
-likely lands first, so the transform code becomes pure dead weight.
+real art lands: synth ground tiles already there, so next is
+`get_dir()` 6→4 projection for vehicles (has to land anyway).
+Skip the 60° way-bend rotations — that's where the cost-quality
+curve gets bad and where pakset replacement most likely lands
+first, so the transform code becomes pure dead weight.
 
 **Out of scope.**  Real hex pakset art (see "Square-art-as-placeholder"
 above for the placeholder roadmap).  Map rotation (currently fatal,
