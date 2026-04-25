@@ -67,11 +67,17 @@ inline void hex_screen_to_fractional(sint32 sx, sint32 sy, sint16 W,
 }
 
 
-/// Cube-round a fractional axial `(q_f, r_f)` to the nearest hex.
-/// Standard hex-grid recipe: convert to fractional cube, round each
-/// component, fix the rounding error by zeroing the component with
-/// the largest absolute delta.  Returns axial in a `koord` (`.x = q`,
-/// `.y = r` — matching `koord`'s axial port convention).
+/// Round a fractional axial `(q_f, r_f)` to the screen-closest hex.
+/// Two-stage: an initial cube-round to land within one cube step of
+/// the answer, then a 7-hex screen-distance refinement (rounded hex
+/// + its 6 neighbours).  The refinement is mandatory — this lattice
+/// is irregular (column step 3u vs row step 2u, see file header), so
+/// the cube-Voronoi cell and the screen-Voronoi cell don't match;
+/// near cell boundaries the cube round can pick a hex that is
+/// strictly farther in screen pixels than its neighbour.  The
+/// screen-closest answer always lies within 1 cube step of the cube
+/// round, so the 7-hex window is exact.  Returns axial in a `koord`
+/// (`.x = q`, `.y = r`).
 inline koord hex_round_to_axial(double q_f, double r_f)
 {
 	const double x = q_f, z = r_f, y = -x - z;
@@ -90,7 +96,30 @@ inline koord hex_round_to_axial(double q_f, double r_f)
 	else {
 		rz = -rx - ry;
 	}
-	return koord((sint16)rx, (sint16)rz);
+
+	// Refinement: scan the 7-hex window (cube-round + 6 neighbours)
+	// and keep the screen-closest.  Squared screen distance from
+	// fractional `(q_f, r_f)` to integer `(q, r)` in u² units is
+	// `(3·dq)² + (dq + 2·dr)²` (= `hex_screen_dx/dy` with u = 1).
+	// The 7 offsets are `koord::neighbours[]` (SE, S, SW, NW, N, NE)
+	// preceded by (0, 0) for the centre — duplicated locally because
+	// hex_proj.h ships with a standalone test that doesn't link
+	// `koord.cc`.
+	static const sint8 dq_window[7] = {  0,  1,  0, -1, -1,  0,  1 };
+	static const sint8 dr_window[7] = {  0,  0,  1,  1,  0, -1, -1 };
+	double best_q = rx, best_r = rz, best_d2 = HUGE_VAL;
+	for (int i = 0; i < 7; i++) {
+		const double cq = rx + dq_window[i];
+		const double cr = rz + dr_window[i];
+		const double dq = cq - q_f, dr = cr - r_f;
+		const double d2 = (3.0 * dq) * (3.0 * dq) + (dq + 2.0 * dr) * (dq + 2.0 * dr);
+		if (d2 < best_d2) {
+			best_d2 = d2;
+			best_q = cq;
+			best_r = cr;
+		}
+	}
+	return koord((sint16)best_q, (sint16)best_r);
 }
 
 

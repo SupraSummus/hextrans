@@ -478,15 +478,13 @@ Revisit when sprite art enters scope.
 
 **Phase A verification gaps.**  No pakset → no visual confirmation
 in this env; `tools/hex_proj_test/` covers the projection math but
-not the rendered result.  Specific suspects to eyeball when a
-pakset is available: mouse-picking accuracy across the hex's
-Voronoi cell (the test exercises only ±U/3 noise), edge-of-screen
-tile coverage (render-loop x-start is conservative `-6 + y_phase`
-and ignores `lt.x` — wastes iterations on multithread strips, may
-miss tiles at unusual aspect ratios), and the no-parity centring
-(square renderer had a `disp_w/IMG_SIZE & 1` half-row nudge; for
-hex the natural parity is `disp_w/(3·IMG_SIZE/4) & 1`, currently
-not applied at all).
+not the rendered result.  Two suspects still to eyeball when a
+pakset is available: edge-of-screen tile coverage (render-loop
+x-start is conservative `-6 + y_phase` and ignores `lt.x` — wastes
+iterations on multithread strips, may miss tiles at unusual aspect
+ratios), and the no-parity centring (square renderer had a
+`disp_w/IMG_SIZE & 1` half-row nudge; for hex the natural parity
+is `disp_w/(3·IMG_SIZE/4) & 1`, currently not applied at all).
 
 **Out of scope.**  Sprite art / pakset regeneration.  Map rotation
 (currently fatal, gated as unreachable) — orthogonal to the
