@@ -453,11 +453,24 @@ in `grund_t::display_boden` are still 4-corner via the legacy
 visible on them, since alpha-tile generation runs before the
 `doubleslope_to_imgnr` back-fill in `init_ground_textures`; 6-edge
 way / wall / ribi-keyed sprite tables remain 4-edge with `rotate60`
-stubs; hex cursor outline (`zeiger_t`) is unchanged.  Under
-`double_grounds` (pak128) hex slopes also miss the base sprite — the
-textured-tile loop indexes `light_map` with the raw 6-corner value
-past its legacy 4-corner range; the back-fill that covers
-single-grounds (pak64) doesn't apply.
+stubs.  Under `double_grounds` (pak128) hex slopes also miss the
+base sprite — the textured-tile loop indexes `light_map` with the
+raw 6-corner value past its legacy 4-corner range; the back-fill
+that covers single-grounds (pak64) doesn't apply.
+
+**Overlay sprites — extend synth backfill.**  The toggleable grid
+overlay (`get_border_image`) still picks pakset art via
+`project_to_square_sprite`, so the grid lines disagree with hex
+tile geometry the same way the cursor used to.  Same recipe
+applies: extend `synth_overlay` (`descriptor/synth_overlay.{h,cc}`)
+with a `get_border` analogue and consult it from `get_border_image`
+ahead of the pakset path.  Probably wants per-vertex height storage
+to land first so two adjacent border overlays share the same z at
+their common vertex — without that, the grid lines visibly disagree
+on shared corners under terraforming.  When it lands, also wire
+`synth_overlay::prefer_over_pakset` to `env_t` / `simuconf.tab`
+so the synth/pakset precedence is toggleable per game rather than
+debugger-only.
 
 **Phase C — flow-on.**  Minimap (`gui/minimap.cc`, square pixels
 per tile), per-step vehicle interpolation offsets

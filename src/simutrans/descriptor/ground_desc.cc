@@ -11,6 +11,7 @@
 #include "../simconst.h"
 #include "spezial_obj_tpl.h"
 #include "ground_desc.h"
+#include "synth_overlay.h"
 #include "../dataobj/environment.h"
 
 // Number of possible slope values under the 6-corner base-3 encoding.
@@ -1000,6 +1001,13 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		delete all_rotations_beach[slope];
 	}
 #endif
+
+	// Algorithmic overlay sprites — hex-shaped cursor markers, synthesised
+	// in code rather than read from the pakset.  Registered above
+	// `image_offset` so they're freed alongside the runtime ground
+	// textures on the next world (re)load.
+	synth_overlay::init();
+
 	//dbg->message("ground_desc_t::calc_water_level()", "Last image nr %u", final_tile->get_pic()->imageid);
 	DBG_DEBUG("ground_desc_t::init_ground_textures()", "Init ground textures successful");
 }

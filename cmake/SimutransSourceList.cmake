@@ -36,6 +36,7 @@ target_sources(simutrans PRIVATE
 		src/simutrans/descriptor/goods_desc.cc
 		src/simutrans/descriptor/ground_desc.cc
 		src/simutrans/descriptor/image.cc
+		src/simutrans/descriptor/synth_overlay.cc
 		src/simutrans/descriptor/obj_base_desc.cc
 		src/simutrans/descriptor/reader/bridge_reader.cc
 		src/simutrans/descriptor/reader/building_reader.cc
