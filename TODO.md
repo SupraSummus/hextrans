@@ -263,6 +263,30 @@ regardless of wind direction.  Both quirks land together in a
 hex-aware rewrite of the climate generator; tied to the
 "Square-grid terrain-mutation cascade tests" cluster above.
 
+## Map storage shape — open architectural choice
+
+Tiles are stored as a `W × H` rhombus in axial `(q, r)`, indexed
+`plan[q + r*W]`.  Under the flat-top hex projection that rhombus
+becomes a strongly-skewed parallelogram in world space — y-extent
+~2.6× x-extent at `W = H`, NE / SW corners far apart,
+look-around-from-centre asymmetric.  A regular hex region — all
+tiles with axial distance ≤ d from the centre, `3d² + 3d + 1` tiles
+— would be spatially compact, give roughly equal sightlines in
+every direction, and reduce the world-create UI to a single radius.
+
+Not in flight, flagged so it doesn't get closed off by side-effect.
+It touches every `plan[q + r*W]` indexing site, every map-iteration
+loop, the save format (or leaves corner cells empty for round-trip
+compatibility), the world-create / `enlarge_map_frame` UI which
+currently asks for `(W, H)`, and the `init_perlin_map` cache-sizing
+follow-up under "Per-vertex height storage" — that cache wants the
+world-coord extent of whatever shape we pick.  The
+`koord_random` / `clip_min` / `clip_max` "rhombus in world space"
+caveat under "ribi_t — audit surfaces" is the same question viewed
+from a different direction.  Pick a direction before any of those
+adjacent items gets done in a way that bakes in rhombus
+assumptions.
+
 ## ribi_t — audit surfaces
 
 These are the shim / stub patterns spread across the caller port
