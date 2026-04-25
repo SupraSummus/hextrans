@@ -34,7 +34,7 @@ protected:
 	};
 
 	uint8 state:2; // counter for steps ...
-	uint8 dir:4;
+	uint8 dir:6; // 6-bit hex ribi mask (was :4 under square grid)
 
 	uint8 automatic:1;
 	uint8 preview:1;
