@@ -158,4 +158,44 @@ inline sint16 hex_render_x_step()
 }
 
 
+/// Strip-clipped variant of `hex_render_x_start`: smallest x (in W/4
+/// units) on row `y` such that the corresponding tile's right edge
+/// `xpos + W` is past `lt_x`, where `xpos = x*(W/4) + const_x_off`.
+/// Same phase as `hex_render_x_start(y)` (so `q = x/3` and `r = (y-q)/2`
+/// stay exact).  Used by the multi-thread render loop to skip
+/// iterations that would draw entirely to the left of the strip.
+/// Clamped from below by `hex_render_x_start(y)` so callers whose
+/// `lt_x` falls left of the global margin still get the conservative
+/// start.
+inline sint32 hex_render_x_start_clipped(sint16 y, sint32 lt_x,
+                                         sint32 const_x_off, sint16 W)
+{
+	const sint32 unit = W / 4;
+	// smallest x with x*unit + const_x_off + W > lt_x
+	//   <=> x*unit > lt_x - const_x_off - W
+	//   <=> x > rhs / unit
+	const sint32 rhs = lt_x - const_x_off - (sint32)W;
+	// floor(rhs / unit) for positive `unit` (C++ integer division
+	// truncates toward zero, not toward -inf).
+	sint32 x = rhs / unit;
+	if (rhs < 0 && rhs % unit != 0) {
+		x -= 1;
+	}
+	x += 1;
+	// Bump to the right phase: x ≡ 3*y (mod 6), i.e. 0 for even y, 3
+	// for odd y.
+	const sint32 phase = (y & 1) ? 3 : 0;
+	sint32 mod = x % 6;
+	if (mod < 0) mod += 6;
+	x += (phase - mod + 6) % 6;
+	// Don't undershoot the global start (callers with lt_x far left
+	// of screen — e.g. thread 0's pre-padded strip).
+	const sint32 global = hex_render_x_start(y);
+	if (x < global) {
+		x = global;
+	}
+	return x;
+}
+
+
 #endif

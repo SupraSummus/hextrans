@@ -404,7 +404,10 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 		bool plotted = false;
 
 		// Hex render-loop iteration; lattice details in hex_proj.h.
-		for(  sint16 x = hex_render_x_start(y);  (x * (IMG_SIZE / 4) + const_x_off) < (lt.x + wh.x);  x += hex_render_x_step()  ) {
+		// `_clipped` skips iterations whose tiles fall entirely left of
+		// the strip, important for the multi-thread split where `lt.x`
+		// can be far past the global x-margin.
+		for(  sint32 x = hex_render_x_start_clipped(y, lt.x, const_x_off, IMG_SIZE);  (x * (IMG_SIZE / 4) + const_x_off) < (lt.x + wh.x);  x += hex_render_x_step()  ) {
 			const sint16 q_delta = x / 3;
 			const sint16 r_delta = (y - q_delta) / 2;
 			const sint16 i = q_delta + i_off;
@@ -482,7 +485,7 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 	for(  int y = y_min;  y < y_max;  y++  ) {
 		const sint16 ypos = y * (IMG_SIZE / 4) + const_y_off;
 
-		for(  sint16 x = hex_render_x_start(y);  (x * (IMG_SIZE / 4) + const_x_off) < (lt.x + wh.x);  x += hex_render_x_step()  ) {
+		for(  sint32 x = hex_render_x_start_clipped(y, lt.x, const_x_off, IMG_SIZE);  (x * (IMG_SIZE / 4) + const_x_off) < (lt.x + wh.x);  x += hex_render_x_step()  ) {
 			const int q_delta = x / 3;
 			const int r_delta = (y - q_delta) / 2;
 			const int i = q_delta + i_off;

@@ -185,7 +185,61 @@ static void test_inverse_picks_screen_closest()
 }
 
 
-// ---- 5. Render-loop iteration is a bijection -------------------------------
+// ---- 5. Render-loop strip clipping -----------------------------------------
+
+static void test_render_loop_strip_clipped()
+{
+	// hex_render_x_start_clipped should be the smallest x with the
+	// right phase such that the tile's right edge `xpos + W` is past
+	// `lt_x`, where `xpos = x*(W/4) + const_x_off`.  Verify:
+	//   - the returned x has the right phase (`3y mod 6`)
+	//   - `xpos + W > lt_x` at that x (the tile is at least partially
+	//     in the strip)
+	//   - `xpos_prev + W <= lt_x` at `x - hex_render_x_step()`, so
+	//     stepping back would skip a tile that should not have been
+	//     skipped (no off-by-one)
+	//   - returned x is always >= `hex_render_x_start(y)` (clamp)
+	const sint32 step_pixels = (sint32)hex_render_x_step() * U;
+	for (sint16 y = -8; y <= 8; y++) {
+		const sint16 phase = (y & 1) ? 3 : 0;
+		for (sint32 const_x_off = -200; const_x_off <= 200; const_x_off += 37) {
+			for (sint32 lt_x = -300; lt_x <= 600; lt_x += 13) {
+				const sint32 x = hex_render_x_start_clipped(y, lt_x, const_x_off, W);
+				// phase
+				sint32 mod = x % 6;
+				if (mod < 0) mod += 6;
+				assert(mod == phase);
+				// clamp
+				assert(x >= hex_render_x_start(y));
+				// The tile at x is at least partially in the strip,
+				// UNLESS the clamp kicked in (x == hex_render_x_start
+				// and lt_x is far left of even the global start).
+				const sint32 xpos = x * U + const_x_off;
+				const bool clamped = (x == hex_render_x_start(y));
+				if (!clamped) {
+					if (!(xpos + (sint32)W > lt_x)) {
+						std::fprintf(stderr,
+							"strip start y=%d lt_x=%d xoff=%d returned x=%d, but xpos+W=%d <= lt_x=%d (skips visible tile)\n",
+							y, lt_x, const_x_off, x, xpos + (sint32)W, lt_x);
+						std::abort();
+					}
+					// And the previous step would NOT have been in the
+					// strip — otherwise we skipped a visible tile.
+					const sint32 xpos_prev = xpos - step_pixels;
+					if (xpos_prev + (sint32)W > lt_x) {
+						std::fprintf(stderr,
+							"strip start y=%d lt_x=%d xoff=%d returned x=%d, but x-step has xpos_prev+W=%d > lt_x=%d (skipped visible tile)\n",
+							y, lt_x, const_x_off, x, xpos_prev + (sint32)W, lt_x);
+						std::abort();
+					}
+				}
+			}
+		}
+	}
+}
+
+
+// ---- 6. Render-loop iteration is a bijection -------------------------------
 
 static void test_render_loop_bijection()
 {
@@ -225,6 +279,7 @@ int main()
 	test_round_trip();
 	test_inverse_noise();
 	test_inverse_picks_screen_closest();
+	test_render_loop_strip_clipped();
 	test_render_loop_bijection();
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;
