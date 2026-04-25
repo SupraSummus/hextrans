@@ -1021,6 +1021,24 @@ void ground_desc_t::init_ground_textures(karte_t *world)
  * Since not all of the climates are used in their numerical order, we use a
  * private (static table "height_to_texture_climate" for lookup)
  */
+// Synth-or-pakset ground lookup.  The synth fork happens here so it
+// sees the full 6-corner `slope` — the `doubleslope_to_imgnr[]`
+// indirection on the pakset fallback path is what flattens hex-only
+// slopes onto their square projection, and we want the synth path
+// upstream of that.  See synth_overlay::prefer_over_pakset for the
+// precedence policy.
+static image_id pick_ground_image(slope_t::type slope, sint16 climate_nr)
+{
+	if(  synth_overlay::prefer_over_pakset  ) {
+		const image_id synth_id = synth_overlay::get_ground(slope, (uint8)climate_nr);
+		if(  synth_id != IMG_EMPTY  ) {
+			return synth_id;
+		}
+	}
+	return climate_image[climate_nr] + doubleslope_to_imgnr[slope];
+}
+
+
 image_id ground_desc_t::get_ground_tile(grund_t *gr)
 {
 	slope_t::type slope = gr->get_grund_hang();
@@ -1033,13 +1051,9 @@ image_id ground_desc_t::get_ground_tile(grund_t *gr)
 		int nr = min( -tile_h, list->get_count() - 2 );
 		return list->get_image( nr, 0 )->get_id();
 	}
-	else {
-		const bool snow = height >= world->get_snowline();
-		const sint16 climate_nr = snow ? number_of_climates : (world->get_climate(k) > 1 ? world->get_climate(k) - 1 : 0);
-		// returns base climate for tile, transitions will be overlayed later
-		return climate_image[climate_nr] + doubleslope_to_imgnr[slope];
-	}
-	return IMG_EMPTY;
+	const bool snow = height >= world->get_snowline();
+	const sint16 climate_nr = snow ? number_of_climates : (world->get_climate(k) > 1 ? world->get_climate(k) - 1 : 0);
+	return pick_ground_image(slope, climate_nr);
 }
 
 
@@ -1051,13 +1065,13 @@ image_id ground_desc_t::get_water_tile(slope_t::type slope, int stage)
 
 image_id ground_desc_t::get_climate_tile(climate cl, slope_t::type slope)
 {
-	return climate_image[cl <= 0 ? 0 : cl - 1] + doubleslope_to_imgnr[slope];
+	return pick_ground_image(slope, cl <= 0 ? 0 : cl - 1);
 }
 
 
 image_id ground_desc_t::get_snow_tile(slope_t::type slope)
 {
-	return climate_image[number_of_climates] + doubleslope_to_imgnr[slope];
+	return pick_ground_image(slope, number_of_climates);
 }
 
 
