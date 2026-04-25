@@ -168,7 +168,10 @@ else (MSVC) # Assume GCC/Clang
 		-Wno-deprecated-declarations # auto_ptr for squirrel
 		-Wno-deprecated-copy         # for squirrel
 		-Wno-cast-align              # for squirrel
+		-Wno-cast-qual               # for squirrel (sqstdstring.cc rex_typetag)
 		-Wno-return-std-move         # for squirrel
+		-Wno-implicit-fallthrough    # for squirrel
+		-Wno-class-memaccess         # for squirrel (memmove of non-trivial SQObjectPtr)
 	)
 
 	if (SIMUTRANS_WARNINGS_AS_ERRORS)
