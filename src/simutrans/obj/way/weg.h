@@ -57,7 +57,6 @@ public:
 		HAS_SIGNAL     = 1 << 3,
 		HAS_WAYOBJ     = 1 << 4,
 		HAS_CROSSING   = 1 << 5,
-		IS_DIAGONAL    = 1 << 6, // marker for diagonal image
 		IS_SNOW        = 1 << 7  // marker, if above snowline currently
 	};
 
@@ -144,7 +143,6 @@ public:
 	enum image_type {
 		image_flat,
 		image_slope,
-		image_diagonal,
 		image_switch
 	};
 
@@ -262,8 +260,6 @@ public:
 	*/
 	void new_month();
 
-	void check_diagonal();
-
 	void count_sign();
 
 	/* flag query routines */
@@ -280,7 +276,6 @@ public:
 	inline bool has_signal() const {return flags&HAS_SIGNAL; }
 	inline bool has_wayobj() const {return flags&HAS_WAYOBJ; }
 	inline bool is_crossing() const {return flags&HAS_CROSSING; }
-	inline bool is_diagonal() const {return flags&IS_DIAGONAL; }
 	inline bool is_snow() const {return flags&IS_SNOW; }
 
 	// this is needed during a change from crossing to tram track

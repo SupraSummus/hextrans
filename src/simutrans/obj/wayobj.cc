@@ -51,7 +51,6 @@ stringhashtable_tpl<const way_obj_desc_t *> wayobj_t::table;
 wayobj_t::wayobj_t(loadsave_t* const file) :
 	obj_no_info_t(),
 	desc(NULL),
-	diagonal(false),
 	hang(slope_t::flat),
 	nw(false),
 	dir(dir_unknown)
@@ -63,7 +62,6 @@ wayobj_t::wayobj_t(loadsave_t* const file) :
 wayobj_t::wayobj_t(koord3d const pos, player_t* const owner, ribi_t::ribi const d, way_obj_desc_t const* const b) :
 	obj_no_info_t(pos),
 	desc(b),
-	diagonal(false),
 	hang(slope_t::flat),
 	nw(false),
 	dir(d)
@@ -254,28 +252,12 @@ void wayobj_t::rotate90()
 }
 
 
-// helper function: gets the ribi on next tile
-ribi_t::ribi wayobj_t::find_next_ribi(const grund_t *start, ribi_t::ribi const dir, const waytype_t wt) const
-{
-	grund_t *to;
-	ribi_t::ribi r1 = ribi_t::none;
-	if(start->get_neighbour(to,wt,dir)) {
-		const wayobj_t* wo = to->get_wayobj( wt );
-		if(wo) {
-			r1 = wo->get_dir();
-		}
-	}
-	return r1;
-}
-
-
 void wayobj_t::calc_image()
 {
 #ifdef MULTI_THREAD
 	pthread_mutex_lock( &wayobj_calc_image_mutex );
 #endif
 	grund_t *gr = welt->lookup(get_pos());
-	diagonal = false;
 	if(gr) {
 		const waytype_t wt = (desc->get_wtyp()==tram_wt) ? track_wt : desc->get_wtyp();
 		weg_t *w=gr->get_weg(wt);
@@ -302,56 +284,7 @@ void wayobj_t::calc_image()
 		set_xoff( 0 );
 		dir &= (w->get_ribi_unmasked() | sec_way_ribi_unmasked);
 
-		// if there is a slope, we are finished, only four choices here (so far)
 		hang = gr->get_weg_hang();
-		if(hang!=slope_t::flat) {
-#ifdef MULTI_THREAD
-			pthread_mutex_unlock( &wayobj_calc_image_mutex );
-#endif
-			return;
-		}
-
-		// find out whether using diagonals or straight lines.
-		// HEX-PORT: rotate45 → rotate60 (hex step); rotate90 →
-		// rotate_perpendicular (currently one 60° step).
-		if(ribi_t::is_bend(dir)  &&  desc->has_diagonal_image()) {
-			ribi_t::ribi r1 = ribi_t::none, r2 = ribi_t::none;
-
-			// get the ribis of the ways that connect to us
-			// r1 will be 60° clockwise ribi, r2 will be 60° counter-clockwise ribi
-			r1 = find_next_ribi( gr, ribi_t::rotate60(dir), wt );
-			r2 = find_next_ribi( gr, ribi_t::rotate60l(dir), wt );
-
-			// diagonal if r1 or r2 are our reverse and neither one is a rotate_perpendicular of us
-			diagonal = (r1 == ribi_t::backward(dir) || r2 == ribi_t::backward(dir)) && r1 != ribi_t::rotate_perpendicular_l(dir) && r2 != ribi_t::rotate_perpendicular(dir);
-
-			if(diagonal) {
-				// with this, we avoid calling us endlessly
-				// HACK (originally by hajo?)
-				static int rekursion = 0;
-
-				if(rekursion == 0) {
-					grund_t *to;
-					rekursion++;
-					for(int r = 0; r < 6; r++) {
-						if(gr->get_neighbour(to, wt, ribi_t::nesw[r])) {
-							wayobj_t* wo = to->get_wayobj( wt );
-							if(wo) {
-								wo->calc_image();
-							}
-						}
-					}
-					rekursion--;
-				}
-
-				image_id after = desc->get_front_diagonal_image_id(dir);
-				image_id image = desc->get_back_diagonal_image_id(dir);
-				if(image==IMG_EMPTY  &&  after==IMG_EMPTY) {
-					// no diagonals available
-					diagonal = false;
-				}
-			}
-		}
 	}
 #ifdef MULTI_THREAD
 	pthread_mutex_unlock( &wayobj_calc_image_mutex );

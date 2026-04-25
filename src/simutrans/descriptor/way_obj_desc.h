@@ -145,34 +145,6 @@ public:
 		return slope_img;
 	}
 
-	image_id get_front_diagonal_image_id(ribi_t::ribi ribi) const
-	{
-		if(!ribi_t::is_bend(ribi)) {
-			return IMG_EMPTY;
-		}
-		return get_child<image_list_t>(6)->get_image_id(ribi / 3 - 1);
-	}
-
-	image_id get_back_diagonal_image_id(ribi_t::ribi ribi) const
-	{
-		if(!ribi_t::is_bend(ribi)) {
-			return IMG_EMPTY;
-		}
-		return get_child<image_list_t>(7)->get_image_id(ribi / 3 - 1);
-	}
-
-	bool has_diagonal_image() const {
-		if (get_child<image_list_t>(4)->get_image(0)) {
-			// has diagonal fontimage
-			return true;
-		}
-		if (get_child<image_list_t>(5)->get_image(0)) {
-			// or diagonal back image
-			return true;
-		}
-		return false;
-	}
-
 	/**
 	* Skin: cursor (index 0) and icon (index 1)
 	*/

@@ -364,7 +364,7 @@ struct simgraph_t
 	/// Draw a right-facing triangle (e.g. for convoi progress bars)
 	void (*draw_right_triangle)(scr_coord_val x, scr_coord_val y, scr_coord_val height, PIXVAL colval, bool dirty);
 
-	void (*draw_signal_direction)(scr_coord_val x, scr_coord_val y, uint8 way_dir, uint8 sig_dir, PIXVAL col1, PIXVAL col1_dark, bool is_diagonal, uint8 slope);
+	void (*draw_signal_direction)(scr_coord_val x, scr_coord_val y, uint8 way_dir, uint8 sig_dir, PIXVAL col1, PIXVAL col1_dark, uint8 slope);
 
 	/// Takes a screenshot of @p screen_area and saves the image as 'simscrXX.png' (with XX being a placeholder for two numeric characters).
 	/// @returns true on success

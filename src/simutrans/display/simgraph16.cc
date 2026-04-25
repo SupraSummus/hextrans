@@ -567,7 +567,7 @@ static void            simgraph16_draw_filled_circle         (scr_coord_val, scr
 static void            simgraph16_draw_bezier                (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, const PIXVAL, scr_coord_val, scr_coord_val);
 static void            simgraph16_draw_right_triangle        (scr_coord_val, scr_coord_val, scr_coord_val, const PIXVAL, const bool);
 static bool            simgraph16_take_screenshot            (const scr_rect &);
-static void            simgraph16_draw_signal_direction      (scr_coord_val, scr_coord_val, uint8, uint8, PIXVAL, PIXVAL, bool, uint8);
+static void            simgraph16_draw_signal_direction      (scr_coord_val, scr_coord_val, uint8, uint8, PIXVAL, PIXVAL, uint8);
 static void            simgraph16_set_clip_rect              (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val  CLIP_NUM_DEF, bool fit);
 static clip_dimension  simgraph16_get_clip_rect              (CLIP_NUM_DEF_NOUSE0);
 static void            simgraph16_push_clip_rect             (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val  CLIP_NUM_DEF_NOUSE);
@@ -4297,102 +4297,46 @@ static void simgraph16_draw_filled_circle(scr_coord_val x0, scr_coord_val y0, in
 }
 
 
-// HEX-PORT: signal direction indicator is square-era, distinguishing
-// "diagonal" (NE-SW or NW-SE axis) from "straight" (N-S or E-W axis)
-// to pick a sprite orientation.  Under flat-top hex the 3 axes are
-// N-S, NE-SW, NW-SE — the old "is_diagonal" now covers 2 of 3 axes
-// and "straight" only N-S.  ribi_t::east → southeast, west → northwest
-// for single-edge tests below.  The sprite geometry is wrong under
-// hex; a proper rewrite waits for the sprite / viewport port.
-static void simgraph16_draw_signal_direction(scr_coord_val x, scr_coord_val y, uint8 way_dir, uint8 sig_dir, PIXVAL col1, PIXVAL col1_dark, bool is_diagonal, uint8 slope)
+// HEX-PORT: signal direction indicator is square-era and only renders
+// the 4 cardinal `sig_dir` bits at the slope-corrected tile corners.
+// The 2 hex-only bits (NE, SW) fall through unrendered — a proper
+// rewrite waits for the sprite / viewport port.
+static void simgraph16_draw_signal_direction(scr_coord_val x, scr_coord_val y, uint8 /*way_dir*/, uint8 sig_dir, PIXVAL col1, PIXVAL col1_dark, uint8 slope)
 {
-	uint8 width        = is_diagonal ? g_simgraph16.current_tile_raster_width/6*0.353 : g_simgraph16.current_tile_raster_width/6;
-	const uint8 height = is_diagonal ? g_simgraph16.current_tile_raster_width/6*0.353 : g_simgraph16.current_tile_raster_width/12;
+	const uint8 width     = g_simgraph16.current_tile_raster_width/6;
+	const uint8 height    = g_simgraph16.current_tile_raster_width/12;
 	const uint8 thickness = max( g_simgraph16.current_tile_raster_width/36, 2);
 
 	x += g_simgraph16.current_tile_raster_width/2;
 	y += (g_simgraph16.current_tile_raster_width*9)/16;
 
-	if (is_diagonal) {
-
-		if (way_dir == ribi_t::northeast || way_dir == ribi_t::southwest) {
-			// vertical
-			x += (way_dir==ribi_t::northeast) ? g_simgraph16.current_tile_raster_width/4 : (-g_simgraph16.current_tile_raster_width/4);
-			y += g_simgraph16.current_tile_raster_width/16;
-			width = width<<2; // 4x
-
-			// upper
-			for (uint8 xoff = 0; xoff < width/2; xoff++) {
-				const uint8 yoff = (uint8)((xoff+1)/2);
-				// up
-				if (sig_dir & ribi_t::southeast || sig_dir & ribi_t::south) {
-					simgraph16_draw_vline_clipped(x + xoff, y+yoff, width/4 - yoff, col1, true CLIP_NUM_DEFAULT);
-					simgraph16_draw_vline_clipped(x-xoff-1, y+yoff, width/4 - yoff, col1, true CLIP_NUM_DEFAULT);
-				}
-				// down
-				if (sig_dir & ribi_t::northwest || sig_dir & ribi_t::north) {
-					simgraph16_draw_vline_clipped(x+xoff,   y+g_simgraph16.current_tile_raster_width/6,              width/4-yoff, col1,      true CLIP_NUM_DEFAULT);
-					simgraph16_draw_vline_clipped(x+xoff,   y+g_simgraph16.current_tile_raster_width/6+width/4-yoff, thickness,    col1_dark, true CLIP_NUM_DEFAULT);
-					simgraph16_draw_vline_clipped(x-xoff-1, y+g_simgraph16.current_tile_raster_width/6,              width/4-yoff, col1,      true CLIP_NUM_DEFAULT);
-					simgraph16_draw_vline_clipped(x-xoff-1, y+g_simgraph16.current_tile_raster_width/6+width/4-yoff, thickness,    col1_dark, true CLIP_NUM_DEFAULT);
-				}
-			}
-			// up
-			if (sig_dir & ribi_t::southeast || sig_dir & ribi_t::south) {
-				gfx->draw_rect_clipped(x - width/2, y + width/4, width, thickness, col1_dark, true CLIP_NUM_DEFAULT);
-			}
-		}
-		else {
-			// horizontal
-			y -= g_simgraph16.current_tile_raster_width/12;
-			if (way_dir == ribi_t::southeast) {
-				y += g_simgraph16.current_tile_raster_width/4;
-			}
-
-			for (uint8 xoff = 0; xoff < width*2; xoff++) {
-				const uint8 h = width*2 - (scr_coord_val)(xoff + 1);
-				// left
-				if (sig_dir & ribi_t::north || sig_dir & ribi_t::southeast) {
-					simgraph16_draw_vline_clipped(x - xoff - width*2, y + (scr_coord_val)((xoff+1)/2),   h,         col1,      true CLIP_NUM_DEFAULT);
-					simgraph16_draw_vline_clipped(x - xoff - width*2, y + (scr_coord_val)((xoff+1)/2)+h, thickness, col1_dark, true CLIP_NUM_DEFAULT);
-				}
-				// right
-				if (sig_dir & ribi_t::south || sig_dir & ribi_t::northwest) {
-					simgraph16_draw_vline_clipped(x + xoff + width*2, y + (scr_coord_val)((xoff+1)/2),   h,         col1,      true CLIP_NUM_DEFAULT);
-					simgraph16_draw_vline_clipped(x + xoff + width*2, y + (scr_coord_val)((xoff+1)/2)+h, thickness, col1_dark, true CLIP_NUM_DEFAULT);
-				}
-			}
+	if (sig_dir & ribi_t::south) {
+		// upper right
+		scr_coord_val slope_offset_y = corner_se( slope )*TILE_HEIGHT_STEP;
+		for (uint8 xoff = 0; xoff < width; xoff++) {
+			simgraph16_draw_vline_clipped( x + xoff, y - slope_offset_y, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);
+			simgraph16_draw_vline_clipped( x + xoff, y - slope_offset_y + (scr_coord_val)(xoff/2) + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
 		}
 	}
-	else {
-		if (sig_dir & ribi_t::south) {
-			// upper right
-			scr_coord_val slope_offset_y = corner_se( slope )*TILE_HEIGHT_STEP;
-			for (uint8 xoff = 0; xoff < width; xoff++) {
-				simgraph16_draw_vline_clipped( x + xoff, y - slope_offset_y, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);
-				simgraph16_draw_vline_clipped( x + xoff, y - slope_offset_y + (scr_coord_val)(xoff/2) + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
-			}
+	if (sig_dir & ribi_t::southeast) {
+		scr_coord_val slope_offset_y = corner_se( slope )*TILE_HEIGHT_STEP;
+		for (uint8 xoff = 0; xoff < width; xoff++) {
+			simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);
+			simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y + (scr_coord_val)(xoff/2) + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
 		}
-		if (sig_dir & ribi_t::southeast) {
-			scr_coord_val slope_offset_y = corner_se( slope )*TILE_HEIGHT_STEP;
-			for (uint8 xoff = 0; xoff < width; xoff++) {
-				simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);
-				simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y + (scr_coord_val)(xoff/2) + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
-			}
+	}
+	if (sig_dir & ribi_t::northwest) {
+		scr_coord_val slope_offset_y = corner_nw( slope )*TILE_HEIGHT_STEP;
+		for (uint8 xoff = 0; xoff < width; xoff++) {
+			simgraph16_draw_vline_clipped(x + xoff, y - slope_offset_y + height*2 - (scr_coord_val)(xoff/2) + 1, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);
+			simgraph16_draw_vline_clipped(x + xoff, y - slope_offset_y + height*2 + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
 		}
-		if (sig_dir & ribi_t::northwest) {
-			scr_coord_val slope_offset_y = corner_nw( slope )*TILE_HEIGHT_STEP;
-			for (uint8 xoff = 0; xoff < width; xoff++) {
-				simgraph16_draw_vline_clipped(x + xoff, y - slope_offset_y + height*2 - (scr_coord_val)(xoff/2) + 1, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);
-				simgraph16_draw_vline_clipped(x + xoff, y - slope_offset_y + height*2 + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
-			}
-		}
-		if (sig_dir & ribi_t::north) {
-			scr_coord_val slope_offset_y = corner_nw( slope )*TILE_HEIGHT_STEP;
-			for (uint8 xoff = 0; xoff < width; xoff++) {
-				simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y + height*2 - (scr_coord_val)(xoff/2) + 1, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);
-				simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y + height*2 + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
-			}
+	}
+	if (sig_dir & ribi_t::north) {
+		scr_coord_val slope_offset_y = corner_nw( slope )*TILE_HEIGHT_STEP;
+		for (uint8 xoff = 0; xoff < width; xoff++) {
+			simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y + height*2 - (scr_coord_val)(xoff/2) + 1, (scr_coord_val)(xoff/2) + 1, col1, true CLIP_NUM_DEFAULT);
+			simgraph16_draw_vline_clipped(x - xoff - 1, y - slope_offset_y + height*2 + 1, thickness, col1_dark, true CLIP_NUM_DEFAULT);
 		}
 	}
 }
