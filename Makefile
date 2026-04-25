@@ -330,6 +330,7 @@ SOURCES += src/simutrans/descriptor/factory_desc.cc
 SOURCES += src/simutrans/descriptor/goods_desc.cc
 SOURCES += src/simutrans/descriptor/ground_desc.cc
 SOURCES += src/simutrans/descriptor/image.cc
+SOURCES += src/simutrans/descriptor/synth_overlay.cc
 SOURCES += src/simutrans/descriptor/obj_base_desc.cc
 SOURCES += src/simutrans/descriptor/reader/bridge_reader.cc
 SOURCES += src/simutrans/descriptor/reader/building_reader.cc
