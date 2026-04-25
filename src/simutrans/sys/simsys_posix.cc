@@ -170,7 +170,7 @@ void dr_stop_textinput()
 {
 }
 
-void dr_notify_input_pos(scr_coord pos)
+void dr_notify_input_pos(scr_coord)
 {
 }
 
