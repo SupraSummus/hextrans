@@ -732,7 +732,13 @@ PIXVAL minimap_t::calc_ground_color(const grund_t *gr)
 							color = gfx->palette_lookup(map_type_color[1]); // second deep water color
 						}
 						else {
-							color = calc_height_color( world->lookup_hgt( gr->get_pos().get_2d() ) + height, world->get_water_hgt( gr->get_pos().get_2d() ) );
+							// HEX-PORT: get_hoehe() is the tile's base z, height is
+							// the SW corner's relative rise — sum is the SW corner's
+							// absolute world height, which is what the colour picker
+							// wants.  Replaces the old shim's "tile reference via
+							// grid-point" read; under hex the grid point's name
+							// didn't survive the storage rewrite.
+							color = calc_height_color( gr->get_hoehe() + height, world->get_water_hgt( gr->get_pos().get_2d() ) );
 						}
 						//color = gfx->palette_lookup(COL_BLUE); // water with boat?
 					}

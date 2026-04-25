@@ -124,6 +124,48 @@ block. Don't edit `tools/run-automated-tests.sh`, `tests/scenario.nut`,
 or `tests/test_helpers.nut` as part of triage — the runner's contract
 is what CI uses.
 
+The full sim output lands at **`simutrans/output.log`** (not at repo
+root, even though the runner is launched from there).  `tail -50
+simutrans/output.log` is the first thing to look at on failure.  The
+runner itself just prints `Process crashed (test failed)` or
+`Killing process (test failed)` and exits — the actual test name
+and any FATAL message are in `output.log`.
+
+### Iterating after the initial setup
+
+The setup above only needs to run once per session.  The fast loop is:
+
+```sh
+CC="ccache clang" CXX="ccache clang++" make -j"$(nproc)"
+./run-automated-tests.sh
+tail -50 simutrans/output.log
+```
+
+ccache makes incremental rebuilds seconds, not minutes.  The runner
+itself is ~5-10s of startup before tests start firing.
+
+### Getting a stack trace when a test crashes
+
+`dbg->fatal` writes its own message and then calls `abort()`.  ASAN's
+`print_stacktrace=1` does **not** backtrace user-triggered `abort()`
+(it only prints stacks for ASAN's own findings: heap-use-after-free,
+stack-buffer-overflow, etc.) — so when a fatal fires in normal code
+paths, the log shows the message but no caller frames.  Workarounds,
+in increasing order of intrusion:
+
+1. **Grep the source.**  The fatal message usually identifies the
+   site (function name, coords).  For the hex-port shim sites,
+   `grep -rn "lookup_hgt(" src/simutrans/` lists the candidates.
+2. **Add `__builtin_trap()` next to the fatal.**  `__builtin_trap`
+   raises SIGILL, which ASAN's signal handler does backtrace.  Drop
+   it in temporarily during triage; remove before commit.
+3. **Call `__sanitizer_print_stack_trace()`** from `<sanitizer/common_interface_defs.h>`.
+   Cleaner than (2) — prints the stack and lets the fatal proceed
+   normally.  Also temporary; not something to ship.
+
+UBSAN findings (signed overflow, null deref, etc.) **do** print stacks
+in `output.log` — that path is fine.
+
 The session-start hook deliberately does **not** download a pakset
 because:
 

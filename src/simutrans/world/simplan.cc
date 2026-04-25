@@ -309,12 +309,12 @@ void planquadrat_t::rdwr(loadsave_t *file, koord pos )
 					data.one = gr;
 					ground_size = 1;
 					gr->set_kartenboden(true);
-					hgt = welt->lookup_hgt(pos);
+					hgt = welt->legacy_grid_hgt(pos);
 				}
 				else {
 					boden_hinzufuegen(gr);
 					// other ground must not change the grid height => reset it
-					welt->set_grid_hgt_nocheck( pos, hgt );
+					welt->legacy_set_grid_hgt_nocheck( pos, hgt );
 				}
 			}
 		} while(gr != NULL);

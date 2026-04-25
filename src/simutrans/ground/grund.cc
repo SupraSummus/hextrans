@@ -172,7 +172,7 @@ void grund_t::rdwr(loadsave_t *file)
 	koord k = pos.get_2d();
 
 	// water saves its correct height => no need to save grid heights anymore
-	sint8 z = welt->lookup_hgt( k ); // save grid height for water tiles - including partial water tiles
+	sint8 z = welt->legacy_grid_hgt( k ); // save grid height for water tiles - including partial water tiles
 	sint8 z_w = welt->get_water_hgt( k );
 	if(  !(get_typ() == grund_t::boden  ||  get_typ() == grund_t::wasser) || pos.z > z_w || z > z_w  ) {
 		z = pos.z; // all other tiles save ground height
@@ -284,7 +284,7 @@ void grund_t::rdwr(loadsave_t *file)
 			else {
 				z_southeast += corner_se(slope);
 			}
-			welt->set_grid_hgt_nocheck( k + koord(1,1), z_southeast );
+			welt->legacy_set_grid_hgt_nocheck( k + koord(1,1), z_southeast );
 		}
 		if(  pos.x == welt->get_size().x-1  ) {
 			sint8 z_east = z;
@@ -294,7 +294,7 @@ void grund_t::rdwr(loadsave_t *file)
 			else {
 				z_east += corner_ne(slope);
 			}
-			welt->set_grid_hgt_nocheck( k + koord(1,0), z_east );
+			welt->legacy_set_grid_hgt_nocheck( k + koord(1,0), z_east );
 		}
 		if(  pos.y == welt->get_size().y-1  ) {
 			sint8 z_south = z;
@@ -304,7 +304,7 @@ void grund_t::rdwr(loadsave_t *file)
 			else {
 				z_south += corner_sw(slope);
 			}
-			welt->set_grid_hgt_nocheck( k + koord(0,1), z_south );
+			welt->legacy_set_grid_hgt_nocheck( k + koord(0,1), z_south );
 		}
 
 		if(  get_typ() == grund_t::wasser  &&  z > z_w  ) {
@@ -313,7 +313,7 @@ void grund_t::rdwr(loadsave_t *file)
 		else {
 			z += corner_nw(slope);
 		}
-		welt->set_grid_hgt_nocheck( k, z );
+		welt->legacy_set_grid_hgt_nocheck( k, z );
 		welt->set_water_hgt_nocheck( k, z_w );
 	}
 

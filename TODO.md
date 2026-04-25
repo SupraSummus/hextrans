@@ -18,6 +18,25 @@ in the test file with a short header comment.  Entries below list
 what's currently skipped and the restoration trigger; remove an
 entry here when its test is re-enabled.
 
+**Square-grid terrain-mutation cascade tests.**
+`test_climate_cliff` raises a 3x3 plateau via `setslope all_up_slope`,
+exercises `tool_set_climate` (including a partial water fill), then
+walks the plateau back down via `setslope all_down_slope`.  The
+cleanup setslope returns "Tile not empty." on the second tile of the
+top row.  `test_factory_build_pp` / `_with_fields` / `_climate` /
+`_on_water_occupied` all build factories at `coord3d(3, 4, 0)` after
+the climate-flat / climate-invalid tests run, and get "No suitable
+ground!" — the test passes in isolation but cascades after earlier
+terrain-mutation tests run.  Both clusters share the same root
+cause: the test bodies bake in 4-corner / 8-neighbour terrain
+propagation, so a `setslope` or a multi-tile setclimate that under
+square model affected exactly the named tiles now under hex 6-edge
+propagation reaches one tile further (or stops one short).  The
+invariants survive (build-after-flatten, climate-set-on-cliff)
+but the specific tile choices and the assertions about which
+neighbours are mutated do not.  Restore alongside a hex-aware
+rewrite of the propagation patterns these tests probe.
+
 **`ASSERT_WAY_PATTERN` family.**  `ASSERT_WAY_PATTERN` matches
 built ways against 4-bit-ribi shape matrices on square-axis layouts.
 `ribi_t` is now 6 bits; the remaining blocker is the Squirrel-side
@@ -130,10 +149,10 @@ cardinal single-slope neighbours.  Under hex's 3-way vertex sharing
 that pattern raises only 3 corners of the centre tile and misses
 the hex-only edges on the neighbours.  Migrating via
 `setslope(all_up_slope) + setslope(single_edge)` produces the right
-grund_t slopes but leaves the per-vertex height storage inconsistent —
-same root cause as the NW-corner-only writer bug below.  Unblocks
-together with that fix; listed here just so the tests don't stay
-invisible in the NW-corner-only cluster description.
+grund_t slopes but leaves the per-vertex height storage inconsistent.
+Now that the NW-corner-only writers are ported, restoration
+needs a hex-aware test scaffold that raises the right vertices
+directly rather than 4 corners of a 2x2 square.
 
 ## Per-vertex height storage — remaining writer-side ports
 
@@ -145,8 +164,11 @@ terrain is self-consistent across shared vertices — the three owners
 of any shared vertex all resolve to the same slot and get the same
 noise value by construction.
 
-Other writers still use the legacy `set_grid_hgt_nocheck(x, y)` API
-(which lands in the E slot only) and need porting next: the `simtool.cc`
+The two NW-corner-only writers (`hausbauer.cc:457` and
+`simtool.cc:1600/1597`) are now hex-aware via the
+`(koord, hex_corner_t::NW)` overload — building removal and the
+setslope tool's grid-correction step write the right vertex.
+Remaining writers that still need the same treatment: the `simtool.cc`
 water-raise flood-fill (square 4-neighbour); the heightfield-load path
 in `karte_t::init_tiles` (replicates the last square-grid row into the
 doubled slot layout — needs a hex-aware importer or a clean rejection);
@@ -158,70 +180,62 @@ deterministic but geometrically wrong map when rotation != 0; fix in
 the same pass as `rotate90`.
 
 The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
-`surface.h` routes every `(x, y)` to the E canonical slot of tile
-`(x-1, y-1)` — NOT to any named corner of tile `(x, y)`.  Remaining
-shim call sites audit into these clusters with different retirement
-triggers:
+`surface.h` is `dbg->fatal` — every residual call is a crash so the
+port can't accidentally regress new sites onto the old E-slot of
+tile `(x-1, y-1)`.  Two narrow escape hatches survive in
+`surface.h` for known-bubble-consistent uses (`legacy_grid_hgt` and
+`legacy_set_grid_hgt_nocheck`); their callers are listed below by
+retirement trigger.  Remaining shim call sites still pending port
+audit into these clusters:
 
 *Square-corner writer ritual (partial)* — `simtool.cc:2302-2312`
 (8 sites) writes 4 "corners" at `(k, k)`, `(k+1, k)`, `(k, k+1)`,
 `(k+1, k+1)` for partial-water grid heights in
 `tool_change_water_height_t`.  Under hex these four shim coords land
-on four unrelated tiles' E corners.  Blocked on the water-flood-fill
+on four unrelated tiles' E corners.  Currently fatal — building or
+running the water-raise tool aborts.  Blocked on the water-flood-fill
 port; once that lands, the writes gain a hex-corner name.  The
 terraformer portion of this cluster retired with the 6-edge
 propagation port.
 
-*Square-corner reader ritual* — `surface.cc` 12 sites in the
-`recalc_natural_slope` `[8][4]` scaffold already flagged.  Blocked
-on the recalc_natural_slope port.
+*Square-corner reader ritual* — `surface.cc` 12 sites in
+`get_neighbour_heights`'s `[8][4]` boundary fallback, routed through
+`legacy_grid_hgt` to keep the function compiling.  Slot semantics
+match the old shim (E corner of tile `(x-1, y-1)`); the values are
+geometrically wrong under hex but consistent with what the
+`recalc_natural_slope` consumer expects.  Retires together with the
+`recalc_natural_slope` hex port — the function still iterates 8
+square-grid neighbours and composes 4 corners per neighbour, none of
+which match the 6-corner hex model.
 
-*NW-corner-only writers — ACTIVE SILENT BUG* — `hausbauer.cc:457`
-and `simtool.cc:1600` compute `height + corner_nw(slope)` and write
-via the shim.  Under the old square grid, grid point `(k.x, k.y)`
-WAS the NW corner of tile `k` and the write landed at that world
-vertex.  Under hex, the shim stores at tile `(k.x-1, k.y-1)`'s E
-corner — geometrically unrelated to tile `k`'s NW corner (which
-lives at tile `(k.x-1, k.y)`'s E slot, one row south).  Hex-aware
-readers are live TODAY: `surface_t::min_hgt` / `max_hgt` /
-`get_height_slope_from_grid` in `surface.cc` read all 6 corners via
-`canonical_vertex()`, so after `hausbauer_t::build_tile` or
-`tool_change_water_height` runs, `min_hgt(k)` for the just-modified
-tile sees groundwater at the NW slot instead of the just-written
-value.  The old square invariant "writing via shim at `(k, k)` makes
-tile k's NW corner read-back correct" does not survive the port.
-Fix: convert both sites to the `(tile, hex_corner_t::NW)` overload,
-and any shim reader that was relying on that slot (see bubble
-below) migrates with them.
-
-*"Tile reference height" readers — semantic drift bubble* —
-`grund.cc:175`, `wasser.cc:68`, `wegbauer.cc:599, 1778`,
-`simtool.cc:1011, 1021, 1596, 2080, 2085, 2721`, `simplay.cc:225`,
-`minimap.cc:735`, `enlarge_map_frame.cc:201`, `tunnelbauer.cc:198`
-(~14 sites).  All ask "what is the characteristic height of this
-tile?" via the shim.  Under hex a tile has 6 corner heights and no
-single "characteristic" one; the shim picks an arbitrary slot on a
-different tile.  Answers are internally consistent only because all
-14 readers and their paired writers (the NW-corner-only writers
-above, plus a few shim writers in `simtool.cc:1597` and
-`grund.cc:316`) hit the same slot.  Retire by defining what
-"tile's reference height" means under hex (min-corner? SE canonical
-corner? get_hoehe?) and converting every reader to the chosen
-accessor.  Roughly a one-commit port once the decision is made.
+*"Tile reference height" readers — semantic drift bubble (partial)* —
+the shim's old "what is this tile's reference height" pattern picked
+a single slot on tile `(x-1, y-1)`, which was geometrically wrong
+under hex but bubble-consistent with the NW-corner-only writers
+(now ported) that wrote it.  Five sites already ported with hex
+semantics chosen per-call-site rather than via one global decision:
+`wasser.cc:68` (`min_hgt`, water surface), `wegbauer.cc:599`
+(`min_hgt`, "any corner below water"), `simtool.cc:2080-2085`
+(`min_hgt`, climate water filter), `simplay.cc:225` (`min_hgt`,
+floating-message anchor), `minimap.cc:735` (`get_hoehe + corner_sw`,
+SW corner colour pick).  Remaining sites still firing the fatal
+shim: `simtool.cc:1011, 1021, 2721`, `wegbauer.cc:1778`,
+`tunnelbauer.cc:198`, `enlarge_map_frame.cc:201`.  Each needs a
+small per-site decision (most fit `min_hgt`, but some — like
+`enlarge_map_frame` — may want a different anchor); migrate as the
+relevant test exercises them.
 
 *Save-cycle round-trippers* — `grund.cc:175, 287, 297, 307, 316`
 (5 sites), `simplan.cc:312, 317` (2 sites).  Read-then-write during
-the rdwr save/load cycle and during `planquadrat_t` changes.
-Bubble-consistent by construction.  Subsumed by the save-format
-version bump.
+the rdwr save/load cycle and during `planquadrat_t` changes; routed
+through `legacy_grid_hgt` / `legacy_set_grid_hgt_nocheck` to bypass
+the fatal shim.  Bubble-consistent by construction.  Retires with
+the save-format version bump.
 
 *Explicit out-of-scope* — `simworld.cc:4673` heightfield load (1
 site, blocked on import decision as noted above).
 
 Each cluster above has an independent trigger; retire separately.
-The NW-corner-only cluster is the one to tackle first — fix the
-two writers together with the reference-height cluster in a single
-commit once hex "tile reference height" semantics are chosen.
 
 Remaining hex-aware readers still 4-corner: `recalc_natural_slope`
 with its `get_neighbour_heights[8][4]` scaffold, and the
