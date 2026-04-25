@@ -1815,13 +1815,13 @@ void grund_t::display_overlay(const sint16 xpos, const sint16 ypos)
 					}
 				}
 				gfx->draw_signal_direction( xpos, ypos + tile_raster_scale_y( w->get_yoff(), gfx->get_current_tile_raster_width() ),
-					w->get_ribi_unmasked(), mask, c1, c2, w->is_diagonal(), get_weg_hang() );
+					w->get_ribi_unmasked(), mask, c1, c2, get_weg_hang() );
 			}
 			else if( w->get_ribi_maske() ) {
 				PIXVAL c1 = gfx->palette_lookup( COL_BLUE+2 );
 				PIXVAL c2 = gfx->palette_lookup( COL_BLUE );
 				gfx->draw_signal_direction( xpos, ypos + tile_raster_scale_y( w->get_yoff(), gfx->get_current_tile_raster_width() ),
-					w->get_ribi_unmasked(), w->get_ribi_maske(), c1, c2, w->is_diagonal(), get_weg_hang() );
+					w->get_ribi_unmasked(), w->get_ribi_maske(), c1, c2, get_weg_hang() );
 			}
 		}
 	}

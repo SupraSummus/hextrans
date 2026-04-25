@@ -2934,9 +2934,6 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 			if (gr->get_weg_hang()) {
 				way->set_image(desc->get_slope_image_id(gr->get_weg_hang(), 0));
 			}
-			else if (desc->get_wtyp() != powerline_wt && ribi_t::is_bend(zeige) && desc->has_diagonal_image()) {
-				way->set_image(desc->get_diagonal_image_id(zeige, 0));
-			}
 			else {
 				way->set_image(desc->get_image_id(zeige, 0));
 			}
@@ -3441,9 +3438,6 @@ void tool_build_tunnel_t::mark_tiles(  player_t *player, const koord3d &start, c
 			if(gr->get_weg_hang()) {
 				way->set_image( wb->get_slope_image_id(gr->get_weg_hang(),0) );
 			}
-			else if(wb->get_wtyp()!=powerline_wt  &&  ribi_t::is_bend(zeige)  &&  wb->has_diagonal_image()) {
-				way->set_image( wb->get_diagonal_image_id(zeige,0) );
-			}
 			else {
 				way->set_image( wb->get_image_id(zeige,0) );
 			}
@@ -3940,10 +3934,6 @@ void tool_build_wayobj_t::mark_tiles( player_t* player, const koord3d &start, co
 				if(  gr->get_weg_hang()  ) {
 					way_obj->set_foreground_image( desc->get_front_slope_image_id(gr->get_weg_hang()) );
 					way_obj->set_image( desc->get_back_slope_image_id(gr->get_weg_hang()) );
-				}
-				else if(  ribi_t::is_bend(show)  &&  desc->has_diagonal_image()  ) {
-					way_obj->set_foreground_image( desc->get_front_diagonal_image_id(show) );
-					way_obj->set_image( desc->get_back_diagonal_image_id(show) );
 				}
 				else {
 					way_obj->set_foreground_image( desc->get_front_image_id(show) );

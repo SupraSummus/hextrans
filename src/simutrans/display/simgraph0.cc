@@ -88,7 +88,7 @@ static void            simgraph0_draw_filled_circle         (scr_coord_val, scr_
 static void            simgraph0_draw_bezier                (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, const PIXVAL, scr_coord_val, scr_coord_val);
 static void            simgraph0_draw_right_triangle        (scr_coord_val, scr_coord_val, scr_coord_val, const PIXVAL, const bool);
 static bool            simgraph0_take_screenshot            (const scr_rect &);
-static void            simgraph0_draw_signal_direction      (scr_coord_val, scr_coord_val, uint8, uint8, PIXVAL, PIXVAL, bool, uint8);
+static void            simgraph0_draw_signal_direction      (scr_coord_val, scr_coord_val, uint8, uint8, PIXVAL, PIXVAL, uint8);
 static void            simgraph0_set_clip_rect              (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val  CLIP_NUM_DEF, bool fit);
 static clip_dimension  simgraph0_get_clip_rect              (CLIP_NUM_DEF_NOUSE0);
 static void            simgraph0_push_clip_rect             (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val  CLIP_NUM_DEF_NOUSE);
@@ -563,7 +563,7 @@ static void simgraph0_draw_right_triangle(scr_coord_val, scr_coord_val, scr_coor
 {
 }
 
-static void simgraph0_draw_signal_direction( scr_coord_val, scr_coord_val, uint8, uint8, PIXVAL, PIXVAL, bool, uint8 )
+static void simgraph0_draw_signal_direction( scr_coord_val, scr_coord_val, uint8, uint8, PIXVAL, PIXVAL, uint8 )
 {
 }
 

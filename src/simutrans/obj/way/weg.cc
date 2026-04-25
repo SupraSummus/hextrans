@@ -388,10 +388,6 @@ void weg_t::set_images(image_type typ, uint8 ribi, bool snow, bool switch_nw)
 			set_image( desc->get_switch_image_id(ribi, snow, switch_nw) );
 			set_foreground_image( desc->get_switch_image_id(ribi, snow, switch_nw, true) );
 			break;
-		case image_diagonal:
-			set_image( desc->get_diagonal_image_id(ribi, snow) );
-			set_foreground_image( desc->get_diagonal_image_id(ribi, snow, true) );
-			break;
 	}
 }
 
@@ -434,10 +430,7 @@ bool weg_t::check_season(const bool calc_only_season_change)
 		return true;
 	}
 
-	if(  is_diagonal()  ) {
-		set_images( image_diagonal, ribi, snow );
-	}
-	else if(  ribi_t::is_threeway( ribi )  &&  desc->get_waytype()!=road_wt  ) {
+	if(  ribi_t::is_threeway( ribi )  &&  desc->get_waytype()!=road_wt  ) {
 		set_images(image_switch, ribi, snow, has_switched());
 	}
 	else {
@@ -486,7 +479,6 @@ void weg_t::calc_image()
 	pthread_mutex_lock( &weg_calc_image_mutex );
 #endif
 	grund_t *from = welt->lookup(get_pos());
-	grund_t *to;
 	image_id old_image = image;
 
 	if(  from==NULL  ||  desc==NULL  ) {
@@ -549,44 +541,9 @@ void weg_t::calc_image()
 				}
 			}
 		}
-		// recursion to find out of diagonal
 		else {
-			static int recursion = 0; /* Communicate among different instances of this method */
-
-			// flat way
 			set_images(image_flat, ribi, snow);
 
-			// recalc image of neighbors also when this changed to non-diagonal
-			if(recursion == 0) {
-				recursion++;
-				for(int r = 0; r < 6; r++) {
-					if(  from->get_neighbour(to, get_waytype(), ribi_t::nesw[r])  ) {
-						// can fail on water tiles
-						if(  weg_t *w=to->get_weg(get_waytype())  )  {
-							// and will only change the outcome, if it has a diagonal image ...
-							if(  w->get_desc()->has_diagonal_image()  ) {
-								w->calc_image();
-							}
-						}
-					}
-				}
-				recursion--;
-			}
-
-			// try diagonal image
-			if(  desc->has_diagonal_image()  ) {
-				check_diagonal();
-
-				// now apply diagonal image
-				if(is_diagonal()) {
-					if( desc->get_diagonal_image_id(ribi, snow) != IMG_EMPTY  ||
-					    desc->get_diagonal_image_id(ribi, snow, true) != IMG_EMPTY) {
-						set_images(image_diagonal, ribi, snow);
-					}
-				}
-			}
-
-			// level track
 			if (foreground_image != IMG_EMPTY) {
 				if (from->is_halt()) {
 					// no foreground in stations
@@ -603,7 +560,6 @@ void weg_t::calc_image()
 					}
 				}
 			}
-
 		}
 	}
 	if(  image!=old_image  ) {
@@ -613,47 +569,6 @@ void weg_t::calc_image()
 #ifdef MULTI_THREAD
 	pthread_mutex_unlock( &weg_calc_image_mutex );
 #endif
-}
-
-
-// checks, if this way qualifies as diagonal
-void weg_t::check_diagonal()
-{
-	bool diagonal = false;
-	flags &= ~IS_DIAGONAL;
-
-	const ribi_t::ribi ribi = get_ribi_unmasked();
-	if(  !ribi_t::is_bend(ribi)  ) {
-		// This is not a curve, it can't be a diagonal
-		return;
-	}
-
-	grund_t *from = welt->lookup(get_pos());
-	grund_t *to;
-
-	ribi_t::ribi r1 = ribi_t::none;
-	ribi_t::ribi r2 = ribi_t::none;
-
-	// HEX-PORT: rotate45 → rotate60 (hex step), rotate90 →
-	// rotate_for_map_rotate90 helper.  Semantically the diagonal-detection
-	// approximates old 4-direction bend logic; real hex bend
-	// rendering awaits the sprite port.
-	// get the ribis of the ways that connect to us
-	// r1 will be 60° clockwise ribi, r2 will be 60° counter-clockwise ribi
-	if(  from->get_neighbour(to, get_waytype(), ribi_t::rotate60(ribi))  ) {
-		r1 = to->get_weg_ribi_unmasked(get_waytype());
-	}
-
-	if(  from->get_neighbour(to, get_waytype(), ribi_t::rotate60l(ribi))  ) {
-		r2 = to->get_weg_ribi_unmasked(get_waytype());
-	}
-
-	// diagonal if r1 or r2 are our reverse and neither one is a 120° rotation of us
-	diagonal = (r1 == ribi_t::backward(ribi) || r2 == ribi_t::backward(ribi)) && r1 != ribi_t::rotate_perpendicular_l(ribi) && r2 != ribi_t::rotate_perpendicular(ribi);
-
-	if(  diagonal  ) {
-		flags |= IS_DIAGONAL;
-	}
 }
 
 
