@@ -288,7 +288,7 @@ bool have_crossings_same_wt(const crossing_desc_t *c0, const crossing_desc_t *c1
 void crossing_logic_t::add( crossing_t *start_cr, crossing_state_t state )
 {
 	koord3d pos = start_cr->get_pos();
-	const koord zv = start_cr->get_dir() ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north);
+	const ribi_t::ribi axis = start_cr->get_axis();
 	slist_tpl<crossing_t *>crossings;
 	minivec_tpl<crossing_logic_t *>crossings_logics;
 
@@ -296,37 +296,43 @@ void crossing_logic_t::add( crossing_t *start_cr, crossing_state_t state )
 	if (crossing_logic_t *start_logic = start_cr->get_logic() ) {
 		crossings_logics.append(start_logic);
 	}
-	// go north/west
-	while(1) {
-		pos += zv;
-		grund_t *gr = welt->lookup( pos );
-		if(gr==NULL) {
-			break;
+	// `none` => degenerate crossing with no straight way; skip the
+	// chain walks (koord::step(none) is (0,0) and would loop forever)
+	// and let the rest of the function attach this lone crossing.
+	if (axis != ribi_t::none) {
+		const koord zv = koord::step( axis );
+		// go north/west
+		while(1) {
+			pos += zv;
+			grund_t *gr = welt->lookup( pos );
+			if(gr==NULL) {
+				break;
+			}
+			crossing_t *found_cr = gr->find<crossing_t>();
+			if(found_cr==NULL  ||  !have_crossings_same_wt(found_cr->get_desc(),start_cr->get_desc())  ||  start_cr->get_axis() != found_cr->get_axis()) {
+				break;
+			}
+			crossings.append( found_cr );
+			if(  found_cr->get_logic()!=NULL  ) {
+				crossings_logics.append_unique( found_cr->get_logic() );
+			}
 		}
-		crossing_t *found_cr = gr->find<crossing_t>();
-		if(found_cr==NULL  ||  !have_crossings_same_wt(found_cr->get_desc(),start_cr->get_desc())  ||  start_cr->get_dir() != found_cr->get_dir()) {
-			break;
-		}
-		crossings.append( found_cr );
-		if(  found_cr->get_logic()!=NULL  ) {
-			crossings_logics.append_unique( found_cr->get_logic() );
-		}
-	}
-	// go east/south
-	pos = start_cr->get_pos();
-	while(1) {
-		pos -= zv;
-		grund_t *gr = welt->lookup( pos );
-		if(gr==NULL) {
-			break;
-		}
-		crossing_t *found_cr = gr->find<crossing_t>();
-		if(found_cr==NULL  ||  !have_crossings_same_wt(found_cr->get_desc(),start_cr->get_desc())  ||  start_cr->get_dir() != found_cr->get_dir()) {
-			break;
-		}
-		crossings.append( found_cr );
-		if(  found_cr->get_logic()!=NULL  ) {
-			crossings_logics.append_unique( found_cr->get_logic() );
+		// go east/south
+		pos = start_cr->get_pos();
+		while(1) {
+			pos -= zv;
+			grund_t *gr = welt->lookup( pos );
+			if(gr==NULL) {
+				break;
+			}
+			crossing_t *found_cr = gr->find<crossing_t>();
+			if(found_cr==NULL  ||  !have_crossings_same_wt(found_cr->get_desc(),start_cr->get_desc())  ||  start_cr->get_axis() != found_cr->get_axis()) {
+				break;
+			}
+			crossings.append( found_cr );
+			if(  found_cr->get_logic()!=NULL  ) {
+				crossings_logics.append_unique( found_cr->get_logic() );
+			}
 		}
 	}
 	// remove all old crossing logics
@@ -365,7 +371,14 @@ void crossing_logic_t::remove( crossing_t *cr )
 	else {
 		// check for a crossing to the east/south
 		koord3d pos = cr->get_pos();
-		const koord zv = cr->get_dir() ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north);
+		// Symmetric with add()'s axis check — but here a degenerate
+		// crossing has no chain to split, so we can early-return
+		// rather than fall through.
+		const ribi_t::ribi axis = cr->get_axis();
+		if (axis == ribi_t::none) {
+			return;
+		}
+		const koord zv = koord::step( axis );
 		const grund_t *gr = welt->lookup( pos-zv );
 		if(  gr  ) {
 			crossing_t *found_cr = gr->find<crossing_t>();

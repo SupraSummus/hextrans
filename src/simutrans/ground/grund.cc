@@ -455,7 +455,7 @@ void grund_t::rdwr(loadsave_t *file)
 				if (cr_desc == 0) {
 					dbg->fatal("crossing_t::crossing_t()", "requested for waytypes %i and %i but nothing defined!", w1->get_waytype(), w2->get_waytype());
 				}
-				crossing_t* cr = new crossing_t(w1->get_owner(), pos, cr_desc, ribi_t::is_straight_ns(get_weg(cr_desc->get_waytype(1))->get_ribi_unmasked()));
+				crossing_t* cr = new crossing_t(w1->get_owner(), pos, cr_desc, ribi_t::straight_axis(get_weg(cr_desc->get_waytype(0))->get_ribi_unmasked()));
 				objlist.add(cr);
 				// the logic will be added thread safe in finish_rd()
 			}
@@ -1954,7 +1954,7 @@ sint64 grund_t::neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, player_t *player)
 				if(cr_desc==0) {
 					dbg->fatal("crossing_t::crossing_t()","requested for waytypes %i and %i but nothing defined!", weg->get_waytype(), w2 );
 				}
-				crossing_t *cr = new crossing_t(obj_bei(0)->get_owner(), pos, cr_desc, ribi_t::is_straight_ns(get_weg(cr_desc->get_waytype(1))->get_ribi_unmasked()) );
+				crossing_t *cr = new crossing_t(obj_bei(0)->get_owner(), pos, cr_desc, ribi_t::straight_axis(get_weg(cr_desc->get_waytype(0))->get_ribi_unmasked()) );
 				objlist.add( cr );
 				cr->finish_rd();	// add the logic
 			}

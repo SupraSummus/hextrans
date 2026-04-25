@@ -40,9 +40,9 @@ crossing_t::crossing_t(loadsave_t* const file) : obj_no_info_t()
 }
 
 
-crossing_t::crossing_t(player_t* const player, koord3d const pos, crossing_desc_t const* const desc, uint8 const ns) : obj_no_info_t(pos)
+crossing_t::crossing_t(player_t* const player, koord3d const pos, crossing_desc_t const* const desc, ribi_t::ribi const axis) : obj_no_info_t(pos)
 {
-	this->ns = ns;
+	this->axis = axis;
 	this->desc = desc;
 	logic = NULL;
 	state = crossing_logic_t::CROSSING_INVALID;
@@ -64,7 +64,9 @@ crossing_t::~crossing_t()
 void crossing_t::rotate90()
 {
 	obj_t::rotate90();
-	ns ^= 1;
+	// Rotation cascade is gated unreachable today (see TODO.md);
+	// kept internally consistent for whoever revives it.
+	axis = ribi_t::rotate_for_map_rotate90(axis);
 }
 
 
@@ -92,17 +94,23 @@ void crossing_t::calc_image()
 	pthread_mutex_unlock( &crossing_logic_mutex );
 #endif
 	const bool snow_image = get_pos().z >= welt->get_snowline()  ||  welt->get_climate( get_pos().get_2d() ) == arctic_climate;
+	// Pakset only ships 2 crossing sprite variants (NS, EW).  Project
+	// the 3-axis ribi onto them: N-S → 0, both diagonals (and the
+	// degenerate `none`) → 1.  NE-SW reuses the legacy NW-SE sprite
+	// because no third-axis art exists yet — tentative seam choice
+	// per TODO.md "Sim direction model".
+	const uint8 sprite_axis = (axis == ribi_t::north) ? 0 : 1;
 	// recalc image each step ...
-	const image_t *a = desc->get_foreground( ns, state!=crossing_logic_t::CROSSING_CLOSED, snow_image );
+	const image_t *a = desc->get_foreground( sprite_axis, state!=crossing_logic_t::CROSSING_CLOSED, snow_image );
 	if(  a==NULL  &&  snow_image  ) {
 		// no snow image? take normal one
-		a = desc->get_foreground( ns, state!=crossing_logic_t::CROSSING_CLOSED, 0);
+		a = desc->get_foreground( sprite_axis, state!=crossing_logic_t::CROSSING_CLOSED, 0);
 	}
 	foreground_image = a ? a->get_id() : IMG_EMPTY;
-	const image_t *b = desc->get_background( ns, state!=crossing_logic_t::CROSSING_CLOSED, snow_image );
+	const image_t *b = desc->get_background( sprite_axis, state!=crossing_logic_t::CROSSING_CLOSED, snow_image );
 	if (b==NULL  &&  snow_image) {
 		// no snow image? take normal one
-		b = desc->get_background( ns, state!=crossing_logic_t::CROSSING_CLOSED, 0);
+		b = desc->get_background( sprite_axis, state!=crossing_logic_t::CROSSING_CLOSED, 0);
 	}
 	image = b ? b->get_id() : IMG_EMPTY;
 }
@@ -118,7 +126,7 @@ void crossing_t::rdwr(loadsave_t *file)
 	state = logic==NULL ? crossing_logic_t::CROSSING_INVALID : logic->get_state();
 	file->rdwr_byte(state);
 	state = clamp<uint8>(state, 0, crossing_logic_t::NUM_CROSSING_STATES-1);
-	file->rdwr_byte(ns);
+	file->rdwr_byte(axis);
 
 	if(file->is_version_less(99, 16)) {
 		uint32 ldummy=0;
@@ -177,7 +185,8 @@ void crossing_t::finish_rd()
 		// after loading restore speedlimits
 		w1->count_sign();
 		w2->count_sign();
-		ns = ribi_t::is_straight_ns(w2->get_ribi_unmasked());
+		// Chain-walk axis: the axis w1 lies on at this tile.
+		axis = ribi_t::straight_axis(w1->get_ribi_unmasked());
 		if (!logic) {
 #ifdef MULTI_THREAD
 			pthread_mutex_lock(&crossing_logic_mutex);

@@ -33,8 +33,10 @@ protected:
 
 	bool is_transformer:1;
 
-	// direction of the next pylon
-	ribi_t::ribi ribi:4;
+	// direction of the next pylon — full 6-bit hex ribi, not a sub-byte
+	// bitfield (a `:4` packing here silently dropped the hex N / NE bits
+	// 4-5 every time `add_ribi` ORed them in).
+	ribi_t::ribi ribi;
 
 	/**
 	* We are part of this network

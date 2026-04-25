@@ -364,16 +364,13 @@ bool way_builder_t::check_crossing(const koord zv, const grund_t *bd, const way_
 	// check for existing crossing
 	crossing_t *cr = bd->find<crossing_t>();
 	if (cr) {
-		// index of the waytype in ns-direction at the crossing
-		const uint8 ns_way = cr->get_dir();
-		// only cross with the right direction.  HEX-PORT:
-		// `is_straight_ew` is deleted (hex has no E-W axis); the old
-		// E-W axis maps to the SE-NW hex axis under the 2:1 iso
-		// rename.  The 3rd hex axis (NE-SW) isn't served by this
-		// crossing geometry yet — tracked in crossings-cluster TODO.
-		return (ns_way == iwtyp)
-			? ribi_t::is_straight_ns(ribi_type(zv))
-			: ribi_type(zv) == (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest);
+		// To extend through this crossing, the new direction must lie
+		// on the same hex axis as my waytype's existing way at the tile.
+		const weg_t *my_way = bd->get_weg(wtyp);
+		assert(my_way); // crossing exists => has_two_ways => hat_weg(wtyp)
+		const ribi_t::ribi my_axis  = ribi_t::straight_axis(my_way->get_ribi_unmasked());
+		const ribi_t::ribi new_axis = ribi_t::straight_axis(ribi_type(zv));
+		return my_axis != ribi_t::none && my_axis == new_axis;
 	}
 
 	// no crossings in tunnels
