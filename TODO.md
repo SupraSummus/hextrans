@@ -328,11 +328,25 @@ formal removal.
 off this direction" sites — crossroads collision avoidance
 (`road_vehicle.cc`, `pedestrian.cc`, `vehicle_base.cc`),
 broad-tunnel side tiles (`tunnel.cc`, `tunnelbauer.cc`), canal
-orthogonality (`wasser.cc`), diagonal-bend detection (`weg.cc`,
-`wayobj.cc`).  Also stubbed to `rotate60` (the "one step over" axis).
-Triggered by the crossing-cluster port: per-site review, some may
-want both 60° and 120° (test both adjacent axes), some may redesign
-the check entirely for hex 3-axis geometry.
+orthogonality (`wasser.cc`).  Also stubbed to `rotate60` (the
+"one step over" axis).  Triggered by the crossing-cluster port:
+per-site review, some may want both 60° and 120° (test both
+adjacent axes), some may redesign the check entirely for hex
+3-axis geometry.
+
+**Diagonal way-image selection.**  Square-era code detected a
+smooth 45° diagonal way (a bend whose CW-endpoint neighbour
+carried the reverse bend) and switched to a `_diagonal` sprite
+variant.  Flat-top hex has 3 axes (N-S, NE-SW, NW-SE) — every
+direction lies on an axis, so there is no out-of-axis diagonal
+to detect.  Engine-side bookkeeping, the placement-preview
+diagonal branches in `simtool.cc`, and the unused
+`way_obj_desc_t::*_diagonal_image_id` accessors are deleted.
+`way_desc_t::get_diagonal_image_id` / `has_diagonal_image` stay
+because `leitung2.cc` still uses them with old square-era combo
+casts to pick powerline crossing sprites — they retire with the
+"Powerline 3rd hex axis" cluster when the renderer phase B
+sprite port reaches a hex-aware way-image mapping.
 
 **Old-east→hex-SE, old-west→hex-NW rename convention.**  ~30+ sites
 in rendering, signs, and leaf files mechanically renamed
