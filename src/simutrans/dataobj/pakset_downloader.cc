@@ -129,7 +129,7 @@ bool pak_download(vector_tpl<paksetinfo_t*>paks)
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wundef"
 #  pragma GCC diagnostic ignored "-Wcast-qual"
-#  ifndef __clang__
+#  if !defined(__clang__) && __GNUC__ >= 14
 #    pragma GCC diagnostic ignored "-Wcalloc-transposed-args"
 #  endif
 #endif
