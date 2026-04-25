@@ -371,7 +371,6 @@ function test_depot_build_tram()
 }
 
 
-// test_depot_build_sloped: HEX-PORT PENDING.
 function test_depot_build_sloped()
 {
 	local pl = player_x(0)
