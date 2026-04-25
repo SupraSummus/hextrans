@@ -76,9 +76,13 @@ _remove_powerbridge / _ways` each expect crossings / powerlines
 on the 2 square-era axes (N-S and old E-W).  Under hex there are
 3 axes and the 3rd (NE-SW) has no powerline crossing sprite or
 connection FSM support (`leitung2.cc` diagonal-image table is keyed
-on 4 old-combo values).  Restore after the crossing-cluster /
-3rd-axis work lands.  `_transformer_multiple` additionally depends
-on `leitung_t::suche_fab_neighbour`'s adjacency order — see
+on 4 old-combo values).  `leitung_t::ribi` is also still a `ribi:4`
+bitfield (`leitung2.h:37`) — `add_ribi` silently drops bits 4-5,
+so any N or NE edge written into a powerline today is lost.  Widen
+to 6 bits in the same pass that grows the diagonal-image table.
+Restore after the crossing-cluster / 3rd-axis work lands.
+`_transformer_multiple` additionally depends on
+`leitung_t::suche_fab_neighbour`'s adjacency order — see
 "Adjacency-order policy" below.
 
 **Sign / traffic-light 2-axis FSM.**  `test_sign_build_oneway /

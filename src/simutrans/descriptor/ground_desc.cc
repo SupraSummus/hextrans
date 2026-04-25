@@ -936,13 +936,13 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 				// sentinel) under the 4-corner encoding; under the
 				// 6-corner base-3 encoding the equivalent sentinel is
 				// slope_t::all_up_two (=728), which needs uint16.
-				slope_t::type double_corners = corners == 15 ? slope_t::all_up_two : slope_from_slope4(slope4_t(corners), 1);
+				slope_t::type double_corners = corners == 15 ? (slope_t::type)slope_t::all_up_two : slope_from_slope4(slope4_t(corners), 1);
 
 				// create alpha image
 				final_tile = create_alpha_tile( light_map->get_image_ptr( slope ), dslope, all_rotations_slope[double_corners] );
 				alpha_corners_image[dslope * 15 + corners - 1] = final_tile->get_id();
 
-				double_corners = corners == 15 ? slope_t::all_up_two : slope_from_slope4(slope4_t(15-corners), 1);
+				double_corners = corners == 15 ? (slope_t::type)slope_t::all_up_two : slope_from_slope4(slope4_t(15-corners), 1);
 				if(  all_rotations_beach[double_corners]  ) {
 					final_tile = create_alpha_tile( light_map->get_image_ptr( slope ), dslope, all_rotations_beach[double_corners] );
 					alpha_water_image[dslope * 15 + corners - 1] = final_tile->get_id();

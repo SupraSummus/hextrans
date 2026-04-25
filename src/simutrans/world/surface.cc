@@ -13,7 +13,11 @@
 #include "../ground/grund.h"
 #include "../player/simplay.h"
 
-#if __has_include(<sanitizer/common_interface_defs.h>)
+// Test the active-ASAN macro, not __has_include: libgcc-dev ships
+// <sanitizer/common_interface_defs.h> on every Linux toolchain, so a
+// header probe lets the call slip into non-ASAN builds and breaks
+// linking.
+#ifdef __SANITIZE_ADDRESS__
 #  include <sanitizer/common_interface_defs.h>
 #  define HEX_PORT_PRINT_STACK() __sanitizer_print_stack_trace()
 #else
