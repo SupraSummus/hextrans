@@ -257,6 +257,28 @@ static void test_pick_corner_matches_screen_closest()
 }
 
 
+static void test_corner_cursor_offsets()
+{
+	// Visual offsets are in the 64-unit tile basis used by
+	// tile_raster_scale_*.  For W=64 the units equal pixels; compare
+	// against the fractional-axial corner positions projected through
+	// the same lattice as the picker.
+	const double corner_dq[6] = {  2.0/3.0,  1.0/3.0, -1.0/3.0, -2.0/3.0, -1.0/3.0,  1.0/3.0 };
+	const double corner_dr[6] = { -1.0/3.0,  1.0/3.0,  2.0/3.0,  1.0/3.0, -1.0/3.0, -2.0/3.0 };
+	for (uint8 i = 0; i < 6; i++) {
+		const koord offset = hex_corner_cursor_offset((hex_corner_t::type)i);
+		const sint16 want_x = (sint16)std::round(corner_dq[i] * 3.0 * U);
+		const sint16 want_y = (sint16)std::round((corner_dq[i] + 2.0 * corner_dr[i]) * U);
+		if (offset.x != want_x || offset.y != want_y) {
+			std::fprintf(stderr,
+				"hex_corner_cursor_offset(%d) = (%d,%d), want (%d,%d)\n",
+				(int)i, offset.x, offset.y, want_x, want_y);
+			std::abort();
+		}
+	}
+}
+
+
 // ---- 5. Render-loop strip clipping -----------------------------------------
 
 static void test_render_loop_strip_clipped()
@@ -505,6 +527,7 @@ int main()
 	test_inverse_picks_screen_closest();
 	test_pick_corner_at_exact_offsets();
 	test_pick_corner_matches_screen_closest();
+	test_corner_cursor_offsets();
 	test_render_loop_strip_clipped();
 	test_slope_project_to_square_invariants();
 	test_slope_project_to_square_identity_on_canonicals();
