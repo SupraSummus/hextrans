@@ -227,12 +227,13 @@ water or tunnel depth; `wegbauer.cc` and `tunnelbauer.cc` use
 `max_hgt` for the same "dry land above z" predicate, and
 `enlarge_map_frame` uses `min_hgt` for the preview tile colour.
 
-*Save-cycle round-trippers* — `grund.cc:175, 287, 297, 307, 316`
-(5 sites), `simplan.cc:312, 317` (2 sites).  Read-then-write during
-the rdwr save/load cycle and during `planquadrat_t` changes; routed
-through `legacy_grid_hgt` / `legacy_set_grid_hgt_nocheck` to bypass
-the fatal shim.  Bubble-consistent by construction.  Retires with
-the save-format version bump.
+*Save-side wasser remnant* — `grund.cc:177` still calls `legacy_grid_hgt(k)`
+to initialise `z` before the save path.  For dry tiles this value is
+immediately overwritten by `z = pos.z`; for wasser tiles the loaded `z` is
+ignored because the hex-aware restore block writes `z_w` unconditionally.
+The read is therefore dead in both cases.  Retire by replacing the open
+with `sint8 z = pos.z` and removing the wasser-specific branch — requires
+checking that no version-gated load path still reads the old saved value.
 
 *Explicit out-of-scope* — `simworld.cc:4673` heightfield load (1
 site, blocked on import decision as noted above).
