@@ -13,6 +13,57 @@
 #include "../ground/grund.h"
 #include "../obj/zeiger.h"
 
+#include <cmath>
+
+
+static void pick_nearest_hex_vertex_global(karte_t *world, sint32 &grid_x, sint32 &grid_y,
+                                           double frac_dq, double frac_dr,
+                                           hex_corner_t::type &corner)
+{
+	constexpr double u = 16.0; // W/4 in the 64-unit object-offset basis.
+	const double mouse_x = frac_dq * 3.0 * u;
+	const double mouse_y = (frac_dq + 2.0 * frac_dr) * u;
+
+	static const koord candidates[7] = {
+		koord( 0,  0),
+		koord( 1,  0), koord( 0,  1), koord(-1,  1),
+		koord(-1,  0), koord( 0, -1), koord( 1, -1),
+	};
+
+	double best_d2 = HUGE_VAL;
+	sint32 best_x = grid_x;
+	sint32 best_y = grid_y;
+	hex_corner_t::type best_corner = corner;
+
+	for(  uint8 ti = 0;  ti < 7;  ti++  ) {
+		const sint32 tile_x = grid_x + candidates[ti].x;
+		const sint32 tile_y = grid_y + candidates[ti].y;
+		if(  !world->is_within_limits((sint16)tile_x, (sint16)tile_y)  ) {
+			continue;
+		}
+
+		const double tile_xoff = (double)hex_screen_dx(candidates[ti].x, 64);
+		const double tile_yoff = (double)hex_screen_dy(candidates[ti].x, candidates[ti].y, 64);
+		for(  uint8 ci = 0;  ci < hex_corner_t::count;  ci++  ) {
+			const hex_corner_t::type c = (hex_corner_t::type)ci;
+			const koord corner_off = hex_corner_centre_offset(c);
+			const double dx = tile_xoff + corner_off.x - mouse_x;
+			const double dy = tile_yoff + corner_off.y - mouse_y;
+			const double d2 = dx * dx + dy * dy;
+			if(  d2 < best_d2  ) {
+				best_d2 = d2;
+				best_x = tile_x;
+				best_y = tile_y;
+				best_corner = c;
+			}
+		}
+	}
+
+	grid_x = best_x;
+	grid_y = best_y;
+	corner = best_corner;
+}
+
 
 void viewport_t::set_viewport_ij_offset( const koord &k )
 {
@@ -319,8 +370,10 @@ koord3d viewport_t::get_new_cursor_position( const scr_coord &screen_pos, bool g
 	const int rw4 = cached_img_size/4;
 
 	int offset_y = 0;
-	if(world->get_zeiger()->get_yoff() == Z_PLAN) {
-		// already ok
+	if(world->get_zeiger()->get_yoff() == Z_PLAN  ||  grid_coordinates) {
+		// Grid tools pick an exact hex corner from the raw sub-tile mouse
+		// position; applying the legacy square-grid y shift first would
+		// bias the selected vertex downward.
 	}
 	else {
 		// shifted by a quarter tile
@@ -340,15 +393,19 @@ koord3d viewport_t::get_new_cursor_position( const scr_coord &screen_pos, bool g
 	sint8 groff = 0;
 
 	if( bd->is_visible()  &&  grid_coordinates) {
-		// Hex picker: the fractional residual is the cursor's sub-tile
-		// axial offset from the picked tile's centre.  Pick the nearest
-		// of the 6 hex corners; the cursor's display height (`groff`)
-		// reflects that corner, and the corner rides out via @p
-		// corner_out so the caller can hand it to the active tool.
-		const hex_corner_t::type corner = hex_pick_nearest_corner(frac_dq, frac_dr);
+		// Pick the nearest rendered world vertex, not just the nearest
+		// corner name on the already-rounded tile.  Shared hex vertices
+		// have three owner names; choosing globally keeps the displayed
+		// cursor and the tile/corner handed to the terraform tool in the
+		// same frame.
+		hex_corner_t::type corner = hex_corner_t::E;
+		pick_nearest_hex_vertex_global(world, grid_x, grid_y, frac_dq, frac_dr, corner);
+		bd = world->lookup_kartenboden_nocheck(grid_x, grid_y);
 		if (corner_out) *corner_out = corner;
-		world->get_zeiger()->set_image_offset(hex_corner_cursor_offset(corner));
+		const koord image_offset = hex_corner_cursor_draw_offset(corner);
+		world->get_zeiger()->set_image_offset(image_offset);
 		groff = bd->get_hoehe(corner) - bd->get_hoehe();
+		return koord3d(grid_x, grid_y, bd->get_disp_height() + groff);
 	}
 	else {
 		world->get_zeiger()->set_image_offset(koord(0,0));

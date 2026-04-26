@@ -93,6 +93,7 @@ public:
 	 * technically move is not network safe, however its implementation is:
 	 * it sends work commands over network itself
 	 */
+	void rdwr_custom_data(memory_rw_t*) OVERRIDE;
 	char const* move(player_t*, uint16 /* buttonstate */, koord3d) OVERRIDE;
 	bool move_has_effects() const OVERRIDE { return true; }
 
