@@ -21,6 +21,7 @@ class zeiger_t : public obj_no_info_t
 {
 private:
 	koord area, offset;
+	koord image_offset;
 	/// images
 	image_id image, foreground_image;
 
@@ -29,6 +30,8 @@ public:
 	zeiger_t(koord3d pos, player_t *player);
 
 	void change_pos(koord3d k);
+	void set_image_offset(koord new_image_offset);
+	koord get_image_offset() const { return image_offset; }
 
 	const char *get_name() const OVERRIDE {return "Zeiger";}
 	typ get_typ() const OVERRIDE { return zeiger; }

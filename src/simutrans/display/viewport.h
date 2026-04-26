@@ -131,11 +131,6 @@ public:
 	scr_coord get_screen_coord( const koord3d& pos, const koord& off = koord(0,0) ) const;
 
 	/**
-	 * Scales the 2D dimensions, expressed on base raster size pixels, to the current viewport.
-	 */
-	scr_coord scale_offset(const koord &value);
-
-	/**
 	 * Checks a 3d in-map coordinate, to know if it's centered on the current viewport.
 	 * @param pos 3D map coordinate to check.
 	 * @return true if the requested map coordinates are on the center of the viewport, false otherwise.

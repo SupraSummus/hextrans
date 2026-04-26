@@ -305,13 +305,14 @@ void main_view_t::display(bool force_dirty)
 		}
 	}
 
-	obj_t *zeiger = welt->get_zeiger();
+	zeiger_t *zeiger = welt->get_zeiger();
 	DBG_DEBUG4("main_view_t::display", "display pointer");
 	if( zeiger  &&  zeiger->get_pos() != koord3d::invalid ) {
 		bool dirty = zeiger->get_flag(obj_t::dirty);
 
 		scr_coord background_pos = viewport->get_screen_coord(zeiger->get_pos());
-		scr_coord pointer_pos = background_pos + viewport->scale_offset(koord(zeiger->get_xoff(),zeiger->get_yoff()));
+		const koord pointer_offset = koord(zeiger->get_xoff(), zeiger->get_yoff()) + zeiger->get_image_offset();
+		scr_coord pointer_pos = viewport->get_screen_coord(zeiger->get_pos(), pointer_offset);
 
 		// mark the cursor position for all tools (except lower/raise)
 		if(zeiger->get_yoff()==Z_PLAN) {

@@ -66,12 +66,6 @@ scr_coord viewport_t::get_screen_coord( const koord3d& pos, const koord& off) co
 }
 
 
-scr_coord viewport_t::scale_offset( const koord &value )
-{
-	return scr_coord(tile_raster_scale_x( value.x, cached_img_size ), tile_raster_scale_y( value.x, cached_img_size ));
-}
-
-
 // change the center viewport position
 void viewport_t::change_world_position( koord new_ij, sint16 new_xoff, sint16 new_yoff )
 {
@@ -353,7 +347,11 @@ koord3d viewport_t::get_new_cursor_position( const scr_coord &screen_pos, bool g
 		// corner_out so the caller can hand it to the active tool.
 		const hex_corner_t::type corner = hex_pick_nearest_corner(frac_dq, frac_dr);
 		if (corner_out) *corner_out = corner;
+		world->get_zeiger()->set_image_offset(hex_corner_cursor_offset(corner));
 		groff = bd->get_hoehe(corner) - bd->get_hoehe();
+	}
+	else {
+		world->get_zeiger()->set_image_offset(koord(0,0));
 	}
 
 	return koord3d(grid_x, grid_y, bd->get_disp_height() + groff);
