@@ -523,7 +523,7 @@ iso, not a regular hex tiling.  With unit `u = IMG_SIZE/4`:
 Adjacent +q tiles are at screen distance `u·√10` while adjacent +r
 tiles are at `2·u` — the +q axis is ~14% off true regular hex.
 What the lattice *does* preserve: (1) the existing
-`IMG_SIZE × IMG_SIZE/2` bounding box, so legacy diamond sprites
+`IMG_SIZE × IMG_SIZE/2` ground footprint, so legacy diamond sprites
 overlay on the right footprint until pakset art lands; (2) the iso
 2:1 row/column y-ratio, so vehicle motion and z-elevation keep the
 angles they expect; (3) integer fractions of `IMG_SIZE`, so the
@@ -534,9 +534,11 @@ fixed-point) and *square-row-spacing-preserving* with row step
 Revisit when sprite art enters scope.
 
 **Phase A verification gaps.**  No pakset → no visual confirmation
-in this env; `tools/hex_proj_test/` covers the projection math but
-not the rendered result.  One suspect still to eyeball when a
-pakset is available: the no-parity centring (square renderer had a
+in this env; `tools/hex_proj_test/` covers the projection math and
+the synth ground vector bbox/anchor contract, but not shaded-pixel
+aesthetics, sprite draw order, or pakset-art integration.  One
+suspect still to eyeball when a pakset is available: the no-parity
+centring (square renderer had a
 `disp_w/IMG_SIZE & 1` half-row nudge; for hex the natural parity
 is `disp_w/(3·IMG_SIZE/4) & 1`, currently not applied at all).
 At specific window widths the world centre may sit half a tile off
@@ -553,7 +555,9 @@ sprites land on roughly correct pixels with adjacency artefacts
 where neighbouring diamonds overlap.  *Already landed*: the
 `synth_overlay` algorithmic-pakset path replaces base ground tiles
 entirely with hex-shaped per-climate sprites carrying Lambertian-
-shaded slope faces; the diamond overlap goes away and the 4
+shaded slope faces; its image bbox carries extra top headroom for
+lifted slope vertices while preserving the same `W × W/2` ground
+footprint.  The diamond overlap goes away and the 4
 hex-only edge slopes become visually distinct.  An alternative
 that wasn't taken — a flat-top hex alpha mask applied at the blit
 (vertices at `(0, W/4)`, `(W/4, 0)`, `(3W/4, 0)`, `(W, W/4)`,
