@@ -119,6 +119,31 @@ static const uint8 ground_climate_slots = 8;
  */
 image_id get_ground(slope_t::type slope, uint8 climate_idx);
 
+
+/**
+ * Hex-shaped alpha mask for @p slope, RLE-shape-identical to the
+ * synth ground tile from `get_ground`.  Used by the climate and
+ * snowline overlay blits in `display_img_alpha_wc`, which walks the
+ * source and alpha pointers in lockstep driven by the source's RLE
+ * — pairing a synth source with a synth-shaped alpha keeps the
+ * walk inside both allocations.  Beach overlays still pair a pakset
+ * water source with the legacy `alpha_water_image[]`; they take
+ * their cue from synth only when `synth_overlay` grows a per-stage
+ * water family.
+ *
+ * Pixel values are full opaque PIXVAL (all R/G/B at max), so the
+ * blit applies the overlay uniformly across the hex.  Per-corner
+ * gradient — needed for legacy-style smooth climate transitions —
+ * is a future enhancement once corner masking is wired through;
+ * today the corner mask is unused and transitions appear at tile
+ * granularity rather than per-corner.
+ *
+ * Returns IMG_EMPTY when synth has not been initialised or when
+ * @p slope is out of range.  Callers should fall back to the legacy
+ * `alpha_image[] / alpha_corners_image[]` lookup in that case.
+ */
+image_id get_alpha(slope_t::type slope);
+
 } // namespace synth_overlay
 
 #endif
