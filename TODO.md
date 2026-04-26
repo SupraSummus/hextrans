@@ -600,3 +600,15 @@ once the structural changes settle.  Either reject old saves
 cleanly or write a one-shot square→hex converter (hard because 4
 corners do not map cleanly to 6).
 
+## other
+
+`grund_t::rdwr` gates the extra climate-corners-hi byte with
+`is_version_atleast(SIM_VERSION_MAJOR, SIM_SAVE_MINOR)`.  That gate
+silently changes meaning the next time `SIM_SAVE_MINOR` is bumped for
+an unrelated reason — the compatibility check semantically belongs to
+*this* save change (124.5), not "whatever the latest minor happens to
+be".  Replace with hardcoded `(124, 5)` at the call site, or introduce
+a named constant (e.g. `SAVE_VERSION_HEX_CLIMATE_CORNERS`) so each
+save-format gate stays pinned to the change that introduced it.
+Retire when the save-version gating scheme grows a per-feature
+constant convention; until then it's a footgun for the next bump.
