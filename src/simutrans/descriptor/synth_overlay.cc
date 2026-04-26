@@ -181,25 +181,34 @@ static size_t encode_rle(const PIXVAL* buf, sint32 w, sint32 h, PIXVAL* out)
 
 
 // Build the outline image for one slope, half (fg or bg).  The
-// flat-top hex is inscribed in the template marker's bounding box
-// (E and W vertices on the horizontal extremes at mid-y, NE/SE/NW/SW
-// at quarter-width on the top and bottom rows), with each vertex
-// lifted by `corner_h * tile_raster_scale_y(TILE_HEIGHT_STEP, w)` for
-// slope-aware outlines.  Hex slopes share corners across 3 tiles —
-// that's a terrain-storage problem (per AGENTS.md "per-vertex height
-// storage") not a marker problem; the marker only ever shows one
-// tile's view of its own corners and is consistent by construction.
+// flat-top hex is inscribed in a `4u × 2u` bounding box (E and W
+// vertices on the horizontal extremes at mid-y, NE/SE/NW/SW at
+// quarter-width on the top and bottom rows), with each vertex lifted
+// by `corner_h * tile_raster_scale_y(TILE_HEIGHT_STEP, 4u)` for
+// slope-aware outlines.  The bbox dimensions are dictated by the hex
+// iso lattice in `hex_proj.h` (column step `(3u, u)`, row step
+// `(0, 2u)`); inscribing in any other rectangle gaps the lattice — a
+// pakset marker template's actual w/h is not safe to inherit because
+// it isn't pinned to 2:1 (pak64's Marker.pak ships a square 64×64
+// cursor, which gave a 64-tall hex on a 32-tall lattice slot and
+// gapped adjacent tiles by `u` px).  See
+// `tools/hex_proj_test/hex_proj_test.cc :: test_inscribed_hex_tiles_lattice`.
 //
-// Lifted vertices may project above the template's top edge; the
-// line drawer clips them.  Visually the outline tops can get cut off
-// for double-height raised corners — not a concern for the cursor
-// at single-height terrain, revisit if the cropping shows up.
-static image_t* build_outline(const image_t* tmpl, slope_t::type slope, bool background)
+// Hex slopes share corners across 3 tiles — that's a terrain-storage
+// problem (per AGENTS.md "per-vertex height storage") not a marker
+// problem; the marker only ever shows one tile's view of its own
+// corners and is consistent by construction.
+//
+// Lifted vertices may project above the bbox top edge; the line
+// drawer clips them.  Visually the outline tops can get cut off for
+// double-height raised corners — not a concern for the cursor at
+// single-height terrain, revisit if the cropping shows up.
+static image_t* build_outline(sint32 u, slope_t::type slope, bool background)
 {
-	const sint32 w = tmpl->w;
-	const sint32 h = tmpl->h;
-	const sint32 mid_y = h / 2;
+	const sint32 w = 4 * u;
+	const sint32 h = 2 * u;
 	const sint32 top_y = 0;
+	const sint32 mid_y = u;
 	const sint32 bot_y = h - 1;
 	const sint16 lift = (sint16)tile_raster_scale_y(TILE_HEIGHT_STEP, w);
 
@@ -208,12 +217,12 @@ static image_t* build_outline(const image_t* tmpl, slope_t::type slope, bool bac
 	// Y grows down; corner height lifts UP, so subtract.
 	struct vertex_t { sint32 x, y; };
 	const vertex_t v[hex_corner_t::count] = {
-		{ w - 1,     mid_y - corner_e(slope)  * lift }, // E
-		{ (w*3) / 4, bot_y - corner_se(slope) * lift }, // SE
-		{  w    / 4, bot_y - corner_sw(slope) * lift }, // SW
-		{ 0,         mid_y - corner_w(slope)  * lift }, // W
-		{  w    / 4, top_y - corner_nw(slope) * lift }, // NW
-		{ (w*3) / 4, top_y - corner_ne(slope) * lift }, // NE
+		{ w - 1, mid_y - corner_e(slope)  * lift }, // E
+		{ 3 * u, bot_y - corner_se(slope) * lift }, // SE
+		{     u, bot_y - corner_sw(slope) * lift }, // SW
+		{ 0,     mid_y - corner_w(slope)  * lift }, // W
+		{     u, top_y - corner_nw(slope) * lift }, // NW
+		{ 3 * u, top_y - corner_ne(slope) * lift }, // NE
 	};
 
 	// Vertex visit order around each half of the outline.  Front
@@ -250,9 +259,9 @@ static image_t* build_outline(const image_t* tmpl, slope_t::type slope, bool bac
 
 	img->w = (scr_coord_val)w;
 	img->h = (scr_coord_val)h;
-	img->x = tmpl->x;
-	img->y = tmpl->y;
-	img->zoomable = tmpl->zoomable;
+	img->x = 0;
+	img->y = 0;
+	img->zoomable = 1;
 
 	return img;
 }
@@ -340,19 +349,22 @@ static PIXVAL shade_pixval(PIXVAL p, sint32 brightness)
 
 
 // Build the filled hex ground tile for one (slope, climate_idx).
-// Geometry mirrors `build_outline`: hex inscribed in the template's
-// W * H bounding box (E and W vertices on the horizontal extremes
-// at mid-y; NE/SE/NW/SW at quarter-width on the top and bottom
-// rows), each vertex lifted by `corner_h * tile_raster_scale_y`.
+// Geometry mirrors `build_outline`: hex inscribed in a `4u × 2u`
+// bounding box (E and W vertices on the horizontal extremes at mid-y;
+// NE/SE/NW/SW at quarter-width on the top and bottom rows), each
+// vertex lifted by `corner_h * tile_raster_scale_y`.  See
+// `build_outline` for why the bbox dimensions are pinned to the hex
+// iso lattice rather than inherited from the pakset.
+//
 // The tile is split into 6 triangle faces meeting at the centre,
 // each face shaded by Lambertian on its world-space normal so that
 // slopes read as 3D rather than as flat coloured hexes.
-static image_t* build_ground(const image_t* tmpl, slope_t::type slope, uint8 climate_idx)
+static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 {
-	const sint32 w = tmpl->w;
-	const sint32 h = tmpl->h;
-	const sint32 mid_y = h / 2;
+	const sint32 w = 4 * u;
+	const sint32 h = 2 * u;
 	const sint32 top_y = 0;
+	const sint32 mid_y = u;
 	const sint32 bot_y = h - 1;
 	const sint16 lift = (sint16)tile_raster_scale_y(TILE_HEIGHT_STEP, w);
 	const PIXVAL base = CLIMATE_RGB555[climate_idx];
@@ -368,12 +380,12 @@ static image_t* build_ground(const image_t* tmpl, slope_t::type slope, uint8 cli
 
 	// Vertex screen coords (after lift).  Order matches hex_corner_t.
 	const sint32 vx[hex_corner_t::count] = {
-		w - 1,        // E
-		(w * 3) / 4,  // SE
-		 w      / 4,  // SW
-		0,            // W
-		 w      / 4,  // NW
-		(w * 3) / 4,  // NE
+		w - 1, // E
+		3 * u, // SE
+		    u, // SW
+		0,     // W
+		    u, // NW
+		3 * u, // NE
 	};
 	const sint32 vy_base[hex_corner_t::count] = {
 		mid_y, // E
@@ -475,9 +487,9 @@ static image_t* build_ground(const image_t* tmpl, slope_t::type slope, uint8 cli
 
 	img->w = (scr_coord_val)w;
 	img->h = (scr_coord_val)h;
-	img->x = tmpl->x;
-	img->y = tmpl->y;
-	img->zoomable = tmpl->zoomable;
+	img->x = 0;
+	img->y = 0;
+	img->zoomable = 1;
 
 	return img;
 }
@@ -522,24 +534,31 @@ void init()
 		initialised = false;
 	}
 
-	if(  ground_desc_t::marker == NULL  ) {
-		dbg->warning("synth_overlay::init", "no Marker pakset; synth disabled, falling back to legacy projection");
-		return;
-	}
-	const image_t* tmpl = ground_desc_t::marker->get_image_ptr(0);
-	if(  tmpl == NULL  ||  tmpl->w <= 0  ||  tmpl->h <= 0  ) {
-		dbg->warning("synth_overlay::init", "no usable Marker template (image 0); synth disabled");
+	// The lattice unit `u = W/4` is the natural parameter for every
+	// piece of hex iso geometry (column step `(3u, u)`, row step
+	// `(0, 2u)`, inscribed-hex bbox `4u × 2u`).  Pinning u as the
+	// builder input makes the multiples explicit at the call sites
+	// and keeps any future scale change (e.g. art-larger-than-bbox
+	// trim, see TODO.md) on a clean integer grid.  Inheriting from
+	// a pakset template's actual w/h is not safe — pak64's Marker.pak
+	// ships 64×64, which gave a 64-tall hex on a 32-tall lattice
+	// slot and gapped adjacent tiles by `u` px.  See
+	// `tools/hex_proj_test/hex_proj_test.cc :: test_inscribed_hex_tiles_lattice`.
+	const sint32 W = (sint32)gfx->get_base_tile_raster_width();
+	const sint32 u = W / 4;
+	if(  u < 1  ) {
+		dbg->warning("synth_overlay::init", "tile raster width %d too small; synth disabled", W);
 		return;
 	}
 
 	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
 		for(  int half = 0;  half < 2;  half++  ) {
-			image_t* img = build_outline(tmpl, (slope_t::type)s, half == 1);
+			image_t* img = build_outline(u, (slope_t::type)s, half == 1);
 			img->register_image();
 			marker[half][s] = img;
 		}
 		for(  int c = 0;  c < ground_climate_slots;  c++  ) {
-			image_t* img = build_ground(tmpl, (slope_t::type)s, (uint8)c);
+			image_t* img = build_ground(u, (slope_t::type)s, (uint8)c);
 			img->register_image();
 			ground[c][s] = img;
 		}
@@ -554,11 +573,11 @@ void init()
 
 	initialised = true;
 	DBG_DEBUG("synth_overlay::init",
-	          "synthesised %d marker + %d ground + %d alpha sprites (w=%d h=%d)",
+	          "synthesised %d marker + %d ground + %d alpha sprites (u=%d, bbox %dx%d)",
 	          slope_t::max_slopes * 2,
 	          slope_t::max_slopes * ground_climate_slots,
 	          slope_t::max_slopes,
-	          tmpl->w, tmpl->h);
+	          u, 4 * u, 2 * u);
 }
 
 

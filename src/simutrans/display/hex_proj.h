@@ -45,14 +45,16 @@
 /// Screen-x of axial `+q` step in pixels (independent of `r`).
 inline sint32 hex_screen_dx(sint32 dq, sint16 W)
 {
-	return dq * 3 * (sint32)(W / 4);
+	const sint32 u = (sint32)(W / 4);
+	return dq * 3 * u;
 }
 
 
 /// Screen-y of an axial `(+q, +r)` step in pixels.
 inline sint32 hex_screen_dy(sint32 dq, sint32 dr, sint16 W)
 {
-	return (dq + 2 * dr) * (sint32)(W / 4);
+	const sint32 u = (sint32)(W / 4);
+	return (dq + 2 * dr) * u;
 }
 
 
@@ -170,15 +172,15 @@ inline sint16 hex_render_x_step()
 inline sint32 hex_render_x_start_clipped(sint16 y, sint32 lt_x,
                                          sint32 const_x_off, sint16 W)
 {
-	const sint32 unit = W / 4;
-	// smallest x with x*unit + const_x_off + W > lt_x
-	//   <=> x*unit > lt_x - const_x_off - W
-	//   <=> x > rhs / unit
+	const sint32 u = W / 4;
+	// smallest x with x*u + const_x_off + W > lt_x
+	//   <=> x*u > lt_x - const_x_off - W
+	//   <=> x > rhs / u
 	const sint32 rhs = lt_x - const_x_off - (sint32)W;
-	// floor(rhs / unit) for positive `unit` (C++ integer division
+	// floor(rhs / u) for positive `u` (C++ integer division
 	// truncates toward zero, not toward -inf).
-	sint32 x = rhs / unit;
-	if (rhs < 0 && rhs % unit != 0) {
+	sint32 x = rhs / u;
+	if (rhs < 0 && rhs % u != 0) {
 		x -= 1;
 	}
 	x += 1;
