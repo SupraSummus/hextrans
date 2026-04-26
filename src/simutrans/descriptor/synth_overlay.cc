@@ -341,9 +341,11 @@ static void fill_polygon(PIXVAL* buf, sint32 w, sint32 h,
 			if(  ya == yb  ) { continue; } // skip horizontal edges
 			const sint32 y_lo = ya < yb ? ya : yb;
 			const sint32 y_hi = ya < yb ? yb : ya;
-			// half-open [y_lo, y_hi) — a vertex shared by two edges
-			// only contributes once, avoiding double-counting at
-			// scanline = vertex.y.
+			// Half-open [y_lo, y_hi) — textbook scanline parity so a
+			// vertex shared by two edges counts once (avoids odd hit
+			// counts on interior scanlines of sloped wedges).  The flat
+			// hex SE–SW bottom is horizontal (skipped above); that row is
+			// closed in build_ground after the wedge fills.
 			if(  y < y_lo  ||  y >= y_hi  ) { continue; }
 			const sint32 xa = xs[i];
 			const sint32 xb = xs[j];
@@ -485,6 +487,30 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 		const sint32 fxs[3] = { cx, geom.vx[a], geom.vx[b] };
 		const sint32 fys[3] = { cy, vy[a], vy[b] };
 		fill_polygon(buf, w, h, fxs, fys, 3, face_color);
+
+		// Boundary chord parallel to x (e.g. flat-top hex SE–SW): both
+		// slanted edges use y_hi == that row, so half-open contributes
+		// zero crossings while the horizontal rim is skipped in the
+		// edge loop above.  Fill the rim explicitly; skip vy==cy
+		// (degenerate horizontal triangle) to avoid double-painting the
+		// centre scanline.
+		if(  vy[a] == vy[b]  &&  vy[a] != cy  ) {
+			const sint32 y = vy[a];
+			if(  y >= 0  &&  y < h  ) {
+				sint32 x0 = geom.vx[a];
+				sint32 x1 = geom.vx[b];
+				if(  x0 > x1  ) {
+					const sint32 t = x0;
+					x0 = x1;
+					x1 = t;
+				}
+				if(  x0 < 0   ) { x0 = 0; }
+				if(  x1 >= w  ) { x1 = w - 1; }
+				for(  sint32 x = x0;  x <= x1;  x++  ) {
+					buf[y * w + x] = face_color;
+				}
+			}
+		}
 	}
 
 	// Encode into RLE.  Worst case as in build_outline: 2 PIXVALs per
