@@ -173,11 +173,14 @@ void grund_t::rdwr(loadsave_t *file)
 {
 	koord k = pos.get_2d();
 
-	// water saves its correct height => no need to save grid heights anymore
-	sint8 z = welt->legacy_grid_hgt( k ); // save grid height for water tiles - including partial water tiles
+	// For dry tiles z is immediately overwritten to pos.z; for wasser tiles
+	// the loaded z is ignored by the hex-aware restore block (all corners → z_w).
+	// The legacy_grid_hgt read here is therefore dead for both cases; it survives
+	// only until the wasser save path is simplified (retire with TODO cluster).
+	sint8 z = welt->legacy_grid_hgt( k );
 	sint8 z_w = welt->get_water_hgt( k );
 	if(  !(get_typ() == grund_t::boden  ||  get_typ() == grund_t::wasser) || pos.z > z_w || z > z_w  ) {
-		z = pos.z; // all other tiles save ground height
+		z = pos.z;
 	}
 
 	planquadrat_t *plan = welt->access( k );
@@ -287,52 +290,35 @@ void grund_t::rdwr(loadsave_t *file)
 
 	// restore grid
 	if(  file->is_loading()  ) {
-		if( get_typ() == grund_t::boden  ||  get_typ() == grund_t::fundament  ) {
-			/* since those must be on the ground and broken grids occurred in the past
-			 * (due to incorrect restoration of grid heights on house slopes)
-			 * we simply reset the grid height to our current height
-			 */
-			z = pos.z;
+		// For wasser tiles every vertex sits at z_w (flat water).  For all
+		// other types the saved z equals pos.z (the minimum corner height)
+		// so each vertex height is pos.z + its corner delta from the slope.
+		const bool is_wasser = (get_typ() == grund_t::wasser);
+		auto hgt = [&](int delta) -> sint8 {
+			return is_wasser ? z_w : sint8(pos.z + delta);
+		};
+
+		// Every tile writes its own two canonical slots.
+		welt->set_grid_hgt_nocheck(k, hex_corner_t::E,  hgt(corner_e(slope)));
+		welt->set_grid_hgt_nocheck(k, hex_corner_t::SE, hgt(corner_se(slope)));
+
+		// Left edge: NW, W and SW corners canonicalise to the q==-1 sentinel
+		// column which no tile's normal E/SE write will ever reach.
+		if(  pos.x == 0  ) {
+			welt->set_grid_hgt_nocheck(k, hex_corner_t::NW, hgt(corner_nw(slope)));
+			welt->set_grid_hgt_nocheck(k, hex_corner_t::W,  hgt(corner_w(slope)));
+			welt->set_grid_hgt_nocheck(k, hex_corner_t::SW, hgt(corner_sw(slope)));
 		}
-		// for south/east map edges we need to restore more than one point
-		if(  pos.x == welt->get_size().x-1  &&  pos.y == welt->get_size().y-1  ) {
-			sint8 z_southeast = z;
-			if(  get_typ() == grund_t::wasser  &&  z_southeast > z_w  ) {
-				z_southeast = z_w;
-			}
-			else {
-				z_southeast += corner_se(slope);
-			}
-			welt->legacy_set_grid_hgt_nocheck( k + koord(1,1), z_southeast );
+		// Top edge: NE corner canonicalises to the r==-1 sentinel row.
+		if(  pos.y == 0  ) {
+			welt->set_grid_hgt_nocheck(k, hex_corner_t::NE, hgt(corner_ne(slope)));
 		}
-		if(  pos.x == welt->get_size().x-1  ) {
-			sint8 z_east = z;
-			if(  get_typ() == grund_t::wasser  &&  z_east > z_w  ) {
-				z_east = z_w;
-			}
-			else {
-				z_east += corner_ne(slope);
-			}
-			welt->legacy_set_grid_hgt_nocheck( k + koord(1,0), z_east );
-		}
-		if(  pos.y == welt->get_size().y-1  ) {
-			sint8 z_south = z;
-			if(  get_typ() == grund_t::wasser  &&  z_south > z_w  ) {
-				z_south = z_w;
-			}
-			else {
-				z_south += corner_sw(slope);
-			}
-			welt->legacy_set_grid_hgt_nocheck( k + koord(0,1), z_south );
+		// Bottom edge (q>0): SW corner canonicalises to the r==H sentinel row.
+		// The q==0 bottom-edge case is already handled by the left-edge block.
+		if(  pos.y == welt->get_size().y-1  &&  pos.x > 0  ) {
+			welt->set_grid_hgt_nocheck(k, hex_corner_t::SW, hgt(corner_sw(slope)));
 		}
 
-		if(  get_typ() == grund_t::wasser  &&  z > z_w  ) {
-			z = z_w;
-		}
-		else {
-			z += corner_nw(slope);
-		}
-		welt->legacy_set_grid_hgt_nocheck( k, z );
 		welt->set_water_hgt_nocheck( k, z_w );
 	}
 
