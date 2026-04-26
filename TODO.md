@@ -478,6 +478,12 @@ together with the corner-overlay 6-edge port; until then keep
 `synth_overlay::prefer_over_pakset` toggleable so a regression on
 the synth path is recoverable without a code change.
 
+Some builder paths still assign `get_grund_hang()` into a `uint8`
+local (e.g. `wegbauer.cc`, `tunnelbauer.cc` — grep for the pattern).
+That silently truncates slopes ≥ 256 the way `grund_t::display_boden`
+used to before the grid-border fix; audit when those code paths are
+next touched for hex correctness.
+
 `get_beach_tile` still returns pakset-shaped alpha because its source
 (`get_water_tile` / `sea->get_image(0, stage)`) is also still on the
 pakset path — water animation stages aren't synthesised yet, and

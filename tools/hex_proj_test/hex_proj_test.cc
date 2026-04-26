@@ -460,6 +460,87 @@ static sint32 max_shared_corner_gap(sint32 w, sint32 h)
 }
 
 
+// Half-open edge rule used by `synth_overlay::fill_polygon`: the flat
+// hex bottom SE–SW is horizontal (no crossings), and centre→SE /
+// centre→SW both use y_hi == bot_y so half-open contributes zero hits
+// on that row — build_ground closes it with an explicit horizontal chord.
+static int synth_halfopen_edge_hits(sint32 ya, sint32 yb, sint32 y)
+{
+	if (ya == yb) {
+		return 0;
+	}
+	const sint32 y_lo = ya < yb ? ya : yb;
+	const sint32 y_hi = ya < yb ? yb : ya;
+	return (y >= y_lo && y < y_hi) ? 1 : 0;
+}
+
+static void test_synth_flat_bottom_rim_has_no_halfopen_edge_hits()
+{
+	constexpr sint32 W = 64;
+	const synth_overlay::synth_hex_geometry_t geom =
+		synth_overlay::synth_hex_geometry(W / 4, 16);
+	const sint32 cy = geom.mid_y;
+	const sint32 vy_se = geom.vy(slope_t::flat, hex_corner_t::SE);
+	const sint32 vy_sw = geom.vy(slope_t::flat, hex_corner_t::SW);
+	const sint32 y_bot = vy_se;
+	assert(vy_sw == y_bot);
+
+	const int ho = synth_halfopen_edge_hits(cy, vy_se, y_bot)
+	             + synth_halfopen_edge_hits(cy, vy_sw, y_bot);
+	if (ho != 0) {
+		std::fprintf(stderr,
+			"synth bottom rim: expected 0 half-open edge hits on bot row, got %d (y_bot=%d cy=%d)\n",
+			ho, (int)y_bot, (int)cy);
+		std::abort();
+	}
+}
+
+// Monotone vertex safety: inclusive y on slanted edges can yield an odd
+// number of crossings on one scanline (pair-fill drops a span).
+// Half-open parity must stay even on every row of each wedge — sample
+// raised_E (one corner up), which stresses centre vs rim geometry.
+static void test_synth_raised_E_wedges_have_even_halfopen_hits()
+{
+	constexpr sint32 W = 64;
+	const synth_overlay::synth_hex_geometry_t geom =
+		synth_overlay::synth_hex_geometry(W / 4, 16);
+	const slope_t::type slope = slope_t::raised_E;
+	sint32 vy[6];
+	for (int i = 0; i < 6; i++) {
+		vy[i] = geom.vy(slope, (hex_corner_t::type)i);
+	}
+	sint32 sum_h = 0;
+	for (int i = 0; i < 6; i++) {
+		sum_h += synth_overlay::hex_corner_height(slope, (hex_corner_t::type)i);
+	}
+	const sint32 cz = (sum_h * geom.lift) / 6;
+	const sint32 cy = geom.mid_y - cz;
+
+	for (int f = 0; f < 6; f++) {
+		const int a = f;
+		const int b = (f + 1) % 6;
+		sint32 y_min = cy, y_max = cy;
+		if (vy[a] < y_min) y_min = vy[a];
+		if (vy[a] > y_max) y_max = vy[a];
+		if (vy[b] < y_min) y_min = vy[b];
+		if (vy[b] > y_max) y_max = vy[b];
+		if (y_min < 0) y_min = 0;
+		if (y_max >= geom.h) y_max = geom.h - 1;
+		for (sint32 y = y_min; y <= y_max; y++) {
+			const int h = synth_halfopen_edge_hits(cy, vy[a], y)
+			            + synth_halfopen_edge_hits(vy[a], vy[b], y)
+			            + synth_halfopen_edge_hits(vy[b], cy, y);
+			if ((h & 1) != 0) {
+				std::fprintf(stderr,
+					"synth raised_E wedge f=%d: odd half-open hit count %d at y=%d\n",
+					f, h, (int)y);
+				std::abort();
+			}
+		}
+	}
+}
+
+
 static void test_inscribed_hex_tiles_lattice()
 {
 	// `w × w/2` is the only inscription that tiles the lattice (the
@@ -701,6 +782,8 @@ int main()
 	test_slope_project_to_square_identity_on_canonicals();
 	test_slope_project_to_square_hex_edges();
 	test_slope_project_to_square_clamping();
+	test_synth_flat_bottom_rim_has_no_halfopen_edge_hits();
+	test_synth_raised_E_wedges_have_even_halfopen_hits();
 	test_inscribed_hex_tiles_lattice();
 	test_synth_slope_bbox_contains_lifted_vertices();
 	test_synth_build_ground_normal_uses_lifted_screen_y();

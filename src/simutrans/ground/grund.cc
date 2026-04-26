@@ -1186,7 +1186,9 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 #else
 				if(  show_grid  ){
 #endif
-					const uint8 hang = get_grund_hang();
+					// slope_t::type is sint16 (729 values); uint8 truncates >=256
+					// and mis-keys synth_border vs get_ground_tile.
+					const slope_t::type hang = get_grund_hang();
 					gfx->draw_normal( ground_desc_t::get_border_image(hang), xpos, ypos, 0, true, dirty CLIP_NUM_PAR );
 				}
 			}
@@ -1373,7 +1375,7 @@ void grund_t::display_obj_all_quick_and_dirty(const sint16 xpos, sint16 ypos, co
 
 	if(  visible  ) {
 		if(  is_global  &&  get_flag( grund_t::marked )  ) {
-			const uint8 hang = get_grund_hang();
+			const slope_t::type hang = get_grund_hang();
 			gfx->draw_img_aux( ground_desc_t::get_marker_image( hang, true ), xpos, ypos, 0, true, dirty CLIP_NUM_PAR );
 #ifdef MULTI_THREAD
 			objlist.display_obj_quick_and_dirty( xpos, ypos, start_offset CLIP_NUM_PAR );
@@ -1397,7 +1399,7 @@ void grund_t::display_obj_all_quick_and_dirty(const sint16 xpos, sint16 ypos, co
 						gfx->draw_img_aux( ground_desc_t::get_border_image(0), xpos, ypos - tile_raster_scale_y( (z - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, true, true CLIP_NUM_PAR );
 					}
 					//display back part of marker for ground
-					const uint8 kbhang = gr->get_grund_hang() | gr->get_weg_hang();
+					const slope_t::type kbhang = gr->get_grund_hang() | gr->get_weg_hang();
 					gfx->draw_img_aux( ground_desc_t::get_border_image(kbhang), xpos, ypos - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, true, true CLIP_NUM_PAR );
 				}
 			}
@@ -1412,7 +1414,7 @@ void grund_t::display_obj_all_quick_and_dirty(const sint16 xpos, sint16 ypos, co
 	}
 	else { // must be karten_boden
 		// in undergroundmode: draw ground grid
-		const uint8 hang = underground_mode==ugm_all ? get_grund_hang() : (uint8)slope_t::flat;
+		const slope_t::type hang = underground_mode==ugm_all ? get_grund_hang() : slope_t::flat;
 		gfx->draw_img_aux( ground_desc_t::get_border_image(hang), xpos, ypos, 0, true, dirty CLIP_NUM_PAR );
 
 		// show marker for marked but invisible tiles
@@ -1665,7 +1667,7 @@ uint8 grund_t::display_obj_bg(const sint16 xpos, const sint16 ypos, const bool i
 	}
 	else { // must be karten_boden
 		// in undergroundmode: draw ground grid
-		const uint8 hang = underground_mode == ugm_all ? get_grund_hang() : (slope_t::type)slope_t::flat;
+		const slope_t::type hang = underground_mode == ugm_all ? get_grund_hang() : slope_t::flat;
 		gfx->draw_normal( ground_desc_t::get_border_image(hang), xpos, ypos, 0, true, dirty CLIP_NUM_PAR );
 		// show marker for marked but invisible tiles
 		if(  is_global  &&  get_flag( grund_t::marked )  ) {
