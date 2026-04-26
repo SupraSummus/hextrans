@@ -119,11 +119,15 @@ reachable water tiles") survive, but the test bodies bake in square
 arithmetic throughout.
 
 **Flood-fill / region walkers.**
-`test_terraform_raise_lower_water_level` uses a rectangular
-`terraform_volcano` scaffold and exercises the `tool_change_water_height`
-flood-fill; `test_trees_plant_forest` uses a rectangular selection
-for the forest tool.  Both need hex-aware region walkers and
-hex-shaped scaffolds.
+`tool_change_water_height_t` in `simtool.cc` is hex-aware (6-neighbour
+flood, shared-edge corner heights on the *current* tile per
+`vertex_owners`, six-corner apply + `set_grid_hgt_nocheck`).  Scenario
+`test_terraform_raise_lower_water_level` stays commented out: it still
+uses a rectangular `terraform_volcano` scaffold and square-shaped
+flood expectations — restore after a hex-shaped scaffold and
+assertion rewrite.  `test_trees_plant_forest` uses a rectangular
+selection for the forest tool; it needs hex-aware region walkers and
+a hex-shaped scaffold.
 
 **Adjacency-order policy.**
 `test_powerline_build_transformer_multiple` relies on
@@ -173,8 +177,7 @@ The two NW-corner-only writers (`hausbauer.cc:457` and
 `simtool.cc:1600/1597`) are now hex-aware via the
 `(koord, hex_corner_t::NW)` overload — building removal and the
 setslope tool's grid-correction step write the right vertex.
-Remaining writers that still need the same treatment: the `simtool.cc`
-water-raise flood-fill (square 4-neighbour); the heightfield-load path
+Remaining writers that still need the same treatment: the heightfield-load path
 in `karte_t::init_tiles` (replicates the last square-grid row into the
 doubled slot layout — needs a hex-aware importer or a clean rejection);
 `karte_t::rotate90`'s heightmap-rotation loop (90° is not a valid hex
@@ -192,16 +195,6 @@ tile `(x-1, y-1)`.  Two narrow escape hatches survive in
 `legacy_set_grid_hgt_nocheck`); their callers are listed below by
 retirement trigger.  Remaining shim call sites still pending port
 audit into these clusters:
-
-*Square-corner writer ritual (partial)* — `simtool.cc:2302-2312`
-(8 sites) writes 4 "corners" at `(k, k)`, `(k+1, k)`, `(k, k+1)`,
-`(k+1, k+1)` for partial-water grid heights in
-`tool_change_water_height_t`.  Under hex these four shim coords land
-on four unrelated tiles' E corners.  Currently fatal — building or
-running the water-raise tool aborts.  Blocked on the water-flood-fill
-port; once that lands, the writes gain a hex-corner name.  The
-terraformer portion of this cluster retired with the 6-edge
-propagation port.
 
 *Square-corner reader ritual* — `surface.cc` 12 sites in
 `get_neighbour_heights`'s `[8][4]` boundary fallback, routed through
