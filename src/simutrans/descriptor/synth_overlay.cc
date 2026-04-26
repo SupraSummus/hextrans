@@ -377,8 +377,9 @@ static void fill_polygon(PIXVAL* buf, sint32 w, sint32 h,
 
 // Multiply an RGB555 PIXVAL by `brightness/256`, clamping each
 // channel to [0, 31].  Caller is the per-face shading pass below;
-// `brightness` lives in [128, 384] (= 0.5x .. 1.5x), so each channel
-// can over-flow but never under-flow — only the upper clamp is live.
+// `brightness` lives in [96, 416] (= 0.375x .. 1.625x) after the
+// Lambert remap in `build_ground`; only the upper clamp is live for
+// saturated base colours.
 static PIXVAL shade_pixval(PIXVAL p, sint32 brightness)
 {
 	sint32 r = ((p >> 10) & 0x1F) * brightness / 256;
@@ -468,18 +469,17 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 		synth_ground_lambert_face_normal(geom, slope, cz, a, b, &nx, &ny, &nz);
 		const double n_norm = std::sqrt(nx*nx + ny*ny + nz*nz);
 
-		// Lambertian cos(θ) in [-1, 1] mapped to brightness factor
-		// [0.5, 1.5] (× 256 to stay integer for shade_pixval).
-		// Floor at 0.5x so back-facing faces don't disappear into
-		// black; ceiling at 1.5x clamps highlight before colour
-		// blowout.  All-flat slope falls through at brightness=256
-		// (= 1.0x).
+		// Lambertian cos(θ) in [-1, 1] mapped to brightness around
+		// 1.0×256, with a wider swing than legacy pak lightmaps so
+		// slope relief reads clearly on the synth hex tiles.  Floor
+		// keeps back faces off pure black; ceiling caps highlights.
+		// All-flat slope falls through at brightness=256 (= 1.0x).
 		sint32 brightness = 256;
 		if(  n_norm > 0.0  ) {
 			const double cos_theta = (nx*Lx + ny*Ly + nz*Lz) / (n_norm * L_norm);
-			brightness = 256 + (sint32)(cos_theta * 128.0);
-			if(  brightness < 128  ) { brightness = 128; }
-			if(  brightness > 384  ) { brightness = 384; }
+			brightness = 256 + (sint32)(cos_theta * 176.0);
+			if(  brightness < 96   ) { brightness = 96; }
+			if(  brightness > 416  ) { brightness = 416; }
 		}
 
 		const PIXVAL face_color = shade_pixval(base, brightness);
