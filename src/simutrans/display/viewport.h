@@ -228,15 +228,18 @@ public:
 	 * @param found_j out parameter, j-coordinate of the found tile. It's necessary because it might point to a grid position that doesn't map to a real in-map coordinate, on border tiles (south and east border).
 	 * @return the grund_t that's under the desired screen coordinate. NULL if we are outside map or we can't find it.
 	 */
-	grund_t* get_ground_on_screen_coordinate(scr_coord screen_pos, sint32 &found_i, sint32 &found_j, const bool intersect_grid=false) const;
+	grund_t* get_ground_on_screen_coordinate(scr_coord screen_pos, sint32 &found_i, sint32 &found_j, const bool intersect_grid=false, double *frac_dq=nullptr, double *frac_dr=nullptr) const;
 
 	/**
 	 * Gets a new world position, under the requested screen coordinates. Used to move the cursor.
 	 * @param screen_pos Screen position to check. Input parameter.
 	 * @param grid_coordinates indicates if this function is to check against the map tiles, or the grid of heights. Input parameter.
+	 * @param corner_out optional out-param, set to the hex corner the
+	 * cursor is closest to within the resolved tile (only meaningful
+	 * when @p grid_coordinates is true and a tile was found).
 	 * @return koord3d::invalid if no position exists under the requested coordinate, a 3d koord directly under it otherwise.
 	 */
-	koord3d get_new_cursor_position(const scr_coord &screen_pos, bool grid_coordinates);
+	koord3d get_new_cursor_position(const scr_coord &screen_pos, bool grid_coordinates, hex_corner_t::type *corner_out = nullptr);
 
 	/**
 	 * @}

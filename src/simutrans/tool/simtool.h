@@ -74,12 +74,18 @@ class tool_raise_lower_base_t : public tool_t {
 protected:
 	bool is_dragging;
 	sint16 drag_height;
+	/// Which of the 6 hex corners this tool will raise / lower.  Set
+	/// by the cursor mover via `set_cursor_corner` from the screen-space
+	/// picker; defaults to NW so callers without a cursor (Squirrel
+	/// `command_x.grid_raise`, AI scaffolds) get the legacy behaviour.
+	hex_corner_t::type cursor_corner;
 
 	const char* drag(player_t*, koord k, sint16 h, int &n);
 	virtual sint16 get_drag_height(koord k) = 0;
 	bool check_dragging();
 public:
-	tool_raise_lower_base_t(uint16 id) : tool_t(id | GENERAL_TOOL), is_dragging(false), drag_height(0) { offset = Z_GRID; }
+	tool_raise_lower_base_t(uint16 id) : tool_t(id | GENERAL_TOOL), is_dragging(false), drag_height(0), cursor_corner(hex_corner_t::NW) { offset = Z_GRID; }
+	void set_cursor_corner(hex_corner_t::type c) OVERRIDE { cursor_corner = c; }
 	image_id get_icon(player_t*) const OVERRIDE { return grund_t::underground_mode==grund_t::ugm_all ? IMG_EMPTY : icon; }
 	bool init(player_t*) OVERRIDE { is_dragging = false; return true; }
 	bool exit(player_t*) OVERRIDE { is_dragging = false; return true; }

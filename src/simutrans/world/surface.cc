@@ -366,44 +366,37 @@ bool surface_t::is_plan_height_changeable(sint16 x, sint16 y) const
 }
 
 
-int surface_t::grid_raise(const player_t *player, koord k, const char*&err)
+int surface_t::grid_raise(const player_t *player, koord k, hex_corner_t::type corner, const char*&err)
 {
 	int n = 0;
 
 	if(is_within_grid_limits(k)) {
 
 		const grund_t *gr = lookup_kartenboden_gridcoords(k);
-		const slope4_t corner_to_raise = get_corner_to_operate(k);
 
 		const sint16 x = gr->get_pos().x;
 		const sint16 y = gr->get_pos().y;
-		const sint8 hgt = gr->get_hoehe(corner_to_raise);
+		const sint8 hgt = gr->get_hoehe(corner);
 
-		// HEX-PORT: grid_raise still picks one of the 4 legacy square
-		// corners (NW / NE / SW / SE) to raise.  The hex-only E and W
-		// corners are not directly addressable through the grid-point
-		// GUI tool today; they track neighbours via terraformer
-		// propagation.  Pass them as "hgt - o", i.e. the same "non-target"
-		// target height the other 3 square corners get, so they stay
-		// put if already at or above that height.
-		sint8 hE, hSE, hSW, hW, hNW, hNE;
+		// All 6 corners track the same target height: the picked corner
+		// rises by `f`, the others may stay anywhere `≥ hgt - o`.  The
+		// terraformer's 6-edge propagation handles neighbour flow.
+		sint8 h[hex_corner_t::count];
 		if(  !gr->is_water()  ) {
 			const sint8 f = ground_desc_t::double_grounds ?  2 : 1;
 			const sint8 o = ground_desc_t::double_grounds ?  1 : 0;
-
-			hSW = hgt - o + scorner_sw( corner_to_raise ) * f;
-			hSE = hgt - o + scorner_se( corner_to_raise ) * f;
-			hNE = hgt - o + scorner_ne( corner_to_raise ) * f;
-			hNW = hgt - o + scorner_nw( corner_to_raise ) * f;
-			hE  = hgt - o;
-			hW  = hgt - o;
+			for (uint8 c = 0; c < hex_corner_t::count; c++) {
+				h[c] = hgt - o + (c == (uint8)corner ? f : 0);
+			}
 		}
 		else {
-			hE = hSE = hSW = hW = hNW = hNE = hgt;
+			for (uint8 c = 0; c < hex_corner_t::count; c++) h[c] = hgt;
 		}
 
 		terraformer_t digger(terraformer_t::raise, world());
-		digger.add_node(x, y, hE, hSE, hSW, hW, hNW, hNE);
+		digger.add_node(x, y,
+			h[hex_corner_t::E], h[hex_corner_t::SE], h[hex_corner_t::SW],
+			h[hex_corner_t::W], h[hex_corner_t::NW], h[hex_corner_t::NE]);
 		digger.generate_affected_tile_list();
 
 		err = digger.can_raise_all(player);
@@ -424,32 +417,30 @@ int surface_t::grid_raise(const player_t *player, koord k, const char*&err)
 }
 
 
-int surface_t::grid_lower(const player_t *player, koord k, const char*&err)
+int surface_t::grid_lower(const player_t *player, koord k, hex_corner_t::type corner, const char*&err)
 {
 	int n = 0;
 
 	if(is_within_grid_limits(k)) {
 
 		const grund_t *gr = lookup_kartenboden_gridcoords(k);
-		const slope4_t corner_to_lower = get_corner_to_operate(k);
 
 		const sint16 x = gr->get_pos().x;
 		const sint16 y = gr->get_pos().y;
-		const sint8 hgt = gr->get_hoehe(corner_to_lower);
+		const sint8 hgt = gr->get_hoehe(corner);
 
-		// HEX-PORT: see grid_raise; E and W corners fall through to the
-		// "non-target" height for the same reason.
+		// Mirror of grid_raise.
 		const sint8 f = ground_desc_t::double_grounds ?  2 : 1;
 		const sint8 o = ground_desc_t::double_grounds ?  1 : 0;
-		const sint8 hSW = hgt + o - scorner_sw( corner_to_lower ) * f;
-		const sint8 hSE = hgt + o - scorner_se( corner_to_lower ) * f;
-		const sint8 hNE = hgt + o - scorner_ne( corner_to_lower ) * f;
-		const sint8 hNW = hgt + o - scorner_nw( corner_to_lower ) * f;
-		const sint8 hE  = hgt + o;
-		const sint8 hW  = hgt + o;
+		sint8 h[hex_corner_t::count];
+		for (uint8 c = 0; c < hex_corner_t::count; c++) {
+			h[c] = hgt + o - (c == (uint8)corner ? f : 0);
+		}
 
 		terraformer_t digger(terraformer_t::lower, world());
-		digger.add_node(x, y, hE, hSE, hSW, hW, hNW, hNE);
+		digger.add_node(x, y,
+			h[hex_corner_t::E], h[hex_corner_t::SE], h[hex_corner_t::SW],
+			h[hex_corner_t::W], h[hex_corner_t::NW], h[hex_corner_t::NE]);
 		digger.generate_affected_tile_list();
 
 		err = digger.can_lower_all(player);

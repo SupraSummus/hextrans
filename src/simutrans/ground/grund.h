@@ -451,6 +451,20 @@ public:
 		}
 	}
 
+	/// Tile height at the requested hex corner (all 6 corners).
+	inline sint8 get_hoehe(hex_corner_t::type corner) const
+	{
+		switch (corner) {
+			case hex_corner_t::E:  return pos.z + corner_e(slope);
+			case hex_corner_t::SE: return pos.z + corner_se(slope);
+			case hex_corner_t::SW: return pos.z + corner_sw(slope);
+			case hex_corner_t::W:  return pos.z + corner_w(slope);
+			case hex_corner_t::NW: return pos.z + corner_nw(slope);
+			case hex_corner_t::NE: return pos.z + corner_ne(slope);
+			default: return pos.z;
+		}
+	}
+
 	void set_hoehe(sint8 h) { pos.z = h;}
 
 	// Helper functions for underground modes
