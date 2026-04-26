@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #ifdef __CYGWIN__
 extern int __argc;
@@ -687,7 +688,10 @@ static void internal_GetEvents()
 	}
 
 	static char textinput[SDL_TEXTINPUTEVENT_TEXT_SIZE];
-	DBG_DEBUG("SDL_EVENT", "0x%X", event.type);
+	static const bool debug_sdl_events = getenv("SIMUTRANS_SDL_EVENT_DEBUG") != NULL;
+	if(  debug_sdl_events  ) {
+		DBG_DEBUG("SDL_EVENT", "0x%X", event.type);
+	}
 
 	if (in_finger_handling && event.type == SDL_FINGERMOTION) {
 		// swallow the millons of fingermotion events

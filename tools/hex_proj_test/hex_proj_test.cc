@@ -41,9 +41,14 @@
 static constexpr sint16 W = 64;
 static constexpr sint16 U = W / 4; // = 16
 
-static const koord hex_corner_cursor_offset_test[hex_corner_t::count] = {
+static const koord hex_corner_centre_offset_test[hex_corner_t::count] = {
 	koord( 31,   0), koord( 16,  15), koord(-16,  15),
 	koord(-32,   0), koord(-16, -16), koord( 16, -16),
+};
+
+static const koord hex_corner_cursor_offset_test[hex_corner_t::count] = {
+	koord( 63,  48), koord( 48,  63), koord( 16,  63),
+	koord(  0,  48), koord( 16,  32), koord( 48,  32),
 };
 
 // Must match `koord::neighbours` in koord.cc (SE, S, SW, NW, N, NE).
@@ -250,8 +255,8 @@ static void test_pick_corner_matches_screen_closest()
 			double best_d2 = HUGE_VAL;
 			bool tied = false;
 			for (int k = 0; k < 6; k++) {
-				const double dx = sx - hex_corner_cursor_offset_test[k].x;
-				const double dy = sy - hex_corner_cursor_offset_test[k].y;
+				const double dx = sx - hex_corner_centre_offset_test[k].x;
+				const double dy = sy - hex_corner_centre_offset_test[k].y;
 				const double d2 = dx * dx + dy * dy;
 				if (d2 < best_d2 - 1e-9) {
 					best_d2 = d2;
@@ -274,6 +279,23 @@ static void test_pick_corner_matches_screen_closest()
 }
 
 
+static void test_corner_draw_offsets_are_anchor_relative()
+{
+	for (int i = 0; i < hex_corner_t::count; i++) {
+		const hex_corner_t::type c = (hex_corner_t::type)i;
+		const koord got = hex_corner_cursor_draw_offset(c);
+		if (got != hex_corner_cursor_offset_test[i]) {
+			std::fprintf(stderr,
+				"hex_corner_cursor_offset(%d) = (%d,%d), want (%d,%d)\n",
+				i, got.x, got.y,
+				hex_corner_cursor_offset_test[i].x,
+				hex_corner_cursor_offset_test[i].y);
+			std::abort();
+		}
+	}
+}
+
+
 static void test_corner_cursor_offsets()
 {
 	// Visual offsets are in the 64-unit tile basis used by
@@ -281,11 +303,11 @@ static void test_corner_cursor_offsets()
 	// against the same half-open 64x32 footprint vertices that synth
 	// ground/marker sprites rasterize.
 	for (uint8 i = 0; i < 6; i++) {
-		const koord offset = hex_corner_cursor_offset((hex_corner_t::type)i);
-		if (offset.x != hex_corner_cursor_offset_test[i].x || offset.y != hex_corner_cursor_offset_test[i].y) {
+		const koord offset = hex_corner_centre_offset((hex_corner_t::type)i);
+		if (offset.x != hex_corner_centre_offset_test[i].x || offset.y != hex_corner_centre_offset_test[i].y) {
 			std::fprintf(stderr,
-				"hex_corner_cursor_offset(%d) = (%d,%d), want (%d,%d)\n",
-				(int)i, offset.x, offset.y, hex_corner_cursor_offset_test[i].x, hex_corner_cursor_offset_test[i].y);
+				"hex_corner_centre_offset(%d) = (%d,%d), want (%d,%d)\n",
+				(int)i, offset.x, offset.y, hex_corner_centre_offset_test[i].x, hex_corner_centre_offset_test[i].y);
 			std::abort();
 		}
 	}
@@ -867,6 +889,7 @@ int main()
 	test_inverse_picks_screen_closest();
 	test_pick_corner_at_exact_offsets();
 	test_pick_corner_matches_screen_closest();
+	test_corner_draw_offsets_are_anchor_relative();
 	test_corner_cursor_offsets();
 	test_render_loop_strip_clipped();
 	test_slope_project_to_square_invariants();
