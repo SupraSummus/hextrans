@@ -456,8 +456,26 @@ in `grund_t::display_boden` are still 4-corner via the legacy
 (`alpha_image`, `alpha_corners_image`, `alpha_water_image`) are
 `IMG_EMPTY` for hex slopes — no snowline / climate / beach overlay
 visible on them, since alpha-tile generation runs before the
-`doubleslope_to_imgnr` back-fill in `init_ground_textures`.  Water
-tiles (`get_water_tile`, deep water + on-slope) still go through
+`doubleslope_to_imgnr` back-fill in `init_ground_textures`.
+
+On the legacy slopes that DO have registered alpha tiles, the alpha
+pass has a latent contract violation: alpha tiles mirror the
+lightmap's RLE (built via `create_alpha_tile` from `light_map`),
+but `get_climate_tile` returns a synth hex tile with a different
+RLE shape, and `display_img_alpha_wc` walks both pointers in
+lockstep driven by the source's RLE.  Today this is silent because
+the synth tile's RLE happens to be no longer than the alpha tile's
+in the cases triggered, but a wider synth tile or one with more
+runs would read past the alpha allocation.  The clean fix is to
+extend `synth_overlay` with a `get_alpha`-family analogous to
+`get_ground` and consult it from `get_alpha_tile` ahead of the
+pakset path — pairing the synth source with a synth-shaped alpha
+tile so the lockstep walk stays inside both allocations.  Lands
+together with the corner-overlay 6-edge port above; until then
+keep `synth_overlay::prefer_over_pakset` toggleable so a regression
+on a wider synth tile is recoverable without a code change.
+
+Water tiles (`get_water_tile`, deep water + on-slope) still go through
 the pakset path — they need animation stages we don't synthesise
 yet; extend `synth_overlay` with a per-stage water family when the
 animation is in scope.  6-edge way / wall / ribi-keyed sprite tables

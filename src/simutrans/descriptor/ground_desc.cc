@@ -104,14 +104,41 @@ static image_t* create_textured_tile(const image_t* image_lightmap, const image_
  */
 static image_t* create_alpha_tile(const image_t* image_lightmap, slope_t::type slope, const image_t* image_alphamap)
 {
-	if(  image_lightmap == NULL  ||  image_alphamap == NULL  ||  image_alphamap->get_pic()->w < 2  ) {
-		image_t *image_dest = image_t::create_single_pixel();
+	if(  image_lightmap == NULL  ) {
+		// No shape to mirror — a defensive return here would leak
+		// a structurally-broken alpha tile into the display pass.
+		dbg->fatal("create_alpha_tile()", "no light_map for slope %d", slope);
+	}
+
+	// The output must mirror the lightmap's RLE shape: the climate /
+	// water / snow tiles this alpha tile gets paired with at draw time
+	// are derived from the same lightmap via create_textured_tile, and
+	// display_img_alpha_wc walks both pointers in lockstep using the
+	// source's RLE.  A shape mismatch reads off the end of the alpha
+	// tile's allocation on the very first iteration.
+	image_t *image_dest = image_lightmap->copy_rotate(0);
+
+	if(  image_alphamap == NULL  ||  image_alphamap->get_pic()->w < 2  ) {
+		// No transition art: mirror the lightmap and zero every
+		// coloured-pixel slot.  alpha_value computes to 0 in alpha(),
+		// which leaves the destination untouched — the correct
+		// rendering for "no overlay here" while keeping the alphamap
+		// pointer in lockstep with the source's RLE.
+		PIXVAL* dest = image_dest->get_data();
+		for(  int j = 0;  j < image_dest->get_pic()->h;  j++  ) {
+			dest++; // line header (initial clear-run)
+			do {
+				sint16 runlen = *dest++;
+				for(  int i = 0;  i < runlen;  i++  ) {
+					*dest++ = 0;
+				}
+			} while(  *dest++ != 0  );
+		}
 		image_dest->register_image();
 		return image_dest;
 	}
-	assert( image_alphamap->get_pic()->w == image_alphamap->get_pic()->h);
 
-	image_t *image_dest = image_lightmap->copy_rotate(0);
+	assert( image_alphamap->get_pic()->w == image_alphamap->get_pic()->h);
 
 	PIXVAL const* const alphamap  = image_alphamap->get_data();
 	const sint32 x_y     = image_dest->get_pic()->w;
