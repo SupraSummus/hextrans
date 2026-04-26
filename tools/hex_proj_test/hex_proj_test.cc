@@ -301,9 +301,10 @@ static void test_slope_project_to_square_clamping()
 // ---- 7. Hex tile inscription tiles the lattice -----------------------------
 
 // Inscribed-hex vertex positions for a tile bbox of size `w × h`,
-// matching the formula in `descriptor/synth_overlay.cc` (build_outline /
-// build_ground) for a flat slope.  If that formula drifts, this copy
-// stops representing reality — keep the two in sync.
+// matching the formula in `descriptor/synth_overlay.cc`
+// (rasterise_outline / build_ground) for a flat slope.  If that
+// formula drifts, this copy stops representing reality — keep the
+// two in sync.
 //
 // Order matches `hex_corner_t::type` (E, SE, SW, W, NW, NE).
 static void inscribed_hex_vertices(sint32 w, sint32 h, sint32 vx[6], sint32 vy[6])
