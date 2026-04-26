@@ -53,6 +53,11 @@ static image_t* marker[2][slope_t::max_slopes];
 // cost; consider lazy generation only if it becomes a problem.
 static image_t* ground[ground_climate_slots][slope_t::max_slopes];
 
+// Per-slope alpha-mask hex tiles, RLE-shape-identical to ground[].
+// Paired with the synth ground source by the climate / beach /
+// snowline overlay blits — see get_alpha in the header.
+static image_t* alpha[slope_t::max_slopes];
+
 static bool initialised = false;
 
 
@@ -98,6 +103,10 @@ static void free_all()
 			delete ground[c][s];
 			ground[c][s] = NULL;
 		}
+	}
+	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
+		delete alpha[s];
+		alpha[s] = NULL;
 	}
 }
 
@@ -474,6 +483,35 @@ static image_t* build_ground(const image_t* tmpl, slope_t::type slope, uint8 cli
 }
 
 
+// Build the alpha-mask hex tile by copying the ground tile's RLE
+// verbatim and overwriting every coloured-pixel slot with a full
+// opaque PIXVAL.  Copying the RLE byte-for-byte (rather than
+// re-rasterising the geometry) is what guarantees byte-identical
+// RLE shape to the ground tile — `display_img_alpha_wc` walks the
+// source (= ground) and alpha pointers in lockstep using the
+// source's RLE, and any divergence in run boundaries between the
+// two tiles would walk the alpha pointer off the end of its
+// allocation.
+static image_t* build_alpha(const image_t* ground)
+{
+	image_t* img = ground->copy_rotate(0);
+
+	const PIXVAL full_alpha = 0x7FFF;
+	PIXVAL* p = img->data;
+	for(  int y = 0;  y < img->h;  y++  ) {
+		p++; // start_x
+		do {
+			sint16 runlen = *p++;
+			for(  int i = 0;  i < runlen;  i++  ) {
+				*p++ = full_alpha;
+			}
+		} while(  *p++ != 0  );
+	}
+
+	return img;
+}
+
+
 void init()
 {
 	if(  initialised  ) {
@@ -505,13 +543,21 @@ void init()
 			img->register_image();
 			ground[c][s] = img;
 		}
+		// Alpha shape mirrors the climate-0 ground tile — all 8
+		// climate ground tiles for a given slope share the same
+		// geometry (only colours differ), so any climate works as
+		// the donor; pick 0 by convention.
+		image_t* a = build_alpha(ground[0][s]);
+		a->register_image();
+		alpha[s] = a;
 	}
 
 	initialised = true;
 	DBG_DEBUG("synth_overlay::init",
-	          "synthesised %d marker + %d ground sprites (w=%d h=%d)",
+	          "synthesised %d marker + %d ground + %d alpha sprites (w=%d h=%d)",
 	          slope_t::max_slopes * 2,
 	          slope_t::max_slopes * ground_climate_slots,
+	          slope_t::max_slopes,
 	          tmpl->w, tmpl->h);
 }
 
@@ -535,6 +581,16 @@ image_id get_ground(slope_t::type slope, uint8 climate_idx)
 		return IMG_EMPTY;
 	}
 	const image_t* img = ground[climate_idx][slope];
+	return img != NULL ? img->get_id() : IMG_EMPTY;
+}
+
+
+image_id get_alpha(slope_t::type slope)
+{
+	if(  !initialised  ||  slope < 0  ||  slope >= slope_t::max_slopes  ) {
+		return IMG_EMPTY;
+	}
+	const image_t* img = alpha[slope];
 	return img != NULL ? img->get_id() : IMG_EMPTY;
 }
 

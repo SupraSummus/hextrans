@@ -446,18 +446,34 @@ remaining renderer work splits into:
 `synth_overlay::get_ground` first — algorithmic hex-shaped tiles
 per (slope, climate), full 6-corner fidelity, so the 4 hex-only
 edge slopes are visually distinguishable instead of collapsing
-pairwise onto the legacy `east` / `west` square sprites.  The
-pakset path (square sprites projected via `slope_t::project_to_square`,
-flattened through `doubleslope_to_imgnr`) is the fallback when synth
-isn't initialised or when `synth_overlay::prefer_over_pakset` flips.
-What's left: the climate / water / snow / beach corner-overlay walks
-in `grund_t::display_boden` are still 4-corner via the legacy
-`[8][4]` `get_neighbour_heights`; the alpha-overlay arrays
-(`alpha_image`, `alpha_corners_image`, `alpha_water_image`) are
-`IMG_EMPTY` for hex slopes — no snowline / climate / beach overlay
-visible on them, since alpha-tile generation runs before the
-`doubleslope_to_imgnr` back-fill in `init_ground_textures`.  Water
-tiles (`get_water_tile`, deep water + on-slope) still go through
+pairwise onto the legacy `east` / `west` square sprites.  Climate
+and snowline overlay alpha tiles flow through the matching
+`synth_overlay::get_alpha`, RLE-shape-identical to the synth ground
+tile so `display_img_alpha_wc`'s lockstep walk stays inside both
+allocations.  The pakset path (square sprites projected via
+`slope_t::project_to_square`, flattened through `doubleslope_to_imgnr`)
+is the fallback when synth isn't initialised or when
+`synth_overlay::prefer_over_pakset` flips.  What's left: the climate /
+water / snow / beach corner-overlay walks in `grund_t::display_boden`
+are still 4-corner via the legacy `[8][4]` `get_neighbour_heights`,
+and `synth_overlay::get_alpha` ignores the corners mask and returns a
+uniform full-opaque hex — climate transitions appear at tile
+granularity rather than per-corner.  Per-corner gradient lands
+together with the corner-overlay 6-edge port; until then keep
+`synth_overlay::prefer_over_pakset` toggleable so a regression on
+the synth path is recoverable without a code change.
+
+`get_beach_tile` still returns pakset-shaped alpha because its source
+(`get_water_tile` / `sea->get_image(0, stage)`) is also still on the
+pakset path — water animation stages aren't synthesised yet, and
+pairing a pakset-shaped water source with a hex-shaped synth alpha
+overflows the lockstep walk in `display_img_alpha_wc`.  The two
+move together: when `synth_overlay` grows a per-stage water family
+(see the water-tiles paragraph below), wire it into both
+`get_water_tile` and `get_beach_tile` in the same change so the
+shapes stay matched.
+
+Water tiles (`get_water_tile`, deep water + on-slope) still go through
 the pakset path — they need animation stages we don't synthesise
 yet; extend `synth_overlay` with a per-stage water family when the
 animation is in scope.  6-edge way / wall / ribi-keyed sprite tables
