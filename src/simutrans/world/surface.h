@@ -136,7 +136,14 @@ public:
 		// since negative values will make the whole result negative, we can use bitwise or
 		// This is faster, since pentiums and other long pipeline processors do not like jumps
 		// return x>=0 &&  y>=0  &&  cached_size.x>=x  &&  cached_size.y>=y;
-		return (x|y|(cached_size.x-x)|(cached_size.y-y))>=0;
+		if ((x|y|(cached_size.x-x)|(cached_size.y-y)) < 0) return false;
+		// HEX-PORT: world is the hexagon of axial radius min(W,H)/2
+		// inscribed in the W×H storage rhombus; corner tiles are
+		// off-map.  Cube-norm form of `koord_distance(p, c) <= r`.
+		const sint32 dx = (sint32)x - cached_size.x/2;
+		const sint32 dy = (sint32)y - cached_size.y/2;
+		const sint32 r  = min(cached_size.x, cached_size.y) / 2;
+		return abs(dx) <= r && abs(dy) <= r && abs(dx+dy) <= r;
 	}
 
 	/**

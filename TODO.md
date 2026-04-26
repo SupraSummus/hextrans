@@ -260,29 +260,47 @@ regardless of wind direction.  Both quirks land together in a
 hex-aware rewrite of the climate generator; tied to the
 "Square-grid terrain-mutation cascade tests" cluster above.
 
-## Map storage shape — open architectural choice
+## Map storage shape — gated rhombus, follow-ups pending
 
 Tiles are stored as a `W × H` rhombus in axial `(q, r)`, indexed
-`plan[q + r*W]`.  Under the flat-top hex projection that rhombus
-becomes a strongly-skewed parallelogram in world space — y-extent
-~2.6× x-extent at `W = H`, NE / SW corners far apart,
-look-around-from-centre asymmetric.  A regular hex region — all
-tiles with axial distance ≤ d from the centre, `3d² + 3d + 1` tiles
-— would be spatially compact, give roughly equal sightlines in
-every direction, and reduce the world-create UI to a single radius.
+`plan[q + r*W]`, but `surface_t::is_within_limits` now gates on
+hex-axial distance from the rhombus centre — the playable world is
+the hexagon of radius `min(W,H)/2` inscribed in the rhombus.  Every
+`plan[q + r*W]` indexing site keeps working, and gameplay code that
+already gates on `is_within_limits` sees the new shape for free.
+The rhombus-corner tiles (~25% of `plan[]`) still exist, still get
+perlin terrain at init, and still get drawn — what changes is that
+gameplay queries reject them.  So today the world is
+gameplay-hexagonal but visually still rhombus.
 
-Not in flight, flagged so it doesn't get closed off by side-effect.
-It touches every `plan[q + r*W]` indexing site, every map-iteration
-loop, the save format (or leaves corner cells empty for round-trip
-compatibility), the world-create / `enlarge_map_frame` UI which
-currently asks for `(W, H)`, and the `init_perlin_map` cache-sizing
-follow-up under "Per-vertex height storage" — that cache wants the
-world-coord extent of whatever shape we pick.  The
-`koord_random` / `clip_min` / `clip_max` "rhombus in world space"
-caveat under "ribi_t — audit surfaces" is the same question viewed
-from a different direction.  Pick a direction before any of those
-adjacent items gets done in a way that bakes in rhombus
-assumptions.
+The renderer-side fix is the next visible step: the render-loop in
+`simview.cc` / `grund_t::display_*` iterates the full rhombus and
+draws hex-corner tiles as ordinary terrain.  Gate per-tile draw on
+`is_within_limits` (or a new `is_inside_world` helper if we want a
+different boundary policy, e.g. ocean fill instead of nothing).
+`perlin_hoehe_loop` and the other init walks have the same shape and
+should grow the same skip — generating terrain for tiles gameplay
+rejects is harmless but wasteful.
+
+`is_within_grid_limits` is intentionally left ungated for now.
+Vertex topology at the hex boundary is fiddlier than tile bounds
+(each shared vertex has 3 owners, not 2), and no gameplay path that
+queries the grid cares about the corners until the renderer does;
+revisit when the renderer-skip work above lands.
+
+The world-create UI (`welt.cc`, `enlarge_map_frame.cc`) still asks
+for `(W, H)`.  Asymmetric inputs now produce a hexagon of radius
+`min(W,H)/2` plus extra rhombus slop on the longer axis — functional
+but inviting a confusing UX.  A single radius input is the honest
+replacement.
+
+`koord_random` / `clip_min` / `clip_max` (see "ribi_t — audit
+surfaces" → "rhombus caveat") now sample / clamp into a region that
+contains both the hex and its rhombus corners, so callers wanting a
+uniform random tile or a hex clamp need to reject corner picks via
+`is_within_limits`.  An `is_within_limits`-aware variant would clean
+this up; the rhombus caveat under audit-surfaces becomes the same
+issue stated from the other side.
 
 ## Sim direction model
 
