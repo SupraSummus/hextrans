@@ -527,9 +527,12 @@ fixed-point) and *square-row-spacing-preserving* with row step
 Revisit when sprite art enters scope.
 
 **Phase A verification gaps.**  No pakset → no visual confirmation
-in this env; `tools/hex_proj_test/` covers the projection math and
-the synth ground vector bbox/anchor contract, but not shaded-pixel
-aesthetics, sprite draw order, or pakset-art integration.  One
+in this env; `tools/hex_proj_test/` covers the projection math, the
+synth ground vector bbox/anchor contract, and `synth_ground_lambert_face_normal`
+(the same helper `build_ground` calls, always lifted screen Y): the test checks
+it against an independent cross product from `geom.vy`, and checks divergence
+from a buggy unlifted reference kept only in `hex_proj_test.cc`.  It still does not cover
+shaded-pixel aesthetics, sprite draw order, or pakset-art integration.  One
 suspect still to eyeball when a pakset is available: the no-parity
 centring (square renderer had a
 `disp_w/IMG_SIZE & 1` half-row nudge; for hex the natural parity

@@ -12,12 +12,16 @@
 //   4. Inverse is stable under sub-pixel noise around hex centres.
 //   5. Slope_t corner heights, the hex projection lattice and synth
 //      ground geometry agree at shared rendered slope edges.
+//   5b. `synth_ground_lambert_face_normal` (called from `build_ground`) matches
+//      an independent cross product from `geom.vy`; a local buggy reference
+//      (unlifted screen Y) diverges on sloped tiles.
 //   6. Render-loop iteration (hex_render_x_start + hex_render_x_step
 //      with q=x/3, r=(y-q)/2) is a bijection between (x, y) lattice
 //      points and the (q, r) tiles in a y-bounded rectangle — every
 //      visible hex is visited exactly once.
 
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <set>
 #include <utility>
@@ -515,6 +519,126 @@ static void test_synth_slope_bbox_contains_lifted_vertices()
 }
 
 
+// Pre-fix Lambert bug: vy_base / mid_y only (no corner lift in screen Y,
+// centre ignores cz).  Kept in the test TU only — production helper has no
+// flag so `build_ground` cannot accidentally pass `false`.
+static void lambert_face_normal_unlifted_screen_y_bug(
+	const synth_overlay::synth_hex_geometry_t &geom,
+	slope_t::type slope,
+	sint32 cz,
+	uint8 corner_a,
+	uint8 corner_b,
+	double *nx, double *ny, double *nz)
+{
+	uint8 ch[hex_corner_t::count];
+	for (int i = 0; i < hex_corner_t::count; i++) {
+		ch[i] = synth_overlay::hex_corner_height(slope, (hex_corner_t::type)i);
+	}
+	const sint32 cx = geom.w / 2;
+	const sint32 cy_centre = geom.mid_y;
+	const double ax = (double)(geom.vx[corner_a] - cx);
+	const double ay = (double)(geom.vy_base[corner_a] - cy_centre);
+	const double az = (double)((sint32)ch[corner_a] * geom.lift - cz);
+	const double bx = (double)(geom.vx[corner_b] - cx);
+	const double by = (double)(geom.vy_base[corner_b] - cy_centre);
+	const double bz = (double)((sint32)ch[corner_b] * geom.lift - cz);
+	*nx = ay * bz - az * by;
+	*ny = az * bx - ax * bz;
+	*nz = ax * by - ay * bx;
+}
+
+
+// `build_ground` calls `synth_ground_lambert_face_normal` — assert that helper
+// matches an independent cross product built from `geom.vy` (same Y as
+// fill_polygon), and that the unlifted reference diverges on a raised-corner
+// slope.
+static void test_synth_build_ground_normal_uses_lifted_screen_y()
+{
+	constexpr sint32 W = 64;
+	constexpr sint32 lift = 16;
+	const synth_overlay::synth_hex_geometry_t geom =
+		synth_overlay::synth_hex_geometry(W / 4, lift);
+
+	const slope_t::type slope = slope_t::raised_NE;
+	sint32 sum_h = 0;
+	for (int i = 0; i < hex_corner_t::count; i++) {
+		sum_h += synth_overlay::hex_corner_height(slope, (hex_corner_t::type)i);
+	}
+	const sint32 cz = (sum_h * geom.lift) / hex_corner_t::count;
+	const sint32 cx = geom.w / 2;
+	const sint32 cy = geom.mid_y - cz;
+
+	auto cross3 = [](double ax, double ay, double az,
+	                 double bx, double by, double bz,
+	                 double *ox, double *oy, double *oz) {
+		*ox = ay * bz - az * by;
+		*oy = az * bx - ax * bz;
+		*oz = ax * by - ay * bx;
+	};
+	auto norm2 = [](double x, double y, double z) {
+		return x * x + y * y + z * z;
+	};
+
+	double best_sin2_false = 0.0;
+	for (int f = 0; f < hex_corner_t::count; f++) {
+		const uint8 a = (uint8)f;
+		const uint8 b = (uint8)((f + 1) % hex_corner_t::count);
+
+		double nh_x, nh_y, nh_z;
+		synth_overlay::synth_ground_lambert_face_normal(
+			geom, slope, cz, a, b, &nh_x, &nh_y, &nh_z);
+
+		const double rax = (double)(geom.vx[a] - cx);
+		const double ray = (double)(geom.vy(slope, (hex_corner_t::type)a) - cy);
+		const double raz = (double)(
+			(sint32)synth_overlay::hex_corner_height(slope, (hex_corner_t::type)a) * geom.lift - cz);
+		const double rbx = (double)(geom.vx[b] - cx);
+		const double rby = (double)(geom.vy(slope, (hex_corner_t::type)b) - cy);
+		const double rbz = (double)(
+			(sint32)synth_overlay::hex_corner_height(slope, (hex_corner_t::type)b) * geom.lift - cz);
+		double nr_x, nr_y, nr_z;
+		cross3(rax, ray, raz, rbx, rby, rbz, &nr_x, &nr_y, &nr_z);
+
+		const double nh2 = norm2(nh_x, nh_y, nh_z);
+		const double nr2 = norm2(nr_x, nr_y, nr_z);
+		if (nh2 < 1e-20 || nr2 < 1e-20) {
+			continue;
+		}
+		double cx_, cy_, cz_;
+		cross3(nh_x, nh_y, nh_z, nr_x, nr_y, nr_z, &cx_, &cy_, &cz_);
+		const double sin2_hr = norm2(cx_, cy_, cz_) / (nh2 * nr2);
+		if (sin2_hr > 1e-10) {
+			std::fprintf(stderr,
+				"synth_ground_lambert_face_normal != geom.vy cross product "
+				"(face %d sin^2=%g)\n",
+				f, sin2_hr);
+			std::abort();
+		}
+
+		double nb_x, nb_y, nb_z;
+		lambert_face_normal_unlifted_screen_y_bug(
+			geom, slope, cz, a, b, &nb_x, &nb_y, &nb_z);
+		const double nb2 = norm2(nb_x, nb_y, nb_z);
+		if (nb2 < 1e-20) {
+			continue;
+		}
+		cross3(nh_x, nh_y, nh_z, nb_x, nb_y, nb_z, &cx_, &cy_, &cz_);
+		const double sin2_hf = norm2(cx_, cy_, cz_) / (nh2 * nb2);
+		if (sin2_hf > best_sin2_false) {
+			best_sin2_false = sin2_hf;
+		}
+	}
+
+	if (best_sin2_false < 1e-8) {
+		std::fprintf(stderr,
+			"synth_ground_lambert_face_normal vs unlifted reference did not diverge "
+			"(sin^2 max=%g)\n",
+			best_sin2_false);
+		std::abort();
+	}
+}
+
+
 // ---- 7b. Visible-centre anchor matches legacy iso convention ---------------
 
 static void test_canvas_anchor_convention()
@@ -579,6 +703,7 @@ int main()
 	test_slope_project_to_square_clamping();
 	test_inscribed_hex_tiles_lattice();
 	test_synth_slope_bbox_contains_lifted_vertices();
+	test_synth_build_ground_normal_uses_lifted_screen_y();
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();
 	std::printf("hex_proj_test: all checks passed\n");
