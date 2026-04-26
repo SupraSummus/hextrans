@@ -198,7 +198,7 @@ void enlarge_map_frame_t::update_preview()
 					color = gfx->palette_lookup(COL_WHITE);
 				}
 				else {
-					const sint16 height = welt->lookup_hgt( pos );
+					const sint16 height = welt->min_hgt( pos );
 					color = minimap_t::calc_height_color(height, sets->get_groundwater());
 				}
 			}
