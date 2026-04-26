@@ -104,6 +104,14 @@ static image_t* create_textured_tile(const image_t* image_lightmap, const image_
  */
 static image_t* create_alpha_tile(const image_t* image_lightmap, slope_t::type slope, const image_t* image_alphamap)
 {
+	// Single-pixel sentinel for any missing input.  This pairs safely
+	// only with sources that ALSO went through this NULL fallback —
+	// the legacy square-pakset path where both source and alpha came
+	// from the same lightmap and share the sentinel together.  The
+	// hex-shaped synth ground tiles need a synth-shaped alpha to
+	// match their RLE; that pairing is wired into `get_alpha_tile`
+	// via `synth_overlay::get_alpha`, ahead of this function's
+	// pakset-only output.
 	if(  image_lightmap == NULL  ||  image_alphamap == NULL  ||  image_alphamap->get_pic()->w < 2  ) {
 		image_t *image_dest = image_t::create_single_pixel();
 		image_dest->register_image();
@@ -1039,6 +1047,30 @@ static image_id pick_ground_image(slope_t::type slope, sint16 climate_nr)
 }
 
 
+// Synth-or-pakset alpha-tile lookup.  Mirrors `pick_ground_image`'s
+// precedence so the source and alpha tiles handed to a single blit
+// land on the same path: synth source pairs with synth alpha (both
+// hex-shaped), pakset source pairs with pakset alpha (both
+// lightmap-shaped).  `display_img_alpha_wc` walks the two pointers in
+// lockstep using the source's RLE — shape-identity is what keeps
+// the alpha walk inside its allocation.
+//
+// The synth alpha currently ignores the corners mask and returns a
+// uniform full-opaque hex.  See synth_overlay::get_alpha — per-corner
+// gradient is a future enhancement once corner masking gets wired
+// through.
+static image_id pick_alpha_tile(slope_t::type slope, image_id pakset_id)
+{
+	if(  synth_overlay::prefer_over_pakset  ) {
+		const image_id synth_id = synth_overlay::get_alpha(slope);
+		if(  synth_id != IMG_EMPTY  ) {
+			return synth_id;
+		}
+	}
+	return pakset_id;
+}
+
+
 image_id ground_desc_t::get_ground_tile(grund_t *gr)
 {
 	slope_t::type slope = gr->get_grund_hang();
@@ -1077,17 +1109,24 @@ image_id ground_desc_t::get_snow_tile(slope_t::type slope)
 
 image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 {
+	// Pakset alpha only — beach is paired with `get_water_tile` /
+	// `sea->get_image`, both still on the legacy pakset path
+	// (lightmap-shaped square sprite).  Routing this through
+	// `pick_alpha_tile` would hand back a hex-shaped synth alpha that
+	// the lockstep walk in `display_img_alpha_wc` reads off the end
+	// of, since the source is square.  Synth wires through here once
+	// `synth_overlay` grows a per-stage water family to match.
 	return alpha_water_image[slope * 15 + corners - 1];
 }
 
 
 image_id ground_desc_t::get_alpha_tile(slope_t::type slope, uint8 corners)
 {
-	return alpha_corners_image[slope * 15 + corners - 1];
+	return pick_alpha_tile(slope, alpha_corners_image[slope * 15 + corners - 1]);
 }
 
 
 image_id ground_desc_t::get_alpha_tile(slope_t::type slope)
 {
-	return alpha_image[slope];
+	return pick_alpha_tile(slope, alpha_image[slope]);
 }
