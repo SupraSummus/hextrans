@@ -258,27 +258,13 @@ regardless of wind direction.  Both quirks land together in a
 hex-aware rewrite of the climate generator; tied to the
 "Square-grid terrain-mutation cascade tests" cluster above.
 
-## Network terraforming corner determinism
-
-`tool_raise_lower_base_t::cursor_corner` is set on the local tool
-instance by the cursor mover (siminteraction → viewport picker)
-before each cursor-driven raise / lower.  In network play
-`nwc_tool_t` ships tool id, `default_param` and `koord3d`, but no
-tool-instance state — the server replays on a fresh instance whose
-`cursor_corner` defaults to NW, so terraforming on a remote client
-may target the wrong vertex of the picked tile.  Single-player and
-the local side of network play work correctly.  The legacy square
-code didn't have this gap because corner was a pure function of the
-tile koord; the hex picker is a function of cursor sub-tile screen
-position, which has to ride along with the tool call.  Fix when
-network multiplayer enters test scope: either extend `nwc_tool_t`
-with an explicit hex-corner field, pass the corner through
-`default_param` (the existing channel for drag-height, format would
-become `<height>:<corner>`), or steal 3 bits from `pos.z` which
-raise / lower currently ignore.  Squirrel-scripted
-`command_x::grid_raise` / `_lower` likewise default to NW because
-the script API takes no corner argument — extend the API alongside
-the network fix.
+`command_x::grid_raise` / `grid_lower` still expose only a tile/grid
+coordinate and therefore default to the raise/lower tool's fallback
+corner (NW).  Cursor-driven terraforming carries the picked hex corner
+through tool custom data, but scripted scenarios cannot yet target the
+other five vertices directly.  Extend the Squirrel API with an explicit
+hex-corner argument when the terraform scenario tests are rewritten for
+the hex model.
 
 ## Map storage shape — open architectural choice
 

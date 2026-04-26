@@ -1050,6 +1050,17 @@ bool tool_raise_lower_base_t::check_dragging()
 }
 
 
+void tool_raise_lower_base_t::rdwr_custom_data(memory_rw_t *packet)
+{
+	tool_t::rdwr_custom_data(packet);
+	uint8 corner = (uint8)cursor_corner;
+	packet->rdwr_byte(corner);
+	if(  corner < (uint8)hex_corner_t::count  ) {
+		cursor_corner = (hex_corner_t::type)corner;
+	}
+}
+
+
 sint16 tool_raise_t::get_drag_height(koord k)
 {
 	const grund_t *gr = welt->lookup_kartenboden_gridcoords(k);

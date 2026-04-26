@@ -141,13 +141,14 @@ inline koord hex_round_to_axial(double q_f, double r_f)
 }
 
 
-/// Object-offset units for drawing a cursor at a hex corner.  Object
-/// offsets use a 64-unit tile basis (`tile_raster_scale_*`), so these
-/// values are raster-size independent.  Match the generated hex
-/// ground/marker vertices from `synth_hex_geometry`: the footprint is
-/// rasterized into a half-open 64x32 bbox, so the right and bottom
-/// vertices land one pixel inside the ideal lattice edge.
-inline koord hex_corner_cursor_offset(hex_corner_t::type c)
+/// Centre-relative object-offset units for picking the nearest drawn
+/// hex corner.  Object offsets use a 64-unit tile basis
+/// (`tile_raster_scale_*`), so these values are raster-size
+/// independent.  Match the generated hex ground/marker vertices from
+/// `synth_hex_geometry`: the footprint is rasterized into a half-open
+/// 64x32 bbox, so the right and bottom vertices land one pixel inside
+/// the ideal lattice edge.
+inline koord hex_corner_centre_offset(hex_corner_t::type c)
 {
 	static const koord offsets[hex_corner_t::count] = {
 		koord( 31,   0), // E
@@ -158,6 +159,17 @@ inline koord hex_corner_cursor_offset(hex_corner_t::type c)
 		koord( 16, -16), // NE
 	};
 	return offsets[c];
+}
+
+
+/// Anchor-relative object-offset units for drawing a cursor at a hex
+/// corner.  `viewport_t::get_screen_coord` applies object offsets from
+/// the tile sprite anchor, not from the visible centre used by the
+/// picker, so add the legacy anchor → visible-centre displacement.
+inline koord hex_corner_cursor_draw_offset(hex_corner_t::type c)
+{
+	const koord o = hex_corner_centre_offset(c);
+	return koord(o.x + 32, o.y + hex_visible_centre_y(64));
 }
 
 
@@ -173,7 +185,7 @@ inline hex_corner_t::type hex_pick_nearest_corner(double dq, double dr)
 	double best_d2 = HUGE_VAL;
 	hex_corner_t::type best = hex_corner_t::E;
 	for (uint8 i = 0; i < 6; i++) {
-		const koord offset = hex_corner_cursor_offset((hex_corner_t::type)i);
+		const koord offset = hex_corner_centre_offset((hex_corner_t::type)i);
 		const double dx = sx - offset.x;
 		const double dy = sy - offset.y;
 		const double d2 = dx * dx + dy * dy;
