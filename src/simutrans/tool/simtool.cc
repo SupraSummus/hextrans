@@ -2213,16 +2213,9 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 			return "Cannot alter water";
 		}
 
-		// get neighbour corner heights
-		sint8 neighbour_heights[8][4];
-		welt->get_neighbour_heights( k, neighbour_heights );
-
-		// HEX-PORT TODO: this flood-fill is square-grid
-		// (4-corner-to-8-neighbour bit math at neighbour_heights[i][((i>>1)+1)&3]
-		// below).  Loop bound and sentinels (==7, =8, <7) are widened to
-		// hex via lengthof(koord::neighbours), but the corner-mapping
-		// expressions inside still encode the square model and give
-		// wrong results for hex.  Needs porting with slope_t.
+		// Hex flood-fill: tile k shares edge i with neighbour
+		// k_neighbour = k + neighbours[i]; that edge touches corners i
+		// and (i+1)%6 of k (see vertex_owners in koord.cc).
 		for(  int i = stage[array_koord(k.x,k.y)];  i < (int)lengthof(koord::neighbours);  i++  ) {
 			koord k_neighbour = k + koord::neighbours[i];
 			grund_t *gr2 = welt->lookup_kartenboden(k_neighbour);
@@ -2232,28 +2225,25 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 				// move onto this tile if it hasn't been processed yet
 				bool ok = stage[array_koord(k_neighbour.x, k_neighbour.y)] == -1;
 
+				// Shared edge between k and k_neighbour: the two vertices are
+				// corners i and (i+1)%6 of *k* (see vertex_owners — not the
+				// same indices on the neighbour tile).
+				grund_t *gr_here = welt->lookup_kartenboden(k);
+				const hex_corner_t::type ca = (hex_corner_t::type)i;
+				const hex_corner_t::type cb = (hex_corner_t::type)((i + 1) % (int)lengthof(koord::neighbours));
+				const sint8 edge_a = gr_here->get_hoehe(ca);
+				const sint8 edge_b = gr_here->get_hoehe(cb);
+
 				if(  raising  ) {
 					// test whether points adjacent to current tile will be flooded
 					// if control key modifier pressed, level ground will be left alone, but then need to check for spills
 
-					// for neighbour i test corners adjacent to tile
-					// nw (i = 0), test se (corner 1)
-					// w (i = 1), test se (corner 1) and ne (corner 2)
-					// sw (i = 2), test ne (corner 2)
-					// s (i = 3), test ne (corner 2) and nw (corner 3)
-					// se (i = 4), test nw (corner 3)
-					// e (i = 5), test nw (corner 3) and sw (corner 0)
-					// ne (i = 6), test sw (corner 0)
-					// n (i = 7), test sw (corner 0) and se (corner 1)
-
 					if(  is_ctrl_pressed()  ) {
 						ok = ok  &&  ( (gr2->get_grund_hang()!=slope_t::flat  &&  welt->max_hgt(k_neighbour) <= test_height) ||
-							neighbour_heights[i][((i >> 1) + 1) & 3] < test_height ||
-							( (i & 1)  &&  neighbour_heights[i][((i >> 1) + 2) & 3] < test_height) );
+							edge_a < test_height  ||  edge_b < test_height );
 					}
 					else {
-						ok = ok  &&  (neighbour_heights[i][((i >> 1) + 1) & 3] <= test_height ||
-							( (i & 1)  &&  neighbour_heights[i][((i >> 1) + 2) & 3] <= test_height));
+						ok = ok  &&  (edge_a <= test_height  ||  edge_b <= test_height);
 					}
 
 					// move onto this tile unless it already has water at new level, or the land level is above new level
@@ -2302,52 +2292,50 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 				// remove any objects on this tile
 				gr2->obj_loesche_alle( NULL );
 
-				const sint8 h0 = gr2->get_hoehe();
-				const sint8 min_grid_hgt = welt->min_hgt( koord( x, y ) );
-
-				sint8 h0_nw, h0_ne, h0_se, h0_sw;
-
+				const koord kt(x, y);
+				const sint8 water_before = welt->get_water_hgt(kt);
+				sint8 h0[hex_corner_t::count];
 				if(  gr2->is_water()  ) {
-					// water - maximum existing height can be is old water height no matter what surrounding grids are
-					h0_nw = min(h0, welt->lookup_hgt(x, y));
-					h0_ne = min(h0, welt->lookup_hgt(x+1, y));
-					h0_se = min(h0, welt->lookup_hgt(x+1, y+1));
-					h0_sw = min(h0, welt->lookup_hgt(x, y+1));
-				}
-				else if(  h0 > min_grid_hgt  ) {
-					// if min grid height here is less than ground height it will be because we are partially water
-					h0_nw = welt->lookup_hgt(x, y);
-					h0_ne = welt->lookup_hgt(x+1, y);
-					h0_se = welt->lookup_hgt(x+1, y+1);
-					h0_sw = welt->lookup_hgt(x, y+1);
-					if(  !gr2->is_water()  ) {
-						// while this appears to be a single height slope actually it is a double height slope half underwater
-						const sint8 water_hgt = welt->get_water_hgt(x, y);
-						h0_nw >= water_hgt ? h0_nw = h0 + corner_nw( gr2->get_grund_hang() ) : 0;
-						h0_ne >= water_hgt ? h0_ne = h0 + corner_ne( gr2->get_grund_hang() ) : 0;
-						h0_se >= water_hgt ? h0_se = h0 + corner_se( gr2->get_grund_hang() ) : 0;
-						h0_sw >= water_hgt ? h0_sw = h0 + corner_sw( gr2->get_grund_hang() ) : 0;
+					for(  uint8 c = 0;  c < hex_corner_t::count;  c++  ) {
+						h0[c] = min(water_before, welt->lookup_hgt_nocheck(kt, (hex_corner_t::type)c));
 					}
 				}
 				else {
-					// fully land
-					h0_nw = h0 + corner_nw( gr2->get_grund_hang() );
-					h0_ne = h0 + corner_ne( gr2->get_grund_hang() );
-					h0_se = h0 + corner_se( gr2->get_grund_hang() );
-					h0_sw = h0 + corner_sw( gr2->get_grund_hang() );
+					const sint8 z = gr2->get_hoehe();
+					const slope_t::type sl = gr2->get_grund_hang();
+					h0[hex_corner_t::E ] = z + corner_e (sl);
+					h0[hex_corner_t::SE] = z + corner_se(sl);
+					h0[hex_corner_t::SW] = z + corner_sw(sl);
+					h0[hex_corner_t::W ] = z + corner_w (sl);
+					h0[hex_corner_t::NW] = z + corner_nw(sl);
+					h0[hex_corner_t::NE] = z + corner_ne(sl);
 				}
 
+				sint8 hn[hex_corner_t::count];
+				for(  uint8 c = 0;  c < hex_corner_t::count;  c++  ) {
+					hn[c] = max(new_water_height, h0[c]);
+				}
 
-				const sint8 hneu_nw = max( new_water_height, h0_nw );
-				const sint8 hneu_ne = max( new_water_height, h0_ne );
-				const sint8 hneu_se = max( new_water_height, h0_se );
-				const sint8 hneu_sw = max( new_water_height, h0_sw );
-				const sint8 hneu = min( min( hneu_nw, hneu_ne ), min( hneu_se, hneu_sw ) );
+				sint8 h_min = hn[0];
+				for(  uint8 c = 1;  c < hex_corner_t::count;  c++  ) {
+					h_min = min(h_min, hn[c]);
+				}
+				const sint8 disp_hneu = max(h_min, new_water_height);
+				sint8 d[hex_corner_t::count];
+				for(  uint8 c = 0;  c < hex_corner_t::count;  c++  ) {
+					const sint8 raw = max(hn[c], new_water_height) - disp_hneu;
+					d[c] = (sint8)(raw > 2 ? 2 : raw);
+				}
+				const slope_t::type sneu = encode_corners_hex(
+					d[hex_corner_t::E], d[hex_corner_t::SE], d[hex_corner_t::SW],
+					d[hex_corner_t::W], d[hex_corner_t::NW], d[hex_corner_t::NE]);
 
-				gr2->set_hoehe( hneu );
+				gr2->set_hoehe(disp_hneu);
+				gr2->set_grund_hang(sneu);
 
-				const uint8 sneu = (hneu_sw - hneu > 2 ? 2 : hneu_sw - hneu) + ((hneu_se - hneu > 2 ? 2 : hneu_se-hneu) * 3) + ((hneu_ne - hneu > 2 ? 2 : hneu_ne - hneu) * 9) + ((hneu_nw - hneu > 2 ? 2 : hneu_nw - hneu) * 27);
-				gr2->set_grund_hang( sneu );
+				for(  uint8 c = 0;  c < hex_corner_t::count;  c++  ) {
+					welt->set_grid_hgt_nocheck(kt, (hex_corner_t::type)c, hn[c]);
+				}
 
 				welt->set_water_hgt_nocheck(x, y, new_water_height );
 				welt->access(x, y)->correct_water();
