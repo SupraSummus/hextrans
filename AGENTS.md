@@ -27,9 +27,11 @@ No parallel types, no compile-time `HEX` flag. We change the existing
 where the codebase compiles but parts of game logic are inconsistent.
 This is a real port, not an experimental side-branch.
 
-Art is out of scope for now. Reuse the existing square-tile sprites
-botched onto the hex grid; porting/regenerating pakset art is a
-separate, much larger task that follows the engine work.
+Pakset art is out of scope for now. Reuse the existing square-tile
+sprites where they still fit and use small engine-generated placeholder
+sprites (e.g. synthetic hex ground) where square art hides engine
+geometry; porting/regenerating real pakset art is a separate, much
+larger task that follows the engine work.
 
 ## Tripwires over silent shims
 

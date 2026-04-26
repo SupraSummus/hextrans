@@ -10,7 +10,9 @@
 //   3. Inverse round-trip: hex_round_to_axial(fractional(forward(q,r)))
 //      recovers (q, r) for every (q, r) in a representative range.
 //   4. Inverse is stable under sub-pixel noise around hex centres.
-//   5. Render-loop iteration (hex_render_x_start + hex_render_x_step
+//   5. Slope_t corner heights, the hex projection lattice and synth
+//      ground geometry agree at shared rendered slope edges.
+//   6. Render-loop iteration (hex_render_x_start + hex_render_x_step
 //      with q=x/3, r=(y-q)/2) is a bijection between (x, y) lattice
 //      points and the (q, r) tiles in a y-bounded rectangle — every
 //      visible hex is visited exactly once.
@@ -23,6 +25,7 @@
 #include "simutrans/display/hex_proj.h"
 #include "simutrans/dataobj/koord.h"
 #include "simutrans/dataobj/ribi.h"
+#include "simutrans/descriptor/synth_geometry.h"
 
 
 // Use a representative raster width.  Must be a multiple of 4 so the
@@ -391,7 +394,7 @@ static void test_slope_project_to_square_clamping()
 }
 
 
-// ---- 7. Hex tile inscription tiles the lattice -----------------------------
+// ---- 7. Hex tile inscription / synth vector geometry -----------------------
 
 // Inscribed-hex vertex positions for a tile bbox of size `w × h`,
 // matching the formula in `descriptor/synth_overlay.cc`
@@ -452,6 +455,7 @@ static sint32 max_shared_corner_gap(sint32 w, sint32 h)
 	return worst;
 }
 
+
 static void test_inscribed_hex_tiles_lattice()
 {
 	// `w × w/2` is the only inscription that tiles the lattice (the
@@ -467,6 +471,46 @@ static void test_inscribed_hex_tiles_lattice()
 	if (max_shared_corner_gap(W, W) <= 1) {
 		std::fprintf(stderr, "lattice tiling: w=%d h=%d should NOT tile, does — invariant broken\n", W, W);
 		std::abort();
+	}
+}
+
+static void test_synth_slope_bbox_contains_lifted_vertices()
+{
+	// Graphics-behaviour contract for synth_overlay's vector sprites:
+	// every lifted slope vertex must fit in the generated image bbox, and
+	// the added headroom must not move the flat footprint's screen anchor.
+	// The old `W x W/2` bbox clipped raised N-side vertices at local y=0;
+	// endpoint-continuity tests stayed green because the clipped vector
+	// vertices still agreed mathematically before rasterisation.
+	const sint32 W = 64;
+	const sint32 old_img_y = hex_visible_centre_y(W) - W / 4;
+	const synth_overlay::synth_hex_geometry_t geom =
+		synth_overlay::synth_hex_geometry(W / 4, 16);
+	const sint32 img_y = geom.image_y();
+	sint32 flat_x[6], flat_y[6];
+	inscribed_hex_vertices(W, W / 2, flat_x, flat_y);
+
+	for (slope_t::type slope = 0; slope < slope_t::max_slopes; slope++) {
+		for (int c = 0; c < 6; c++) {
+			const sint32 vx = geom.vx[c];
+			const sint32 vy = geom.vy(slope, (hex_corner_t::type)c);
+			if (vx < 0 || vx >= W || vy < 0 || vy >= geom.h) {
+				std::fprintf(stderr,
+					"synth slope bbox: slope=%d corner=%d vertex=(%d,%d) outside %dx%d\n",
+					(int)slope, c, vx, vy, W, geom.h);
+				std::abort();
+			}
+		}
+	}
+
+	for (int c = 0; c < 6; c++) {
+		const sint32 vy = geom.vy(slope_t::flat, (hex_corner_t::type)c);
+		if (img_y + vy != old_img_y + flat_y[c]) {
+			std::fprintf(stderr,
+				"synth slope anchor: flat corner=%d screen_y=%d, want %d\n",
+				c, img_y + vy, old_img_y + flat_y[c]);
+			std::abort();
+		}
 	}
 }
 
@@ -534,6 +578,7 @@ int main()
 	test_slope_project_to_square_hex_edges();
 	test_slope_project_to_square_clamping();
 	test_inscribed_hex_tiles_lattice();
+	test_synth_slope_bbox_contains_lifted_vertices();
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();
 	std::printf("hex_proj_test: all checks passed\n");
