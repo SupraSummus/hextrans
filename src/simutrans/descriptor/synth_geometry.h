@@ -12,6 +12,8 @@
 #include "../simconst.h"
 #include "../simtypes.h"
 
+#include <cmath>
+
 
 namespace synth_overlay {
 
@@ -104,6 +106,32 @@ inline void synth_ground_lambert_face_normal(const synth_hex_geometry_t &geom,
 	*nx = ay * bz - az * by;
 	*ny = az * bx - ax * bz;
 	*nz = ax * by - ay * bx;
+}
+
+
+/**
+ * Convert a face normal into the brightness multiplier used by synth ground
+ * tiles.  The light is directional, but calibrated against the flat tile
+ * plane: flat ground stays at exactly 1.0x and only deviations from that
+ * plane produce highlights or shadows.
+ */
+inline sint32 synth_ground_lambert_brightness(double nx, double ny, double nz)
+{
+	const double Lx =  1.0;
+	const double Ly = -1.0;
+	const double Lz =  2.0;
+	const double L_norm = std::sqrt(Lx*Lx + Ly*Ly + Lz*Lz);
+	const double flat_cos = Lz / L_norm;
+
+	sint32 brightness = 256;
+	const double n_norm = std::sqrt(nx*nx + ny*ny + nz*nz);
+	if(  n_norm > 0.0  ) {
+		const double cos_theta = (nx*Lx + ny*Ly + nz*Lz) / (n_norm * L_norm);
+		brightness = 256 + (sint32)((cos_theta - flat_cos) * 384.0);
+		if(  brightness < 128  ) { brightness = 128; }
+		if(  brightness > 352  ) { brightness = 352; }
+	}
+	return brightness;
 }
 
 
