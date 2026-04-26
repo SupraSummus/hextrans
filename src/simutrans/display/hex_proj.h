@@ -141,6 +141,37 @@ inline koord hex_round_to_axial(double q_f, double r_f)
 }
 
 
+/// Pick the hex corner closest to a sub-tile fractional axial offset
+/// `(dq, dr)` (residual after rounding to the tile centre with
+/// `hex_round_to_axial`).  Uses the same screen-distance metric as
+/// the rounder, so corner Voronoi regions match the same irregular
+/// lattice the picker uses for tiles.  Argument order on the corner
+/// offset tables matches `hex_corner_t::type`.
+inline hex_corner_t::type hex_pick_nearest_corner(double dq, double dr)
+{
+	// Axial offsets of the 6 corners scaled by 3 (avoids 1/3 fractions
+	// in the static data; the screen-distance metric is homogeneous in
+	// scale so the comparison still picks the right corner).  Order:
+	//   E  ( 2, -1)   SE ( 1,  1)   SW (-1,  2)
+	//   W  (-2,  1)   NW (-1, -1)   NE ( 1, -2)
+	static const sint8 cq3[6] = {  2,  1, -1, -2, -1,  1 };
+	static const sint8 cr3[6] = { -1,  1,  2,  1, -1, -2 };
+	const double q3 = dq * 3.0, r3 = dr * 3.0;
+	double best_d2 = HUGE_VAL;
+	hex_corner_t::type best = hex_corner_t::E;
+	for (uint8 i = 0; i < 6; i++) {
+		const double da = q3 - cq3[i];
+		const double db = r3 - cr3[i];
+		const double d2 = (3.0 * da) * (3.0 * da) + (da + 2.0 * db) * (da + 2.0 * db);
+		if (d2 < best_d2) {
+			best_d2 = d2;
+			best = (hex_corner_t::type)i;
+		}
+	}
+	return best;
+}
+
+
 /**
  * Render-loop iteration over the hex lattice.
  *

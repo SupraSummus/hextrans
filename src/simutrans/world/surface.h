@@ -434,22 +434,22 @@ public:
 	bool is_plan_height_changeable(sint16 x, sint16 y) const;
 
 	/**
-	 * Increases the height of the grid coordinate (@p x, @p y) by one.
+	 * Raises one of the 6 hex corners of the grid coordinate by one
+	 * step.  The picked corner rises; the other 5 corners and all
+	 * neighbouring tiles flow from the terraformer's 6-edge propagation.
 	 *
 	 * @param player player
 	 * @param pos Grid coordinate.
+	 * @param corner Which of the 6 hex corners to raise.
 	 * @param[out] err
 	 */
-	int grid_raise(const player_t *player, koord pos, const char *&err);
+	int grid_raise(const player_t *player, koord pos, hex_corner_t::type corner, const char *&err);
 
 	/**
-	 * Decreases the height of the grid coordinate (@p x, @p y) by one.
-	 *
-	 * @param player player
-	 * @param pos Grid coordinate.
-	 * @param[out] err
+	 * Mirror of `grid_raise` — lowers the picked corner of the grid
+	 * coordinate by one step.
 	 */
-	int grid_lower(const player_t *player, koord pos, const char *&err);
+	int grid_lower(const player_t *player, koord pos, hex_corner_t::type corner, const char *&err);
 
 	/**
 	 * Raise grid point (@p x,@p y). Changes @ref grid_hgts only, used during map creation/enlargement.
@@ -479,31 +479,6 @@ public:
 	 * @note Uses the corner height for the best slope.
 	 */
 	slope_t::type recalc_natural_slope( const koord k, sint8 &new_height ) const;
-
-	/**
-	 * @return The corner that needs to be raised/lowered on the given coordinates.
-	 * @param pos Grid coordinate to check.
-	 * @note Inline because called very frequently!
-	 * @note Will always return north-west except on border tiles.
-	 * @pre pos has to be a valid grid coordinate, undefined otherwise.
-	 */
-	inline slope4_t get_corner_to_operate(const koord &pos) const
-	{
-		// Normal tile
-		if ( ( pos.x != cached_grid_size.x )  &&  ( pos.y != cached_grid_size.y ) ){
-			return slope4_t::corner_NW;
-		}
-		// Border on south-east
-		if ( is_within_limits(pos.x-1, pos.y) ) {
-			return(slope4_t::corner_NE);
-		}
-		// Border on south-west
-		if ( is_within_limits(pos.x, pos.y-1) ) {
-			return(slope4_t::corner_SW);
-		}
-		// Border on south
-		return (slope4_t::corner_SE);
-	}
 
 protected:
 	/**
