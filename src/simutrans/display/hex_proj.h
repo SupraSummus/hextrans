@@ -162,14 +162,15 @@ inline koord hex_corner_centre_offset(hex_corner_t::type c)
 }
 
 
-/// Anchor-relative object-offset units for drawing a cursor at a hex
-/// corner.  `viewport_t::get_screen_coord` applies object offsets from
-/// the tile sprite anchor, not from the visible centre used by the
-/// picker, so add the legacy anchor → visible-centre displacement.
+/// Object-offset units for drawing a cursor at a hex corner.  The
+/// terraform cursor image is anchored like the legacy grid cursor, so
+/// its draw offset must stay in the same centre-relative frame as the
+/// synthetic hex marker vertices.  Adding the tile anchor→centre
+/// displacement here shifts the arrow down/right while the action still
+/// hits the correct vertex.
 inline koord hex_corner_cursor_draw_offset(hex_corner_t::type c)
 {
-	const koord o = hex_corner_centre_offset(c);
-	return koord(o.x + 32, o.y + hex_visible_centre_y(64));
+	return hex_corner_centre_offset(c);
 }
 
 
