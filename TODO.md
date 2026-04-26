@@ -468,15 +468,19 @@ tile so `display_img_alpha_wc`'s lockstep walk stays inside both
 allocations.  The pakset path (square sprites projected via
 `slope_t::project_to_square`, flattened through `doubleslope_to_imgnr`)
 is the fallback when synth isn't initialised or when
-`synth_overlay::prefer_over_pakset` flips.  What's left: the climate /
-water / snow / beach corner-overlay walks in `grund_t::display_boden`
-are still 4-corner via the legacy `[8][4]` `get_neighbour_heights`,
-and `synth_overlay::get_alpha` ignores the corners mask and returns a
-uniform full-opaque hex — climate transitions appear at tile
-granularity rather than per-corner.  Per-corner gradient lands
-together with the corner-overlay 6-edge port; until then keep
-`synth_overlay::prefer_over_pakset` toggleable so a regression on
-the synth path is recoverable without a code change.
+`synth_overlay::prefer_over_pakset` flips.  Climate transitions
+use `vertex_owners` plus `surface_t::vertex_corner_height` /
+`climate_at_clamped` (const members; height uses `canonical_vertex`
+then tile clamp like legacy neighbours) in both `recalc_transitions` and
+`display_boden`; the six-bit mask lives on `planquadrat_t` (save
+124.5: extra byte in `grund_t` for bits 4–5).  Pakset corner alpha
+tables are still 15-wide per slope, so `get_alpha_tile` /
+`get_beach_tile` clamp masks to 15; synth `get_alpha` is still
+full-hex opaque (no per-corner gradient).  Water / beach / snow
+still pair with pakset-shaped sources as below.  Keep
+`synth_overlay::prefer_over_pakset` toggleable for quick rollback.
+`rotate_transitions` still applies a 60° bit-rotate as a stand-in for
+90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
 
 `get_beach_tile` still returns pakset-shaped alpha because its source
 (`get_water_tile` / `sea->get_image(0, stage)`) is also still on the
@@ -531,7 +535,10 @@ in this env; `tools/hex_proj_test/` covers the projection math, the
 synth ground vector bbox/anchor contract, and `synth_ground_lambert_face_normal`
 (the same helper `build_ground` calls, always lifted screen Y): the test checks
 it against an independent cross product from `geom.vy`, and checks divergence
-from a buggy unlifted reference kept only in `hex_proj_test.cc`.  It still does not cover
+from a buggy unlifted reference kept only in `hex_proj_test.cc`.  The
+vertex-closure check in the same file mirrors `koord.cc::vertex_owners`
+by formula only — the standalone binary stays one TU and does not link
+`koord.cc`.  It still does not cover
 shaded-pixel aesthetics, sprite draw order, or pakset-art integration.  One
 suspect still to eyeball when a pakset is available: the no-parity
 centring (square renderer had a

@@ -176,7 +176,18 @@ public:
 	}
 
 	/// @returns the closest coordinate to @p outside_pos that is within the world
-	koord get_closest_coordinate(koord outside_pos);
+	koord get_closest_coordinate(koord outside_pos) const;
+
+	/**
+	 * Absolute height of the world vertex @p v from each owning tile's
+	 * kartenboden slope (climate / snowline transitions).  Uses
+	 * `canonical_vertex` then clamps the tile like legacy neighbour walks
+	 * so border vertices agree with `climate_at_clamped`.
+	 */
+	sint8 vertex_corner_height(hex_vertex_t v) const;
+
+	/// Climate at @p k, clamped to the map rectangle (legacy neighbour walks).
+	climate climate_at_clamped(koord k) const;
 
 public:
 	/**

@@ -110,12 +110,49 @@ surface_t::~surface_t()
 }
 
 
-koord surface_t::get_closest_coordinate(koord outside_pos)
+koord surface_t::get_closest_coordinate(koord outside_pos) const
 {
 	outside_pos.clip_min(koord(0,0));
 	outside_pos.clip_max(koord(get_size().x-1,get_size().y-1));
 
 	return outside_pos;
+}
+
+
+sint8 surface_t::vertex_corner_height(hex_vertex_t v) const
+{
+	// Off-map (tile, corner) names still refer to a real vertex; use the
+	// lex-min canonical name so corner indices line up with the tile we read.
+	const hex_vertex_t c = canonical_vertex(v);
+	koord t = c.tile;
+	if(  !is_within_limits(t)  ) {
+		t = get_closest_coordinate(t);
+	}
+	const planquadrat_t *pl = access(t);
+	if(  !pl  ) {
+		return get_groundwater();
+	}
+	const grund_t *gr = pl->get_kartenboden();
+	const slope_t::type sl = gr->get_grund_hang();
+	const sint8 base = gr->get_hoehe();
+	switch(  c.corner  ) {
+		case hex_corner_t::E:  return base + (sint8)corner_e(sl);
+		case hex_corner_t::SE: return base + (sint8)corner_se(sl);
+		case hex_corner_t::SW: return base + (sint8)corner_sw(sl);
+		case hex_corner_t::W:  return base + (sint8)corner_w(sl);
+		case hex_corner_t::NW: return base + (sint8)corner_nw(sl);
+		case hex_corner_t::NE: return base + (sint8)corner_ne(sl);
+		default: return base;
+	}
+}
+
+
+climate surface_t::climate_at_clamped(koord k) const
+{
+	if(  !is_within_limits(k)  ) {
+		k = get_closest_coordinate(k);
+	}
+	return get_climate(k);
 }
 
 
@@ -736,7 +773,10 @@ void surface_t::rotate_transitions(koord k)
 
 	uint8 climate_corners = pl->get_climate_corners();
 	if(  climate_corners != 0  ) {
-		climate_corners = (climate_corners >> 1) | ((climate_corners & 1) << 3);
+		// 90° map rotate is not a hex symmetry; approximate by one 60° step
+		// on the six-corner mask (matches slope_t::rotate60 on slopes).
+		climate_corners = (uint8)(
+			(((climate_corners & 0x3f) << 1) | ((climate_corners & 0x3f) >> 5)) & 0x3f);
 		pl->set_climate_corners( climate_corners );
 	}
 }
@@ -751,48 +791,31 @@ void surface_t::recalc_transitions(koord k)
 
 	grund_t *gr = pl->get_kartenboden();
 	if(  !gr->is_water()  ) {
-		// get neighbour corner heights
-		// HEX-PORT TODO: square-grid 4-corner climate-transition logic.
-		// Same situation as calculate_natural_slope() above.
-		sint8 neighbour_height[8][4];
-		get_neighbour_heights( k, neighbour_height );
-
-		// look up neighbouring climates
-		climate neighbour_climate[8] = {};
-		for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
-			koord k_neighbour = k + koord::neighbours[i];
-			if(  !is_within_limits(k_neighbour)  ) {
-				k_neighbour = get_closest_coordinate(k_neighbour);
-			}
-			neighbour_climate[i] = get_climate( k_neighbour );
-		}
-
+		// Hex climate transitions: each tile corner is a world vertex shared
+		// by three tiles; compare heights at all three names and climates
+		// of the matching neighbours (same rule as legacy four-corner path).
 		uint8 climate_corners = 0;
-		climate climate0 = get_climate(k);
+		const climate climate0 = get_climate(k);
 
-		slope_t::type slope_corner = gr->get_grund_hang();
-		for(  uint8 i = 0;  i < 4;  i++  ) { // 0 = sw, 1 = se etc.
-			// corner_sw (i=0): tests vs neighbour 1:w (corner 2 j=1),2:sw (corner 3) and 3:s (corner 4)
-			// corner_se (i=1): tests vs neighbour 3:s (corner 3 j=2),4:se (corner 4) and 5:e (corner 1)
-			// corner_ne (i=2): tests vs neighbour 5:e (corner 4 j=3),6:ne (corner 1) and 7:n (corner 2)
-			// corner_nw (i=3): tests vs neighbour 7:n (corner 1 j=0),0:nw (corner 2) and 1:w (corner 3)
-			sint8 corner_height = gr->get_hoehe() + corner_sw(slope_corner);
+		for(  uint8 ci = 0;  ci < (uint8)hex_corner_t::count;  ci++  ) {
+			hex_vertex_t owners[3];
+			vertex_owners(k, (hex_corner_t::type)ci, owners);
+			const sint8 h_here = vertex_corner_height(owners[0]);
 
 			climate transition_climate = water_climate;
 			climate min_climate = arctic_climate;
 
-			for(  int j = 1;  j < 4;  j++  ) {
-				if(  corner_height == neighbour_height[(i * 2 + j) & 7][(i + j) & 3]) {
-					climate climatej = neighbour_climate[(i * 2 + j) & 7];
+			for(  int oi = 1;  oi < 3;  oi++  ) {
+				if(  h_here == vertex_corner_height(owners[oi])  ) {
+					const climate climatej = climate_at_clamped(owners[oi].tile);
 					climatej > transition_climate ? transition_climate = climatej : 0;
 					climatej < min_climate ? min_climate = climatej : 0;
 				}
 			}
 
 			if(  min_climate == water_climate  ||  transition_climate > climate0  ) {
-				climate_corners |= 1 << i;
+				climate_corners |= (uint8)(1u << ci);
 			}
-			slope_corner /= slope_t::southeast;
 		}
 		pl->set_climate_transition_flag( climate_corners != 0 );
 		pl->set_climate_corners( climate_corners );
