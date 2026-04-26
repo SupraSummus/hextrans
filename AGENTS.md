@@ -173,6 +173,30 @@ large failing set, expect most failures to be cascades from a smaller
 number of actual hex regressions. Work the cascade head first, rerun,
 and see what is left before classifying the tail.
 
+## Externalize the thinking
+
+Long internal monologue on a hard idea is brittle. A private chain
+of reasoning has no sanity check beyond the agent's own confidence,
+and if the session is interrupted or compacted mid-thought the work
+disappears with it. Default to thinking on the page: short, frequent
+user-visible checkpoints — one sentence describing what you're
+trying to figure out, what you've ruled out, what the next probe is
+— beat a ten-paragraph internal deliberation that surfaces only as
+a conclusion.
+
+When the idea is concrete enough to live in the codebase, write it
+there. A stub with a fatal body and a one-line comment, a paragraph
+in `TODO.md`, an exploratory unit test, a half-finished edit
+committed on the working branch — all are durable, all are visible,
+and all give the user a place to redirect before the agent spends
+an hour chasing the wrong shape. Prefer many small visible moves
+over one large invisible one.
+
+This applies hardest to the kind of design questions this port
+keeps producing — vertex topology, ribi widening, slope encoding.
+Those are the problems where a long internal chain is most tempting
+and least reliable.
+
 ## Working notes
 
 Compile from the repo root: `cmake --build build -j "$(nproc)"`. The
