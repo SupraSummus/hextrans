@@ -41,6 +41,11 @@
 static constexpr sint16 W = 64;
 static constexpr sint16 U = W / 4; // = 16
 
+static const koord hex_corner_cursor_offset_test[hex_corner_t::count] = {
+	koord( 31,   0), koord( 16,  15), koord(-16,  15),
+	koord(-32,   0), koord(-16, -16), koord( 16, -16),
+};
+
 // Must match `koord::neighbours` in koord.cc (SE, S, SW, NW, N, NE).
 static const koord hex_neighbours_test[6] = {
 	koord(  1,  0 ), koord(  0,  1 ), koord( -1,  1 ),
@@ -229,25 +234,25 @@ static void test_pick_corner_at_exact_offsets()
 static void test_pick_corner_matches_screen_closest()
 {
 	// Sweep sub-tile axial offsets and verify the picker's choice
-	// equals the brute-force screen-closest corner.  Sweep range
+	// equals the brute-force screen-closest drawn cursor vertex.  Sweep range
 	// covers the unit cell with margin so we hit boundaries between
 	// adjacent corners.  Skip equidistant ties (mouse-pick boundary)
 	// where two corners share the minimum to within float noise.
-	const double corner_dq[6] = {  2.0/3.0,  1.0/3.0, -1.0/3.0, -2.0/3.0, -1.0/3.0,  1.0/3.0 };
-	const double corner_dr[6] = { -1.0/3.0,  1.0/3.0,  2.0/3.0,  1.0/3.0, -1.0/3.0, -2.0/3.0 };
 	for (int i = -50; i <= 50; i++) {
 		for (int j = -50; j <= 50; j++) {
 			const double dq = i / 100.0, dr = j / 100.0;
 			const hex_corner_t::type got = hex_pick_nearest_corner(dq, dr);
+			const double sx = dq * 3.0 * U;
+			const double sy = (dq + 2.0 * dr) * U;
 
 			// Brute-force best in screen distance.
 			int best_i = 0;
 			double best_d2 = HUGE_VAL;
 			bool tied = false;
 			for (int k = 0; k < 6; k++) {
-				const double ddq = dq - corner_dq[k];
-				const double ddr = dr - corner_dr[k];
-				const double d2 = (3.0*ddq)*(3.0*ddq) + (ddq + 2.0*ddr)*(ddq + 2.0*ddr);
+				const double dx = sx - hex_corner_cursor_offset_test[k].x;
+				const double dy = sy - hex_corner_cursor_offset_test[k].y;
+				const double d2 = dx * dx + dy * dy;
 				if (d2 < best_d2 - 1e-9) {
 					best_d2 = d2;
 					best_i = k;
@@ -273,18 +278,14 @@ static void test_corner_cursor_offsets()
 {
 	// Visual offsets are in the 64-unit tile basis used by
 	// tile_raster_scale_*.  For W=64 the units equal pixels; compare
-	// against the fractional-axial corner positions projected through
-	// the same lattice as the picker.
-	const double corner_dq[6] = {  2.0/3.0,  1.0/3.0, -1.0/3.0, -2.0/3.0, -1.0/3.0,  1.0/3.0 };
-	const double corner_dr[6] = { -1.0/3.0,  1.0/3.0,  2.0/3.0,  1.0/3.0, -1.0/3.0, -2.0/3.0 };
+	// against the same half-open 64x32 footprint vertices that synth
+	// ground/marker sprites rasterize.
 	for (uint8 i = 0; i < 6; i++) {
 		const koord offset = hex_corner_cursor_offset((hex_corner_t::type)i);
-		const sint16 want_x = (sint16)std::round(corner_dq[i] * 3.0 * U);
-		const sint16 want_y = (sint16)std::round((corner_dq[i] + 2.0 * corner_dr[i]) * U);
-		if (offset.x != want_x || offset.y != want_y) {
+		if (offset.x != hex_corner_cursor_offset_test[i].x || offset.y != hex_corner_cursor_offset_test[i].y) {
 			std::fprintf(stderr,
 				"hex_corner_cursor_offset(%d) = (%d,%d), want (%d,%d)\n",
-				(int)i, offset.x, offset.y, want_x, want_y);
+				(int)i, offset.x, offset.y, hex_corner_cursor_offset_test[i].x, hex_corner_cursor_offset_test[i].y);
 			std::abort();
 		}
 	}
