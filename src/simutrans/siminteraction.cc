@@ -61,7 +61,9 @@ void interaction_t::move_cursor( const event_t &ev )
 
 	tool_t *tool = world->get_tool(world->get_active_player_nr());
 
-	const koord3d pos = viewport->get_new_cursor_position(scr_coord(ev.mouse_pos.x,ev.mouse_pos.y), tool->is_grid_tool());
+	hex_corner_t::type cursor_corner = hex_corner_t::NW;
+	const koord3d pos = viewport->get_new_cursor_position(scr_coord(ev.mouse_pos.x,ev.mouse_pos.y), tool->is_grid_tool(), &cursor_corner);
+	tool->set_cursor_corner(cursor_corner);
 
 	if( pos == koord3d::invalid ) {
 		zeiger->change_pos(pos);
@@ -238,7 +240,9 @@ void interaction_t::interactive_event( const event_t &ev )
 				// Check if we need to update pointer(zeiger) position.
 				if( err == NULL  &&  tool->update_pos_after_use() ) {
 					// Cursor might need movement (screen has changed, we get a new one under the mouse pointer)
-					const koord3d pos_new = viewport->get_new_cursor_position(scr_coord(ev.mouse_pos.x,ev.mouse_pos.y), tool->is_grid_tool());
+					hex_corner_t::type cursor_corner_new = hex_corner_t::NW;
+					const koord3d pos_new = viewport->get_new_cursor_position(scr_coord(ev.mouse_pos.x,ev.mouse_pos.y), tool->is_grid_tool(), &cursor_corner_new);
+					tool->set_cursor_corner(cursor_corner_new);
 					world->get_zeiger()->set_pos(pos_new);
 				}
 			}

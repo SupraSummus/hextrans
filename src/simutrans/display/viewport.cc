@@ -200,7 +200,7 @@ void viewport_t::change_world_position(const koord3d& pos, const koord& off, scr
 }
 
 
-grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint32 &found_i, sint32 &found_j, const bool intersect_grid) const
+grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint32 &found_i, sint32 &found_j, const bool intersect_grid, double *frac_dq, double *frac_dr) const
 {
 	const int rw1 = cached_img_size;
 
@@ -221,6 +221,12 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 	// fallback: take kartenboden if nothing else found
 	grund_t *bd = NULL;
 	grund_t *gr = NULL;
+	// Fractional residual within the picked tile (sub-tile axial
+	// offset).  Captured at the iteration that lands on the returned
+	// ground so callers can recover the cursor's sub-tile position
+	// (e.g. for the hex corner picker).  Reset on every loop turn
+	// since the height changes the projection.
+	double last_frac_dq = 0, last_frac_dr = 0;
 	// for the calculation of hmin/hmax see simview.cc
 	// for the definition of underground_level see grund_t::set_underground_mode
 	const sint8 hmin = grund_t::underground_mode != grund_t::ugm_all ? min( world->get_groundwater() - 4, grund_t::underground_level ) : world->get_min_allowed_height();
@@ -239,6 +245,8 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 		const koord delta = hex_round_to_axial(q_f, r_f);
 		found_i = view_origin_x + delta.x;
 		found_j = view_origin_y + delta.y;
+		last_frac_dq = q_f - delta.x;
+		last_frac_dr = r_f - delta.y;
 
 		gr = world->lookup(koord3d(found_i,found_j,hgt));
 		if (gr != NULL) {
@@ -290,12 +298,21 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 	}
 
 	if(found) {
+		if (frac_dq) *frac_dq = last_frac_dq;
+		if (frac_dr) *frac_dr = last_frac_dr;
 		return gr;
 	}
 	else {
 		if(bd!=NULL){
 			found_i = bd->get_pos().x;
 			found_j = bd->get_pos().y;
+			// Kartenboden fallback: bd was captured at some height
+			// other than the loop's final iteration, so last_frac_*
+			// doesn't correspond to bd.  Zero the residual; callers
+			// reading it get the tile centre, which maps to the E
+			// corner — arbitrary but stable.
+			if (frac_dq) *frac_dq = 0;
+			if (frac_dr) *frac_dr = 0;
 			return bd;
 		}
 		return NULL;
@@ -303,7 +320,7 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 }
 
 
-koord3d viewport_t::get_new_cursor_position( const scr_coord &screen_pos, bool grid_coordinates )
+koord3d viewport_t::get_new_cursor_position( const scr_coord &screen_pos, bool grid_coordinates, hex_corner_t::type *corner_out )
 {
 	const int rw4 = cached_img_size/4;
 
@@ -317,7 +334,8 @@ koord3d viewport_t::get_new_cursor_position( const scr_coord &screen_pos, bool g
 	}
 
 	sint32 grid_x, grid_y;
-	const grund_t *bd = get_ground_on_screen_coordinate(scr_coord(screen_pos.x, screen_pos.y + offset_y), grid_x, grid_y, grid_coordinates);
+	double frac_dq = 0, frac_dr = 0;
+	const grund_t *bd = get_ground_on_screen_coordinate(scr_coord(screen_pos.x, screen_pos.y + offset_y), grid_x, grid_y, grid_coordinates, &frac_dq, &frac_dr);
 
 	// no suitable location found (outside map, ...)
 	if (!bd) {
@@ -328,7 +346,14 @@ koord3d viewport_t::get_new_cursor_position( const scr_coord &screen_pos, bool g
 	sint8 groff = 0;
 
 	if( bd->is_visible()  &&  grid_coordinates) {
-		groff = bd->get_hoehe(world->get_corner_to_operate(koord(grid_x, grid_y))) - bd->get_hoehe();
+		// Hex picker: the fractional residual is the cursor's sub-tile
+		// axial offset from the picked tile's centre.  Pick the nearest
+		// of the 6 hex corners; the cursor's display height (`groff`)
+		// reflects that corner, and the corner rides out via @p
+		// corner_out so the caller can hand it to the active tool.
+		const hex_corner_t::type corner = hex_pick_nearest_corner(frac_dq, frac_dr);
+		if (corner_out) *corner_out = corner;
+		groff = bd->get_hoehe(corner) - bd->get_hoehe();
 	}
 
 	return koord3d(grid_x, grid_y, bd->get_disp_height() + groff);

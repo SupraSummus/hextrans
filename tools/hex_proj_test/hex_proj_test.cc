@@ -186,6 +186,77 @@ static void test_inverse_picks_screen_closest()
 }
 
 
+// ---- Corner picker ---------------------------------------------------------
+
+static void test_pick_corner_at_exact_offsets()
+{
+	// At the canonical axial offset of each corner (the average of the
+	// 3 tile centres that share the vertex), the picker must return
+	// that corner.  Offsets are (2,-1)/3, (1,1)/3, (-1,2)/3, (-2,1)/3,
+	// (-1,-1)/3, (1,-2)/3 in axial, ordered E, SE, SW, W, NW, NE.
+	struct { hex_corner_t::type c; double dq, dr; } cases[] = {
+		{ hex_corner_t::E,   2.0/3.0, -1.0/3.0 },
+		{ hex_corner_t::SE,  1.0/3.0,  1.0/3.0 },
+		{ hex_corner_t::SW, -1.0/3.0,  2.0/3.0 },
+		{ hex_corner_t::W,  -2.0/3.0,  1.0/3.0 },
+		{ hex_corner_t::NW, -1.0/3.0, -1.0/3.0 },
+		{ hex_corner_t::NE,  1.0/3.0, -2.0/3.0 },
+	};
+	for (const auto &t : cases) {
+		const hex_corner_t::type got = hex_pick_nearest_corner(t.dq, t.dr);
+		if (got != t.c) {
+			std::fprintf(stderr,
+				"hex_pick_nearest_corner: at (%.3f, %.3f) expected corner %d, got %d\n",
+				t.dq, t.dr, (int)t.c, (int)got);
+			std::abort();
+		}
+	}
+}
+
+
+static void test_pick_corner_matches_screen_closest()
+{
+	// Sweep sub-tile axial offsets and verify the picker's choice
+	// equals the brute-force screen-closest corner.  Sweep range
+	// covers the unit cell with margin so we hit boundaries between
+	// adjacent corners.  Skip equidistant ties (mouse-pick boundary)
+	// where two corners share the minimum to within float noise.
+	const double corner_dq[6] = {  2.0/3.0,  1.0/3.0, -1.0/3.0, -2.0/3.0, -1.0/3.0,  1.0/3.0 };
+	const double corner_dr[6] = { -1.0/3.0,  1.0/3.0,  2.0/3.0,  1.0/3.0, -1.0/3.0, -2.0/3.0 };
+	for (int i = -50; i <= 50; i++) {
+		for (int j = -50; j <= 50; j++) {
+			const double dq = i / 100.0, dr = j / 100.0;
+			const hex_corner_t::type got = hex_pick_nearest_corner(dq, dr);
+
+			// Brute-force best in screen distance.
+			int best_i = 0;
+			double best_d2 = HUGE_VAL;
+			bool tied = false;
+			for (int k = 0; k < 6; k++) {
+				const double ddq = dq - corner_dq[k];
+				const double ddr = dr - corner_dr[k];
+				const double d2 = (3.0*ddq)*(3.0*ddq) + (ddq + 2.0*ddr)*(ddq + 2.0*ddr);
+				if (d2 < best_d2 - 1e-9) {
+					best_d2 = d2;
+					best_i = k;
+					tied = false;
+				}
+				else if (d2 < best_d2 + 1e-9) {
+					tied = true;
+				}
+			}
+			if (tied) continue;
+			if ((int)got != best_i) {
+				std::fprintf(stderr,
+					"hex_pick_nearest_corner: at (%.3f, %.3f) picked %d, screen-closest is %d\n",
+					dq, dr, (int)got, best_i);
+				std::abort();
+			}
+		}
+	}
+}
+
+
 // ---- 5. Render-loop strip clipping -----------------------------------------
 
 static void test_render_loop_strip_clipped()
@@ -432,6 +503,8 @@ int main()
 	test_round_trip();
 	test_inverse_noise();
 	test_inverse_picks_screen_closest();
+	test_pick_corner_at_exact_offsets();
+	test_pick_corner_matches_screen_closest();
 	test_render_loop_strip_clipped();
 	test_slope_project_to_square_invariants();
 	test_slope_project_to_square_identity_on_canonicals();

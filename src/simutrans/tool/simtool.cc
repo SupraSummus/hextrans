@@ -1009,7 +1009,7 @@ const char* tool_raise_lower_base_t::drag(player_t *player, koord k, sint16 heig
 
 	// dragging may be going up or down!
 	while(  welt->lookup_hgt(k) < height  &&  height <= welt->get_max_allowed_height()  ) {
-		int diff = welt->grid_raise( player, k, err );
+		int diff = welt->grid_raise( player, k, cursor_corner, err );
 		if(  diff == 0  ) {
 			break;
 		}
@@ -1019,7 +1019,7 @@ const char* tool_raise_lower_base_t::drag(player_t *player, koord k, sint16 heig
 	// when going down need to check here we will not be going below sea level
 	// cannot rely on check within lower as water height can be recalculated
 	while(  height >= welt->get_water_hgt(k)  &&  welt->lookup_hgt(k) > height  &&  height >= welt->get_min_allowed_height()  ) {
-		int diff = welt->grid_lower( player, k, err );
+		int diff = welt->grid_lower( player, k, cursor_corner, err );
 		if(  diff == 0  ) {
 			break;
 		}
@@ -1045,7 +1045,7 @@ sint16 tool_raise_t::get_drag_height(koord k)
 {
 	const grund_t *gr = welt->lookup_kartenboden_gridcoords(k);
 
-	return  gr->get_hoehe(welt->get_corner_to_operate(k)) + 1;
+	return  gr->get_hoehe(cursor_corner) + 1;
 }
 
 
@@ -1090,7 +1090,7 @@ const char *tool_raise_t::work(player_t* player, koord3d pos )
 				err = drag(player, k, atoi(default_param), n);
 			}
 			else {
-				n = welt->grid_raise(player, k, err);
+				n = welt->grid_raise(player, k, cursor_corner, err);
 			}
 			if(n>0) {
 				player_t::book_construction_costs(player, welt->get_settings().cst_alter_land * n, k, ignore_wt);
@@ -1111,7 +1111,7 @@ sint16 tool_lower_t::get_drag_height(koord k)
 {
 	const grund_t *gr = welt->lookup_kartenboden_gridcoords(k);
 
-	return  gr->get_hoehe(welt->get_corner_to_operate(k)) - 1;
+	return  gr->get_hoehe(cursor_corner) - 1;
 }
 
 
@@ -1154,7 +1154,7 @@ const char *tool_lower_t::work( player_t *player, koord3d pos )
 				err = drag(player, k, atoi(default_param), n);
 			}
 			else {
-				n = welt->grid_lower(player, k, err);
+				n = welt->grid_lower(player, k, cursor_corner, err);
 			}
 			if(n>0) {
 				player_t::book_construction_costs(player, welt->get_settings().cst_alter_land * n, k, ignore_wt);

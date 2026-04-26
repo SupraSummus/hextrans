@@ -325,6 +325,12 @@ public:
 	 */
 	virtual bool is_grid_tool() const {return false;}
 
+	/// Set the hex corner the cursor is currently aiming at.  Default
+	/// is a no-op; tools that care (raise / lower) override.  Called by
+	/// the cursor mover after the screen-space corner picker resolves
+	/// the cursor's sub-tile position.
+	virtual void set_cursor_corner(hex_corner_t::type) {}
+
 	/**
 	 * Returning false on init will automatically invoke previous tool.
 	 * Returning true will select tool and will make it possible to call work.
