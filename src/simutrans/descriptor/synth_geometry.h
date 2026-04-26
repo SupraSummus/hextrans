@@ -73,6 +73,40 @@ inline synth_hex_geometry_t synth_hex_geometry(sint32 u, sint16 height_step)
 }
 
 
+/**
+ * Lambert face normal for one boundary triangle in `build_ground`:
+ * corners @p a and @p b (adjacent on the hex), centre at `(w/2, mid_y-cz)`
+ * in screen space with z from corner heights.  Screen Y uses lifted corners
+ * (`vy_base - ch*lift`) and matches `fill_polygon` — no alternate path.
+ */
+inline void synth_ground_lambert_face_normal(const synth_hex_geometry_t &geom,
+                                             slope_t::type slope,
+                                             sint32 cz,
+                                             uint8 corner_a,
+                                             uint8 corner_b,
+                                             double *nx, double *ny, double *nz)
+{
+	uint8 ch[hex_corner_t::count];
+	for (int i = 0; i < hex_corner_t::count; i++) {
+		ch[i] = hex_corner_height(slope, (hex_corner_t::type)i);
+	}
+
+	const sint32 cx = geom.w / 2;
+	const sint32 cy_centre = geom.mid_y - cz;
+
+	const double ax = (double)(geom.vx[corner_a] - cx);
+	const double ay = (double)((geom.vy_base[corner_a] - (sint32)ch[corner_a] * geom.lift) - cy_centre);
+	const double az = (double)((sint32)ch[corner_a] * geom.lift - cz);
+	const double bx = (double)(geom.vx[corner_b] - cx);
+	const double by = (double)((geom.vy_base[corner_b] - (sint32)ch[corner_b] * geom.lift) - cy_centre);
+	const double bz = (double)((sint32)ch[corner_b] * geom.lift - cz);
+
+	*nx = ay * bz - az * by;
+	*ny = az * bx - ax * bz;
+	*nz = ax * by - ay * bx;
+}
+
+
 } // namespace synth_overlay
 
 

@@ -414,26 +414,10 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 		(uint8)corner_ne(slope),
 	};
 
-	// Vertex screen coords (after lift).  Order matches hex_corner_t.
-	const sint32 vx[hex_corner_t::count] = {
-		geom.vx[hex_corner_t::E ],
-		geom.vx[hex_corner_t::SE],
-		geom.vx[hex_corner_t::SW],
-		geom.vx[hex_corner_t::W ],
-		geom.vx[hex_corner_t::NW],
-		geom.vx[hex_corner_t::NE],
-	};
-	const sint32 vy_base[hex_corner_t::count] = {
-		geom.vy_base[hex_corner_t::E ],
-		geom.vy_base[hex_corner_t::SE],
-		geom.vy_base[hex_corner_t::SW],
-		geom.vy_base[hex_corner_t::W ],
-		geom.vy_base[hex_corner_t::NW],
-		geom.vy_base[hex_corner_t::NE],
-	};
+	// Vertex screen Y after lift (x from geom.vx).  Order matches hex_corner_t.
 	sint32 vy[hex_corner_t::count];
 	for(  int i = 0;  i < hex_corner_t::count;  i++  ) {
-		vy[i] = vy_base[i] - (sint32)ch[i] * geom.lift;
+		vy[i] = geom.vy_base[i] - (sint32)ch[i] * geom.lift;
 	}
 
 	const sint32 cx = w / 2;
@@ -477,16 +461,9 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 		// boundary walk is screen-CW (= world-CW with screen-Y-down),
 		// the winding order that makes a × b point in +z for a flat
 		// tile.  Flip the operands and flat tiles come out dark.
-		const double ax = (double)(vx[a]      - cx);
-		const double ay = (double)(vy_base[a] - cy_base);
-		const double az = (double)((sint32)ch[a] * geom.lift - cz);
-		const double bx = (double)(vx[b]      - cx);
-		const double by = (double)(vy_base[b] - cy_base);
-		const double bz = (double)((sint32)ch[b] * geom.lift - cz);
-
-		const double nx = ay * bz - az * by;
-		const double ny = az * bx - ax * bz;
-		const double nz = ax * by - ay * bx;
+		// `synth_ground_lambert_face_normal` matches fill_polygon.
+		double nx, ny, nz;
+		synth_ground_lambert_face_normal(geom, slope, cz, a, b, &nx, &ny, &nz);
 		const double n_norm = std::sqrt(nx*nx + ny*ny + nz*nz);
 
 		// Lambertian cos(θ) in [-1, 1] mapped to brightness factor
@@ -505,7 +482,7 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 
 		const PIXVAL face_color = shade_pixval(base, brightness);
 
-		const sint32 fxs[3] = { cx, vx[a], vx[b] };
+		const sint32 fxs[3] = { cx, geom.vx[a], geom.vx[b] };
 		const sint32 fys[3] = { cy, vy[a], vy[b] };
 		fill_polygon(buf, w, h, fxs, fys, 3, face_color);
 	}
