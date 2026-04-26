@@ -264,7 +264,8 @@ void planquadrat_t::rdwr(loadsave_t *file, koord pos )
 	}
 	else {
 		grund_t *gr;
-		sint8 hgt = welt->get_groundwater();
+		sint8 hgt_e  = welt->get_groundwater();
+		sint8 hgt_se = welt->get_groundwater();
 		//DBG_DEBUG("planquadrat_t::rdwr()","Reading boden");
 		do {
 			short gtyp = file->rd_obj_id();
@@ -309,12 +310,14 @@ void planquadrat_t::rdwr(loadsave_t *file, koord pos )
 					data.one = gr;
 					ground_size = 1;
 					gr->set_kartenboden(true);
-					hgt = welt->legacy_grid_hgt(pos);
+					hgt_e  = welt->lookup_hgt_nocheck(pos, hex_corner_t::E);
+					hgt_se = welt->lookup_hgt_nocheck(pos, hex_corner_t::SE);
 				}
 				else {
 					boden_hinzufuegen(gr);
-					// other ground must not change the grid height => reset it
-					welt->legacy_set_grid_hgt_nocheck( pos, hgt );
+					// other ground must not change the kartenboden's grid heights
+					welt->set_grid_hgt_nocheck(pos, hex_corner_t::E,  hgt_e);
+					welt->set_grid_hgt_nocheck(pos, hex_corner_t::SE, hgt_se);
 				}
 			}
 		} while(gr != NULL);

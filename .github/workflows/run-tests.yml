@@ -27,6 +27,14 @@ jobs:
       # render-loop bijection.  ~1 second; fails fast on any
       # regression before the slow Simutrans build runs.
       run: make -C tools/hex_proj_test run
+    - name: Terrain save/load round-trip self-test
+      # Verifies the hex-aware save/load round-trip: each tile's load path
+      # writes E slot = pos.z + corner_e(slope) and SE slot =
+      # pos.z + corner_se(slope), fixing two prior bugs:
+      # BUG 1 — wrong slot: legacy write targeted e_slot(k.x-1,k.y-1)
+      #          with the NW corner of tile k, off by one in r.
+      # BUG 2 — SE slots were never written, staying at groundwater.
+      run: make -C tools/terrain_rdwr_test run
     - name: Cache
       uses: actions/cache@v4
       with:
