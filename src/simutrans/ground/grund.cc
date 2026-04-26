@@ -27,7 +27,9 @@
 #include "../descriptor/way_desc.h"
 
 #include "../dataobj/freelist.h"
+#include "../dataobj/koord.h"
 #include "../dataobj/loadsave.h"
+#include "../simversion.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/environment.h"
 
@@ -179,7 +181,8 @@ void grund_t::rdwr(loadsave_t *file)
 	}
 
 	planquadrat_t *plan = welt->access( k );
-	uint8 climate_data = plan->get_climate() + (plan->get_climate_corners() << 4);
+	const uint8 corners_save = plan->get_climate_corners();
+	uint8 climate_data = plan->get_climate() + ((corners_save & 15u) << 4);
 
 	xml_tag_t g( file, "grund_t" );
 	if(file->is_version_less(101, 0)) {
@@ -203,8 +206,24 @@ void grund_t::rdwr(loadsave_t *file)
 			pos.z = get_typ() == grund_t::wasser ? z_w : z;
 		}
 		file->rdwr_byte(climate_data);
-		plan->set_climate((climate)(climate_data & 7));
-		plan->set_climate_corners((climate_data >> 4));
+		if(  file->is_loading()  ) {
+			plan->set_climate((climate)(climate_data & 7));
+			uint8 corners_load = (climate_data >> 4) & 15u;
+			if(  file->is_version_atleast(SIM_VERSION_MAJOR, SIM_SAVE_MINOR)  ) {
+				uint8 hi = 0;
+				file->rdwr_byte(hi);
+				corners_load |= (uint8)((hi & 3u) << 4);
+			}
+			plan->set_climate_corners(corners_load);
+		}
+		else {
+			// Do not call set_climate / set_climate_corners here — that would
+			// clobber the live six-bit mask (high bits are not in climate_data).
+			if(  file->is_version_atleast(SIM_VERSION_MAJOR, SIM_SAVE_MINOR)  ) {
+				uint8 hi = (uint8)((corners_save >> 4) & 3u);
+				file->rdwr_byte(hi);
+			}
+		}
 	}
 
 	if(  file->is_loading()  &&  file->is_version_less(112, 7)  ) {
@@ -1071,76 +1090,55 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 				if(  climate_corners != 0  &&  (!weg  ||  !weg->hat_gehweg())  ) {
 					uint8 water_corners = 0;
 
-					// get neighbour corner heights
-					// HEX-PORT TODO: same square-grid 4-corner climate logic
-					// as surface_t::recalc_transitions; keep [8] storage
-					// until slope_t becomes 6-corner.
-					sint8 neighbour_height[8][4];
-					welt->get_neighbour_heights( k, neighbour_height );
+					const climate climate0 = plan->get_climate();
 
-					//look up neighbouring climates
-					climate neighbour_climate[8] = {};
-					for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
-						koord k_neighbour = k + koord::neighbours[i];
-						if(  !welt->is_within_limits(k_neighbour)  ) {
-							k_neighbour = welt->get_closest_coordinate(k_neighbour);
-						}
-						neighbour_climate[i] = welt->get_climate( k_neighbour );
-					}
-
-					climate climate0 = plan->get_climate();
-					slope_t::type slope_corner = get_grund_hang();
-
-					// get transition climate - look for each corner in turn
-					for(  int i = 0;  i < 4;  i++  ) {
-						sint8 corner_height = get_hoehe() + corner_sw(slope_corner);
+					for(  uint8 ci = 0;  ci < (uint8)hex_corner_t::count;  ci++  ) {
+						hex_vertex_t owners[3];
+						vertex_owners(k, (hex_corner_t::type)ci, owners);
+						const sint8 h_here = welt->vertex_corner_height(owners[0]);
 
 						climate transition_climate = climate0;
 						climate min_climate = arctic_climate;
 
-						for(  int j = 1;  j < 4;  j++ ) {
-							if(  corner_height == neighbour_height[(i * 2 + j) & 7][(i + j) & 3]) {
-								climate climatej = neighbour_climate[(i * 2 + j) & 7];
+						for(  int oi = 1;  oi < 3;  oi++  ) {
+							if(  h_here == welt->vertex_corner_height(owners[oi])  ) {
+								const climate climatej = welt->climate_at_clamped(owners[oi].tile);
 								climatej > transition_climate ? transition_climate = climatej : 0;
 								climatej < min_climate ? min_climate = climatej : 0;
 							}
 						}
 
 						if(  min_climate == water_climate  ) {
-							water_corners += 1 << i;
+							water_corners |= (uint8)(1u << ci);
 						}
-						if(  (climate_corners >> i) & 1  &&  !is_water()  &&  snow_transition > 0  ) {
-							// looks up sw, se, ne, nw for i=0...3
-							// we compare with tile either side (e.g. for sw, w and s) and pick highest one
+						if(  (climate_corners >> ci) & 1  &&  !is_water()  &&  snow_transition > 0  ) {
 							if(  transition_climate > climate0  ) {
-								uint8 overlay_corners = 1 << i;
-								slope_t::type slope_corner_se = slope_corner;
-								for(  int j = i + 1;  j < 4;  j++  ) {
-									slope_corner_se /= slope_t::southeast;
+								uint8 overlay_corners = (uint8)(1u << ci);
+								for(  uint8 cj = ci + 1;  cj < (uint8)hex_corner_t::count;  cj++  ) {
+									if(  !((climate_corners >> cj) & 1)  ) {
+										continue;
+									}
+									hex_vertex_t oj[3];
+									vertex_owners(k, (hex_corner_t::type)cj, oj);
+									const sint8 hj = welt->vertex_corner_height(oj[0]);
 
-									// now we check to see if any of remaining corners have same climate transition (also using highest of course)
-									// if so we combine into this overlay layer
-									if(  (climate_corners >> j) & 1  ) {
-										climate compare = climate0;
-										for(  int k = 1;  k < 4;  k++  ) {
-											corner_height = get_hoehe() + corner_sw(slope_corner_se);
-											if(  corner_height == neighbour_height[(j * 2 + k) & 7][(j + k) & 3]) {
-												climate climatej = neighbour_climate[(j * 2 + k) & 7];
-												climatej > compare ? compare = climatej : 0;
-											}
-										}
-
-										if(  transition_climate == compare  ) {
-											overlay_corners += 1 << j;
-											climate_corners -= 1 << j;
+									climate compare = climate0;
+									for(  int oi = 1;  oi < 3;  oi++  ) {
+										if(  hj == welt->vertex_corner_height(oj[oi])  ) {
+											const climate climatej = welt->climate_at_clamped(oj[oi].tile);
+											climatej > compare ? compare = climatej : 0;
 										}
 									}
+
+									if(  transition_climate == compare  ) {
+										overlay_corners |= (uint8)(1u << cj);
+										// Only clear cj > ci so the outer loop's (climate_corners >> ci) test stays valid.
+										climate_corners &= (uint8)~(1u << cj);
+									}
 								}
-								// overlay transition climates
 								gfx->draw_alpha( ground_desc_t::get_climate_tile( transition_climate, slope ), ground_desc_t::get_alpha_tile( slope, overlay_corners ), ALPHA_GREEN | ALPHA_BLUE, xpos, ypos, 0, 0, true, dirty CLIP_NUM_PAR );
 							}
 						}
-						slope_corner /= slope_t::southeast;
 					}
 					// finally overlay any water transition
 					if(  water_corners  ) {

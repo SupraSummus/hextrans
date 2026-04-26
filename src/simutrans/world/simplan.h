@@ -56,17 +56,28 @@ private:
 	uint8 ground_size:4;
 	uint8 halt_list_count:4;
 	uint8 climate_data:8;
+	uint8 climate_corners_hi:2; ///< bits 4–5 of 6-corner climate mask (low 4 bits in climate_data)
 #else
 	uint8 ground_size;
 	uint8 halt_list_count;
 	uint8 climate_data;
+	uint8 climate_corners_hi;
 #endif
 
 public:
 	/**
 	 * Constructs a planquadrat (tile) with initial capacity of one ground
 	 */
-	planquadrat_t() { ground_size = 0; climate_data = 0; data.one = NULL; halt_list_count = 0;  halt_list = NULL; }
+	planquadrat_t() :
+		halt_list(NULL),
+		data(),
+		ground_size(0),
+		halt_list_count(0),
+		climate_data(0),
+		climate_corners_hi(0)
+	{
+		data.one = NULL;
+	}
 
 	~planquadrat_t();
 
@@ -160,11 +171,13 @@ public:
 	}
 
 	/**
-	* returns corners which transition to another climate
-	* this has no meaning if tile is a slope with transition to next climate as these corners are fixed
-	* therefore for this case to allow double heights 0 = first level transition, 1 = second level transition
+	* returns corners which transition to another climate (six-bit mask,
+	* hex_corner_t order E..NE).  Legacy saves stored only four bits;
+	* those load as the low four corners of the hex model.
 	*/
-	inline uint8 get_climate_corners() const { return (climate_data >> 4) & 15; }
+	inline uint8 get_climate_corners() const {
+		return (uint8)(((climate_data >> 4) & 15u) | ((uint32)climate_corners_hi << 4));
+	}
 
 	/**
 	* sets climate transition corners
@@ -172,7 +185,8 @@ public:
 	* therefore for this case to allow double heights 0 = first level transition, 1 = second level transition
 	*/
 	void set_climate_corners(uint8 corners) {
-		climate_data = (climate_data & 0x0f) + (corners << 4);
+		climate_corners_hi = (uint8)((corners >> 4) & 3u);
+		climate_data = (climate_data & 0x0f) + ((corners & 15u) << 4);
 	}
 
 	/**

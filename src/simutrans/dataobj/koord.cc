@@ -22,23 +22,28 @@ const scr_size scr_size::inf(0x7fffffff, 0x7fffffff);
 
 const koord koord::invalid(-1, -1);
 
-// Flat-top hex axial neighbours, clockwise starting from the SE
-// neighbour. The axial +q axis points 30° south of due-east in screen
-// space, so axial (1, 0) is the SE neighbour, NOT a due-east one
-// (flat-top hexes have no due-east neighbour — east is a vertex).
-// Bit position in ribi_t::ribi matches this index: bit i set ↔
-// neighbours[i] is part of the ribi.
-//   SE, S, SW, NW, N, NE
-// Iterate with
-//   for (size_t i = 0; i < lengthof(koord::neighbours); i++)
-const koord koord::neighbours[] = {
-	koord(  1,  0 ), // SE  (bit 0)
-	koord(  0,  1 ), // S   (bit 1)
-	koord( -1,  1 ), // SW  (bit 2)
-	koord( -1,  0 ), // NW  (bit 3)
-	koord(  0, -1 ), // N   (bit 4)
-	koord(  1, -1 ), // NE  (bit 5)
+// Flat-top hex axial neighbours — clockwise from SE; see koord.h.
+const koord koord::neighbours[6] = {
+	koord(  1,  0 ), // SE
+	koord(  0,  1 ), // S
+	koord( -1,  1 ), // SW
+	koord( -1,  0 ), // NW
+	koord(  0, -1 ), // N
+	koord(  1, -1 ), // NE
 };
+
+
+void vertex_owners(koord tile, hex_corner_t::type c, hex_vertex_t out[3])
+{
+	const uint8 dir_a = (uint8)(((uint8)c + 5) % 6);
+	const uint8 dir_b = (uint8)c;
+	out[0].tile   = tile;
+	out[0].corner = c;
+	out[1].tile   = tile + koord::neighbours[dir_a];
+	out[1].corner = (hex_corner_t::type)(((uint8)c + 2) % 6);
+	out[2].tile   = tile + koord::neighbours[dir_b];
+	out[2].corner = (hex_corner_t::type)(((uint8)c + 4) % 6);
+}
 
 
 // ribi → koord displacement: sum of neighbours[i] for each set bit.
@@ -110,20 +115,6 @@ void koord::rdwr(loadsave_t *file)
 	xml_tag_t k( file, "koord" );
 	file->rdwr_short(x);
 	file->rdwr_short(y);
-}
-
-
-// Hex vertex topology — see koord.h for the convention.
-void vertex_owners(koord tile, hex_corner_t::type c, hex_vertex_t out[3])
-{
-	const uint8 dir_a = (uint8)(((uint8)c + 5) % 6);
-	const uint8 dir_b = (uint8)c;
-	out[0].tile   = tile;
-	out[0].corner = c;
-	out[1].tile   = tile + koord::neighbours[dir_a];
-	out[1].corner = (hex_corner_t::type)(((uint8)c + 2) % 6);
-	out[2].tile   = tile + koord::neighbours[dir_b];
-	out[2].corner = (hex_corner_t::type)(((uint8)c + 4) % 6);
 }
 
 

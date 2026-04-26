@@ -19,6 +19,9 @@
 //      with q=x/3, r=(y-q)/2) is a bijection between (x, y) lattice
 //      points and the (q, r) tiles in a y-bounded rectangle — every
 //      visible hex is visited exactly once.
+//   7. Hex vertex naming (same table and formulas as koord.cc).  The three
+//      tile/corner names of one world vertex form a closed walk; the test
+//      carries its own copy of neighbours[] so this binary stays one TU.
 
 #include <cassert>
 #include <cmath>
@@ -37,6 +40,12 @@
 // 64 is the default).
 static constexpr sint16 W = 64;
 static constexpr sint16 U = W / 4; // = 16
+
+// Must match `koord::neighbours` in koord.cc (SE, S, SW, NW, N, NE).
+static const koord hex_neighbours_test[6] = {
+	koord(  1,  0 ), koord(  0,  1 ), koord( -1,  1 ),
+	koord( -1,  0 ), koord(  0, -1 ), koord(  1, -1 ),
+};
 
 
 // ---- 1. Forward at origin / unit steps -------------------------------------
@@ -65,22 +74,18 @@ static void test_forward_unit_steps()
 
 static void test_forward_neighbours()
 {
-	// koord::neighbours is ordered SE, S, SW, NW, N, NE.  See koord.cc.
-	const struct { sint16 q, r; sint32 sx, sy; const char *name; } cases[] = {
-		{  1,  0,  3 * U,        U,  "SE" },
-		{  0,  1,      0,    2 * U,  "S"  },
-		{ -1,  1, -3 * U,        U,  "SW" },
-		{ -1,  0, -3 * U,       -U,  "NW" },
-		{  0, -1,      0,   -2 * U,  "N"  },
-		{  1, -1,  3 * U,       -U,  "NE" },
-	};
-	for (const auto &c : cases) {
-		const sint32 sx = hex_screen_dx(c.q, W);
-		const sint32 sy = hex_screen_dy(c.q, c.r, W);
-		if (sx != c.sx || sy != c.sy) {
+	static const char *const names[] = { "SE", "S", "SW", "NW", "N", "NE" };
+	static const sint32 exp_sx[] = { 3 * U, 0, -3 * U, -3 * U, 0, 3 * U };
+	static const sint32 exp_sy[] = { U, 2 * U, U, -U, -2 * U, -U };
+	for (int i = 0; i < 6; i++) {
+		const sint16 q = hex_neighbours_test[i].x;
+		const sint16 r = hex_neighbours_test[i].y;
+		const sint32 sx = hex_screen_dx(q, W);
+		const sint32 sy = hex_screen_dy(q, r, W);
+		if (sx != exp_sx[i] || sy != exp_sy[i]) {
 			std::fprintf(stderr,
 				"neighbour %s: forward(%d,%d) = (%d,%d), want (%d,%d)\n",
-				c.name, c.q, c.r, sx, sy, c.sx, c.sy);
+				names[i], q, r, sx, sy, exp_sx[i], exp_sy[i]);
 			std::abort();
 		}
 	}
@@ -429,22 +434,16 @@ static void inscribed_hex_vertices(sint32 w, sint32 h, sint32 vx[6], sint32 vy[6
 // Across each edge `e` (CW, e=0 is the E↔SE edge), self-corner `e`
 // meets neighbour corner `(e+4)%6` and self-corner `(e+1)%6` meets
 // neighbour `(e+3)%6` — the neighbour's shared edge runs CCW relative
-// to ours along the shared edge, so the corner indices reverse.  The
-// neighbour-direction axial offsets duplicate `koord::neighbours[]`
-// (SE-first CW); inlined because this test ships header-only and
-// can't link `koord.cc` (same reason as the offset window in
-// `hex_round_to_axial`).
+// to ours along the shared edge, so the corner indices reverse.
+// Neighbour axial steps come from `hex_neighbours_test[]` (koord.cc order).
 static sint32 max_shared_corner_gap(sint32 w, sint32 h)
 {
-	static const sint8 ndq[6] = {  1,  0, -1, -1,  0,  1 };
-	static const sint8 ndr[6] = {  0,  1,  1,  0, -1, -1 };
-
 	sint32 vx[6], vy[6];
 	inscribed_hex_vertices(w, h, vx, vy);
 	sint32 worst = 0;
 	for (int e = 0; e < 6; e++) {
-		const sint32 nx = hex_screen_dx(ndq[e], w);
-		const sint32 ny = hex_screen_dy(ndq[e], ndr[e], w);
+		const sint32 nx = hex_screen_dx(hex_neighbours_test[e].x, w);
+		const sint32 ny = hex_screen_dy(hex_neighbours_test[e].x, hex_neighbours_test[e].y, w);
 		const int self_corners [2] = { e,           (e + 1) % 6 };
 		const int neigh_corners[2] = { (e + 4) % 6, (e + 3) % 6 };
 		for (int k = 0; k < 2; k++) {
@@ -686,6 +685,42 @@ static void test_render_loop_bijection()
 }
 
 
+// ---- 9. Vertex-owner walk (must match koord.cc::vertex_owners) ------------
+// This duplicates the implementation body — the test cannot link koord.cc
+// in this one-TU build, so drift is caught by review + TODO.md, not by the linker.
+
+static void vertex_owners_test(koord tile, hex_corner_t::type c, hex_vertex_t out[3])
+{
+	const uint8 dir_a = (uint8)(((uint8)c + 5) % 6);
+	const uint8 dir_b = (uint8)c;
+	out[0].tile   = tile;
+	out[0].corner = c;
+	out[1].tile   = tile + hex_neighbours_test[dir_a];
+	out[1].corner = (hex_corner_t::type)(((uint8)c + 2) % 6);
+	out[2].tile   = tile + hex_neighbours_test[dir_b];
+	out[2].corner = (hex_corner_t::type)(((uint8)c + 4) % 6);
+}
+
+
+static void test_vertex_owners_neighbour_closure()
+{
+	const koord k(10, 10);
+	for (uint8 c = 0; c < (uint8)hex_corner_t::count; c++) {
+		hex_vertex_t o[3];
+		vertex_owners_test(k, (hex_corner_t::type)c, o);
+		assert(o[0].tile == k);
+		assert(o[0].corner == (hex_corner_t::type)c);
+		for (int i = 0; i < 3; i++) {
+			const hex_vertex_t a = o[i];
+			const hex_vertex_t b = o[(i + 1) % 3];
+			const uint8 dir = (uint8)(((uint8)a.corner + 5) % 6);
+			assert(b.tile == a.tile + hex_neighbours_test[dir]);
+			assert(b.corner == (hex_corner_t::type)(((uint8)a.corner + 2) % 6));
+		}
+	}
+}
+
+
 int main()
 {
 	test_forward_unit_steps();
@@ -706,6 +741,7 @@ int main()
 	test_synth_build_ground_normal_uses_lifted_screen_y();
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();
+	test_vertex_owners_neighbour_closure();
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;
 }
