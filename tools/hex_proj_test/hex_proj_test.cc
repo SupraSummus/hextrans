@@ -298,7 +298,86 @@ static void test_slope_project_to_square_clamping()
 }
 
 
-// ---- 7. Render-loop iteration is a bijection -------------------------------
+// ---- 7. Hex tile inscription tiles the lattice -----------------------------
+
+// Inscribed-hex vertex positions for a tile bbox of size `w × h`,
+// matching the formula in `descriptor/synth_overlay.cc` (build_outline /
+// build_ground) for a flat slope.  If that formula drifts, this copy
+// stops representing reality — keep the two in sync.
+//
+// Order matches `hex_corner_t::type` (E, SE, SW, W, NW, NE).
+static void inscribed_hex_vertices(sint32 w, sint32 h, sint32 vx[6], sint32 vy[6])
+{
+	const sint32 q = w / 4;
+	const sint32 mid = h / 2;
+	const sint32 bot = h - 1;
+	vx[hex_corner_t::E ] = w - 1;  vy[hex_corner_t::E ] = mid;
+	vx[hex_corner_t::SE] = q * 3;  vy[hex_corner_t::SE] = bot;
+	vx[hex_corner_t::SW] = q;      vy[hex_corner_t::SW] = bot;
+	vx[hex_corner_t::W ] = 0;      vy[hex_corner_t::W ] = mid;
+	vx[hex_corner_t::NW] = q;      vy[hex_corner_t::NW] = 0;
+	vx[hex_corner_t::NE] = q * 3;  vy[hex_corner_t::NE] = 0;
+}
+
+// Worst x/y gap (in pixels) between any pair of shared corners across
+// tile (0,0)'s 6 edges, given a tile bbox of `w × h`.  Returns 0 when
+// the inscription tiles pixel-perfect; the `(w-1, h-1)` half-open
+// inscription slips by 1 px regardless of dimensions, anything larger
+// is a real gap from `w × h` not matching the lattice.
+//
+// Across each edge `e` (CW, e=0 is the E↔SE edge), self-corner `e`
+// meets neighbour corner `(e+4)%6` and self-corner `(e+1)%6` meets
+// neighbour `(e+3)%6` — the neighbour's shared edge runs CCW relative
+// to ours along the shared edge, so the corner indices reverse.  The
+// neighbour-direction axial offsets duplicate `koord::neighbours[]`
+// (SE-first CW); inlined because this test ships header-only and
+// can't link `koord.cc` (same reason as the offset window in
+// `hex_round_to_axial`).
+static sint32 max_shared_corner_gap(sint32 w, sint32 h)
+{
+	static const sint8 ndq[6] = {  1,  0, -1, -1,  0,  1 };
+	static const sint8 ndr[6] = {  0,  1,  1,  0, -1, -1 };
+
+	sint32 vx[6], vy[6];
+	inscribed_hex_vertices(w, h, vx, vy);
+	sint32 worst = 0;
+	for (int e = 0; e < 6; e++) {
+		const sint32 nx = hex_screen_dx(ndq[e], w);
+		const sint32 ny = hex_screen_dy(ndq[e], ndr[e], w);
+		const int self_corners [2] = { e,           (e + 1) % 6 };
+		const int neigh_corners[2] = { (e + 4) % 6, (e + 3) % 6 };
+		for (int k = 0; k < 2; k++) {
+			const sint32 dx = vx[self_corners[k]] - (nx + vx[neigh_corners[k]]);
+			const sint32 dy = vy[self_corners[k]] - (ny + vy[neigh_corners[k]]);
+			const sint32 ax = dx < 0 ? -dx : dx;
+			const sint32 ay = dy < 0 ? -dy : dy;
+			if (ax > worst) worst = ax;
+			if (ay > worst) worst = ay;
+		}
+	}
+	return worst;
+}
+
+static void test_inscribed_hex_tiles_lattice()
+{
+	// `w × w/2` is the only inscription that tiles the lattice (the
+	// `w-1, h-1` close still leaves a 1-pixel half-open slip).
+	// Inscribing in `w × w` — what synth_overlay used to do when it
+	// inherited `tmpl->h` from pak64's 64×64 marker — gaps by W/4 px
+	// per edge, the visible black cracks the user reported.
+	const sint32 W = 64;
+	if (max_shared_corner_gap(W, W / 2) > 1) {
+		std::fprintf(stderr, "lattice tiling: w=%d h=%d should tile, doesn't\n", W, W / 2);
+		std::abort();
+	}
+	if (max_shared_corner_gap(W, W) <= 1) {
+		std::fprintf(stderr, "lattice tiling: w=%d h=%d should NOT tile, does — invariant broken\n", W, W);
+		std::abort();
+	}
+}
+
+
+// ---- 8. Render-loop iteration is a bijection -------------------------------
 
 static void test_render_loop_bijection()
 {
@@ -343,6 +422,7 @@ int main()
 	test_slope_project_to_square_identity_on_canonicals();
 	test_slope_project_to_square_hex_edges();
 	test_slope_project_to_square_clamping();
+	test_inscribed_hex_tiles_lattice();
 	test_render_loop_bijection();
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;
