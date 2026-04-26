@@ -203,16 +203,13 @@ void viewport_t::change_world_position(const koord3d& pos, const koord& off, scr
 grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint32 &found_i, sint32 &found_j, const bool intersect_grid) const
 {
 	const int rw1 = cached_img_size;
-	const int rw2 = rw1/2;
-	const int rw4 = rw1/4;
 
-	// Shift mouse coords relative to the top-left tile's hex centre.
-	// The hex bounding box is W×W/2 (= rw1×rw2), centred at
-	// `(rw2, rw4)` within that box; subtracting fine pan and the
-	// box→centre offset puts the click in the same coordinate frame
-	// the hex inverse expects.
-	screen_pos.x += - x_off - rw2;
-	screen_pos.y += - y_off - rw4;
+	// Shift mouse coords from sprite-anchor frame to visible-centre
+	// frame, where the hex inverse projection lives.  Pakset and synth
+	// tiles agree on the legacy anchor → centre offset of
+	// `(W/2, hex_visible_centre_y(W))`; see hex_proj.h.
+	screen_pos.x += - x_off - rw1/2;
+	screen_pos.y += - y_off - hex_visible_centre_y(rw1);
 
 	const sint32 view_origin_x = ij_off.x + get_viewport_ij_offset().x;
 	const sint32 view_origin_y = ij_off.y + get_viewport_ij_offset().y;

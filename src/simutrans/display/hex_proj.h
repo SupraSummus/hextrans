@@ -42,6 +42,22 @@
  */
 
 
+/**
+ * Sprite-canvas visible-centre anchor.
+ *
+ * Pakset sprites (cursor.pak, buildings, vehicles, trees) are
+ * authored against the legacy "tile diamond inscribed in the bottom
+ * half of a `W × W` canvas" layout: drawing at anchor `(X, Y)`
+ * places the visible content centre at `(X + W/2, Y + 3W/4)`.  The
+ * picker subtracts that offset on click → tile lookup; the synth
+ * ground rasteriser places its `W × W/2` bbox so its centre lands
+ * on the same y.  Both pin to this constant so the convention has
+ * one source of truth.  Tested by
+ * `tools/hex_proj_test/hex_proj_test.cc :: test_canvas_anchor_convention`.
+ */
+inline sint16 hex_visible_centre_y(sint16 W) { return 3 * W / 4; }
+
+
 /// Screen-x of axial `+q` step in pixels (independent of `r`).
 inline sint32 hex_screen_dx(sint32 dq, sint16 W)
 {
