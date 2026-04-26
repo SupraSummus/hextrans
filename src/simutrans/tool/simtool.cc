@@ -1007,8 +1007,13 @@ const char* tool_raise_lower_base_t::drag(player_t *player, koord k, sint16 heig
 	}
 	const char* err = NULL;
 
-	// dragging may be going up or down!
-	while(  welt->lookup_hgt(k) < height  &&  height <= welt->get_max_allowed_height()  ) {
+	// dragging may be going up or down!  Re-fetch kartenboden each step —
+	// grid_raise / grid_lower refresh slopes and pos.z on the tile.
+	while(  height <= welt->get_max_allowed_height()  ) {
+		const grund_t *gr = welt->lookup_kartenboden_gridcoords(k);
+		if(  gr->get_hoehe(cursor_corner) >= height  ) {
+			break;
+		}
 		int diff = welt->grid_raise( player, k, cursor_corner, err );
 		if(  diff == 0  ) {
 			break;
@@ -1018,7 +1023,11 @@ const char* tool_raise_lower_base_t::drag(player_t *player, koord k, sint16 heig
 
 	// when going down need to check here we will not be going below sea level
 	// cannot rely on check within lower as water height can be recalculated
-	while(  height >= welt->get_water_hgt(k)  &&  welt->lookup_hgt(k) > height  &&  height >= welt->get_min_allowed_height()  ) {
+	while(  height >= welt->get_water_hgt(k)  &&  height >= welt->get_min_allowed_height()  ) {
+		const grund_t *gr = welt->lookup_kartenboden_gridcoords(k);
+		if(  gr->get_hoehe(cursor_corner) <= height  ) {
+			break;
+		}
 		int diff = welt->grid_lower( player, k, cursor_corner, err );
 		if(  diff == 0  ) {
 			break;
@@ -1026,7 +1035,7 @@ const char* tool_raise_lower_base_t::drag(player_t *player, koord k, sint16 heig
 		n += diff;
 	}
 
-	return err; //height == welt->lookup_hgt(k);
+	return err;
 }
 
 
@@ -2716,7 +2725,7 @@ uint8 tool_build_way_t::is_valid_pos( player_t *player, const koord3d &pos, cons
 		bool const elevated = desc->get_styp() == type_elevated  &&  desc->get_wtyp() != air_wt;
 		// ignore water
 		if(  desc->get_wtyp() != water_wt  &&  gr->get_typ() == grund_t::wasser  ) {
-			if(  !elevated  ||  welt->lookup_hgt( pos.get_2d() ) < welt->get_water_hgt( pos.get_2d() )  ) {
+			if(  !elevated  ||  welt->max_hgt( pos.get_2d() ) < welt->get_water_hgt( pos.get_2d() )  ) {
 				return 0;
 			}
 			// here either channel or elevated way over not too deep water
