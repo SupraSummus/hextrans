@@ -542,14 +542,17 @@ Revisit when sprite art enters scope.
 
 **Phase A verification gaps.**  No pakset → no visual confirmation
 in this env; `tools/hex_proj_test/` covers the projection math, the
-synth ground vector bbox/anchor contract, and `synth_ground_lambert_face_normal`
-(the same helper `build_ground` calls, always lifted screen Y): the test checks
-it against an independent cross product from `geom.vy`, and checks divergence
+synth ground vector bbox/anchor contract, `synth_ground_lambert_face_normal`
+(the same helper `build_ground` calls, always lifted screen Y), and the
+flat-plane-calibrated synth brightness transfer.  The normal test checks
+against an independent cross product from `geom.vy`, and checks divergence
 from a buggy unlifted reference kept only in `hex_proj_test.cc`.  The
-vertex-closure check in the same file mirrors `koord.cc::vertex_owners`
-by formula only — the standalone binary stays one TU and does not link
-`koord.cc`.  It still does not cover
-shaded-pixel aesthetics, sprite draw order, or pakset-art integration.  One
+brightness test only protects the intended invariant — flat ground stays
+base-coloured while raised slopes produce real light/dark spread — not the
+subjective palette aesthetics.  The vertex-closure check in the same file
+mirrors `koord.cc::vertex_owners` by formula only — the standalone binary
+stays one TU and does not link `koord.cc`.  It still does not cover sprite
+draw order or pakset-art integration.  One
 suspect still to eyeball when a pakset is available: the no-parity
 centring (square renderer had a
 `disp_w/IMG_SIZE & 1` half-row nudge; for hex the natural parity
