@@ -1116,13 +1116,15 @@ image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 	// the lockstep walk in `display_img_alpha_wc` reads off the end
 	// of, since the source is square.  Synth wires through here once
 	// `synth_overlay` grows a per-stage water family to match.
-	return alpha_water_image[slope * 15 + corners - 1];
+	const uint8 corners_clamped = corners > 15 ? 15 : corners;
+	return alpha_water_image[slope * 15 + corners_clamped - 1];
 }
 
 
 image_id ground_desc_t::get_alpha_tile(slope_t::type slope, uint8 corners)
 {
-	return pick_alpha_tile(slope, alpha_corners_image[slope * 15 + corners - 1]);
+	const uint8 corners_clamped = corners > 15 ? 15 : corners;
+	return pick_alpha_tile(slope, alpha_corners_image[slope * 15 + corners_clamped - 1]);
 }
 
 
