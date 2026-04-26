@@ -7,6 +7,7 @@
 
 #include "ground_desc.h"
 #include "image.h"
+#include "synth_geometry.h"
 #include "../display/simgraph.h"
 #include "../display/hex_proj.h"
 #include "../simconst.h"
@@ -193,18 +194,17 @@ static size_t encode_rle(const PIXVAL* buf, sint32 w, sint32 h, PIXVAL* out)
 
 
 // Rasterise a sequence of hex-vertex line segments into an image.
-// The flat-top hex is inscribed in a `4u × 2u` bounding box (E and W
+// The flat-top hex footprint is a `4u × 2u` lattice cell (E and W
 // vertices on the horizontal extremes at mid-y, NE/SE/NW/SW at
 // quarter-width on the top and bottom rows), with each vertex lifted
 // by `corner_h * tile_raster_scale_y(TILE_HEIGHT_STEP, 4u)` for
-// slope-aware outlines.  The bbox dimensions are dictated by the hex
-// iso lattice in `hex_proj.h` (column step `(3u, u)`, row step
-// `(0, 2u)`); inscribing in any other rectangle gaps the lattice — a
-// pakset marker template's actual w/h is not safe to inherit because
-// it isn't pinned to 2:1 (pak64's Marker.pak ships a square 64×64
-// cursor, which gave a 64-tall hex on a 32-tall lattice slot and
-// gapped adjacent tiles by `u` px).  See
-// `tools/hex_proj_test/hex_proj_test.cc :: test_inscribed_hex_tiles_lattice`.
+// slope-aware outlines.  The footprint dimensions are dictated by the
+// hex iso lattice in `hex_proj.h` (column step `(3u, u)`, row step
+// `(0, 2u)`).  The image bbox adds headroom above that footprint for
+// the maximum 2-corner lift; without it, raised N-side vertices clip at
+// local y=0 even though neighbouring endpoints mathematically meet.
+// See `tools/hex_proj_test/hex_proj_test.cc ::
+// test_synth_slope_bbox_contains_lifted_vertices`.
 //
 // @p path is a list of corner indices to visit in order; @p closed
 // adds the wraparound edge from the last vertex back to the first.
@@ -212,32 +212,25 @@ static size_t encode_rle(const PIXVAL* buf, sint32 w, sint32 h, PIXVAL* out)
 // marker outline (3 south-side edges); `closed=true` over all 6
 // corners is the full grid border.
 //
-// Lifted vertices may project above the bbox top edge; the line
-// drawer clips them.  Visually the outline tops can get cut off for
-// double-height raised corners — not a concern at single-height
-// terrain, revisit if the cropping shows up.
 static image_t* rasterise_outline(sint32 u, slope_t::type slope,
                                   const hex_corner_t::type* path, int n,
                                   bool closed)
 {
-	const sint32 w = 4 * u;
-	const sint32 h = 2 * u;
-	const sint32 top_y = 0;
-	const sint32 mid_y = u;
-	const sint32 bot_y = h - 1;
-	const sint16 lift = (sint16)tile_raster_scale_y(TILE_HEIGHT_STEP, w);
+	const synth_hex_geometry_t geom = synth_hex_geometry(u, TILE_HEIGHT_STEP);
+	const sint32 w = geom.w;
+	const sint32 h = geom.h;
 
 	// Vertex screen coords in image-local pixel space, ordered to
 	// match hex_corner_t::type so @p path indexes in directly.
 	// Y grows down; corner height lifts UP, so subtract.
 	struct vertex_t { sint32 x, y; };
 	const vertex_t v[hex_corner_t::count] = {
-		{ w - 1, mid_y - corner_e(slope)  * lift }, // E
-		{ 3 * u, bot_y - corner_se(slope) * lift }, // SE
-		{     u, bot_y - corner_sw(slope) * lift }, // SW
-		{ 0,     mid_y - corner_w(slope)  * lift }, // W
-		{     u, top_y - corner_nw(slope) * lift }, // NW
-		{ 3 * u, top_y - corner_ne(slope) * lift }, // NE
+		{ geom.vx[hex_corner_t::E ], geom.vy(slope, hex_corner_t::E ) }, // E
+		{ geom.vx[hex_corner_t::SE], geom.vy(slope, hex_corner_t::SE) }, // SE
+		{ geom.vx[hex_corner_t::SW], geom.vy(slope, hex_corner_t::SW) }, // SW
+		{ geom.vx[hex_corner_t::W ], geom.vy(slope, hex_corner_t::W ) }, // W
+		{ geom.vx[hex_corner_t::NW], geom.vy(slope, hex_corner_t::NW) }, // NW
+		{ geom.vx[hex_corner_t::NE], geom.vy(slope, hex_corner_t::NE) }, // NE
 	};
 
 	PIXVAL* buf = new PIXVAL[w * h];
@@ -265,7 +258,7 @@ static image_t* rasterise_outline(sint32 u, slope_t::type slope,
 	img->w = (scr_coord_val)w;
 	img->h = (scr_coord_val)h;
 	img->x = 0;
-	img->y = hex_visible_centre_y(w) - u;
+	img->y = geom.image_y();
 	img->zoomable = 1;
 
 	return img;
@@ -397,24 +390,19 @@ static PIXVAL shade_pixval(PIXVAL p, sint32 brightness)
 
 
 // Build the filled hex ground tile for one (slope, climate_idx).
-// Geometry mirrors `build_outline`: hex inscribed in a `4u × 2u`
-// bounding box (E and W vertices on the horizontal extremes at mid-y;
-// NE/SE/NW/SW at quarter-width on the top and bottom rows), each
-// vertex lifted by `corner_h * tile_raster_scale_y`.  See
-// `build_outline` for why the bbox dimensions are pinned to the hex
-// iso lattice rather than inherited from the pakset.
+// Geometry mirrors `build_outline`: a `4u × 2u` lattice footprint (E
+// and W vertices on the horizontal extremes at mid-y; NE/SE/NW/SW at
+// quarter-width on the top and bottom rows), plus bbox headroom for
+// lifted vertices.
 //
 // The tile is split into 6 triangle faces meeting at the centre,
 // each face shaded by Lambertian on its world-space normal so that
 // slopes read as 3D rather than as flat coloured hexes.
 static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 {
-	const sint32 w = 4 * u;
-	const sint32 h = 2 * u;
-	const sint32 top_y = 0;
-	const sint32 mid_y = u;
-	const sint32 bot_y = h - 1;
-	const sint16 lift = (sint16)tile_raster_scale_y(TILE_HEIGHT_STEP, w);
+	const synth_hex_geometry_t geom = synth_hex_geometry(u, TILE_HEIGHT_STEP);
+	const sint32 w = geom.w;
+	const sint32 h = geom.h;
 	const PIXVAL base = CLIMATE_RGB555[climate_idx];
 
 	const uint8 ch[hex_corner_t::count] = {
@@ -428,28 +416,28 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 
 	// Vertex screen coords (after lift).  Order matches hex_corner_t.
 	const sint32 vx[hex_corner_t::count] = {
-		w - 1, // E
-		3 * u, // SE
-		    u, // SW
-		0,     // W
-		    u, // NW
-		3 * u, // NE
+		geom.vx[hex_corner_t::E ],
+		geom.vx[hex_corner_t::SE],
+		geom.vx[hex_corner_t::SW],
+		geom.vx[hex_corner_t::W ],
+		geom.vx[hex_corner_t::NW],
+		geom.vx[hex_corner_t::NE],
 	};
 	const sint32 vy_base[hex_corner_t::count] = {
-		mid_y, // E
-		bot_y, // SE
-		bot_y, // SW
-		mid_y, // W
-		top_y, // NW
-		top_y, // NE
+		geom.vy_base[hex_corner_t::E ],
+		geom.vy_base[hex_corner_t::SE],
+		geom.vy_base[hex_corner_t::SW],
+		geom.vy_base[hex_corner_t::W ],
+		geom.vy_base[hex_corner_t::NW],
+		geom.vy_base[hex_corner_t::NE],
 	};
 	sint32 vy[hex_corner_t::count];
 	for(  int i = 0;  i < hex_corner_t::count;  i++  ) {
-		vy[i] = vy_base[i] - (sint32)ch[i] * lift;
+		vy[i] = vy_base[i] - (sint32)ch[i] * geom.lift;
 	}
 
 	const sint32 cx = w / 2;
-	const sint32 cy_base = mid_y;
+	const sint32 cy_base = geom.mid_y;
 	// Centre height — average of the 6 corners.  Picked over max /
 	// min so that a flat-top dome and a flat-bottom valley both
 	// shade reasonably; centre = max() makes valleys look caved-in
@@ -459,7 +447,7 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 	for(  int i = 0;  i < hex_corner_t::count;  i++  ) {
 		sum_h += ch[i];
 	}
-	const sint32 cz = (sum_h * lift) / hex_corner_t::count; // pixels
+	const sint32 cz = (sum_h * geom.lift) / hex_corner_t::count; // pixels
 	const sint32 cy = cy_base - cz;
 
 	PIXVAL* buf = new PIXVAL[w * h];
@@ -491,10 +479,10 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 		// tile.  Flip the operands and flat tiles come out dark.
 		const double ax = (double)(vx[a]      - cx);
 		const double ay = (double)(vy_base[a] - cy_base);
-		const double az = (double)((sint32)ch[a] * lift - cz);
+		const double az = (double)((sint32)ch[a] * geom.lift - cz);
 		const double bx = (double)(vx[b]      - cx);
 		const double by = (double)(vy_base[b] - cy_base);
-		const double bz = (double)((sint32)ch[b] * lift - cz);
+		const double bz = (double)((sint32)ch[b] * geom.lift - cz);
 
 		const double nx = ay * bz - az * by;
 		const double ny = az * bx - ax * bz;
@@ -536,7 +524,7 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 	img->w = (scr_coord_val)w;
 	img->h = (scr_coord_val)h;
 	img->x = 0;
-	img->y = hex_visible_centre_y(w) - u;
+	img->y = geom.image_y();
 	img->zoomable = 1;
 
 	return img;
@@ -630,7 +618,8 @@ void init()
 	          slope_t::max_slopes * ground_climate_slots,
 	          slope_t::max_slopes,
 	          slope_t::max_slopes,
-	          u, 4 * u, 2 * u);
+	          u, synth_hex_geometry(u, TILE_HEIGHT_STEP).w,
+	          synth_hex_geometry(u, TILE_HEIGHT_STEP).h);
 }
 
 
