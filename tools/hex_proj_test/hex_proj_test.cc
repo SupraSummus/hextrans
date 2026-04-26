@@ -628,6 +628,39 @@ static void lambert_face_normal_unlifted_screen_y_bug(
 }
 
 
+static sint32 synth_test_centre_z(
+	const synth_overlay::synth_hex_geometry_t &geom,
+	slope_t::type slope)
+{
+	sint32 sum_h = 0;
+	for (int i = 0; i < hex_corner_t::count; i++) {
+		sum_h += synth_overlay::hex_corner_height(slope, (hex_corner_t::type)i);
+	}
+	return (sum_h * geom.lift) / hex_corner_t::count;
+}
+
+
+static void synth_test_brightness_minmax(
+	const synth_overlay::synth_hex_geometry_t &geom,
+	slope_t::type slope,
+	sint32 *lo,
+	sint32 *hi)
+{
+	*lo = 10000;
+	*hi = -10000;
+	const sint32 cz = synth_test_centre_z(geom, slope);
+	for (int f = 0; f < hex_corner_t::count; f++) {
+		double nx, ny, nz;
+		synth_overlay::synth_ground_lambert_face_normal(
+			geom, slope, cz, (uint8)f, (uint8)((f + 1) % hex_corner_t::count),
+			&nx, &ny, &nz);
+		const sint32 brightness = synth_overlay::synth_ground_lambert_brightness(nx, ny, nz);
+		if (brightness < *lo) *lo = brightness;
+		if (brightness > *hi) *hi = brightness;
+	}
+}
+
+
 // `build_ground` calls `synth_ground_lambert_face_normal` — assert that helper
 // matches an independent cross product built from `geom.vy` (same Y as
 // fill_polygon), and that the unlifted reference diverges on a raised-corner
@@ -640,11 +673,7 @@ static void test_synth_build_ground_normal_uses_lifted_screen_y()
 		synth_overlay::synth_hex_geometry(W / 4, lift);
 
 	const slope_t::type slope = slope_t::raised_NE;
-	sint32 sum_h = 0;
-	for (int i = 0; i < hex_corner_t::count; i++) {
-		sum_h += synth_overlay::hex_corner_height(slope, (hex_corner_t::type)i);
-	}
-	const sint32 cz = (sum_h * geom.lift) / hex_corner_t::count;
+	const sint32 cz = synth_test_centre_z(geom, slope);
 	const sint32 cx = geom.w / 2;
 	const sint32 cy = geom.mid_y - cz;
 
@@ -714,6 +743,32 @@ static void test_synth_build_ground_normal_uses_lifted_screen_y()
 			"synth_ground_lambert_face_normal vs unlifted reference did not diverge "
 			"(sin^2 max=%g)\n",
 			best_sin2_false);
+		std::abort();
+	}
+}
+
+
+static void test_synth_ground_shading_calibrates_flat_plane()
+{
+	constexpr sint32 W = 64;
+	constexpr sint32 lift = 16;
+	const synth_overlay::synth_hex_geometry_t geom =
+		synth_overlay::synth_hex_geometry(W / 4, lift);
+
+	sint32 lo, hi;
+	synth_test_brightness_minmax(geom, slope_t::flat, &lo, &hi);
+	if (lo != 256 || hi != 256) {
+		std::fprintf(stderr,
+			"synth flat shading: expected all faces at 256, got min=%d max=%d\n",
+			(int)lo, (int)hi);
+		std::abort();
+	}
+
+	synth_test_brightness_minmax(geom, slope_t::raised_SW, &lo, &hi);
+	if (lo >= 192 || hi <= 288 || hi - lo < 160) {
+		std::fprintf(stderr,
+			"synth raised_SW shading: expected visible light/dark relief, got min=%d max=%d\n",
+			(int)lo, (int)hi);
 		std::abort();
 	}
 }
@@ -822,6 +877,7 @@ int main()
 	test_inscribed_hex_tiles_lattice();
 	test_synth_slope_bbox_contains_lifted_vertices();
 	test_synth_build_ground_normal_uses_lifted_screen_y();
+	test_synth_ground_shading_calibrates_flat_plane();
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();
 	test_vertex_owners_neighbour_closure();

@@ -377,9 +377,9 @@ static void fill_polygon(PIXVAL* buf, sint32 w, sint32 h,
 
 // Multiply an RGB555 PIXVAL by `brightness/256`, clamping each
 // channel to [0, 31].  Caller is the per-face shading pass below;
-// `brightness` lives in [96, 416] (= 0.375x .. 1.625x) after the
-// Lambert remap in `build_ground`; only the upper clamp is live for
-// saturated base colours.
+// `brightness` lives in [128, 352] (= 0.5x .. 1.375x) after the
+// calibrated Lambert remap in `build_ground`; only the upper clamp
+// is live for saturated base colours.
 static PIXVAL shade_pixval(PIXVAL p, sint32 brightness)
 {
 	sint32 r = ((p >> 10) & 0x1F) * brightness / 256;
@@ -440,18 +440,6 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 	PIXVAL* buf = new PIXVAL[w * h];
 	memset(buf, 0, w * h * sizeof(PIXVAL));
 
-	// Light direction in world space: above and slightly to the
-	// upper-right (toward the NE corner).  Picked so south-facing
-	// faces (those whose corners are lower than centre on the
-	// south side of the tile) come out darker — matches the iso
-	// convention pak64 uses, where the light source is high in the
-	// north.  Components in (x, y_screen, z_screen) where +z_screen
-	// = "up" in screen-space (= world height in pixels).
-	const double Lx =  1.0;
-	const double Ly = -1.0;
-	const double Lz =  3.0;
-	const double L_norm = std::sqrt(Lx*Lx + Ly*Ly + Lz*Lz);
-
 	// 6 faces, each a triangle (centre, corner_a, corner_b) with the
 	// two corners adjacent on the hex boundary.  Boundary walk
 	// E → SE → SW → W → NW → NE follows hex_corner_t's enum order
@@ -467,20 +455,10 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 		// `synth_ground_lambert_face_normal` matches fill_polygon.
 		double nx, ny, nz;
 		synth_ground_lambert_face_normal(geom, slope, cz, a, b, &nx, &ny, &nz);
-		const double n_norm = std::sqrt(nx*nx + ny*ny + nz*nz);
-
-		// Lambertian cos(θ) in [-1, 1] mapped to brightness around
-		// 1.0×256, with a wider swing than legacy pak lightmaps so
-		// slope relief reads clearly on the synth hex tiles.  Floor
-		// keeps back faces off pure black; ceiling caps highlights.
-		// All-flat slope falls through at brightness=256 (= 1.0x).
-		sint32 brightness = 256;
-		if(  n_norm > 0.0  ) {
-			const double cos_theta = (nx*Lx + ny*Ly + nz*Lz) / (n_norm * L_norm);
-			brightness = 256 + (sint32)(cos_theta * 176.0);
-			if(  brightness < 96   ) { brightness = 96; }
-			if(  brightness > 416  ) { brightness = 416; }
-		}
+		// Calibrated Lambertian shading: flat ground remains at the
+		// climate base colour, while tilted faces swing light/dark
+		// around that baseline.
+		const sint32 brightness = synth_ground_lambert_brightness(nx, ny, nz);
 
 		const PIXVAL face_color = shade_pixval(base, brightness);
 
