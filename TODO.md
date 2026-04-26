@@ -193,8 +193,11 @@ port can't accidentally regress new sites onto the old E-slot of
 tile `(x-1, y-1)`.  Two narrow escape hatches survive in
 `surface.h` for known-bubble-consistent uses (`legacy_grid_hgt` and
 `legacy_set_grid_hgt_nocheck`); their callers are listed below by
-retirement trigger.  Remaining shim call sites still pending port
-audit into these clusters:
+retirement trigger.  Gameplay code should not call the fatal
+`lookup_hgt` / `lookup_hgt_nocheck` `(x,y)` / `(koord)` overloads;
+use `(tile, hex_corner_t)`, `min_hgt` / `max_hgt`, or
+`grund_t::get_hoehe` as appropriate.  Clusters still on the legacy
+hatches or unfinished ports:
 
 *Square-corner reader ritual* — `surface.cc` 12 sites in
 `get_neighbour_heights`'s `[8][4]` boundary fallback, routed through
@@ -216,12 +219,13 @@ semantics chosen per-call-site rather than via one global decision:
 (`min_hgt`, "any corner below water"), `simtool.cc:2080-2085`
 (`min_hgt`, climate water filter), `simplay.cc:225` (`min_hgt`,
 floating-message anchor), `minimap.cc:735` (`get_hoehe + corner_sw`,
-SW corner colour pick).  Remaining sites still firing the fatal
-shim: `simtool.cc:1011, 1021, 2721`, `wegbauer.cc:1778`,
-`tunnelbauer.cc:198`, `enlarge_map_frame.cc:201`.  Each needs a
-small per-site decision (most fit `min_hgt`, but some — like
-`enlarge_map_frame` — may want a different anchor); migrate as the
-relevant test exercises them.
+SW corner colour pick).  The raise/lower drag loop and the
+elevated-way-over-water check in `simtool.cc` now read the active
+cursor corner via `grund_t::get_hoehe` or use `max_hgt` /
+`min_hgt` where the intent is "any corner above/below" relative to
+water or tunnel depth; `wegbauer.cc` and `tunnelbauer.cc` use
+`max_hgt` for the same "dry land above z" predicate, and
+`enlarge_map_frame` uses `min_hgt` for the preview tile colour.
 
 *Save-cycle round-trippers* — `grund.cc:175, 287, 297, 307, 316`
 (5 sites), `simplan.cc:312, 317` (2 sites).  Read-then-write during

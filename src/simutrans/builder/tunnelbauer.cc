@@ -197,7 +197,7 @@ koord3d tunnel_builder_t::find_end_pos(player_t *player, koord3d pos, koord zv, 
 		}
 
 		// check water level
-		if (gr->is_water()  &&  welt->lookup_hgt(pos.get_2d()) <= pos.z) {
+		if (gr->is_water()  &&  welt->max_hgt(pos.get_2d()) <= pos.z) {
 			return koord3d::invalid;
 		}
 
