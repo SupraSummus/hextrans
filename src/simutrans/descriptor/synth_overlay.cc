@@ -8,6 +8,7 @@
 #include "ground_desc.h"
 #include "image.h"
 #include "../display/simgraph.h"
+#include "../display/hex_proj.h"
 #include "../simconst.h"
 #include "../simdebug.h"
 #include "../dataobj/environment.h"
@@ -264,7 +265,7 @@ static image_t* rasterise_outline(sint32 u, slope_t::type slope,
 	img->w = (scr_coord_val)w;
 	img->h = (scr_coord_val)h;
 	img->x = 0;
-	img->y = 0;
+	img->y = hex_visible_centre_y(w) - u;
 	img->zoomable = 1;
 
 	return img;
@@ -535,7 +536,7 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 	img->w = (scr_coord_val)w;
 	img->h = (scr_coord_val)h;
 	img->x = 0;
-	img->y = 0;
+	img->y = hex_visible_centre_y(w) - u;
 	img->zoomable = 1;
 
 	return img;

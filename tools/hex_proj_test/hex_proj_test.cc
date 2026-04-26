@@ -378,6 +378,20 @@ static void test_inscribed_hex_tiles_lattice()
 }
 
 
+// ---- 7b. Visible-centre anchor matches legacy iso convention ---------------
+
+static void test_canvas_anchor_convention()
+{
+	// Pakset sprites (cursor.pak, buildings, vehicles) are authored
+	// against the legacy "tile content in bottom half of W×W canvas"
+	// layout: anchor (X, Y) places visible centre at (X+W/2, Y+3W/4).
+	// Synth ground rasteriser and picker both pin to this y; drift
+	// here was the pak128 bug where the looking-glass cursor drew on
+	// the south neighbour of the highlighted hex.
+	assert(hex_visible_centre_y(W) == 3 * W / 4);
+}
+
+
 // ---- 8. Render-loop iteration is a bijection -------------------------------
 
 static void test_render_loop_bijection()
@@ -424,6 +438,7 @@ int main()
 	test_slope_project_to_square_hex_edges();
 	test_slope_project_to_square_clamping();
 	test_inscribed_hex_tiles_lattice();
+	test_canvas_anchor_convention();
 	test_render_loop_bijection();
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;
