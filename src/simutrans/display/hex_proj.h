@@ -141,55 +141,48 @@ inline koord hex_round_to_axial(double q_f, double r_f)
 }
 
 
-/// Axial offsets of the 6 corners scaled by 3, in `hex_corner_t`
-/// order: E (2,-1), SE (1,1), SW (-1,2), W (-2,1), NW (-1,-1),
-/// NE (1,-2).  Scaling avoids 1/3 fractions in the shared corner data.
-inline void hex_corner_axial_offset3(hex_corner_t::type c, sint8 &q3, sint8 &r3)
+/// Object-offset units for drawing a cursor at a hex corner.  Object
+/// offsets use a 64-unit tile basis (`tile_raster_scale_*`), so these
+/// values are raster-size independent.  Match the generated hex
+/// ground/marker vertices from `synth_hex_geometry`: the footprint is
+/// rasterized into a half-open 64x32 bbox, so the right and bottom
+/// vertices land one pixel inside the ideal lattice edge.
+inline koord hex_corner_cursor_offset(hex_corner_t::type c)
 {
-	static const sint8 cq3[6] = {  2,  1, -1, -2, -1,  1 };
-	static const sint8 cr3[6] = { -1,  1,  2,  1, -1, -2 };
-	q3 = cq3[c];
-	r3 = cr3[c];
+	static const koord offsets[hex_corner_t::count] = {
+		koord( 31,   0), // E
+		koord( 16,  15), // SE
+		koord(-16,  15), // SW
+		koord(-32,   0), // W
+		koord(-16, -16), // NW
+		koord( 16, -16), // NE
+	};
+	return offsets[c];
 }
 
 
 /// Pick the hex corner closest to a sub-tile fractional axial offset
 /// `(dq, dr)` (residual after rounding to the tile centre with
-/// `hex_round_to_axial`).  Uses the same screen-distance metric as
-/// the rounder, so corner Voronoi regions match the same irregular
-/// lattice the picker uses for tiles.
+/// `hex_round_to_axial`).  Uses screen distance to the drawn cursor
+/// vertices, so the picked corner and displayed arrow stay aligned.
 inline hex_corner_t::type hex_pick_nearest_corner(double dq, double dr)
 {
-	const double q3 = dq * 3.0, r3 = dr * 3.0;
+	constexpr double u = 16.0; // W/4 in the 64-unit object-offset basis.
+	const double sx = dq * 3.0 * u;
+	const double sy = (dq + 2.0 * dr) * u;
 	double best_d2 = HUGE_VAL;
 	hex_corner_t::type best = hex_corner_t::E;
 	for (uint8 i = 0; i < 6; i++) {
-		sint8 cq3, cr3;
-		hex_corner_axial_offset3((hex_corner_t::type)i, cq3, cr3);
-		const double da = q3 - cq3;
-		const double db = r3 - cr3;
-		const double d2 = (3.0 * da) * (3.0 * da) + (da + 2.0 * db) * (da + 2.0 * db);
+		const koord offset = hex_corner_cursor_offset((hex_corner_t::type)i);
+		const double dx = sx - offset.x;
+		const double dy = sy - offset.y;
+		const double d2 = dx * dx + dy * dy;
 		if (d2 < best_d2) {
 			best_d2 = d2;
 			best = (hex_corner_t::type)i;
 		}
 	}
 	return best;
-}
-
-
-/// Object-offset units for drawing a cursor at a hex corner.  Object
-/// offsets use a 64-unit tile basis (`tile_raster_scale_*`), so these
-/// values are raster-size independent:
-///   E=(+W/2,0), SE=(+W/4,+W/4), SW=(-W/4,+W/4),
-///   W=(-W/2,0), NW=(-W/4,-W/4), NE=(+W/4,-W/4).
-inline koord hex_corner_cursor_offset(hex_corner_t::type c)
-{
-	sint8 q3, r3;
-	hex_corner_axial_offset3(c, q3, r3);
-	// Screen offset = (q*3u, (q + 2r)u), with u = W/4.  Object
-	// offsets are scaled from a W=64 basis, so u=16 here.
-	return koord(16 * q3, 16 * (q3 + 2 * r3) / 3);
 }
 
 
