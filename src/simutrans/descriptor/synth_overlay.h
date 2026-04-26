@@ -92,6 +92,25 @@ void init();
 image_id get_marker(slope_t::type slope, bool background);
 
 
+/**
+ * Grid-line border image for @p slope — a hex-shaped 6-edge outline,
+ * the synth equivalent of the pakset `Borders` block consulted by
+ * `ground_desc_t::get_border_image`.  One image per slope (no
+ * front/back split): the grid overlay is drawn once over the tile,
+ * not bracketed around it like the cursor marker.
+ *
+ * Geometry mirrors `get_marker` (same `4u × 2u` inscribed bbox,
+ * same per-corner lift) so the synth grid lines and the synth
+ * cursor share the same pixel-level outline; toggling between them
+ * doesn't shift the visible hex perimeter.
+ *
+ * Returns IMG_EMPTY when synth has not been initialised, or when
+ * @p slope is out of range.  Callers should fall back to the legacy
+ * pakset lookup in that case.
+ */
+image_id get_border(slope_t::type slope);
+
+
 /// Number of climate slots `get_ground` accepts.  Indexing matches
 /// the `climate_image[]` block the pakset path uses: 0..6 = climate-1
 /// (desert..arctic non-snow), 7 = snow.

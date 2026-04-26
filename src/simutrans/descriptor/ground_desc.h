@@ -123,9 +123,23 @@ public:
 
 	static image_id get_border_image(slope_t::type slope_in)
 	{
+		// Pakset path — same lossy hex→square projection as
+		// `get_marker_image`; same caveat about pakset always
+		// returning something for hex slopes today.
 		uint8 slope = double_grounds ? slope_in : project_to_square_sprite(slope_in);
 		uint8 index = double_grounds ? (slope % 3) + 3 * ((uint8)(slope / 9)) : (slope & 1) + ((slope >> 1) & 6);
-		return borders->get_image(index);
+		const image_id pakset_id = borders->get_image(index);
+
+		// Synth path — algorithmic hex grid outline.  Without this,
+		// the pakset's square-projected grid lines do not align
+		// with the hex tile geometry and the "show grid" toggle
+		// has no visible effect on most slopes.
+		const image_id synth_id = synth_overlay::get_border(slope_in);
+
+		if(  synth_overlay::prefer_over_pakset  ) {
+			return synth_id != IMG_EMPTY ? synth_id : pakset_id;
+		}
+		return pakset_id != IMG_EMPTY ? pakset_id : synth_id;
 	}
 };
 

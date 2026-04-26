@@ -58,6 +58,13 @@ static image_t* ground[ground_climate_slots][slope_t::max_slopes];
 // snowline overlay blits — see get_alpha in the header.
 static image_t* alpha[slope_t::max_slopes];
 
+// Per-slope grid-line border tiles — single-image full hex outline,
+// drawn over the tile when `grund_t::show_grid` is on.  Mirrors the
+// marker geometry but combines both halves into one image since the
+// grid overlay is a single draw call (`grund_t::display_boden`) and
+// is not bracketed around tile content.
+static image_t* border[slope_t::max_slopes];
+
 static bool initialised = false;
 
 
@@ -107,6 +114,10 @@ static void free_all()
 	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
 		delete alpha[s];
 		alpha[s] = NULL;
+	}
+	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
+		delete border[s];
+		border[s] = NULL;
 	}
 }
 
@@ -180,8 +191,8 @@ static size_t encode_rle(const PIXVAL* buf, sint32 w, sint32 h, PIXVAL* out)
 }
 
 
-// Build the outline image for one slope, half (fg or bg).  The
-// flat-top hex is inscribed in a `4u × 2u` bounding box (E and W
+// Rasterise a sequence of hex-vertex line segments into an image.
+// The flat-top hex is inscribed in a `4u × 2u` bounding box (E and W
 // vertices on the horizontal extremes at mid-y, NE/SE/NW/SW at
 // quarter-width on the top and bottom rows), with each vertex lifted
 // by `corner_h * tile_raster_scale_y(TILE_HEIGHT_STEP, 4u)` for
@@ -194,16 +205,19 @@ static size_t encode_rle(const PIXVAL* buf, sint32 w, sint32 h, PIXVAL* out)
 // gapped adjacent tiles by `u` px).  See
 // `tools/hex_proj_test/hex_proj_test.cc :: test_inscribed_hex_tiles_lattice`.
 //
-// Hex slopes share corners across 3 tiles — that's a terrain-storage
-// problem (per AGENTS.md "per-vertex height storage") not a marker
-// problem; the marker only ever shows one tile's view of its own
-// corners and is consistent by construction.
+// @p path is a list of corner indices to visit in order; @p closed
+// adds the wraparound edge from the last vertex back to the first.
+// `path = {E, SE, SW, W}, closed=false` is the front half of the
+// marker outline (3 south-side edges); `closed=true` over all 6
+// corners is the full grid border.
 //
 // Lifted vertices may project above the bbox top edge; the line
 // drawer clips them.  Visually the outline tops can get cut off for
-// double-height raised corners — not a concern for the cursor at
-// single-height terrain, revisit if the cropping shows up.
-static image_t* build_outline(sint32 u, slope_t::type slope, bool background)
+// double-height raised corners — not a concern at single-height
+// terrain, revisit if the cropping shows up.
+static image_t* rasterise_outline(sint32 u, slope_t::type slope,
+                                  const hex_corner_t::type* path, int n,
+                                  bool closed)
 {
 	const sint32 w = 4 * u;
 	const sint32 h = 2 * u;
@@ -213,7 +227,7 @@ static image_t* build_outline(sint32 u, slope_t::type slope, bool background)
 	const sint16 lift = (sint16)tile_raster_scale_y(TILE_HEIGHT_STEP, w);
 
 	// Vertex screen coords in image-local pixel space, ordered to
-	// match hex_corner_t::type so the path tables below index in.
+	// match hex_corner_t::type so @p path indexes in directly.
 	// Y grows down; corner height lifts UP, so subtract.
 	struct vertex_t { sint32 x, y; };
 	const vertex_t v[hex_corner_t::count] = {
@@ -225,23 +239,13 @@ static image_t* build_outline(sint32 u, slope_t::type slope, bool background)
 		{ 3 * u, top_y - corner_ne(slope) * lift }, // NE
 	};
 
-	// Vertex visit order around each half of the outline.  Front
-	// half = three S-side edges; back half = three N-side edges.
-	// E and W endpoints are shared between the halves.
-	static const hex_corner_t::type front_path[4] = {
-		hex_corner_t::E, hex_corner_t::SE, hex_corner_t::SW, hex_corner_t::W
-	};
-	static const hex_corner_t::type back_path[4] = {
-		hex_corner_t::E, hex_corner_t::NE, hex_corner_t::NW, hex_corner_t::W
-	};
-	const hex_corner_t::type* path = background ? back_path : front_path;
-
 	PIXVAL* buf = new PIXVAL[w * h];
 	memset(buf, 0, w * h * sizeof(PIXVAL));
 
-	for(  int i = 0;  i < 3;  i++  ) {
+	const int n_edges = closed ? n : n - 1;
+	for(  int i = 0;  i < n_edges;  i++  ) {
 		const vertex_t& a = v[path[i]];
-		const vertex_t& b = v[path[i + 1]];
+		const vertex_t& b = v[path[(i + 1) % n]];
 		draw_line(buf, w, h, a.x, a.y, b.x, b.y, OUTLINE_COLOR);
 	}
 
@@ -264,6 +268,49 @@ static image_t* build_outline(sint32 u, slope_t::type slope, bool background)
 	img->zoomable = 1;
 
 	return img;
+}
+
+
+// Marker outline half — three S-side edges (front) or three N-side
+// edges (back); E and W endpoints are shared between the halves so
+// the two halves bracket tile content (vehicles, buildings) cleanly.
+//
+// Hex slopes share corners across 3 tiles — that's a terrain-storage
+// problem (per AGENTS.md "per-vertex height storage") not a marker
+// problem; the marker only ever shows one tile's view of its own
+// corners and is consistent by construction.
+static image_t* build_marker(sint32 u, slope_t::type slope, bool background)
+{
+	static const hex_corner_t::type front_path[4] = {
+		hex_corner_t::E, hex_corner_t::SE, hex_corner_t::SW, hex_corner_t::W
+	};
+	static const hex_corner_t::type back_path[4] = {
+		hex_corner_t::E, hex_corner_t::NE, hex_corner_t::NW, hex_corner_t::W
+	};
+	const hex_corner_t::type* path = background ? back_path : front_path;
+	return rasterise_outline(u, slope, path, 4, /*closed=*/false);
+}
+
+
+// Grid border — full closed 6-edge hex outline, drawn once over the
+// tile when `grund_t::show_grid` is on.  Unlike the marker, the grid
+// is not split into front/back halves: it's a single draw call atop
+// tile content (`grund_t::display_boden`), so all 6 edges live in
+// one image.
+//
+// Adjacent tiles draw their own borders on the same shared edge.
+// Per-tile slope storage means two neighbours can disagree on the
+// height of a shared vertex once terraforming touches them, and the
+// two grid lines will visibly mismatch at that vertex.  Retired by
+// per-vertex height storage (AGENTS.md "Critical findings driving
+// priority"); same caveat as the synth ground tile.
+static image_t* build_border(sint32 u, slope_t::type slope)
+{
+	static const hex_corner_t::type full_path[hex_corner_t::count] = {
+		hex_corner_t::E,  hex_corner_t::SE, hex_corner_t::SW,
+		hex_corner_t::W,  hex_corner_t::NW, hex_corner_t::NE,
+	};
+	return rasterise_outline(u, slope, full_path, hex_corner_t::count, /*closed=*/true);
 }
 
 
@@ -553,7 +600,7 @@ void init()
 
 	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
 		for(  int half = 0;  half < 2;  half++  ) {
-			image_t* img = build_outline(u, (slope_t::type)s, half == 1);
+			image_t* img = build_marker(u, (slope_t::type)s, half == 1);
 			img->register_image();
 			marker[half][s] = img;
 		}
@@ -569,13 +616,18 @@ void init()
 		image_t* a = build_alpha(ground[0][s]);
 		a->register_image();
 		alpha[s] = a;
+
+		image_t* bd = build_border(u, (slope_t::type)s);
+		bd->register_image();
+		border[s] = bd;
 	}
 
 	initialised = true;
 	DBG_DEBUG("synth_overlay::init",
-	          "synthesised %d marker + %d ground + %d alpha sprites (u=%d, bbox %dx%d)",
+	          "synthesised %d marker + %d ground + %d alpha + %d border sprites (u=%d, bbox %dx%d)",
 	          slope_t::max_slopes * 2,
 	          slope_t::max_slopes * ground_climate_slots,
+	          slope_t::max_slopes,
 	          slope_t::max_slopes,
 	          u, 4 * u, 2 * u);
 }
@@ -610,6 +662,16 @@ image_id get_alpha(slope_t::type slope)
 		return IMG_EMPTY;
 	}
 	const image_t* img = alpha[slope];
+	return img != NULL ? img->get_id() : IMG_EMPTY;
+}
+
+
+image_id get_border(slope_t::type slope)
+{
+	if(  !initialised  ||  slope < 0  ||  slope >= slope_t::max_slopes  ) {
+		return IMG_EMPTY;
+	}
+	const image_t* img = border[slope];
 	return img != NULL ? img->get_id() : IMG_EMPTY;
 }
 
