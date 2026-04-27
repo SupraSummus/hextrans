@@ -152,6 +152,38 @@ Now that the NW-corner-only writers are ported, restoration
 needs a hex-aware test scaffold that raises the right vertices
 directly rather than 4 corners of a 2x2 square.
 
+## World-gen raise_grid_to / lower_grid_to callers
+
+`simworld.cc:415` (terrain smoothing), `1576–1579` (beach generation),
+and `1869–1885` (map expansion) still call `raise_grid_to` /
+`lower_grid_to`, which are now thin adapters that forward to
+`raise_vertex_to(x-1, y-1, E, h)`.  That writes only the E canonical
+vertex at each grid point, leaving the SE canonical vertices unset and
+producing partially-initialised terrain during world creation.  Retire
+by porting each site to call `raise_vertex_to` / `lower_vertex_to`
+directly on the full set of hex vertices that the operation logically
+covers.  Once the last caller is gone, `raise_grid_to`, `lower_grid_to`
+and their declarations in `surface.h` can be deleted.
+
+## max_diff callers assume max-corner ≤ 2
+
+~35 sites in vehicle, bridge, road-builder, and signal code call
+`slope_t::max_diff()` and assume the result is ≤ 2 (the old base-3
+maximum).  Base-4 encoding allows max-corner = 3, so clearance
+calculations, collision-avoidance predicates, and image-select branches
+at these sites may now compute wrong values on high-delta terrain.  Audit
+each site when the path it guards is next touched for hex correctness.
+
+## Pakset slope sprite range gap
+
+Pakset art covers slopes 0–728 (the 729 base-3 slopes).  Base-4
+introduces 4096 total slopes; synth overlay generates correct ground
+tiles for all of them, but the pakset fallback path (`prefer_over_pakset
+= false`) is broken for any slope with a corner ≥ 2: `light_map` /
+`doubleslope_to_imgnr` index past their table bounds.  Either teach the
+fallback to clamp out-of-range slopes to the nearest pakset entry, or
+drop the toggle and let synth ground be the sole path.
+
 ## Per-vertex height storage — remaining writer-side ports
 
 Storage is per-hex-vertex (see `documentation/hex-vertex-storage.md`,

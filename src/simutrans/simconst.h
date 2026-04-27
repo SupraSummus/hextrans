@@ -96,21 +96,20 @@
 // Terraform-tool sentinels, used via tool_setslope / tool_restoreslope
 // to request "raise by one step", "lower by one step", "restore the
 // natural slope" instead of a specific target slope.  Must stay
-// outside the valid slope range [0, slope_t::max_slopes - 1 = 728];
-// values are picked well above 728 so they survive any future
-// encoding changes as well.  (Old square values 82/83/84 would
-// collide with real hex slopes.)
-#define ALL_UP_SLOPE (801)
-#define ALL_DOWN_SLOPE (802)
-#define RESTORE_SLOPE (803)
+// outside the valid slope range [0, slope_t::max_slopes - 1 = 4095].
+// Old values 801-806 collided with real base-4 hex slopes after the
+// encoding widened from 3^6=729 to 4^6=4096 slopes; bumped to 4097+.
+#define ALL_UP_SLOPE (4097)
+#define ALL_DOWN_SLOPE (4098)
+#define RESTORE_SLOPE (4099)
 // The *_SINGLE variants signalled "single-height mode" from the UI
 // under single-height-only paksets.  Under the hex encoding doubles
 // are still available, so the single/double distinction stays; the
 // values still need to be outside the slope range and distinct from
 // the non-SINGLE sentinels.
-#define ALL_UP_SLOPE_SINGLE (804)
-#define ALL_DOWN_SLOPE_SINGLE (805)
-#define RESTORE_SLOPE_SINGLE (806)
+#define ALL_UP_SLOPE_SINGLE (4100)
+#define ALL_DOWN_SLOPE_SINGLE (4101)
+#define RESTORE_SLOPE_SINGLE (4102)
 
 
 // 16 internal pixels per tile, for purposes of object visual offsets.

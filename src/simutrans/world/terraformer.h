@@ -27,11 +27,10 @@ class player_t;
  * 4. apply()                           (to actually apply the changes to the terrain; optional)
  *
  * HEX-PORT: node stores 6 corner heights indexed by `hex_corner_t` (E,
- * SE, SW, W, NW, NE).  Propagation walks the 6 hex edges — each edge is
- * shared with exactly one neighbour, and each corner with exactly two
- * neighbours (at edges (c+5)%6 and c).  There is no separate "diagonal
- * neighbour" case because flat-top hex has no corner-only-shared
- * neighbours.
+ * SE, SW, W, NW, NE).  Propagation walks the 3-neighbour vertex graph:
+ * changing one world vertex queues only that vertex's owner tiles and
+ * its adjacent support vertices, instead of filling whole neighbouring
+ * tiles.
  */
 class terraformer_t
 {
@@ -93,6 +92,9 @@ public:
 private:
 	/// Add a node from the propagation algorithm (raw 6-corner array).
 	void add_node_internal(sint16 x, sint16 y, const sint8 h[hex_corner_t::count]);
+
+	/// Add a target for one world vertex, mirrored to all in-map owner tiles.
+	void add_vertex_node(koord tile, hex_corner_t::type corner, sint8 h);
 
 	/// Internal functions to be used with terraformer_t to propagate terrain changes to neighbouring tiles
 	void prepare_raise(const node_t node);

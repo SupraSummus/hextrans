@@ -500,52 +500,62 @@ int surface_t::grid_lower(const player_t *player, koord k, hex_corner_t::type co
 
 
 // raise height in the hgt-array
+// Hex vertex adjacency (flat-top, canonical E/SE corners only):
+//   (q,r,E)  neighbors: (q,r,SE)  (q,r-1,SE)  (q+1,r-1,SE)
+void surface_t::raise_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 h)
+{
+	const hex_vertex_t cv = canonical_vertex({koord(q, r), c});
+	// canonical tiles: x ∈ [-1, W-1], y ∈ [-1, H]
+	if ((uint16)(cv.tile.x + 1) > (uint16)cached_grid_size.x ||
+	    (uint16)(cv.tile.y + 1) > (uint16)(cached_grid_size.y + 1)) {
+		return;
+	}
+	const uint32 slot = vertex_slot_index(cv, cached_grid_size.x);
+	if (grid_hgts[slot] >= h) {
+		return;
+	}
+	grid_hgts[slot] = h;
+	const sint8 h1 = h - 1;
+	hex_vertex_t nb[3];
+	vertex_neighbours(cv, nb);
+	for (int i = 0; i < 3; i++) {
+		raise_vertex_to(nb[i].tile.x, nb[i].tile.y, nb[i].corner, h1);
+	}
+}
+
+
+void surface_t::lower_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 h)
+{
+	const hex_vertex_t cv = canonical_vertex({koord(q, r), c});
+	if ((uint16)(cv.tile.x + 1) > (uint16)cached_grid_size.x ||
+	    (uint16)(cv.tile.y + 1) > (uint16)(cached_grid_size.y + 1)) {
+		return;
+	}
+	const uint32 slot = vertex_slot_index(cv, cached_grid_size.x);
+	if (grid_hgts[slot] <= h) {
+		return;
+	}
+	grid_hgts[slot] = h;
+	const sint8 h1 = h + 1;
+	hex_vertex_t nb[3];
+	vertex_neighbours(cv, nb);
+	for (int i = 0; i < 3; i++) {
+		lower_vertex_to(nb[i].tile.x, nb[i].tile.y, nb[i].corner, h1);
+	}
+}
+
+
 void surface_t::raise_grid_to(sint16 x, sint16 y, sint8 h)
 {
-	if(is_within_grid_limits(x,y)) {
-		// HEX-PORT: doubled index lands on the E canonical slot of
-		// tile (x-1, y-1) — see surface.h.
-		const sint32 offset = (x + y*(cached_grid_size.x+1)) * 2;
-
-		if(  grid_hgts[offset] < h  ) {
-			grid_hgts[offset] = h;
-
-			const sint8 hh = h - (ground_desc_t::double_grounds ? 2 : 1);
-
-			// set new height of neighbor grid points
-			raise_grid_to(x-1, y-1, hh);
-			raise_grid_to(x  , y-1, hh);
-			raise_grid_to(x+1, y-1, hh);
-			raise_grid_to(x-1, y  , hh);
-			raise_grid_to(x+1, y  , hh);
-			raise_grid_to(x-1, y+1, hh);
-			raise_grid_to(x  , y+1, hh);
-			raise_grid_to(x+1, y+1, hh);
-		}
-	}
+	// Legacy adapter: (x,y) in old square-grid coords maps to the E
+	// canonical vertex of tile (x-1, y-1).
+	raise_vertex_to(x - 1, y - 1, hex_corner_t::E, h);
 }
 
 
 void surface_t::lower_grid_to(sint16 x, sint16 y, sint8 h)
 {
-	if(is_within_grid_limits(x,y)) {
-		// HEX-PORT: doubled index — see raise_grid_to.
-		const sint32 offset = (x + y*(cached_grid_size.x+1)) * 2;
-
-		if(  grid_hgts[offset] > h  ) {
-			grid_hgts[offset] = h;
-			sint8 hh = h + 2;
-			// set new height of neighbor grid points
-			lower_grid_to(x-1, y-1, hh);
-			lower_grid_to(x  , y-1, hh);
-			lower_grid_to(x+1, y-1, hh);
-			lower_grid_to(x-1, y  , hh);
-			lower_grid_to(x+1, y  , hh);
-			lower_grid_to(x-1, y+1, hh);
-			lower_grid_to(x  , y+1, hh);
-			lower_grid_to(x+1, y+1, hh);
-		}
-	}
+	lower_vertex_to(x - 1, y - 1, hex_corner_t::E, h);
 }
 
 

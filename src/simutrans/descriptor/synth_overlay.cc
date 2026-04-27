@@ -51,9 +51,9 @@ static image_t* marker[2][slope_t::max_slopes];
 
 // Per-climate-slot, per-slope filled hex ground tiles.  Eager build
 // alongside marker; lookup is a flat array read.  Memory budget:
-// each filled hex RLE-compresses to ~3-4 KB at pak64 raster width,
-// so the full 8 * 729 set is ~20 MB.  Acceptable but the dominant
-// cost; consider lazy generation only if it becomes a problem.
+// each filled hex RLE-compresses to ~3-4 KB at pak64 raster width;
+// only the ~340 valid slopes (per-edge diff ≤ 1) out of 4096 are
+// generated, so the full 8 * 340 set is ~8 MB.
 static image_t* ground[ground_climate_slots][slope_t::max_slopes];
 
 // Per-slope alpha-mask hex tiles, RLE-shape-identical to ground[].
@@ -198,7 +198,7 @@ static size_t encode_rle(const PIXVAL* buf, sint32 w, sint32 h, PIXVAL* out)
 // The flat-top hex footprint is a `4u × 2u` lattice cell (E and W
 // vertices on the horizontal extremes at mid-y, NE/SE/NW/SW at
 // quarter-width on the top and bottom rows), with each vertex lifted
-// by `corner_h * tile_raster_scale_y(TILE_HEIGHT_STEP, 4u)` for
+// by `corner_h * hex_height_raster_scale_y(TILE_HEIGHT_STEP, 4u)` for
 // slope-aware outlines.  The footprint dimensions are dictated by the
 // hex iso lattice in `hex_proj.h` (column step `(3u, u)`, row step
 // `(0, 2u)`).  The image bbox adds headroom above that footprint for
@@ -591,6 +591,23 @@ void init()
 	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
 		uint8 ch[hex_corner_t::count];
 		decode_corner_heights((slope_t::type)s, ch);
+
+		// Skip slopes that violate the per-edge ≤ 1 height constraint —
+		// they cannot appear on valid terrain, the partition solver may
+		// fail on them, and generating sprites for them wastes startup
+		// time and memory.  Callers check for NULL via IMG_EMPTY.
+		bool valid = true;
+		for(  int i = 0;  i < hex_corner_t::count;  i++  ) {
+			const int j = (i + 1) % hex_corner_t::count;
+			if(  ch[i] > ch[j] + 1 || ch[j] > ch[i] + 1  ) {
+				valid = false;
+				break;
+			}
+		}
+		if(  !valid  ) {
+			continue;
+		}
+
 		plane_partition::hex_partition_t partition;
 		partition.region_count = 0;
 		if(  !plane_partition::find_min_partition(ch, partition)  ) {
