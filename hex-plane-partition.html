@@ -528,29 +528,18 @@ function computeRegions(chordSet) {
 }
 
 /**
- * Search-side coplanarity test.
+ * Search-side coplanarity test (must match the solver's acceptance criterion).
  *
- * Triangles are trivially planar. For 4+ points: take the plane through the
- * first 3 (normal n = v1 × v2 where v1=p1-p0, v2=p2-p0) and verify every
- * remaining point pᵢ has n · (pᵢ - p0) = 0.
+ * Triangles are trivially planar. For 4+ points, the naive "plane through the
+ * first three corners" check is unsafe: if those three are nearly collinear in
+ * xy, the cross product is tiny and floating noise can wrongly accept a skew
+ * quad. We therefore reuse the same C(n,4) tetra-volume criterion as
+ * verifyCoplanar so the solver and the independent verifier stay aligned.
  */
 function isCoplanar(indices, heights, eps) {
   if (indices.length <= 3) return true;
-  if (eps === undefined) eps = 1e-9;
-  const pts = indices.map(i => [CORNERS_2D[i][0], CORNERS_2D[i][1], heights[i]]);
-  const p0 = pts[0];
-  const v1 = [pts[1][0]-p0[0], pts[1][1]-p0[1], pts[1][2]-p0[2]];
-  const v2 = [pts[2][0]-p0[0], pts[2][1]-p0[1], pts[2][2]-p0[2]];
-  const n = [
-    v1[1]*v2[2] - v1[2]*v2[1],
-    v1[2]*v2[0] - v1[0]*v2[2],
-    v1[0]*v2[1] - v1[1]*v2[0],
-  ];
-  for (let i = 3; i < pts.length; i++) {
-    const dx = pts[i][0]-p0[0], dy = pts[i][1]-p0[1], dz = pts[i][2]-p0[2];
-    if (Math.abs(n[0]*dx + n[1]*dy + n[2]*dz) > eps) return false;
-  }
-  return true;
+  if (eps === undefined) eps = 1e-6;
+  return verifyCoplanar(indices, heights, eps);
 }
 
 /**
@@ -668,7 +657,9 @@ function runBootTests() {
     { h: [0,0,0,1,1,1], n: 3, name: 'half-slope → 3 planes' },
     { h: [0,0,0,0,0,1], n: 2, name: 'single peak → 2 planes' },
     { h: [0,0,0,0,1,1], n: 2, name: 'edge step → 2 planes' },
-    { h: [0,1,0,1,0,1], n: 4, name: 'alternating → 4 planes (worst case)' },
+    { h: [0,1,0,1,0,1], n: 3, name: 'alternating → 3 planes' },
+    // Smallest integer heights that force 4 coplanar regions (exhaustive over 0..2)
+    { h: [0,1,0,0,2,1], n: 4, name: 'worst case → 4 planes (heights [0,1,0,0,2,1])' },
   ];
   known.forEach(tc => {
     check(tc.name, () => {
@@ -690,13 +681,11 @@ function runBootTests() {
     return true;
   });
   check('isCoplanar rejects a known non-planar quad', () => {
-    // Bump just one corner — any quad spanning it is no longer planar
-    const h = [0,0,0,1,2,1];
-    const region = [0,1,2,3]; // includes the bumped corner 4? no, doesn't.
-    // Pick a region we KNOW is non-planar: (1,2,3,4) heights 0,0,1,2
-    const r2 = [1,2,3,4];
-    if (isCoplanar(r2, h)) return 'isCoplanar accepted a non-planar quad';
-    if (verifyCoplanar(r2, h)) return 'verifyCoplanar accepted a non-planar quad';
+    // Single peak at c5: quad (c0,c1,c2,c5) is a skew saddle, not coplanar
+    const h = [0,0,0,0,0,1];
+    const region = [0, 1, 2, 5];
+    if (isCoplanar(region, h)) return 'isCoplanar accepted a non-planar quad';
+    if (verifyCoplanar(region, h)) return 'verifyCoplanar accepted a non-planar quad';
     return true;
   });
 
@@ -887,6 +876,7 @@ const PRESETS = [
   ['edge step',    '0,0,0,0,1,1'],
   ['double slope', '0,0,1,1,2,2'],
   ['alternating',  '0,1,0,1,0,1'],
+  ['worst case',   '0,1,0,0,2,1'],
   ['single peak',  '0,0,0,0,0,2'],
   ['spiral',       '0,1,2,0,1,2'],
   ['tricky',       '2,0,0,1,1,2'],
