@@ -34,6 +34,9 @@ static const hex_chord_t HEX_ALL_CHORDS[9] = {
 	{2, 4}, {2, 5}, {3, 5},
 };
 
+static const sint8 HEX_CORNER_PROJECTED_X[hex_corner_t::count] = {  1,  0, -1, -1,  0,  1 };
+static const sint8 HEX_CORNER_PROJECTED_Y[hex_corner_t::count] = {  0,  1,  1,  0, -1, -1 };
+
 inline bool partition_chords_cross(const hex_chord_t &c1, const hex_chord_t &c2)
 {
 	const uint8 a = c1.a < c1.b ? c1.a : c1.b;
@@ -147,8 +150,6 @@ inline bool region_coplanar(const hex_region_t &region, const uint8 ch[hex_corne
 	if(  region.len <= 3  ) {
 		return true;
 	}
-	static const sint8 X[hex_corner_t::count] = {  1,  0, -1, -1,  0,  1 };
-	static const sint8 Y[hex_corner_t::count] = {  0,  1,  1,  0, -1, -1 };
 
 	for(  uint8 a = 0;  a < region.len;  a++  ) {
 		for(  uint8 b = a + 1;  b < region.len;  b++  ) {
@@ -159,14 +160,14 @@ inline bool region_coplanar(const hex_region_t &region, const uint8 ch[hex_corne
 					const uint8 ic = region.v[c];
 					const uint8 id = region.v[d];
 
-					const sint64 v1x = (sint64)X[ib] - (sint64)X[ia];
-					const sint64 v1y = (sint64)Y[ib] - (sint64)Y[ia];
+					const sint64 v1x = (sint64)HEX_CORNER_PROJECTED_X[ib] - (sint64)HEX_CORNER_PROJECTED_X[ia];
+					const sint64 v1y = (sint64)HEX_CORNER_PROJECTED_Y[ib] - (sint64)HEX_CORNER_PROJECTED_Y[ia];
 					const sint64 v1z = (sint64)ch[ib] - (sint64)ch[ia];
-					const sint64 v2x = (sint64)X[ic] - (sint64)X[ia];
-					const sint64 v2y = (sint64)Y[ic] - (sint64)Y[ia];
+					const sint64 v2x = (sint64)HEX_CORNER_PROJECTED_X[ic] - (sint64)HEX_CORNER_PROJECTED_X[ia];
+					const sint64 v2y = (sint64)HEX_CORNER_PROJECTED_Y[ic] - (sint64)HEX_CORNER_PROJECTED_Y[ia];
 					const sint64 v2z = (sint64)ch[ic] - (sint64)ch[ia];
-					const sint64 v3x = (sint64)X[id] - (sint64)X[ia];
-					const sint64 v3y = (sint64)Y[id] - (sint64)Y[ia];
+					const sint64 v3x = (sint64)HEX_CORNER_PROJECTED_X[id] - (sint64)HEX_CORNER_PROJECTED_X[ia];
+					const sint64 v3y = (sint64)HEX_CORNER_PROJECTED_Y[id] - (sint64)HEX_CORNER_PROJECTED_Y[ia];
 					const sint64 v3z = (sint64)ch[id] - (sint64)ch[ia];
 					if(  partition_det3_i64(v1x, v1y, v1z, v2x, v2y, v2z, v3x, v3y, v3z) != 0  ) {
 						return false;
@@ -178,9 +179,43 @@ inline bool region_coplanar(const hex_region_t &region, const uint8 ch[hex_corne
 	return true;
 }
 
+inline bool region_flat_horizontal(const hex_region_t &region, const uint8 ch[hex_corner_t::count])
+{
+	for(  uint8 i = 1;  i < region.len;  i++  ) {
+		if(  ch[region.v[i]] != ch[region.v[0]]  ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+inline uint8 region_projected_area2(const hex_region_t &region)
+{
+	sint16 area2 = 0;
+	for(  uint8 i = 0;  i < region.len;  i++  ) {
+		const uint8 j = (uint8)((i + 1) % region.len);
+		area2 += (sint16)HEX_CORNER_PROJECTED_X[region.v[i]] * (sint16)HEX_CORNER_PROJECTED_Y[region.v[j]]
+		      - (sint16)HEX_CORNER_PROJECTED_X[region.v[j]] * (sint16)HEX_CORNER_PROJECTED_Y[region.v[i]];
+	}
+	return (uint8)(area2 < 0 ? -area2 : area2);
+}
+
+inline uint8 partition_flat_projected_area2(const hex_partition_t &partition, const uint8 ch[hex_corner_t::count])
+{
+	uint8 area2 = 0;
+	for(  uint8 ri = 0;  ri < partition.region_count;  ri++  ) {
+		const hex_region_t &region = partition.region[ri];
+		if(  region_flat_horizontal(region, ch)  ) {
+			area2 += region_projected_area2(region);
+		}
+	}
+	return area2;
+}
+
 inline bool find_min_partition(const uint8 ch[hex_corner_t::count], hex_partition_t &best)
 {
 	uint8 best_regions = std::numeric_limits<uint8>::max();
+	uint8 best_flat_area2 = 0;
 	bool found = false;
 
 	for(  uint16 mask = 0;  mask < (1u << 9);  mask++  ) {
@@ -209,8 +244,14 @@ inline bool find_min_partition(const uint8 ch[hex_corner_t::count], hex_partitio
 				break;
 			}
 		}
-		if(  ok && candidate.region_count < best_regions  ) {
+		// Keep region count primary.  For equal-size partitions (notably
+		// 000111 and rotations), prefer more horizontal top-view area.
+		const uint8 flat_area2 = ok ? partition_flat_projected_area2(candidate, ch) : 0;
+		if(  ok
+		  &&  (candidate.region_count < best_regions
+		    || (candidate.region_count == best_regions && flat_area2 > best_flat_area2))  ) {
 			best_regions = candidate.region_count;
+			best_flat_area2 = flat_area2;
 			best = candidate;
 			found = true;
 			if(  best_regions == 1  ) {

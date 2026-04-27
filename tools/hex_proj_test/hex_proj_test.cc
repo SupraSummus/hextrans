@@ -909,8 +909,144 @@ static void test_plane_partition_known_cases()
 }
 
 
+static void test_plane_partition_disambiguates_000111_by_flat_area()
+{
+	static const uint8 base[6] = {0,0,0,1,1,1};
+	for(  uint8 rot = 0;  rot < 6;  rot++  ) {
+		uint8 h[6];
+		for(  uint8 i = 0;  i < 6;  i++  ) {
+			h[(i + rot) % 6] = base[i];
+		}
+
+		synth_overlay::plane_partition::hex_partition_t p;
+		const bool ok = synth_overlay::plane_partition::find_min_partition(h, p);
+		const uint8 flat_area2 = ok ? synth_overlay::plane_partition::partition_flat_projected_area2(p, h) : 0;
+		if(  !ok || p.region_count != 3 || flat_area2 != 2  ) {
+			std::fprintf(stderr,
+			             "partition 000111 rotation %d failed: regions=%d flat_area2=%d\n",
+			             (int)rot, ok ? (int)p.region_count : -1, (int)flat_area2);
+			std::abort();
+		}
+	}
+}
+
+
+static bool hex_corner_neighbour_diffs_within_one(const uint8 h[6])
+{
+	for(  uint8 i = 0;  i < 6;  i++  ) {
+		const uint8 j = (uint8)((i + 1) % 6);
+		if(  h[i] > h[j] + 1 || h[j] > h[i] + 1  ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+
+static bool hex_corner_has_zero_height(const uint8 h[6])
+{
+	for(  uint8 i = 0;  i < 6;  i++  ) {
+		if(  h[i] == 0  ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+
+static bool hex_corner_matches_rotation(const uint8 h[6], const uint8 pattern[6])
+{
+	for(  uint8 rot = 0;  rot < 6;  rot++  ) {
+		bool match = true;
+		for(  uint8 i = 0;  i < 6;  i++  ) {
+			if(  h[(i + rot) % 6] != pattern[i]  ) {
+				match = false;
+				break;
+			}
+		}
+		if(  match  ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+
+static bool hex_corner_known_equal_score_tie_shape(const uint8 h[6])
+{
+	static const uint8 p110100[6] = {1,1,0,1,0,0};
+	static const uint8 p101100[6] = {1,0,1,1,0,0};
+	static const uint8 p101010[6] = {1,0,1,0,1,0};
+	return hex_corner_matches_rotation(h, p110100)
+	    || hex_corner_matches_rotation(h, p101100)
+	    || hex_corner_matches_rotation(h, p101010);
+}
+
+
+struct plane_partition_score_t {
+	uint8 regions;
+	uint8 flat_area2;
+	uint16 count;
+};
+
+
+static plane_partition_score_t plane_partition_best_score_for_heights(const uint8 h[6])
+{
+	plane_partition_score_t best = {255, 0, 0};
+	for(  uint16 mask = 0;  mask < (1u << 9);  mask++  ) {
+		bool ok = true;
+		for(  uint8 i = 0;  i < 9 && ok;  i++  ) {
+			if(  (mask & (uint16)(1u << i)) == 0  ) { continue; }
+			for(  uint8 j = i + 1;  j < 9;  j++  ) {
+				if(  (mask & (uint16)(1u << j)) == 0  ) { continue; }
+				if(  synth_overlay::plane_partition::partition_chords_cross(synth_overlay::plane_partition::HEX_ALL_CHORDS[i],
+				                                                             synth_overlay::plane_partition::HEX_ALL_CHORDS[j])  ) {
+					ok = false;
+					break;
+				}
+			}
+		}
+		if(  !ok  ) {
+			continue;
+		}
+		synth_overlay::plane_partition::hex_partition_t candidate;
+		if(  !synth_overlay::plane_partition::compute_regions_from_chord_mask(mask, candidate)  ) {
+			continue;
+		}
+		for(  uint8 r = 0;  r < candidate.region_count;  r++  ) {
+			if(  !synth_overlay::plane_partition::region_coplanar(candidate.region[r], h)  ) {
+				ok = false;
+				break;
+			}
+		}
+		if(  !ok  ) {
+			continue;
+		}
+		const uint8 flat_area2 = synth_overlay::plane_partition::partition_flat_projected_area2(candidate, h);
+		if(  candidate.region_count < best.regions
+		  ||  (candidate.region_count == best.regions && flat_area2 > best.flat_area2)  ) {
+			best.regions = candidate.region_count;
+			best.flat_area2 = flat_area2;
+			best.count = 1;
+		}
+		else if(  candidate.region_count == best.regions && flat_area2 == best.flat_area2  ) {
+			best.count++;
+		}
+	}
+	return best;
+}
+
+
 static void test_plane_partition_exhaustive_ternary()
 {
+	// Domain is canonicalized to plausible ground-local shapes: no edge
+	// jump over one height unit, and at least one zero-height corner
+	// (otherwise all corners can shift down).  Even there, 14 cases are
+	// true equal-score ties after min-region/max-flat-area selection:
+	// the rotations of 110100, 101100, and the two rotations of 101010.
+	// The solver therefore promises an optimal score, not uniqueness.
+	uint16 known_tie_shapes = 0;
+	uint16 unique_shapes = 0;
 	for(  uint8 h0 = 0;  h0 < 3;  h0++  )
 	for(  uint8 h1 = 0;  h1 < 3;  h1++  )
 	for(  uint8 h2 = 0;  h2 < 3;  h2++  )
@@ -918,24 +1054,59 @@ static void test_plane_partition_exhaustive_ternary()
 	for(  uint8 h4 = 0;  h4 < 3;  h4++  )
 	for(  uint8 h5 = 0;  h5 < 3;  h5++  ) {
 		const uint8 h[6] = { h0, h1, h2, h3, h4, h5 };
+		if(  !hex_corner_neighbour_diffs_within_one(h) || !hex_corner_has_zero_height(h)  ) {
+			continue;
+		}
+
+		const plane_partition_score_t best = plane_partition_best_score_for_heights(h);
 		synth_overlay::plane_partition::hex_partition_t p;
 		if(  !synth_overlay::plane_partition::find_min_partition(h, p)  ) {
 			std::fprintf(stderr, "partition missing for heights [%d,%d,%d,%d,%d,%d]\n",
 			             h0, h1, h2, h3, h4, h5);
 			std::abort();
 		}
-			if(  p.region_count < 1 || p.region_count > 4  ) {
-				std::fprintf(stderr, "partition count out of range (%d) for heights [%d,%d,%d,%d,%d,%d]\n",
-				             (int)p.region_count, h0, h1, h2, h3, h4, h5);
+
+		const uint8 flat_area2 = synth_overlay::plane_partition::partition_flat_projected_area2(p, h);
+		if(  p.region_count < 1 || p.region_count > 4  ) {
+			std::fprintf(stderr, "partition count out of range (%d) for heights [%d,%d,%d,%d,%d,%d]\n",
+			             (int)p.region_count, h0, h1, h2, h3, h4, h5);
+			std::abort();
+		}
+		if(  p.region_count != best.regions || flat_area2 != best.flat_area2  ) {
+			std::fprintf(stderr, "partition score mismatch for heights [%d,%d,%d,%d,%d,%d]: got regions=%d flat_area2=%d want regions=%d flat_area2=%d\n",
+			             h0, h1, h2, h3, h4, h5,
+			             (int)p.region_count, (int)flat_area2, (int)best.regions, (int)best.flat_area2);
+			std::abort();
+		}
+
+		if(  hex_corner_known_equal_score_tie_shape(h)  ) {
+			if(  best.count <= 1  ) {
+				std::fprintf(stderr, "expected known tie shape [%d,%d,%d,%d,%d,%d] to have multiple best partitions\n",
+				             h0, h1, h2, h3, h4, h5);
 				std::abort();
 			}
-			for(  uint8 r = 0;  r < p.region_count;  r++  ) {
-				if(  !synth_overlay::plane_partition::region_coplanar(p.region[r], h)  ) {
-					std::fprintf(stderr, "non-coplanar region in partition for heights [%d,%d,%d,%d,%d,%d]\n",
-					             h0, h1, h2, h3, h4, h5);
-					std::abort();
-				}
+			known_tie_shapes++;
+			continue;
+		}
+		if(  best.count != 1  ) {
+			std::fprintf(stderr, "unexpected equal-score partition tie for heights [%d,%d,%d,%d,%d,%d]: count=%d\n",
+			             h0, h1, h2, h3, h4, h5, (int)best.count);
+			std::abort();
+		}
+		unique_shapes++;
+
+		for(  uint8 r = 0;  r < p.region_count;  r++  ) {
+			if(  !synth_overlay::plane_partition::region_coplanar(p.region[r], h)  ) {
+				std::fprintf(stderr, "non-coplanar region in partition for heights [%d,%d,%d,%d,%d,%d]\n",
+				             h0, h1, h2, h3, h4, h5);
+				std::abort();
 			}
+		}
+	}
+	if(  known_tie_shapes != 14 || unique_shapes != 121  ) {
+		std::fprintf(stderr, "partition domain count mismatch: known_ties=%d unique=%d\n",
+		             (int)known_tie_shapes, (int)unique_shapes);
+		std::abort();
 	}
 }
 
@@ -966,6 +1137,7 @@ int main()
 	test_render_loop_bijection();
 	test_vertex_owners_neighbour_closure();
 	test_plane_partition_known_cases();
+	test_plane_partition_disambiguates_000111_by_flat_area();
 	test_plane_partition_exhaustive_ternary();
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;
