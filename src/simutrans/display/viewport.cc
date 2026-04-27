@@ -402,7 +402,7 @@ koord3d viewport_t::get_new_cursor_position( const scr_coord &screen_pos, bool g
 		pick_nearest_hex_vertex_global(world, grid_x, grid_y, frac_dq, frac_dr, corner);
 		bd = world->lookup_kartenboden_nocheck(grid_x, grid_y);
 		if (corner_out) *corner_out = corner;
-		const koord image_offset = hex_corner_cursor_draw_offset(corner);
+		const koord image_offset = hex_terraform_cursor_draw_offset(corner);
 		world->get_zeiger()->set_image_offset(image_offset);
 		groff = bd->get_hoehe(corner) - bd->get_hoehe();
 		return koord3d(grid_x, grid_y, bd->get_disp_height() + groff);

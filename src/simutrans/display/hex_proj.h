@@ -162,15 +162,20 @@ inline koord hex_corner_centre_offset(hex_corner_t::type c)
 }
 
 
-/// Object-offset units for drawing a cursor at a hex corner.  The
-/// terraform cursor image is anchored like the legacy grid cursor, so
-/// its draw offset must stay in the same centre-relative frame as the
-/// synthetic hex marker vertices.  Adding the tile anchor→centre
-/// displacement here shifts the arrow down/right while the action still
-/// hits the correct vertex.
-inline koord hex_corner_cursor_draw_offset(hex_corner_t::type c)
+/// Extra screen-y bias in the 64-unit object-offset basis for the
+/// legacy raise/lower arrow art.  The arrow tip is authored one
+/// quarter raster below the marker-vertex frame.
+static const sint16 hex_terraform_cursor_tip_y_bias = 16;
+
+
+/// Object-offset units for drawing the terraform cursor at a hex
+/// corner.  The cursor image is positioned through `main_view_t`'s cursor
+/// path, which already resolves the tile anchor before this fine offset
+/// is applied.
+inline koord hex_terraform_cursor_draw_offset(hex_corner_t::type c)
 {
-	return hex_corner_centre_offset(c);
+	const koord o = hex_corner_centre_offset(c);
+	return koord(o.x, o.y + hex_terraform_cursor_tip_y_bias);
 }
 
 
