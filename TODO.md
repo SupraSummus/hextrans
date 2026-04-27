@@ -602,6 +602,13 @@ corners do not map cleanly to 6).
 
 ## other
 
+`hex-plane-partition.html` is a self-contained browser PoC for the
+corner-chord / minimum-coplanar-region model on a flat-top hex with
+integer corner heights.  It is not wired into the sim executable; if
+the engine ever needs the same partition predicate for rendering or
+tools, port the logic deliberately (do not silently assume the HTML
+matches C++ without a shared test vector set).
+
 `grund_t::rdwr` gates the extra climate-corners-hi byte with
 `is_version_atleast(SIM_VERSION_MAJOR, SIM_SAVE_MINOR)`.  That gate
 silently changes meaning the next time `SIM_SAVE_MINOR` is bumped for
