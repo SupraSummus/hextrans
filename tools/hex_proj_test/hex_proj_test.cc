@@ -33,6 +33,7 @@
 #include "simutrans/dataobj/koord.h"
 #include "simutrans/dataobj/ribi.h"
 #include "simutrans/descriptor/synth_geometry.h"
+#include "simutrans/descriptor/synth_plane_partition.h"
 
 
 // Use a representative raster width.  Must be a multiple of 4 so the
@@ -874,6 +875,65 @@ static void test_vertex_owners_neighbour_closure()
 	}
 }
 
+// ---- 10. Plane partition solver invariants ---------------------------------
+// These are regression checks over the shared solver implementation
+// (`synth_plane_partition.h`), not an independent oracle against a
+// second implementation.
+
+static void test_plane_partition_known_cases()
+{
+	struct tc_t { uint8 h[6]; uint8 n; };
+	static const tc_t cases[] = {
+		{{0,0,0,0,0,0}, 1},
+		{{2,2,2,2,2,2}, 1},
+		{{0,0,0,1,1,1}, 3},
+		{{0,0,0,0,0,1}, 2},
+		{{0,0,0,0,1,1}, 2},
+		{{0,1,0,1,0,1}, 3},
+		{{0,1,0,0,2,1}, 4},
+	};
+	for(  size_t i = 0;  i < sizeof(cases)/sizeof(cases[0]);  i++  ) {
+		synth_overlay::plane_partition::hex_partition_t p;
+		const bool ok = synth_overlay::plane_partition::find_min_partition(cases[i].h, p);
+		if(  !ok || p.region_count != cases[i].n  ) {
+			std::fprintf(stderr, "partition known-case %zu failed: got %d, want %d\n",
+			             i, ok ? (int)p.region_count : -1, (int)cases[i].n);
+			std::abort();
+		}
+	}
+}
+
+
+static void test_plane_partition_exhaustive_ternary()
+{
+	for(  uint8 h0 = 0;  h0 < 3;  h0++  )
+	for(  uint8 h1 = 0;  h1 < 3;  h1++  )
+	for(  uint8 h2 = 0;  h2 < 3;  h2++  )
+	for(  uint8 h3 = 0;  h3 < 3;  h3++  )
+	for(  uint8 h4 = 0;  h4 < 3;  h4++  )
+	for(  uint8 h5 = 0;  h5 < 3;  h5++  ) {
+		const uint8 h[6] = { h0, h1, h2, h3, h4, h5 };
+		synth_overlay::plane_partition::hex_partition_t p;
+		if(  !synth_overlay::plane_partition::find_min_partition(h, p)  ) {
+			std::fprintf(stderr, "partition missing for heights [%d,%d,%d,%d,%d,%d]\n",
+			             h0, h1, h2, h3, h4, h5);
+			std::abort();
+		}
+			if(  p.region_count < 1 || p.region_count > 4  ) {
+				std::fprintf(stderr, "partition count out of range (%d) for heights [%d,%d,%d,%d,%d,%d]\n",
+				             (int)p.region_count, h0, h1, h2, h3, h4, h5);
+				std::abort();
+			}
+			for(  uint8 r = 0;  r < p.region_count;  r++  ) {
+				if(  !synth_overlay::plane_partition::region_coplanar(p.region[r], h)  ) {
+					std::fprintf(stderr, "non-coplanar region in partition for heights [%d,%d,%d,%d,%d,%d]\n",
+					             h0, h1, h2, h3, h4, h5);
+					std::abort();
+				}
+			}
+	}
+}
+
 
 int main()
 {
@@ -900,6 +960,8 @@ int main()
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();
 	test_vertex_owners_neighbour_closure();
+	test_plane_partition_known_cases();
+	test_plane_partition_exhaustive_ternary();
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;
 }
