@@ -594,21 +594,18 @@ gated as unreachable) — orthogonal to the projection port.
 
 ## Save format version bump
 
-Vertex topology, slope encoding and ribi width have all shifted or
-will shift; the on-disk format is incompatible.  Bump the version
-once the structural changes settle.  Either reject old saves
-cleanly or write a one-shot square→hex converter (hard because 4
-corners do not map cleanly to 6).
+Vertex topology, slope encoding and ribi width have shifted or will
+shift further; the on-disk format is incompatible with upstream square
+saves.  The `grund_t` slope field widened from byte to short in the
+fork-reserved 124.900 save range so new six-corner slopes round-trip,
+but this is only a narrow fix for post-port saves.  Once the
+structural changes settle, either reject old upstream saves cleanly or
+write a one-shot square→hex converter (hard because 4 corners do not
+map cleanly to 6).
 
 ## other
 
-`grund_t::rdwr` gates the extra climate-corners-hi byte with
-`is_version_atleast(SIM_VERSION_MAJOR, SIM_SAVE_MINOR)`.  That gate
-silently changes meaning the next time `SIM_SAVE_MINOR` is bumped for
-an unrelated reason — the compatibility check semantically belongs to
-*this* save change (124.5), not "whatever the latest minor happens to
-be".  Replace with hardcoded `(124, 5)` at the call site, or introduce
-a named constant (e.g. `SAVE_VERSION_HEX_CLIMATE_CORNERS`) so each
-save-format gate stays pinned to the change that introduced it.
-Retire when the save-version gating scheme grows a per-feature
-constant convention; until then it's a footgun for the next bump.
+Save-format feature gates now have names in `simversion.h` rather
+than floating against `SIM_SAVE_MINOR`.  Continue that convention for
+future on-disk changes so later fork-version bumps do not silently
+change the meaning of old readers.

@@ -212,7 +212,7 @@ void grund_t::rdwr(loadsave_t *file)
 		if(  file->is_loading()  ) {
 			plan->set_climate((climate)(climate_data & 7));
 			uint8 corners_load = (climate_data >> 4) & 15u;
-			if(  file->is_version_atleast(SIM_VERSION_MAJOR, SIM_SAVE_MINOR)  ) {
+			if(  file->is_version_atleast(SAVE_VERSION_HEX_CLIMATE_CORNERS_MAJOR, SAVE_VERSION_HEX_CLIMATE_CORNERS_MINOR)  ) {
 				uint8 hi = 0;
 				file->rdwr_byte(hi);
 				corners_load |= (uint8)((hi & 3u) << 4);
@@ -222,7 +222,7 @@ void grund_t::rdwr(loadsave_t *file)
 		else {
 			// Do not call set_climate / set_climate_corners here — that would
 			// clobber the live six-bit mask (high bits are not in climate_data).
-			if(  file->is_version_atleast(SIM_VERSION_MAJOR, SIM_SAVE_MINOR)  ) {
+			if(  file->is_version_atleast(SAVE_VERSION_HEX_CLIMATE_CORNERS_MAJOR, SAVE_VERSION_HEX_CLIMATE_CORNERS_MINOR)  ) {
 				uint8 hi = (uint8)((corners_save >> 4) & 3u);
 				file->rdwr_byte(hi);
 			}
@@ -262,14 +262,21 @@ void grund_t::rdwr(loadsave_t *file)
 	}
 
 	if(file->is_version_atleast(88, 9)) {
-		uint8 sl = slope;
-		if(  file->is_version_less(112, 7)  &&  file->is_saving()  ) {
-			// truncate double slopes to single slopes, better than nothing
-			sl = min( corner_sw(slope), 1 ) + min( corner_se(slope), 1 ) * 2 + min( corner_ne(slope), 1 ) * 4 + min( corner_nw(slope), 1 ) * 8;
+		if(  file->is_version_less(SAVE_VERSION_HEX_SLOPE_SHORT_MAJOR, SAVE_VERSION_HEX_SLOPE_SHORT_MINOR)  ) {
+			uint8 sl = (uint8)slope;
+			if(  file->is_version_less(112, 7)  &&  file->is_saving()  ) {
+				// truncate double slopes to single slopes, better than nothing
+				sl = min( corner_sw(slope), 1 ) + min( corner_se(slope), 1 ) * 2 + min( corner_ne(slope), 1 ) * 4 + min( corner_nw(slope), 1 ) * 8;
+			}
+			file->rdwr_byte(sl);
+			if(  file->is_loading()  ) {
+				slope = sl;
+			}
 		}
-		file->rdwr_byte(sl);
-		if(  file->is_loading()  ) {
-			slope = sl;
+		else {
+			// HEX-PORT: slope_t::type is sint16 (729 possible slopes under
+			// 6-corner base-3); byte saves wrapped slopes >= 256.
+			file->rdwr_short(slope);
 		}
 	}
 	else {

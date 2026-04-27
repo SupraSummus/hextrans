@@ -22,8 +22,17 @@
 
 // Beware: SAVEGAME minor is often ahead of version minor when there were patches.
 // ==> These have no direct connection at all!
-#define SIM_SAVE_MINOR      5
-#define SIM_SERVER_MINOR    5
+//
+// Hextrans is a save-incompatible fork: terrain topology, slope encoding and
+// direction semantics diverge from upstream Simutrans.  Keep fork saves in a
+// high minor range so they are visibly not upstream 124.x saves.
+#define SIM_SAVE_MINOR      900
+#define SIM_SERVER_MINOR    900
+
+#define SAVE_VERSION_HEX_CLIMATE_CORNERS_MAJOR 124
+#define SAVE_VERSION_HEX_CLIMATE_CORNERS_MINOR   5
+#define SAVE_VERSION_HEX_SLOPE_SHORT_MAJOR     124
+#define SAVE_VERSION_HEX_SLOPE_SHORT_MINOR     900
 // NOTE: increment before next release to enable save/load of new features
 
 #define MAKEOBJ_VERSION "60.10"
