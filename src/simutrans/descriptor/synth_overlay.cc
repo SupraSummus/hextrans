@@ -8,6 +8,7 @@
 #include "ground_desc.h"
 #include "image.h"
 #include "synth_geometry.h"
+#include "synth_plane_partition.h"
 #include "../display/simgraph.h"
 #include "../display/hex_proj.h"
 #include "../simconst.h"
@@ -398,24 +399,31 @@ static PIXVAL shade_pixval(PIXVAL p, sint32 brightness)
 // quarter-width on the top and bottom rows), plus bbox headroom for
 // lifted vertices.
 //
-// The tile is split into 6 triangle faces meeting at the centre,
-// each face shaded by Lambertian on its world-space normal so that
-// slopes read as 3D rather than as flat coloured hexes.
-static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
+// The tile is partitioned into the minimum number of coplanar corner
+// regions (PoC in `hex-plane-partition.html`, ported here).  Each
+// region is then shaded from one Lambertian normal so genuinely planar
+// quads/pentagons do not pick up centre-fan seam artefacts.
+static inline void decode_corner_heights(slope_t::type slope, uint8 ch[hex_corner_t::count])
+{
+	ch[hex_corner_t::E ] = (uint8)corner_e (slope);
+	ch[hex_corner_t::SE] = (uint8)corner_se(slope);
+	ch[hex_corner_t::SW] = (uint8)corner_sw(slope);
+	ch[hex_corner_t::W ] = (uint8)corner_w (slope);
+	ch[hex_corner_t::NW] = (uint8)corner_nw(slope);
+	ch[hex_corner_t::NE] = (uint8)corner_ne(slope);
+}
+
+
+static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx,
+                             const plane_partition::hex_partition_t &partition)
 {
 	const synth_hex_geometry_t geom = synth_hex_geometry(u, TILE_HEIGHT_STEP);
 	const sint32 w = geom.w;
 	const sint32 h = geom.h;
 	const PIXVAL base = CLIMATE_RGB555[climate_idx];
 
-	const uint8 ch[hex_corner_t::count] = {
-		(uint8)corner_e (slope),
-		(uint8)corner_se(slope),
-		(uint8)corner_sw(slope),
-		(uint8)corner_w (slope),
-		(uint8)corner_nw(slope),
-		(uint8)corner_ne(slope),
-	};
+	uint8 ch[hex_corner_t::count];
+	decode_corner_heights(slope, ch);
 
 	// Vertex screen Y after lift (x from geom.vx).  Order matches hex_corner_t.
 	sint32 vy[hex_corner_t::count];
@@ -423,70 +431,82 @@ static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx)
 		vy[i] = geom.vy_base[i] - (sint32)ch[i] * geom.lift;
 	}
 
-	const sint32 cx = w / 2;
-	const sint32 cy_base = geom.mid_y;
-	// Centre height — average of the 6 corners.  Picked over max /
-	// min so that a flat-top dome and a flat-bottom valley both
-	// shade reasonably; centre = max() makes valleys look caved-in
-	// and centre = min() makes domes look razored.  Integer-rounded
-	// since lift is integer pixels.
-	sint32 sum_h = 0;
-	for(  int i = 0;  i < hex_corner_t::count;  i++  ) {
-		sum_h += ch[i];
-	}
-	const sint32 cz = (sum_h * geom.lift) / hex_corner_t::count; // pixels
-	const sint32 cy = cy_base - cz;
-
 	PIXVAL* buf = new PIXVAL[w * h];
 	memset(buf, 0, w * h * sizeof(PIXVAL));
 
-	// 6 faces, each a triangle (centre, corner_a, corner_b) with the
-	// two corners adjacent on the hex boundary.  Boundary walk
-	// E → SE → SW → W → NW → NE follows hex_corner_t's enum order
-	// 0..5, so face f's corners are simply (f, (f+1) % 6).
-	for(  int f = 0;  f < hex_corner_t::count;  f++  ) {
-		const uint8 a = (uint8)f;
-		const uint8 b = (uint8)((f + 1) % hex_corner_t::count);
+	for(  uint8 ri = 0;  ri < partition.region_count;  ri++  ) {
+		const plane_partition::hex_region_t &reg = partition.region[ri];
+		if(  reg.len < 3  ) {
+			continue;
+		}
 
-		// World-space edges from centre.  Face normal = a × b — our
-		// boundary walk is screen-CW (= world-CW with screen-Y-down),
-		// the winding order that makes a × b point in +z for a flat
-		// tile.  Flip the operands and flat tiles come out dark.
-		// `synth_ground_lambert_face_normal` matches fill_polygon.
-		double nx, ny, nz;
-		synth_ground_lambert_face_normal(geom, slope, cz, a, b, &nx, &ny, &nz);
-		// Calibrated Lambertian shading: flat ground remains at the
-		// climate base colour, while tilted faces swing light/dark
-		// around that baseline.
+		const uint8 i0 = reg.v[0];
+		uint8 i1 = reg.v[1];
+		uint8 i2 = reg.v[2];
+		double nx = 0.0, ny = 0.0, nz = 0.0;
+		bool have_normal = false;
+		for(  uint8 k = 2;  k < reg.len;  k++  ) {
+			i1 = reg.v[k - 1];
+			i2 = reg.v[k];
+			const double ax = (double)(geom.vx[i1] - geom.vx[i0]);
+			const double ay = (double)(vy[i1] - vy[i0]);
+			const double az = (double)((sint32)ch[i1] * geom.lift - (sint32)ch[i0] * geom.lift);
+			const double bx = (double)(geom.vx[i2] - geom.vx[i0]);
+			const double by = (double)(vy[i2] - vy[i0]);
+			const double bz = (double)((sint32)ch[i2] * geom.lift - (sint32)ch[i0] * geom.lift);
+			nx = ay * bz - az * by;
+			ny = az * bx - ax * bz;
+			nz = ax * by - ay * bx;
+			if(  nx != 0.0 || ny != 0.0 || nz != 0.0  ) {
+				have_normal = true;
+				break;
+			}
+		}
+		if(  !have_normal  ) {
+			nx = 0.0;
+			ny = 0.0;
+			nz = 1.0;
+		}
+		if(  nz < 0.0  ) {
+			nx = -nx;
+			ny = -ny;
+			nz = -nz;
+		}
 		const sint32 brightness = synth_ground_lambert_brightness(nx, ny, nz);
-
 		const PIXVAL face_color = shade_pixval(base, brightness);
 
-		const sint32 fxs[3] = { cx, geom.vx[a], geom.vx[b] };
-		const sint32 fys[3] = { cy, vy[a], vy[b] };
-		fill_polygon(buf, w, h, fxs, fys, 3, face_color);
+		sint32 xs[hex_corner_t::count];
+		sint32 ys[hex_corner_t::count];
+		for(  uint8 i = 0;  i < reg.len;  i++  ) {
+			xs[i] = geom.vx[reg.v[i]];
+			ys[i] = vy[reg.v[i]];
+		}
+		fill_polygon(buf, w, h, xs, ys, reg.len, face_color);
 
-		// Boundary chord parallel to x (e.g. flat-top hex SE–SW): both
-		// slanted edges use y_hi == that row, so half-open contributes
-		// zero crossings while the horizontal rim is skipped in the
-		// edge loop above.  Fill the rim explicitly; skip vy==cy
-		// (degenerate horizontal triangle) to avoid double-painting the
-		// centre scanline.
-		if(  vy[a] == vy[b]  &&  vy[a] != cy  ) {
-			const sint32 y = vy[a];
-			if(  y >= 0  &&  y < h  ) {
-				sint32 x0 = geom.vx[a];
-				sint32 x1 = geom.vx[b];
-				if(  x0 > x1  ) {
-					const sint32 t = x0;
-					x0 = x1;
-					x1 = t;
-				}
-				if(  x0 < 0   ) { x0 = 0; }
-				if(  x1 >= w  ) { x1 = w - 1; }
-				for(  sint32 x = x0;  x <= x1;  x++  ) {
-					buf[y * w + x] = face_color;
-				}
+		// `fill_polygon` uses half-open scanline crossing and skips
+		// horizontal edges by design (for parity correctness).  Seal
+		// every horizontal boundary edge here so top/bottom rows of
+		// planar regions are filled deterministically.
+		for(  uint8 i = 0;  i < reg.len;  i++  ) {
+			const uint8 j = (uint8)((i + 1) % reg.len);
+			if(  ys[i] != ys[j]  ) {
+				continue;
+			}
+			const sint32 y = ys[i];
+			if(  y < 0 || y >= h  ) {
+				continue;
+			}
+			sint32 x0 = xs[i];
+			sint32 x1 = xs[j];
+			if(  x0 > x1  ) {
+				const sint32 t = x0;
+				x0 = x1;
+				x1 = t;
+			}
+			if(  x0 < 0   ) { x0 = 0; }
+			if(  x1 >= w  ) { x1 = w - 1; }
+			for(  sint32 x = x0;  x <= x1;  x++  ) {
+				buf[y * w + x] = face_color;
 			}
 		}
 	}
@@ -569,13 +589,21 @@ void init()
 	}
 
 	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
+		uint8 ch[hex_corner_t::count];
+		decode_corner_heights((slope_t::type)s, ch);
+		plane_partition::hex_partition_t partition;
+		partition.region_count = 0;
+		if(  !plane_partition::find_min_partition(ch, partition)  ) {
+			dbg->fatal("synth_overlay::init", "no planar partition for slope %d", s);
+		}
+
 		for(  int half = 0;  half < 2;  half++  ) {
 			image_t* img = build_marker(u, (slope_t::type)s, half == 1);
 			img->register_image();
 			marker[half][s] = img;
 		}
 		for(  int c = 0;  c < ground_climate_slots;  c++  ) {
-			image_t* img = build_ground(u, (slope_t::type)s, (uint8)c);
+			image_t* img = build_ground(u, (slope_t::type)s, (uint8)c, partition);
 			img->register_image();
 			ground[c][s] = img;
 		}
