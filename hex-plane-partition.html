@@ -394,6 +394,12 @@
       regions further, never merge separately-coplanar ones.
     </p>
     <p>
+      Coplanarity for regions with four or more corners is checked by testing every
+      4-tuple for a degenerate tetrahedron (zero triple product), not by fitting a
+      plane through the first three points — the latter breaks when those three
+      are nearly collinear in the hex plane and the normal becomes numerically tiny.
+    </p>
+    <p>
       The non-trivial coplanar quads — like the parallelogram in the
       <code>(0,0,0,1,1,1)</code> example — come from the three pairs of parallel
       chords on a flat-top hex: <code>{02,35}</code>, <code>{04,13}</code>, and
@@ -528,32 +534,6 @@ function computeRegions(chordSet) {
 }
 
 /**
- * Search-side coplanarity test.
- *
- * Triangles are trivially planar. For 4+ points: take the plane through the
- * first 3 (normal n = v1 × v2 where v1=p1-p0, v2=p2-p0) and verify every
- * remaining point pᵢ has n · (pᵢ - p0) = 0.
- */
-function isCoplanar(indices, heights, eps) {
-  if (indices.length <= 3) return true;
-  if (eps === undefined) eps = 1e-9;
-  const pts = indices.map(i => [CORNERS_2D[i][0], CORNERS_2D[i][1], heights[i]]);
-  const p0 = pts[0];
-  const v1 = [pts[1][0]-p0[0], pts[1][1]-p0[1], pts[1][2]-p0[2]];
-  const v2 = [pts[2][0]-p0[0], pts[2][1]-p0[1], pts[2][2]-p0[2]];
-  const n = [
-    v1[1]*v2[2] - v1[2]*v2[1],
-    v1[2]*v2[0] - v1[0]*v2[2],
-    v1[0]*v2[1] - v1[1]*v2[0],
-  ];
-  for (let i = 3; i < pts.length; i++) {
-    const dx = pts[i][0]-p0[0], dy = pts[i][1]-p0[1], dz = pts[i][2]-p0[2];
-    if (Math.abs(n[0]*dx + n[1]*dy + n[2]*dz) > eps) return false;
-  }
-  return true;
-}
-
-/**
  * Solver. Brute-force over every non-crossing chord set; pick the smallest
  * partition where every region is coplanar.
  *
@@ -570,7 +550,7 @@ function findMinPartition(heights) {
     if (!regions) continue;
     let allCop = true;
     for (let i = 0; i < regions.length; i++) {
-      if (!isCoplanar(regions[i], heights)) { allCop = false; break; }
+      if (!regionCoplanar(regions[i], heights)) { allCop = false; break; }
     }
     if (allCop && regions.length < bestCount) {
       bestCount = regions.length;
@@ -581,10 +561,11 @@ function findMinPartition(heights) {
 }
 
 /* =============================================================================
- * INDEPENDENT VERIFIERS — used by tests and live-verify badge.
+ * REGION COPLANARITY + INDEPENDENT TILING CHECK
  *
- * Deliberately use a different formulation than the solver so a bug in either
- * surfaces as a test failure.
+ * `regionCoplanar` is the single predicate used both inside the solver and in
+ * boot tests / the live badge (coplanarity).  `verifyTile` is separate: shoelace
+ * areas must sum to the hex area so partitions cannot overlap or gap.
  * ============================================================================= */
 
 /** det of a 3x3 matrix made from 3 column vectors */
@@ -595,11 +576,11 @@ function det3(v1, v2, v3) {
 }
 
 /**
- * Verify a region is coplanar by checking that EVERY 4-tuple of its corners
- * forms a degenerate (zero-volume) tetrahedron. C(6,4)=15 checks worst case —
- * trivially fast and orthogonal to the solver's 3-point-normal approach.
+ * True iff all corners of `region` lie on one plane in (x, y, z=height).
+ * Triangles are trivially planar. For 4+ points: every 4-tuple must span a
+ * degenerate tetrahedron (|det| ≤ eps). Worst case here is C(6,4)=15 checks.
  */
-function verifyCoplanar(region, heights, eps) {
+function regionCoplanar(region, heights, eps) {
   if (region.length <= 3) return true;
   if (eps === undefined) eps = 1e-6;
   const pts = region.map(i => [CORNERS_2D[i][0], CORNERS_2D[i][1], heights[i]]);
@@ -668,7 +649,9 @@ function runBootTests() {
     { h: [0,0,0,1,1,1], n: 3, name: 'half-slope → 3 planes' },
     { h: [0,0,0,0,0,1], n: 2, name: 'single peak → 2 planes' },
     { h: [0,0,0,0,1,1], n: 2, name: 'edge step → 2 planes' },
-    { h: [0,1,0,1,0,1], n: 4, name: 'alternating → 4 planes (worst case)' },
+    { h: [0,1,0,1,0,1], n: 3, name: 'alternating → 3 planes' },
+    // Smallest integer heights that force 4 coplanar regions (exhaustive over 0..2)
+    { h: [0,1,0,0,2,1], n: 4, name: 'worst case (4 planes, min heights 0..2)' },
   ];
   known.forEach(tc => {
     check(tc.name, () => {
@@ -679,24 +662,10 @@ function runBootTests() {
     });
   });
 
-  // ---- 2. Solver and independent verifier must agree ----
-  // Hand-built coplanar / non-coplanar quads to confirm both checks track.
-  check('isCoplanar agrees with verifyCoplanar (slope quad)', () => {
-    // (5,0,2,3) on heights [0,0,0,1,1,1] is the canonical planar parallelogram
-    const h = [0,0,0,1,1,1];
-    const region = [5,0,2,3];
-    if (!isCoplanar(region, h)) return 'isCoplanar said no';
-    if (!verifyCoplanar(region, h)) return 'verifyCoplanar said no';
-    return true;
-  });
-  check('isCoplanar rejects a known non-planar quad', () => {
-    // Bump just one corner — any quad spanning it is no longer planar
-    const h = [0,0,0,1,2,1];
-    const region = [0,1,2,3]; // includes the bumped corner 4? no, doesn't.
-    // Pick a region we KNOW is non-planar: (1,2,3,4) heights 0,0,1,2
-    const r2 = [1,2,3,4];
-    if (isCoplanar(r2, h)) return 'isCoplanar accepted a non-planar quad';
-    if (verifyCoplanar(r2, h)) return 'verifyCoplanar accepted a non-planar quad';
+  // ---- 2. Hand-built coplanar / skew quads (regression on the predicate) ----
+  check('regionCoplanar: slope parallelogram vs single-peak skew quad', () => {
+    if (!regionCoplanar([5, 0, 2, 3], [0, 0, 0, 1, 1, 1])) return 'expected planar [5,0,2,3] on half-slope heights';
+    if (regionCoplanar([0, 1, 2, 5], [0, 0, 0, 0, 0, 1])) return 'expected skew [0,1,2,5] on single-peak heights to fail';
     return true;
   });
 
@@ -716,7 +685,7 @@ function runBootTests() {
          if (r.regions.length > maxPlanes) maxPlanes = r.regions.length;
          let allCop = true;
          for (let k = 0; k < r.regions.length; k++) {
-           if (!verifyCoplanar(r.regions[k], h)) { allCop = false; break; }
+           if (!regionCoplanar(r.regions[k], h)) { allCop = false; break; }
          }
          if (!allCop)        exhFails.push({ h, why: 'a region is not coplanar' });
          else if (!verifyTile(r.regions))
@@ -861,10 +830,11 @@ function render() {
     }).join('');
   }
 
-  // ---- Live verification using the independent verifier ----
+  // ---- Live badge: regionCoplanar matches the solver predicate; verifyTile (shoelace
+  //      areas vs hex size) is the independent check that regions do not overlap or gap ----
   const status = document.getElementById('verified-status');
   if (result) {
-    const allCop = result.regions.every(r => verifyCoplanar(r, heights));
+    const allCop = result.regions.every(r => regionCoplanar(r, heights));
     const tile   = verifyTile(result.regions);
     if (allCop && tile) {
       status.textContent = '✓ verified — every region coplanar, regions tile the hex';
@@ -887,6 +857,7 @@ const PRESETS = [
   ['edge step',    '0,0,0,0,1,1'],
   ['double slope', '0,0,1,1,2,2'],
   ['alternating',  '0,1,0,1,0,1'],
+  ['worst case',   '0,1,0,0,2,1'],
   ['single peak',  '0,0,0,0,0,2'],
   ['spiral',       '0,1,2,0,1,2'],
   ['tricky',       '2,0,0,1,1,2'],
