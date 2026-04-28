@@ -90,6 +90,7 @@
 #include "../network/memory_rw.h"
 #include "../utils/simrandom.h"
 #include "../utils/simstring.h"
+#include "../utils/cbuffer.h"
 
 #include "../tool/simtool.h"
 #include "../player/finance.h"
@@ -997,6 +998,31 @@ const char *tool_raise_lower_base_t::move( player_t *player, uint16 buttonstate,
 		default_param = NULL;
 	}
 	return result;
+}
+
+void tool_raise_lower_base_t::append_status_text(cbuffer_t &info, koord3d pos) const
+{
+	if(  pos == koord3d::invalid  ) {
+		return;
+	}
+
+	const koord k = pos.get_2d();
+	if(  !welt->is_within_grid_limits(k)  ) {
+		return;
+	}
+
+	const grund_t *gr = welt->lookup_kartenboden_gridcoords(k);
+	if(  gr == NULL  ) {
+		return;
+	}
+
+	static const char *corner_name[hex_corner_t::count] = { "E", "SE", "SW", "W", "NW", "NE" };
+	const sint8 tile_hgt = gr->get_hoehe();
+	const sint8 vertex_hgt = gr->get_hoehe(cursor_corner);
+	const sint8 rel_hgt = vertex_hgt - tile_hgt;
+	const char sign = rel_hgt < 0 ? '-' : '+';
+
+	info.printf(" v:%s h%c%i", corner_name[cursor_corner], sign, abs(rel_hgt));
 }
 
 

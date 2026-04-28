@@ -86,6 +86,7 @@ protected:
 public:
 	tool_raise_lower_base_t(uint16 id) : tool_t(id | GENERAL_TOOL), is_dragging(false), drag_height(0), cursor_corner(hex_corner_t::NW) { offset = Z_GRID; }
 	void set_cursor_corner(hex_corner_t::type c) OVERRIDE { cursor_corner = c; }
+	void append_status_text(cbuffer_t &, koord3d) const OVERRIDE;
 	image_id get_icon(player_t*) const OVERRIDE { return grund_t::underground_mode==grund_t::ugm_all ? IMG_EMPTY : icon; }
 	bool init(player_t*) OVERRIDE { is_dragging = false; return true; }
 	bool exit(player_t*) OVERRIDE { is_dragging = false; return true; }

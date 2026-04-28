@@ -2142,6 +2142,9 @@ void win_display_flush(double konto)
 	info.clear();
 	if(  pos!=koord3d::invalid  ) {
 		info.printf( "(%s)", pos.get_str() );
+		if(  tool_t *tool = wl->get_tool(wl->get_active_player_nr())  ) {
+			tool->append_status_text(info, pos);
+		}
 	}
 	if(  skinverwaltung_t::timelinesymbol==NULL  ) {
 		info.printf( " %s", translator::translate(wl->use_timeline()?"timeline":"no timeline") );

@@ -29,6 +29,7 @@ class toolbar_t;
 class memory_rw_t;
 class karte_ptr_t;
 class zeiger_t;
+class cbuffer_t;
 
 enum {
 	// general tools
@@ -319,6 +320,10 @@ public:
 	virtual void draw_after(scr_coord pos, bool dirty) const;
 
 	virtual const char *get_tooltip(const player_t *) const { return NULL; }
+
+	/// Allows tools to add concise diagnostics to the status bar next to
+	/// the cursor coordinates.
+	virtual void append_status_text(cbuffer_t &, koord3d) const {}
 
 	/**
 	 * @return true if this tool operates over the grid, not the map tiles.
