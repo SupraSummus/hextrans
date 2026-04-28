@@ -46,6 +46,22 @@ void vertex_owners(koord tile, hex_corner_t::type c, hex_vertex_t out[3])
 }
 
 
+void vertex_neighbours(hex_vertex_t v, hex_vertex_t out[3])
+{
+	const hex_vertex_t cv = canonical_vertex(v);
+	if (cv.corner == hex_corner_t::E) {
+		out[0] = { cv.tile,                             hex_corner_t::SE };
+		out[1] = { koord(cv.tile.x,     cv.tile.y - 1), hex_corner_t::SE };
+		out[2] = { koord(cv.tile.x + 1, cv.tile.y - 1), hex_corner_t::SE };
+	}
+	else {
+		out[0] = { cv.tile,                             hex_corner_t::E };
+		out[1] = { koord(cv.tile.x - 1, cv.tile.y + 1), hex_corner_t::E };
+		out[2] = { koord(cv.tile.x,     cv.tile.y + 1), hex_corner_t::E };
+	}
+}
+
+
 // ribi → koord displacement: sum of neighbours[i] for each set bit.
 // Single-bit ribi returns the matching neighbour step; multi-bit
 // returns the vector sum (which is (0, 0) for any straight pair).

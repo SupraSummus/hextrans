@@ -76,11 +76,11 @@ koord viewport_t::get_map2d_coord( const koord3d &viewpos ) const
 {
 	// Convert a 3D map coord to the 2D map coord that lands at the same
 	// screen position.  Z bumps the screen-y up by
-	// `tile_raster_scale_y(z*TILE_HEIGHT_STEP, W)`; under hex, axial +r
+	// `hex_height_raster_scale_y(z*TILE_HEIGHT_STEP, W)`; under hex, axial +r
 	// is the only 1-tile step that adds purely to screen-y (column step
 	// also has a y component, so it can't compensate alone).  Round the
 	// elevation pixel offset to the nearest integer +r step (W/2 each).
-	const sint16 new_yoff = tile_raster_scale_y(viewpos.z*TILE_HEIGHT_STEP,cached_img_size);
+	const sint16 new_yoff = hex_height_raster_scale_y(viewpos.z*TILE_HEIGHT_STEP,cached_img_size);
 	sint16 lines = 0;
 	if(new_yoff>0) {
 		lines = (new_yoff + (cached_img_size/4))/(cached_img_size/2);
@@ -110,7 +110,8 @@ scr_coord viewport_t::get_screen_coord( const koord3d& pos, const koord& off) co
 		+ tile_raster_scale_x(off.x, cached_img_size)
 		+ x_off;
 	const sint32 y = hex_screen_dy(scr_pos_2d.x, scr_pos_2d.y, cached_img_size)
-		+ tile_raster_scale_y(off.y-pos.z*TILE_HEIGHT_STEP, cached_img_size)
+		+ tile_raster_scale_y(off.y, cached_img_size)
+		- hex_height_raster_scale_y(pos.z*TILE_HEIGHT_STEP, cached_img_size)
 		+ y_off;
 
 	return scr_coord(x,y);
@@ -208,7 +209,8 @@ void viewport_t::change_world_position(const koord3d& pos, const koord& off, scr
 	const sint32 row_dy = 2 * (cached_img_size / 4); // W/2
 
 	const sint32 xfix = tile_raster_scale_x(off.x, cached_img_size);
-	const sint32 yfix = tile_raster_scale_y(off.y-pos.z*TILE_HEIGHT_STEP, cached_img_size);
+	const sint32 yfix = tile_raster_scale_y(off.y, cached_img_size)
+		- hex_height_raster_scale_y(pos.z*TILE_HEIGHT_STEP, cached_img_size);
 
 	// Δaxial = (target tile P) - (new view origin).  P is `pos` minus
 	// the constant `view_ij_off` (the centre→top-left offset).
@@ -281,10 +283,10 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 	for(sint8 hgt = hmax; hgt>=hmin; hgt--) {
 
 		// Hex inverse: project the click onto the ground plane at
-		// height `hgt` (z lifts sprites by `tile_raster_scale_y(z*TSH)`,
+		// height `hgt` (z lifts sprites by `hex_height_raster_scale_y(z*TSH)`,
 		// so the inverse adds that back to screen-y), then cube-round
 		// the fractional axial to the nearest hex.
-		const sint32 z_dy = tile_raster_scale_y(hgt*TILE_HEIGHT_STEP, rw1);
+		const sint32 z_dy = hex_height_raster_scale_y(hgt*TILE_HEIGHT_STEP, rw1);
 		double q_f, r_f;
 		hex_screen_to_fractional(screen_pos.x, screen_pos.y + z_dy, rw1, q_f, r_f);
 		const koord delta = hex_round_to_axial(q_f, r_f);

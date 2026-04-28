@@ -788,7 +788,10 @@ static void test_synth_ground_shading_calibrates_flat_plane()
 		std::abort();
 	}
 
-	synth_test_brightness_minmax(geom, slope_t::raised_SW, &lo, &hi);
+	// Use height-2 SW corner: with the 2x-reduced lift (8px/unit), height 2
+	// gives the same 16px visual displacement as height 1 at the old lift.
+	const slope_t::type sw2 = (slope_t::type)(slope_t::raised_SW * 2);
+	synth_test_brightness_minmax(geom, sw2, &lo, &hi);
 	if (lo >= 192 || hi <= 288 || hi - lo < 160) {
 		std::fprintf(stderr,
 			"synth raised_SW shading: expected visible light/dark relief, got min=%d max=%d\n",
@@ -849,6 +852,22 @@ static void test_render_loop_bijection()
 // This duplicates the implementation body — the test cannot link koord.cc
 // in this one-TU build, so drift is caught by review + TODO.md, not by the linker.
 
+static void vertex_neighbours_test(hex_vertex_t v, hex_vertex_t out[3])
+{
+	// v must be canonical (E or SE); produces canonical outputs
+	if (v.corner == hex_corner_t::E) {
+		out[0] = { v.tile,                                     hex_corner_t::SE };
+		out[1] = { koord(v.tile.x,     v.tile.y - 1),          hex_corner_t::SE };
+		out[2] = { koord(v.tile.x + 1, v.tile.y - 1),          hex_corner_t::SE };
+	}
+	else {
+		out[0] = { v.tile,                                     hex_corner_t::E };
+		out[1] = { koord(v.tile.x - 1, v.tile.y + 1),          hex_corner_t::E };
+		out[2] = { koord(v.tile.x,     v.tile.y + 1),          hex_corner_t::E };
+	}
+}
+
+
 static void vertex_owners_test(koord tile, hex_corner_t::type c, hex_vertex_t out[3])
 {
 	const uint8 dir_a = (uint8)(((uint8)c + 5) % 6);
@@ -859,6 +878,45 @@ static void vertex_owners_test(koord tile, hex_corner_t::type c, hex_vertex_t ou
 	out[1].corner = (hex_corner_t::type)(((uint8)c + 2) % 6);
 	out[2].tile   = tile + hex_neighbours_test[dir_b];
 	out[2].corner = (hex_corner_t::type)(((uint8)c + 4) % 6);
+}
+
+
+static void test_vertex_neighbours_closure()
+{
+	// Every vertex v must appear in the neighbour list of each of its own
+	// 3 neighbours (closure / symmetry of the adjacency relation).
+	const koord k(10, 10);
+	for (uint8 c0 = 0; c0 < (uint8)hex_corner_t::count; c0++) {
+		const hex_corner_t::type c = (hex_corner_t::type)c0;
+		// start from a canonical vertex
+		hex_vertex_t v;
+		if (c == hex_corner_t::E || c == hex_corner_t::SE) {
+			v = { k, c };
+		}
+		else {
+			continue; // only E/SE are canonical; others fold onto one of these
+		}
+		hex_vertex_t nb[3];
+		vertex_neighbours_test(v, nb);
+		for (int i = 0; i < 3; i++) {
+			hex_vertex_t nb2[3];
+			vertex_neighbours_test(nb[i], nb2);
+			bool found = false;
+			for (int j = 0; j < 3; j++) {
+				if (nb2[j].tile == v.tile && nb2[j].corner == v.corner) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				std::fprintf(stderr,
+					"vertex_neighbours closure: v(%d,%d,%d) not in neighbours of nb[%d](%d,%d,%d)\n",
+					(int)v.tile.x, (int)v.tile.y, (int)v.corner,
+					i, (int)nb[i].tile.x, (int)nb[i].tile.y, (int)nb[i].corner);
+				std::abort();
+			}
+		}
+	}
 }
 
 
@@ -896,6 +954,11 @@ static void test_plane_partition_known_cases()
 		{{0,0,0,0,1,1}, 2},
 		{{0,1,0,1,0,1}, 3},
 		{{0,1,0,0,2,1}, 4},
+		// height-3 cases (base-4 slope encoding)
+		{{3,3,3,3,3,3}, 1},     // all max-height flat
+		{{0,0,0,0,0,3}, 2},     // one corner raised to 3, same topology as {…,1}
+		{{0,0,0,3,3,3}, 3},     // half raised to 3, same topology as {…,1,1,1}
+		{{0,1,2,3,2,1}, 3},     // max-range ring; coplanar quad NE/E/SW/W → 3 regions
 	};
 	for(  size_t i = 0;  i < sizeof(cases)/sizeof(cases[0]);  i++  ) {
 		synth_overlay::plane_partition::hex_partition_t p;
@@ -1135,10 +1198,49 @@ int main()
 	test_synth_ground_shading_calibrates_flat_plane();
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();
+	test_vertex_neighbours_closure();
 	test_vertex_owners_neighbour_closure();
 	test_plane_partition_known_cases();
 	test_plane_partition_disambiguates_000111_by_flat_area();
 	test_plane_partition_exhaustive_ternary();
+
+	// Verify that every valid base-4 slope (per-edge diff ≤ 1, corner ∈ 0..3)
+	// has a planar partition and that each region is actually coplanar.
+	{
+		uint32 count = 0;
+		for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
+			uint8 ch[6];
+			for(  int i = 0;  i < 6;  i++  ) {
+				ch[i] = (uint8)synth_overlay::hex_corner_height((slope_t::type)s, (hex_corner_t::type)i);
+			}
+			bool valid = true;
+			for(  int i = 0;  i < 6;  i++  ) {
+				const int j = (i + 1) % 6;
+				if(  ch[i] > ch[j] + 1 || ch[j] > ch[i] + 1  ) { valid = false; break; }
+			}
+			if(  !valid  ) { continue; }
+			count++;
+			synth_overlay::plane_partition::hex_partition_t p;
+			if(  !synth_overlay::plane_partition::find_min_partition(ch, p)  ) {
+				std::fprintf(stderr, "base-4 exhaustive: no partition for slope %d\n", s);
+				std::abort();
+			}
+			if(  p.region_count < 1 || p.region_count > 4  ) {
+				std::fprintf(stderr, "base-4 exhaustive: region count %d out of range for slope %d\n",
+				             (int)p.region_count, s);
+				std::abort();
+			}
+			for(  uint8 r = 0;  r < p.region_count;  r++  ) {
+				if(  !synth_overlay::plane_partition::region_coplanar(p.region[r], ch)  ) {
+					std::fprintf(stderr, "base-4 exhaustive: region %d not coplanar for slope %d\n",
+					             (int)r, s);
+					std::abort();
+				}
+			}
+		}
+		std::printf("  base-4 exhaustive partition: %u valid slopes, all partitioned\n", count);
+	}
+
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;
 }

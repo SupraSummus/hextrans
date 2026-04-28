@@ -463,13 +463,28 @@ public:
 	int grid_lower(const player_t *player, koord pos, hex_corner_t::type corner, const char *&err);
 
 	/**
-	 * Raise grid point (@p x,@p y). Changes @ref grid_hgts only, used during map creation/enlargement.
+	 * Raise vertex (q,r,c) to height @p h and propagate the per-edge ≤ 1
+	 * constraint to the 3 adjacent hex vertices.  Hex replacement for the
+	 * old 8-way square raise_grid_to propagation.
+	 */
+	void raise_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 h);
+
+	/**
+	 * Lower vertex (q,r,c) to height @p h and propagate the per-edge ≤ 1
+	 * constraint to the 3 adjacent hex vertices.
+	 */
+	void lower_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 h);
+
+	/**
+	 * Raise grid point (@p x,@p y). Legacy adapter — calls raise_vertex_to
+	 * for the E canonical vertex of tile (x-1, y-1).
 	 * @see clean_up
 	 */
 	void raise_grid_to(sint16 x, sint16 y, sint8 h);
 
 	/**
-	 * Lower grid point (@p x,@p y). Changes @ref grid_hgts only, used during map creation/enlargement.
+	 * Lower grid point (@p x,@p y). Legacy adapter — calls lower_vertex_to
+	 * for the E canonical vertex of tile (x-1, y-1).
 	 * @see clean_up
 	 */
 	void lower_grid_to(sint16 x, sint16 y, sint8 h);

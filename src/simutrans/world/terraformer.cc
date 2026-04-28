@@ -53,9 +53,9 @@ namespace {
 	}
 
 	// Slope of a tile whose 6 corner heights are hn[], seen from a
-	// displayed base of disp_hneu.  Under the 6-corner base-3 encoding
-	// the per-corner deltas are in [0, 2] by construction of the
-	// propagation rule; callers clamp against water_hgt before calling.
+	// displayed base of disp_hneu.  Under the 6-corner base-4 encoding
+	// the per-corner deltas are in [0, 3]; callers clamp against
+	// water_hgt before calling.
 	slope_t::type slope_from_corners(const sint8 hn[HEX_N], sint8 water_hgt, sint8 &disp_hneu)
 	{
 		sint8 h_min, h_max_ignored;
@@ -141,6 +141,23 @@ void terraformer_t::add_node_internal(sint16 x, sint16 y, const sint8 h[HEX_N])
 	}
 	else {
 		ready = false;
+	}
+}
+
+
+void terraformer_t::add_vertex_node(koord tile, hex_corner_t::type corner, sint8 h)
+{
+	hex_vertex_t owners[3];
+	vertex_owners(tile, corner, owners);
+
+	const sint8 fill = (op == terraformer_t::raise) ? welt->get_min_allowed_height() : welt->get_max_allowed_height();
+	for (uint8 i = 0; i < lengthof(owners); i++) {
+		sint8 target[HEX_N];
+		for (uint8 c = 0; c < HEX_N; c++) {
+			target[c] = fill;
+		}
+		target[owners[i].corner] = h;
+		add_node_internal(owners[i].tile.x, owners[i].tile.y, target);
 	}
 }
 
@@ -235,14 +252,9 @@ int terraformer_t::apply()
 }
 
 
-// Hex edge propagation.  For each of the 6 edges of tile (x, y), if
-// one of the 2 corners on that edge would be raised (resp. lowered),
-// queue a node on the neighbour tile across that edge.  The neighbour
-// sees the edge with corners (i+4)%6 and (i+3)%6 in its own hex_corner_t
-// frame — this is the "flip" that makes K's corner i the same world
-// vertex as neighbour's corner (i+4)%6.  The other 4 corners of the
-// neighbour are free to be max_hdiff below the higher of the two shared
-// target heights (raise) / above the lower (lower).
+// Propagate along the hex vertex graph, not whole tiles.  Raising a
+// vertex to H requires its 3 adjacent vertices to be at least H-1;
+// lowering to H requires them to be at most H+1.
 void terraformer_t::prepare_raise(const node_t node)
 {
 	assert(welt->is_within_limits(node.x, node.y));
@@ -250,13 +262,11 @@ void terraformer_t::prepare_raise(const node_t node)
 	sint8 h0[HEX_N];
 	read_corners(welt, node.x, node.y, h0);
 
-	// new height (target clamped up from current)
-	sint8 hn[HEX_N];
 	bool any_up = false;
 	for (uint8 c = 0; c < HEX_N; c++) {
-		hn[c] = max(node.h[c], h0[c]);
 		if (h0[c] < node.h[c]) {
 			any_up = true;
+			break;
 		}
 	}
 
@@ -265,40 +275,19 @@ void terraformer_t::prepare_raise(const node_t node)
 		return;
 	}
 
-	// max-hdiff self-check (matches pre-port invariant; water tiles may
-	// temporarily violate it during multi-pass raise_to updates).
-	sint8 hneu, hmaxneu;
-	min_max_corners(hn, hneu, hmaxneu);
-	const uint8 max_hdiff = ground_desc_t::double_grounds ? 2 : 1;
-	const bool ok = (hmaxneu - hneu <= max_hdiff);
-	if (!ok && !gr->is_water()) {
-		assert(false);
-	}
-
-	// propagate across each of the 6 hex edges
-	for (uint8 e = 0; e < HEX_N; e++) {
-		const uint8 cA = e;                 // first corner of edge e
-		const uint8 cB = (e + 1) % HEX_N;   // second corner
-		if (h0[cA] >= node.h[cA] && h0[cB] >= node.h[cB]) {
-			continue; // nothing raised on this edge
+	for (uint8 c = 0; c < HEX_N; c++) {
+		if (h0[c] >= node.h[c]) {
+			continue;
 		}
+		add_vertex_node(koord(node.x, node.y), (hex_corner_t::type)c, node.h[c]);
 
-		const koord nb = koord(node.x, node.y) + koord::neighbours[e];
-		const sint8 floor_h = (sint8)(max(node.h[cA], node.h[cB]) - max_hdiff);
-
-		// neighbour sees K's corner cA as corner (e+4)%6 and K's corner
-		// cB as corner (e+3)%6 in its own frame.
-		const uint8 nA = (e + 4) % HEX_N;
-		const uint8 nB = (e + 3) % HEX_N;
-
-		sint8 nh[HEX_N];
-		for (uint8 c = 0; c < HEX_N; c++) {
-			nh[c] = floor_h;
+		const hex_vertex_t cv = canonical_vertex({ koord(node.x, node.y), (hex_corner_t::type)c });
+		hex_vertex_t nb[3];
+		vertex_neighbours(cv, nb);
+		const sint8 h1 = (sint8)(node.h[c] - 1);
+		for (int i = 0; i < 3; i++) {
+			add_vertex_node(nb[i].tile, nb[i].corner, h1);
 		}
-		nh[nA] = node.h[cA];
-		nh[nB] = node.h[cB];
-
-		add_node_internal(nb.x, nb.y, nh);
 	}
 }
 
@@ -310,29 +299,19 @@ void terraformer_t::prepare_lower(const node_t node)
 	sint8 h0[HEX_N];
 	read_corners(welt, node.x, node.y, h0);
 
-	const uint8 max_hdiff = ground_desc_t::double_grounds ? 2 : 1;
-
-	for (uint8 e = 0; e < HEX_N; e++) {
-		const uint8 cA = e;
-		const uint8 cB = (e + 1) % HEX_N;
-		if (h0[cA] <= node.h[cA] && h0[cB] <= node.h[cB]) {
-			continue; // nothing to lower on this edge
+	for (uint8 c = 0; c < HEX_N; c++) {
+		if (h0[c] <= node.h[c]) {
+			continue;
 		}
+		add_vertex_node(koord(node.x, node.y), (hex_corner_t::type)c, node.h[c]);
 
-		const koord nb = koord(node.x, node.y) + koord::neighbours[e];
-		const sint8 ceil_h = (sint8)(min(node.h[cA], node.h[cB]) + max_hdiff);
-
-		const uint8 nA = (e + 4) % HEX_N;
-		const uint8 nB = (e + 3) % HEX_N;
-
-		sint8 nh[HEX_N];
-		for (uint8 c = 0; c < HEX_N; c++) {
-			nh[c] = ceil_h;
+		const hex_vertex_t cv = canonical_vertex({ koord(node.x, node.y), (hex_corner_t::type)c });
+		hex_vertex_t nb[3];
+		vertex_neighbours(cv, nb);
+		const sint8 h1 = (sint8)(node.h[c] + 1);
+		for (int i = 0; i < 3; i++) {
+			add_vertex_node(nb[i].tile, nb[i].corner, h1);
 		}
-		nh[nA] = node.h[cA];
-		nh[nB] = node.h[cB];
-
-		add_node_internal(nb.x, nb.y, nh);
 	}
 }
 
@@ -344,8 +323,16 @@ const char *terraformer_t::can_raise_tile_to(const node_t &node, const player_t 
 	const grund_t *gr = welt->lookup_kartenboden_nocheck(node.x,node.y);
 	const sint8 water_hgt = welt->get_water_hgt_nocheck(node.x,node.y);
 
+	sint8 h0[HEX_N];
+	read_corners(welt, node.x, node.y, h0);
+
+	sint8 hn[HEX_N];
+	for (uint8 c = 0; c < HEX_N; c++) {
+		hn[c] = max(node.h[c], h0[c]);
+	}
+
 	sint8 min_hgt, max_hgt;
-	min_max_corners(node.h, min_hgt, max_hgt);
+	min_max_corners(hn, min_hgt, max_hgt);
 
 	if(  gr->is_water()  &&  keep_water  &&  max_hgt > water_hgt  ) {
 		return "";
@@ -359,8 +346,16 @@ const char* terraformer_t::can_lower_tile_to(const node_t &node, const player_t 
 {
 	assert(welt->is_within_limits(node.x,node.y));
 
+	sint8 h0[HEX_N];
+	read_corners(welt, node.x, node.y, h0);
+
+	sint8 hn[HEX_N];
+	for (uint8 c = 0; c < HEX_N; c++) {
+		hn[c] = min(node.h[c], h0[c]);
+	}
+
 	sint8 hneu, max_hgt_ignored;
-	min_max_corners(node.h, hneu, max_hgt_ignored);
+	min_max_corners(hn, hneu, max_hgt_ignored);
 
 	if( hneu < welt->get_min_allowed_height() ) {
 		return "Maximum tile height difference reached.";
@@ -408,15 +403,8 @@ int terraformer_t::raise_to(const node_t &node)
 	sint8 hneu, hmaxneu;
 	min_max_corners(hn, hneu, hmaxneu);
 
-	const uint8 max_hdiff = ground_desc_t::double_grounds ? 2 : 1;
-
 	sint8 disp_hneu;
 	const slope_t::type sneu = slope_from_corners(hn, water_hgt, disp_hneu);
-
-	const bool ok = (hmaxneu - hneu <= max_hdiff);
-	if (!ok && !gr->is_water()) {
-		assert(false);
-	}
 
 	bool recalc_climate = gr->is_water()  ||  welt->get_settings().get_climate_generator() == settings_t::HEIGHT_BASED;
 

@@ -59,6 +59,7 @@ function test_terraform_raise_lower_land_at_map_border()
 }
 
 
+// test_terraform_raise_lower_land_at_water_center: HEX-PORT PENDING.
 function test_terraform_raise_lower_land_at_water_center()
 {
 	local clim  = command_x(tool_set_climate)

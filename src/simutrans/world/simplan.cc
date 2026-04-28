@@ -7,6 +7,7 @@
 #include "../obj/simobj.h"
 #include "../simfab.h"
 #include "../display/simgraph.h"
+#include "../display/hex_proj.h"
 #include "../tool/simmenu.h"
 #include "simplan.h"
 #include "simworld.h"
@@ -467,7 +468,7 @@ void planquadrat_t::display_obj(const sint16 xpos, const sint16 ypos, const sint
 			}
 			// not too low?
 			if(  htop >= hmin  ) {
-				const sint16 yypos = ypos - tile_raster_scale_y( (h - h0) * TILE_HEIGHT_STEP, raster_tile_width );
+				const sint16 yypos = ypos - hex_height_raster_scale_y( (h - h0) * TILE_HEIGHT_STEP, raster_tile_width );
 
 				gr->display_boden( xpos, yypos, raster_tile_width  CLIP_NUM_PAR );
 				gr->display_obj_all( xpos, yypos, raster_tile_width, is_global  CLIP_NUM_PAR );
@@ -537,7 +538,7 @@ void planquadrat_t::display_obj(const sint16 xpos, const sint16 ypos, const sint
 						}
 						// this needs clipping below
 						must_pop_clip = true;
-						const sint16 yh = ypos - tile_raster_scale_y( (h + corner_nw(data.some[j]->get_grund_hang()) - h0) * TILE_HEIGHT_STEP, raster_tile_width ) + ((3 * raster_tile_width) >> 2);
+						const sint16 yh = ypos - hex_height_raster_scale_y( (h + corner_nw(data.some[j]->get_grund_hang()) - h0) * TILE_HEIGHT_STEP, raster_tile_width ) + ((3 * raster_tile_width) >> 2);
 						if(  yh >= p_cr.y  ) {
 							gfx->push_clip_rect(p_cr.x, yh, p_cr.w, p_cr.h + p_cr.y - yh  CLIP_NUM_PAR);
 						}
@@ -577,7 +578,7 @@ void planquadrat_t::display_obj(const sint16 xpos, const sint16 ypos, const sint
 		}
 		// not too low?
 		if(  htop >= hmin  ) {
-			const sint16 yypos = ypos - tile_raster_scale_y( (h - h0) * TILE_HEIGHT_STEP, raster_tile_width );
+			const sint16 yypos = ypos - hex_height_raster_scale_y( (h - h0) * TILE_HEIGHT_STEP, raster_tile_width );
 			gr->display_boden( xpos, yypos, raster_tile_width  CLIP_NUM_PAR );
 			gr->display_obj_all( xpos, yypos, raster_tile_width, is_global  CLIP_NUM_PAR );
 		}
@@ -695,7 +696,7 @@ void planquadrat_t::display_overlay(const sint16 xpos, const sint16 ypos) const
 		for(  uint8 i = 1;  i < ground_size;  i++  ) {
 			grund_t* gr = data.some[i];
 			const sint8 h = gr->get_disp_height();
-			const sint16 yypos = ypos - tile_raster_scale_y( (h - h0) * TILE_HEIGHT_STEP, raster_tile_width );
+			const sint16 yypos = ypos - hex_height_raster_scale_y( (h - h0) * TILE_HEIGHT_STEP, raster_tile_width );
 			gr->display_overlay( xpos, yypos );
 		}
 	}

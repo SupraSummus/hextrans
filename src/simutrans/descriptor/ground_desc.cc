@@ -14,8 +14,8 @@
 #include "synth_overlay.h"
 #include "../dataobj/environment.h"
 
-// Number of possible slope values under the 6-corner base-3 encoding.
-// 3^6 = 729.  Was 81 under square 4-corner base-3.
+// Number of possible slope values under the 6-corner base-4 encoding.
+// 4^6 = 4096.  Was 81 under square 4-corner base-3.
 const int totalslopes = slope_t::max_slopes;
 
 
@@ -958,8 +958,8 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 				// Corners with transition.  `corners == 15` used to
 				// resolve to the magic value 80 (= old all_up_two
 				// sentinel) under the 4-corner encoding; under the
-				// 6-corner base-3 encoding the equivalent sentinel is
-				// slope_t::all_up_two (=728), which needs uint16.
+				// 6-corner base-4 encoding the equivalent sentinel is
+				// slope_t::all_up_two (=2730), which needs uint16.
 				slope_t::type double_corners = corners == 15 ? (slope_t::type)slope_t::all_up_two : slope_from_slope4(slope4_t(corners), 1);
 
 				// create alpha image

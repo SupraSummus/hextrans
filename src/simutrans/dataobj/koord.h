@@ -189,6 +189,17 @@ hex_vertex_t canonical_vertex(hex_vertex_t v);
 
 
 /**
+ * The 3 world vertices adjacent to @p v via hex edges, in canonical form.
+ *
+ * Each world vertex has degree 3 in the edge graph (it sits at the
+ * junction of 3 hex edges).  The bipartite E/SE structure means an
+ * E-type canonical vertex's 3 neighbours are all SE-type, and vice versa.
+ * @p v need not be canonical; it is canonicalised internally.
+ */
+void vertex_neighbours(hex_vertex_t v, hex_vertex_t out[3]);
+
+
+/**
  * Number of per-vertex storage slots for a map of @p W x @p H tiles.
  *
  * Canonical tiles span `q ∈ [-1, W-1], r ∈ [-1, H]` — `(W+1) * (H+2)`

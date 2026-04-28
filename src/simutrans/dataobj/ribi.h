@@ -16,10 +16,10 @@ class koord;
 class koord3d;
 
 /**
- * Slopes of tiles.  Base-3 6-corner encoding: each corner holds
- * height 0, 1 or 2; digit positions follow hex_corner_t (E=mult 1,
- * SE=3, SW=9, W=27, NW=81, NE=243).  3^6 = 729 possible slopes,
- * needs sint16.  Double-height slopes kept.
+ * Slopes of tiles.  Base-4 6-corner encoding: each corner holds
+ * height 0, 1, 2 or 3; digit positions follow hex_corner_t (E=mult 1,
+ * SE=4, SW=16, W=64, NW=256, NE=1024).  4^6 = 4096 possible slopes,
+ * needs sint16.  Triple-height slopes kept.
  */
 class slope_t {
 public:
@@ -35,12 +35,12 @@ public:
 
 		// 6 single-corner raised slopes (corner at height 1).  Digit
 		// positions match hex_corner_t ordering.
-		raised_E  = 1,   ///< E  corner, digit 0
-		raised_SE = 3,   ///< SE corner, digit 1
-		raised_SW = 9,   ///< SW corner, digit 2
-		raised_W  = 27,  ///< W  corner, digit 3
-		raised_NW = 81,  ///< NW corner, digit 4
-		raised_NE = 243, ///< NE corner, digit 5
+		raised_E  = 1,    ///< E  corner, digit 0
+		raised_SE = 4,    ///< SE corner, digit 1
+		raised_SW = 16,   ///< SW corner, digit 2
+		raised_W  = 64,   ///< W  corner, digit 3
+		raised_NW = 256,  ///< NW corner, digit 4
+		raised_NE = 1024, ///< NE corner, digit 5
 
 		// Square-style single-corner aliases.  Under hex these name the
 		// corresponding hex corner at height 1.
@@ -61,28 +61,29 @@ public:
 		east  = raised_NW + raised_SW, ///< 2 west corners raised (legacy square)
 		west  = raised_NE + raised_SE, ///< 2 east corners raised (legacy square)
 
-		all_up_one = raised_E + raised_SE + raised_SW + raised_W + raised_NW + raised_NE, ///< all corners 1 high (= 364)
-		all_up_two = all_up_one * 2,                                                       ///< all corners 2 high (= 728)
+		all_up_one   = raised_E + raised_SE + raised_SW + raised_W + raised_NW + raised_NE, ///< all corners 1 high (= 1365)
+		all_up_two   = all_up_one * 2, ///< all corners 2 high (= 2730)
+		all_up_three = all_up_one * 3, ///< all corners 3 high (= 4095)
 
 		raised = all_up_two,    ///< special meaning: used as slope of bridgeheads and in terraforming tools (keep for compatibility)
 
-		max_number = all_up_two
+		max_number = all_up_three
 	};
 
-	/// Width of the encoding (number of distinct slope values). 3^6.
-	static const int max_slopes = 729;
+	/// Width of the encoding (number of distinct slope values). 4^6.
+	static const int max_slopes = 4096;
 
 	/*
-	 * Macros to access the height of the 6 corners (base-3 digit
+	 * Macros to access the height of the 6 corners (base-4 digit
 	 * extraction).  Corner bit positions match hex_corner_t.  Each
-	 * macro returns 0, 1 or 2.
+	 * macro returns 0, 1, 2, or 3.
 	 */
-#define corner_e(i)  ((i) % 3)
-#define corner_se(i) (((i) / 3) % 3)
-#define corner_sw(i) (((i) / 9) % 3)
-#define corner_w(i)  (((i) / 27) % 3)
-#define corner_nw(i) (((i) / 81) % 3)
-#define corner_ne(i) ((i) / 243)
+#define corner_e(i)  ((i) % 4)
+#define corner_se(i) (((i) / 4) % 4)
+#define corner_sw(i) (((i) / 16) % 4)
+#define corner_w(i)  (((i) / 64) % 4)
+#define corner_nw(i) (((i) / 256) % 4)
+#define corner_ne(i) ((i) / 1024)
 
 /**
  * Build a slope from 4 square corner heights.  Left for backward
@@ -98,41 +99,37 @@ public:
 	+ (sw) * slope_t::raised_SW + (w)  * slope_t::raised_W  \
 	+ (nw) * slope_t::raised_NW + (ne) * slope_t::raised_NE )
 
-/// True if no corner is at height 2 (i.e. only uses 0/1), i.e. a
-/// "single" slope.  Tests that every base-3 digit is < 2 by the
-/// usual trick: `x % 2 == x` iff x == 0 or 1.  Equivalent to
-/// `!(flags[i] & doubles)` but without the table lookup.
+/// True if no corner exceeds height 1 (all base-4 digits are 0 or 1).
 #define is_one_high(i) (!slope_t::has_double_corner(i))
 
-	/// True if @p x has any corner at height 2.  Equivalent to the
-	/// old `doubles` flag; used by max_diff and the is_one_high macro.
+	/// True if @p x has any corner at height >= 2.
 	static bool has_double_corner(type x) {
-		return corner_e(x) == 2 || corner_se(x) == 2 || corner_sw(x) == 2
-		    || corner_w(x) == 2 || corner_nw(x) == 2 || corner_ne(x) == 2;
+		return corner_e(x) >= 2 || corner_se(x) >= 2 || corner_sw(x) >= 2
+		    || corner_w(x) >= 2 || corner_nw(x) >= 2 || corner_ne(x) >= 2;
 	}
 
-	/// Compute the slope opposite to @p x (flip each corner 0↔1 for
-	/// single-height slopes, 0↔2 for double-height).  Returns flat if
-	/// @p x does not allow ways on it.
+	/// Compute the slope opposite to @p x (flip each corner d_max↔0).
+	/// Returns flat if @p x does not allow ways on it.
 	static type opposite(type x)
 	{
 		if (!is_single(x)) return flat;
-		return (type)((is_one_high(x) ? slope_t::all_up_one : slope_t::all_up_two) - x);
+		return (type)(max_diff(x) * all_up_one - x);
 	}
 
-	/// Rotate by 60° clockwise (cyclically shift base-3 digits by 1
+	/// Rotate by 60° clockwise (cyclically shift base-4 digits by 1
 	/// position).  The 4-corner rotate90 is gone — hex has 6
 	/// rotational positions so one step is 60°.  Callers that
 	/// semantically wanted a quarter-turn (e.g. building-layout
 	/// 4-cycles) are broken and need explicit auditing.
-	static type rotate60(type x) { return (type)(((x % raised_NE) * 3) + (x / raised_NE)); }
+	static type rotate60(type x) { return (type)(((x % raised_NE) * 4) + (x / raised_NE)); }
 
-	/// Returns true if @p x has all corners raised (either all 1 or all 2).
-	static bool is_all_up(type x) { return x == all_up_one || x == all_up_two; }
+	/// Returns true if @p x has all corners raised (any uniform height).
+	static bool is_all_up(type x) { return x == all_up_one || x == all_up_two || x == all_up_three; }
 
-	/// Maximum corner-height difference across this slope.  0 for
-	/// flat, 1 for single-height, 2 for double-height.
-	static uint8 max_diff(type x) { return x != flat ? (has_double_corner(x) ? 2 : 1) : 0; }
+	/// Maximum corner height delta across this slope.  0 for flat, 1-3 otherwise.
+	static uint8 max_diff(type x) {
+		return (uint8)max(max(max(corner_e(x), corner_se(x)), max(corner_sw(x), corner_w(x))), max(corner_nw(x), corner_ne(x)));
+	}
 
 	/// Computes minimum corner-height difference between @p high and @p low.
 	static sint8 min_diff(type high, type low) {

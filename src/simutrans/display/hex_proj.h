@@ -11,6 +11,7 @@
 
 #include "scr_coord.h"
 #include "../dataobj/koord.h"
+#include "../simconst.h"
 #include "../simtypes.h"
 
 
@@ -56,6 +57,16 @@
  * `tools/hex_proj_test/hex_proj_test.cc :: test_canvas_anchor_convention`.
  */
 inline sint16 hex_visible_centre_y(sint16 W) { return 3 * W / 4; }
+
+
+/// Screen-y lift for terrain z/corner-height units.  Logical height is
+/// still TILE_HEIGHT_STEP, but the hex synthetic ground uses half the
+/// legacy visual lift so base-elevation and per-corner relief stay in
+/// the same projection.
+inline sint32 hex_height_raster_scale_y(sint32 height_steps, sint16 W)
+{
+	return tile_raster_scale_y(height_steps, W) / 2;
+}
 
 
 /// Screen-x of axial `+q` step in pixels (independent of `r`).

@@ -19,6 +19,7 @@
 #include "../obj/depot.h"
 #include "../simfab.h"
 #include "../display/simgraph.h"
+#include "../display/hex_proj.h"
 #include "../display/viewport.h"
 #include "../simhalt.h"
 #include "../display/simimg.h"
@@ -2787,7 +2788,7 @@ void karte_t::display(uint32 delta_t)
 			int new_yoff = 0;
 			v.get_screen_offset( new_xoff, new_yoff, gfx->get_tile_raster_width() );
 			new_xoff -= tile_raster_scale_x(-v.get_xoff(), rw);
-			new_yoff -= tile_raster_scale_y(-v.get_yoff(), rw) + tile_raster_scale_y(new_pos.z * TILE_HEIGHT_STEP, rw);
+			new_yoff -= tile_raster_scale_y(-v.get_yoff(), rw) + hex_height_raster_scale_y(new_pos.z * TILE_HEIGHT_STEP, rw);
 			viewport->change_world_position( new_pos.get_2d(), -new_xoff, -new_yoff );
 
 			// auto underground to follow convois

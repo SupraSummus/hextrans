@@ -288,12 +288,12 @@ void surface_t::get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &s
 		hgt = (sint8)min( min( min(hE, hSE), min(hSW, hW) ),
 		                  min(hNW, hNE) );
 
-		slope  = slope_t::raised_E  * min(hE  - hgt, 2);
-		slope |= slope_t::raised_SE * min(hSE - hgt, 2);
-		slope |= slope_t::raised_SW * min(hSW - hgt, 2);
-		slope |= slope_t::raised_W  * min(hW  - hgt, 2);
-		slope |= slope_t::raised_NW * min(hNW - hgt, 2);
-		slope |= slope_t::raised_NE * min(hNE - hgt, 2);
+		slope  = slope_t::raised_E  * min(hE  - hgt, 3);
+		slope |= slope_t::raised_SE * min(hSE - hgt, 3);
+		slope |= slope_t::raised_SW * min(hSW - hgt, 3);
+		slope |= slope_t::raised_W  * min(hW  - hgt, 3);
+		slope |= slope_t::raised_NW * min(hNW - hgt, 3);
+		slope |= slope_t::raised_NE * min(hNE - hgt, 3);
 	}
 }
 
@@ -500,52 +500,68 @@ int surface_t::grid_lower(const player_t *player, koord k, hex_corner_t::type co
 
 
 // raise height in the hgt-array
+// Hex vertex adjacency (flat-top, canonical E/SE corners only):
+//   (q,r,E)  neighbors: (q,r,SE)  (q,r-1,SE)  (q+1,r-1,SE)
+void surface_t::raise_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 h)
+{
+	const hex_vertex_t cv = canonical_vertex({koord(q, r), c});
+	// canonical tiles: x ∈ [-1, W-1], y ∈ [-1, H]
+	if ((uint16)(cv.tile.x + 1) > (uint16)cached_grid_size.x ||
+	    (uint16)(cv.tile.y + 1) > (uint16)(cached_grid_size.y + 1)) {
+		return;
+	}
+	const uint32 slot = vertex_slot_index(cv, cached_grid_size.x);
+	if (grid_hgts[slot] >= h) {
+		return;
+	}
+	grid_hgts[slot] = h;
+	if (h <= get_min_allowed_height()) {
+		return;
+	}
+	const sint8 h1 = h - 1;
+	hex_vertex_t nb[3];
+	vertex_neighbours(cv, nb);
+	for (int i = 0; i < 3; i++) {
+		raise_vertex_to(nb[i].tile.x, nb[i].tile.y, nb[i].corner, h1);
+	}
+}
+
+
+void surface_t::lower_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 h)
+{
+	const hex_vertex_t cv = canonical_vertex({koord(q, r), c});
+	if ((uint16)(cv.tile.x + 1) > (uint16)cached_grid_size.x ||
+	    (uint16)(cv.tile.y + 1) > (uint16)(cached_grid_size.y + 1)) {
+		return;
+	}
+	const uint32 slot = vertex_slot_index(cv, cached_grid_size.x);
+	if (grid_hgts[slot] <= h) {
+		return;
+	}
+	grid_hgts[slot] = h;
+	if (h >= get_max_allowed_height()) {
+		return;
+	}
+	const sint8 h1 = h + 1;
+	hex_vertex_t nb[3];
+	vertex_neighbours(cv, nb);
+	for (int i = 0; i < 3; i++) {
+		lower_vertex_to(nb[i].tile.x, nb[i].tile.y, nb[i].corner, h1);
+	}
+}
+
+
 void surface_t::raise_grid_to(sint16 x, sint16 y, sint8 h)
 {
-	if(is_within_grid_limits(x,y)) {
-		// HEX-PORT: doubled index lands on the E canonical slot of
-		// tile (x-1, y-1) — see surface.h.
-		const sint32 offset = (x + y*(cached_grid_size.x+1)) * 2;
-
-		if(  grid_hgts[offset] < h  ) {
-			grid_hgts[offset] = h;
-
-			const sint8 hh = h - (ground_desc_t::double_grounds ? 2 : 1);
-
-			// set new height of neighbor grid points
-			raise_grid_to(x-1, y-1, hh);
-			raise_grid_to(x  , y-1, hh);
-			raise_grid_to(x+1, y-1, hh);
-			raise_grid_to(x-1, y  , hh);
-			raise_grid_to(x+1, y  , hh);
-			raise_grid_to(x-1, y+1, hh);
-			raise_grid_to(x  , y+1, hh);
-			raise_grid_to(x+1, y+1, hh);
-		}
-	}
+	// Legacy adapter: (x,y) in old square-grid coords maps to the E
+	// canonical vertex of tile (x-1, y-1).
+	raise_vertex_to(x - 1, y - 1, hex_corner_t::E, h);
 }
 
 
 void surface_t::lower_grid_to(sint16 x, sint16 y, sint8 h)
 {
-	if(is_within_grid_limits(x,y)) {
-		// HEX-PORT: doubled index — see raise_grid_to.
-		const sint32 offset = (x + y*(cached_grid_size.x+1)) * 2;
-
-		if(  grid_hgts[offset] > h  ) {
-			grid_hgts[offset] = h;
-			sint8 hh = h + 2;
-			// set new height of neighbor grid points
-			lower_grid_to(x-1, y-1, hh);
-			lower_grid_to(x  , y-1, hh);
-			lower_grid_to(x+1, y-1, hh);
-			lower_grid_to(x-1, y  , hh);
-			lower_grid_to(x+1, y  , hh);
-			lower_grid_to(x-1, y+1, hh);
-			lower_grid_to(x  , y+1, hh);
-			lower_grid_to(x+1, y+1, hh);
-		}
-	}
+	lower_vertex_to(x - 1, y - 1, hex_corner_t::E, h);
 }
 
 
@@ -608,8 +624,8 @@ slope_t::type surface_t::calc_natural_slope( const koord k ) const
 
 	// Read the 6 hex corner heights for tile k via the per-vertex
 	// accessor; derive the slope from the deltas above the minimum
-	// corner.  Deltas are clamped to 2 (the max corner height under
-	// the 6-corner base-3 encoding) so pathological terrain can't
+	// corner.  Deltas are clamped to 3 (the max corner height under
+	// the 6-corner base-4 encoding) so pathological terrain can't
 	// overflow into an unrelated slope value.
 	const int hE  = lookup_hgt_nocheck(k, hex_corner_t::E);
 	const int hSE = lookup_hgt_nocheck(k, hex_corner_t::SE);
@@ -621,12 +637,12 @@ slope_t::type surface_t::calc_natural_slope( const koord k ) const
 	const int mini = min( min( min(hE, hSE), min(hSW, hW) ),
 	                      min(hNW, hNE) );
 
-	const int dE  = min(hE  - mini, 2);
-	const int dSE = min(hSE - mini, 2);
-	const int dSW = min(hSW - mini, 2);
-	const int dW  = min(hW  - mini, 2);
-	const int dNW = min(hNW - mini, 2);
-	const int dNE = min(hNE - mini, 2);
+	const int dE  = min(hE  - mini, 3);
+	const int dSE = min(hSE - mini, 3);
+	const int dSW = min(hSW - mini, 3);
+	const int dW  = min(hW  - mini, 3);
+	const int dNW = min(hNW - mini, 3);
+	const int dNE = min(hNE - mini, 3);
 
 	return encode_corners_hex(dE, dSE, dSW, dW, dNW, dNE);
 }
