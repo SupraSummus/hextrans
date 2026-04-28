@@ -9,6 +9,7 @@
 #include "../simconst.h"
 #include "../simdebug.h"
 #include "../obj/depot.h"
+#include "../display/hex_proj.h"
 #include "../display/simgraph.h"
 #include "../display/viewport.h"
 #include "../simhalt.h"
@@ -740,14 +741,12 @@ image_id grund_t::get_back_image(int leftback) const
 	if(back_imageid==0) {
 		return IMG_EMPTY;
 	}
-	uint16 back_image = abs(back_imageid);
-	back_image = leftback ? (back_image / grund_t::WALL_IMAGE_COUNT) + grund_t::WALL_IMAGE_COUNT : back_image % grund_t::WALL_IMAGE_COUNT;
-	if(back_imageid<0) {
-		return ground_desc_t::fundament->get_image(back_image);
-	}
-	else {
-		return ground_desc_t::slopes->get_image(back_image);
-	}
+	const uint16 abs_id = abs(back_imageid);
+	const uint8 wall = leftback ? 1 : 0;
+	const uint16 index = wall == 1
+		? (uint16)(abs_id / grund_t::WALL_IMAGE_COUNT)
+		: (uint16)(abs_id % grund_t::WALL_IMAGE_COUNT);
+	return ground_desc_t::get_back_wall_image(index, back_imageid < 0, wall);
 }
 
 
@@ -981,8 +980,6 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 raster_tile_width) const
 #endif
 {
-	static const uint16 wall_image_offset[grund_t::BACK_WALL_COUNT] = {0, 11};
-
 	const bool dirty = get_flag(grund_t::dirty);
 	const koord k = get_pos().get_2d();
 
@@ -1003,7 +1000,10 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 			// artificial slope
 			const uint16 back_image[grund_t::BACK_WALL_COUNT] = {(uint16)(abs_back_imageid % grund_t::WALL_IMAGE_COUNT), (uint16)(abs_back_imageid / grund_t::WALL_IMAGE_COUNT)};
 
-			// choose foundation or natural slopes
+			// choose foundation or natural slopes for the multi-step
+			// extension cliffs below — those still go through the
+			// pakset path verbatim (synth doesn't cover the
+			// `WALL_IMAGE_COUNT*2 + ...` extension indices yet).
 			const ground_desc_t *sl_draw = artificial ? ground_desc_t::fundament : ground_desc_t::slopes;
 
 			const slope_t::type disp_slope = get_disp_slope();
@@ -1021,7 +1021,12 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 					continue;
 				}
 
-				sint16 yoff = tile_raster_scale_y( -TILE_HEIGHT_STEP*back_height, raster_tile_width );
+				// HEX-PORT: cliff yoff in hex z-basis to match synth
+				// back-wall sprites and `simview.cc` tile world-z.
+				// Pakset cliff sprites (the synth fallback) are
+				// authored in legacy z and now under-shoot — see
+				// TODO.md "synth back-wall fallback".
+				sint16 yoff = hex_height_raster_scale_y( -TILE_HEIGHT_STEP*back_height, raster_tile_width );
 				if(  back_image[i]  ) {
 					// Draw extra wall images for walls that cannot be represented by a image.
 					grund_t *gr = welt->lookup_kartenboden( k + back_wall_neighbour_draw[i] );
@@ -1046,11 +1051,14 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 								img_index = 4 + 4 * (hgt_diff>1) + grund_t::WALL_IMAGE_COUNT * (uint16)i;
 							}
 							gfx->draw_normal( sl_draw->get_image( img_index ), xpos, ypos + yoff, 0, true, dirty CLIP_NUM_PAR );
-							yoff     -= tile_raster_scale_y( TILE_HEIGHT_STEP * (hgt_diff > 1 ? 2 : 1), raster_tile_width );
+							yoff     -= hex_height_raster_scale_y( TILE_HEIGHT_STEP * (hgt_diff > 1 ? 2 : 1), raster_tile_width );
 							hgt_diff -= 2;
 						}
 					}
-					gfx->draw_normal( sl_draw->get_image( back_image[i] + wall_image_offset[i] ), xpos, ypos + yoff, 0, true, dirty CLIP_NUM_PAR );
+					const image_id wall_img = ground_desc_t::get_back_wall_image(back_image[i], artificial, (uint8)i);
+					if(  wall_img != IMG_EMPTY  ) {
+						gfx->draw_normal( wall_img, xpos, ypos + yoff, 0, true, dirty CLIP_NUM_PAR );
+					}
 				}
 			}
 		}

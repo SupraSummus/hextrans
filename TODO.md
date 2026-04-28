@@ -561,6 +561,46 @@ the textured-tile loop indexes `light_map` with the raw 6-corner
 value past its legacy 4-corner range; the back-fill that covers
 single-grounds (pak64) doesn't apply.
 
+**Cliff (back-wall) rendering — encoding mismatch and missing
+sites.**  `synth_overlay::get_back_wall` synthesises hex-shaped
+cliff faces for the 2 walls `calc_back_image` already encodes (NW
+and N neighbours), and `display_boden`'s cliff yoff is now in hex
+z-basis to match `simview.cc`'s tile world-z.  Pakset cliff art
+(legacy z, square-projected silhouette) is still the synth fallback
+and now under-shoots vertically — knowing trade-off, was already
+visibly wrong before.  Three real gaps remain.
+
+`calc_back_image` reads the wrong corner pair for wall 0:
+`corner_sw + corner_nw` is the W edge of this hex, but the
+screen-shared edge with the NW neighbour is the NW edge
+(`corner_w + corner_nw`); the matching neighbour-side corner
+`corner_ne` should be `corner_e` (the NW neighbour's E corner
+aligns with this tile's NW corner under the hex lattice, not its
+NE).  Synth art draws against the correct edge, so encoded h1/h2
+and visible endpoints disagree on sloped tiles.  One contained fix
+in `calc_back_image`'s `i==0` branch.
+
+Hex has 3 screen-up neighbours (NW, N, NE) but `calc_back_image` /
+`display_boden` iterate 2.  The NE-neighbour cliff isn't drawn at
+all.  Wiring it up means a 3rd entry in `back_wall_neighbour[]`
+plus widening the `back_imageid` byte (currently 2 × 11-state
+walls — no room for a third), `BACK_WALL_COUNT` /
+`WALL_IMAGE_COUNT`, and the synth `back_wall[][]` table.
+
+Multi-step extension cliffs (`hgt_diff > 2` loop in `display_boden`,
+indices `WALL_IMAGE_COUNT*2 + ...` and `4 + 4*(hgt_diff>1) + ...`)
+still go through pakset verbatim.  Extend `get_back_wall` with a
+per-step extension family.  Same caveat for fence sprites
+(`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
+`ground_desc_t::fences`, still using `tile_raster_scale_y` for the
+`corner_nw` offset) — synthesise alongside cliffs and move the
+offset to hex z when fences come back into scope.
+
+Middle-slope indices 9 / 10 are drawn as single-step half-cliffs
+(one corner at 0, one at 1) — placeholder for the legacy
+double-height notch shape; revisit if stacked terraforming reads
+wrong.
+
 **Phase C — flow-on.**  Minimap (`gui/minimap.cc`, square pixels
 per tile), per-step vehicle interpolation offsets
 (`vehicle_base_t::calc_set_direction` and friends, square-iso
