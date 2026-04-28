@@ -327,8 +327,8 @@ void export_simple(HSQUIRRELVM vm)
 	static const slope southeast;  ///< SE corner
 	static const slope southwest;  ///< SW corner
 	static const slope raised;     ///< special meaning: used as slope of bridgeheads
-	static const slope all_up_slope   = 82; ///< used for terraforming tools
-	static const slope all_down_slope = 83; ///< used for terraforming tools
+	static const slope all_up_slope   = 4097; ///< used for terraforming tools
+	static const slope all_down_slope = 4098; ///< used for terraforming tools
 	//@}
 #endif
 

@@ -14,8 +14,8 @@
 #include "synth_overlay.h"
 #include "../dataobj/environment.h"
 
-// Number of possible slope values under the 6-corner base-3 encoding.
-// 3^6 = 729.  Was 81 under square 4-corner base-3.
+// Number of possible slope values under the 6-corner base-4 encoding.
+// 4^6 = 4096.  Was 81 under square 4-corner base-3.
 const int totalslopes = slope_t::max_slopes;
 
 

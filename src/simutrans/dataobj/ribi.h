@@ -16,10 +16,10 @@ class koord;
 class koord3d;
 
 /**
- * Slopes of tiles.  Base-3 6-corner encoding: each corner holds
- * height 0, 1 or 2; digit positions follow hex_corner_t (E=mult 1,
- * SE=3, SW=9, W=27, NW=81, NE=243).  3^6 = 729 possible slopes,
- * needs sint16.  Double-height slopes kept.
+ * Slopes of tiles.  Base-4 6-corner encoding: each corner holds
+ * height 0, 1, 2 or 3; digit positions follow hex_corner_t (E=mult 1,
+ * SE=4, SW=16, W=64, NW=256, NE=1024).  4^6 = 4096 possible slopes,
+ * needs sint16.  Triple-height slopes kept.
  */
 class slope_t {
 public:

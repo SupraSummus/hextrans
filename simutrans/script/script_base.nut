@@ -516,25 +516,25 @@ class dir {
 }
 
 class slope {
-	// Base-3 6-corner encoding, matches slope_t::type in
+	// Base-4 6-corner encoding, matches slope_t::type in
 	// src/simutrans/dataobj/ribi.h.  Digit positions follow
-	// hex_corner_t: E=1, SE=3, SW=9, W=27, NW=81, NE=243.
+	// hex_corner_t: E=1, SE=4, SW=16, W=64, NW=256, NE=1024.
 	static flat = 0
-	static southeast = 3     ///< SE corner raised
-	static southwest = 9     ///< SW corner raised
-	static northwest = 81    ///< NW corner raised
-	static northeast = 243   ///< NE corner raised
-	static north = 3 + 9     ///< North slope: low edge N, S corners raised = 12
-	static south = 81 + 243  ///< South slope: low edge S, N corners raised = 324
-	static east  = 81 + 9    ///< East slope: 2 west corners raised = 90
-	static west  = 243 + 3   ///< West slope: 2 east corners raised = 246
+	static southeast = 4       ///< SE corner raised
+	static southwest = 16      ///< SW corner raised
+	static northwest = 256     ///< NW corner raised
+	static northeast = 1024    ///< NE corner raised
+	static north = 4 + 16      ///< North slope: low edge N, S corners raised = 20
+	static south = 256 + 1024  ///< South slope: low edge S, N corners raised = 1280
+	static east  = 256 + 16    ///< East slope: 2 west corners raised = 272
+	static west  = 1024 + 4    ///< West slope: 2 east corners raised = 1028
 	// `raised` here is the single-height "all corners 1" value, used
 	// by scripts as the iteration bound over "interesting" single-
 	// height slopes — NOT the same as C++ `slope_t::raised`, which is
-	// the bridgehead sentinel (= all_up_two = 728).
-	static raised = 1 + 3 + 9 + 27 + 81 + 243  ///< all 6 corners at height 1 = 364
-	static all_up_slope   = 801 ///< used for terraforming tools (matches ALL_UP_SLOPE in simconst.h, outside slope range)
-	static all_down_slope = 802 ///< used for terraforming tools (matches ALL_DOWN_SLOPE in simconst.h, outside slope range)
+	// the bridgehead sentinel (= all_up_two = 2730).
+	static raised = 1 + 4 + 16 + 64 + 256 + 1024  ///< all 6 corners at height 1 = 1365
+	static all_up_slope   = 4097 ///< used for terraforming tools (matches ALL_UP_SLOPE in simconst.h, outside slope range)
+	static all_down_slope = 4098 ///< used for terraforming tools (matches ALL_DOWN_SLOPE in simconst.h, outside slope range)
 }
 
 class time_x {
