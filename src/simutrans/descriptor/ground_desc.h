@@ -121,6 +121,28 @@ public:
 		return pakset_id != IMG_EMPTY ? pakset_id : synth_id;
 	}
 
+	/// Cliff-face sprite for back-wall @p wall (0 = NW edge,
+	/// 1 = N edge) with per-wall image @p index (0..10) and the
+	/// pakset's `fundament` (artificial=true) vs `slopes`
+	/// (artificial=false) split — the same encoding the legacy
+	/// `grund_t::get_back_image(leftback)` returned, hoisted to a
+	/// static so `synth_overlay` can take precedence the same way
+	/// `get_marker_image` and `get_border_image` do.  Legacy pakset
+	/// stacks both walls in one sprite list with wall 1 offset by
+	/// `back_wall_image_count` (= legacy `WALL_IMAGE_COUNT` = 11);
+	/// applied here so callers pass the per-wall index unmodified.
+	static image_id get_back_wall_image(uint16 index, bool artificial, uint8 wall)
+	{
+		const uint16 pakset_offset = (wall == 1) ? synth_overlay::back_wall_image_count : 0;
+		const image_id pakset_id = (artificial ? fundament : slopes)->get_image(index + pakset_offset);
+		const image_id synth_id = synth_overlay::get_back_wall(wall, (uint8)index, artificial);
+
+		if(  synth_overlay::prefer_over_pakset  ) {
+			return synth_id != IMG_EMPTY ? synth_id : pakset_id;
+		}
+		return pakset_id != IMG_EMPTY ? pakset_id : synth_id;
+	}
+
 	static image_id get_border_image(slope_t::type slope_in)
 	{
 		// Pakset path — same lossy hex→square projection as

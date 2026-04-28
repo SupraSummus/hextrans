@@ -163,6 +163,46 @@ image_id get_ground(slope_t::type slope, uint8 climate_idx);
  */
 image_id get_alpha(slope_t::type slope);
 
+
+/// Number of "back walls" (cliff faces against screen-up neighbours)
+/// the synth covers.  Mirrors `grund_t::BACK_WALL_COUNT`.  Wall 0 is
+/// the NW-neighbour cliff (along this hex's NW edge), wall 1 is the
+/// N-neighbour cliff (along this hex's N edge).  See TODO.md for the
+/// missing third hex back-wall (NE neighbour) and the legacy corner-pair
+/// mismatch in `calc_back_image`.
+static const uint8 back_wall_count = 2;
+
+/// Number of distinct cliff-face sprites per wall (matches the
+/// `(h1, h2)` encoding produced by `get_back_image_from_diff` in
+/// `grund.cc`: 9 single-step shapes plus 2 middle-slope shapes).
+/// Mirrors `grund_t::WALL_IMAGE_COUNT`.
+static const uint8 back_wall_image_count = 11;
+
+
+/**
+ * Cliff-face sprite for back-wall @p wall (0 = NW edge, 1 = N edge)
+ * with image index @p index (0..10) under the encoding produced by
+ * `get_back_image_from_diff`: index 0 = no cliff, 1..8 = `(h1, h2)`
+ * for `h1, h2 ∈ {0, 1, 2}` with `index = h1 + 3*h2`, 9..10 = middle
+ * slopes of double-height stacks.  @p artificial picks the fundament
+ * (man-made platform) palette; false picks the natural-cliff palette,
+ * matching the sign of `back_imageid` (`< 0` → fundament).
+ *
+ * Geometry is anchored against `synth_hex_geometry` so the cliff
+ * face attaches along this tile's NW or N hex edge rather than the
+ * legacy diamond silhouette.  Vertical lift uses the same `geom.lift`
+ * (= `hex_height_raster_scale_y(TILE_HEIGHT_STEP, W)`) as synth ground
+ * per-corner lift and as `simview.cc`'s tile world-z translation, so
+ * callers must pair this with the matching `hex_height_raster_scale_y`
+ * for the `back_height` shift in the cliff yoff.
+ *
+ * Returns IMG_EMPTY when synth has not been initialised, the wall
+ * index is out of range, the image index is out of range, or the
+ * decoded cliff has no visible face (index 0).  Callers should fall
+ * back to the pakset `fundament` / `slopes` lookup in that case.
+ */
+image_id get_back_wall(uint8 wall, uint8 index, bool artificial);
+
 } // namespace synth_overlay
 
 #endif
