@@ -71,33 +71,6 @@ void surface_t::set_grid_hgt_nocheck(koord k, sint8 hgt)
 }
 
 
-static sint8 median( sint8 a, sint8 b, sint8 c )
-{
-#if 0
-	if(  a==b  ||  a==c  ) {
-		return a;
-	}
-	else if(  b==c  ) {
-		return b;
-	}
-	else {
-		// noting matches
-//		return (3*128+1 + a+b+c)/3-128;
-		return -128;
-	}
-#elif 0
-	if(  a<=b  ) {
-		return b<=c ? b : max(a,c);
-	}
-	else {
-		return b>c ? b : min(a,c);
-	}
-#else
-		return (6*128+3 + a+a+b+b+c+c)/6-128;
-#endif
-}
-
-
 surface_t::surface_t() :
 	climate_map(0, 0),
 	humidity_map(0, 0)
@@ -271,7 +244,7 @@ sint8 surface_t::max_hgt(const koord k) const
 }
 
 
-void surface_t::get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &slope)
+void surface_t::get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &slope) const
 {
 	if(  (k.x | k.y | (cached_grid_size.x - k.x-1) | (cached_grid_size.y - k.y-1)) >= 0  ) {
 		// Tile is inside map — read its 6 hex corners and derive
@@ -298,82 +271,34 @@ void surface_t::get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &s
 }
 
 
-// fills array with neighbour heights
-// HEX-PORT: 6 hex neighbours.  Storage shape stays [8][4] until
-// calculate_natural_slope() and friends are ported away from 4-corner
-// square geometry; the unused tail is zeroed so callers don't read
-// uninitialised memory (their downstream output is still wrong for hex
-// but doesn't crash).
-void surface_t::get_neighbour_heights(const koord k, sint8 neighbour_height[8][4]) const
+void surface_t::get_natural_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &slope) const
 {
-	memset(neighbour_height, 0, sizeof(sint8) * 8 * 4);
-	for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
-		planquadrat_t *pl2 = access( k + koord::neighbours[i] );
-		if(  pl2  ) {
-			grund_t *gr2 = pl2->get_kartenboden();
-			slope_t::type slope_corner = gr2->get_grund_hang();
-			for(  int j = 0;  j < 4;  j++  ) {
-				neighbour_height[i][j] = gr2->get_hoehe() + corner_sw(slope_corner);
-				slope_corner /= slope_t::southeast;
-			}
-		}
-		else {
-			switch(i) {
-				case 0: // nw
-					neighbour_height[i][0] = groundwater;
-					neighbour_height[i][1] = max( legacy_grid_hgt( k+koord(0,0) ), get_water_hgt( k ) );
-					neighbour_height[i][2] = groundwater;
-					neighbour_height[i][3] = groundwater;
-				break;
-				case 1: // w
-					neighbour_height[i][0] = groundwater;
-					neighbour_height[i][1] = max( legacy_grid_hgt( k+koord(0,1) ), get_water_hgt( k ) );
-					neighbour_height[i][2] = max( legacy_grid_hgt( k+koord(0,0) ), get_water_hgt( k ) );
-					neighbour_height[i][3] = groundwater;
-				break;
-				case 2: // sw
-					neighbour_height[i][0] = groundwater;
-					neighbour_height[i][1] = groundwater;
-					neighbour_height[i][2] = max( legacy_grid_hgt( k+koord(0,1) ), get_water_hgt( k ) );
-					neighbour_height[i][3] = groundwater;
-				break;
-				case 3: // s
-					neighbour_height[i][0] = groundwater;
-					neighbour_height[i][1] = groundwater;
-					neighbour_height[i][2] = max( legacy_grid_hgt( k+koord(1,1) ), get_water_hgt( k ) );
-					neighbour_height[i][3] = max( legacy_grid_hgt( k+koord(0,1) ), get_water_hgt( k ) );
-				break;
-				case 4: // se
-					neighbour_height[i][0] = groundwater;
-					neighbour_height[i][1] = groundwater;
-					neighbour_height[i][2] = groundwater;
-					neighbour_height[i][3] = max( legacy_grid_hgt( k+koord(1,1) ), get_water_hgt( k ) );
-				break;
-				case 5: // e
-					neighbour_height[i][0] = max( legacy_grid_hgt( k+koord(1,1) ), get_water_hgt( k ) );
-					neighbour_height[i][1] = groundwater;
-					neighbour_height[i][2] = groundwater;
-					neighbour_height[i][3] = max( legacy_grid_hgt( k+koord(1,0) ), get_water_hgt( k ) );
-				break;
-				case 6: // ne
-					neighbour_height[i][0] = max( legacy_grid_hgt( k+koord(1,0) ), get_water_hgt( k ) );
-					neighbour_height[i][1] = groundwater;
-					neighbour_height[i][2] = groundwater;
-					neighbour_height[i][3] = groundwater;
-				break;
-				case 7: // n
-					neighbour_height[i][0] = max( legacy_grid_hgt( k+koord(0,0) ), get_water_hgt( k ) );
-					neighbour_height[i][1] = max( legacy_grid_hgt( k+koord(1,0) ), get_water_hgt( k ) );
-					neighbour_height[i][2] = groundwater;
-					neighbour_height[i][3] = groundwater;
-				break;
-			}
+	if(  (k.x | k.y | (cached_grid_size.x - k.x-1) | (cached_grid_size.y - k.y-1)) >= 0  ) {
+		const int hE  = lookup_natural_hgt_nocheck(k, hex_corner_t::E);
+		const int hSE = lookup_natural_hgt_nocheck(k, hex_corner_t::SE);
+		const int hSW = lookup_natural_hgt_nocheck(k, hex_corner_t::SW);
+		const int hW  = lookup_natural_hgt_nocheck(k, hex_corner_t::W);
+		const int hNW = lookup_natural_hgt_nocheck(k, hex_corner_t::NW);
+		const int hNE = lookup_natural_hgt_nocheck(k, hex_corner_t::NE);
 
-			/*neighbour_height[i][0] = groundwater;
-			neighbour_height[i][1] = groundwater;
-			neighbour_height[i][2] = groundwater;
-			neighbour_height[i][3] = groundwater;*/
-		}
+		hgt = (sint8)min( min( min(hE, hSE), min(hSW, hW) ),
+		                  min(hNW, hNE) );
+
+		slope  = slope_t::raised_E  * min(hE  - hgt, 3);
+		slope |= slope_t::raised_SE * min(hSE - hgt, 3);
+		slope |= slope_t::raised_SW * min(hSW - hgt, 3);
+		slope |= slope_t::raised_W  * min(hW  - hgt, 3);
+		slope |= slope_t::raised_NW * min(hNW - hgt, 3);
+		slope |= slope_t::raised_NE * min(hNE - hgt, 3);
+	}
+}
+
+
+void surface_t::reset_natural_to_visible()
+{
+	if(  grid_hgts  &&  natural_grid_hgts  ) {
+		const uint32 slots = vertex_slot_count(cached_grid_size.x, cached_grid_size.y);
+		memcpy(natural_grid_hgts, grid_hgts, slots);
 	}
 }
 
@@ -514,7 +439,9 @@ void surface_t::raise_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 
 	if (grid_hgts[slot] >= h) {
 		return;
 	}
+	// Map-gen / lake-creation natural writer — both channels move together.
 	grid_hgts[slot] = h;
+	natural_grid_hgts[slot] = h;
 	if (h <= get_min_allowed_height()) {
 		return;
 	}
@@ -538,7 +465,9 @@ void surface_t::lower_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 
 	if (grid_hgts[slot] <= h) {
 		return;
 	}
+	// Natural writer — both channels move together.
 	grid_hgts[slot] = h;
+	natural_grid_hgts[slot] = h;
 	if (h >= get_max_allowed_height()) {
 		return;
 	}
@@ -651,96 +580,42 @@ slope_t::type surface_t::calc_natural_slope( const koord k ) const
 slope_t::type surface_t::recalc_natural_slope( const koord k, sint8 &new_height ) const
 {
 	grund_t *gr = lookup_kartenboden(k);
-	if(!gr) {
+	if(  !gr  ) {
 		return slope_t::flat;
 	}
-	else {
-		const sint8 max_hdiff = ground_desc_t::double_grounds ? 2 : 1;
 
-		sint8 corner_height[4];
+	// Read from the natural channel so artificial overlays at shared
+	// vertices (set-slope tool, foundation placement) don't bias what
+	// we report as the natural slope.  Per-vertex storage on the
+	// natural channel is canonical-by-construction, so neighbour
+	// views agree without averaging.  The extra logic this function
+	// keeps is rejecting the candidate when it would collide with
+	// ground stacked above or below the tile.
+	slope_t::type new_slope;
+	sint8 candidate_height = 0;
+	get_natural_height_slope_from_grid(k, candidate_height, new_slope);
 
-		// get neighbour corner heights
-		// HEX-PORT TODO: this whole calculate_natural_slope() block is
-		// fundamentally square-grid (4 corners, 8 neighbours, & 7 mask
-		// indexing) and needs rewriting once slope_t becomes 6-corner.
-		// Until then we keep [8] storage; the trailing two entries are
-		// zeroed by get_neighbour_heights so the masked indexing into
-		// [6,7] doesn't read garbage.
-		sint8 neighbour_height[8][4];
-		get_neighbour_heights( k, neighbour_height );
+	const sint8 max_hdiff = ground_desc_t::double_grounds ? 2 : 1;
+	const sint8 old_height = gr->get_hoehe();
 
-		//check whether neighbours are foundations
-		bool neighbour_fundament[8] = {};
-		for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
-			grund_t *gr2 = lookup_kartenboden( k + koord::neighbours[i] );
-			neighbour_fundament[i] = (gr2  &&  gr2->get_typ() == grund_t::fundament);
+	bool not_ok = slope_t::max_diff(new_slope) > max_hdiff;
+	if(  candidate_height != old_height  ) {
+		not_ok |= lookup(koord3d(k, candidate_height)) != NULL;
+		if(  old_height > candidate_height  ) {
+			not_ok |= lookup(koord3d(k, old_height - 1)) != NULL;
 		}
-
-		for(  uint8 i = 0;  i < 4;  i++  ) { // 0 = sw, 1 = se etc.
-			// corner_sw (i=0): tests vs neighbour 1:w (corner 2 j=1),2:sw (corner 3) and 3:s (corner 4)
-			// corner_se (i=1): tests vs neighbour 3:s (corner 3 j=2),4:se (corner 4) and 5:e (corner 1)
-			// corner_ne (i=2): tests vs neighbour 5:e (corner 4 j=3),6:ne (corner 1) and 7:n (corner 2)
-			// corner_nw (i=3): tests vs neighbour 7:n (corner 1 j=0),0:nw (corner 2) and 1:w (corner 3)
-
-			sint16 median_height = 0;
-			uint8 natural_corners = 0;
-			for(  int j = 1;  j < 4;  j++  ) {
-				if(  !neighbour_fundament[(i * 2 + j) & 7]  ) {
-					natural_corners++;
-					median_height += neighbour_height[(i * 2 + j) & 7][(i + j) & 3];
-				}
-			}
-			switch(  natural_corners  ) {
-				case 1: {
-					corner_height[i] = (sint8)median_height;
-					break;
-				}
-				case 2: {
-					corner_height[i] = median_height >> 1;
-					break;
-				}
-				default: {
-					// take the average of all 3 corners (if no natural corners just use the artificial ones anyway)
-					corner_height[i] = median( neighbour_height[(i * 2 + 1) & 7][(i + 1) & 3], neighbour_height[(i * 2 + 2) & 7][(i + 2) & 3], neighbour_height[(i * 2 + 3) & 7][(i + 3) & 3] );
-					break;
-				}
-			}
+		if(  old_height < candidate_height  ) {
+			not_ok |= lookup(koord3d(k, old_height + 1)) != NULL;
 		}
-
-		// new height of that tile ...
-		sint8 min_height = min( min( corner_height[0], corner_height[1] ), min( corner_height[2], corner_height[3] ) );
-		sint8 max_height = max( max( corner_height[0], corner_height[1] ), max( corner_height[2], corner_height[3] ) );
-		/* check for an artificial slope on a steep sidewall */
-		bool not_ok = abs( max_height - min_height ) > max_hdiff  ||  min_height == -128;
-
-		sint8 old_height = gr->get_hoehe();
-		new_height = min_height;
-
-		// now we must make clear, that there is no ground above/below the slope
-		if(  old_height!=new_height  ) {
-			not_ok |= lookup(koord3d(k,new_height))!=NULL;
-			if(  old_height > new_height  ) {
-				not_ok |= lookup(koord3d(k,old_height-1))!=NULL;
-			}
-			if(  old_height < new_height  ) {
-				not_ok |= lookup(koord3d(k,old_height+1))!=NULL;
-			}
-		}
-
-		if(  not_ok  ) {
-			/* difference too high or ground above/below
-			 * we just keep it as it was ...
-			 */
-			new_height = old_height;
-			return gr->get_grund_hang();
-		}
-
-		const sint16 d1 = min( corner_height[0] - new_height, max_hdiff );
-		const sint16 d2 = min( corner_height[1] - new_height, max_hdiff );
-		const sint16 d3 = min( corner_height[2] - new_height, max_hdiff );
-		const sint16 d4 = min( corner_height[3] - new_height, max_hdiff );
-		return encode_corners(d1, d2, d3, d4);
 	}
+
+	if(  not_ok  ) {
+		new_height = old_height;
+		return gr->get_grund_hang();
+	}
+
+	new_height = candidate_height;
+	return new_slope;
 }
 
 
