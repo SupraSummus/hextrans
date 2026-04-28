@@ -288,12 +288,12 @@ void surface_t::get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &s
 		hgt = (sint8)min( min( min(hE, hSE), min(hSW, hW) ),
 		                  min(hNW, hNE) );
 
-		slope  = slope_t::raised_E  * min(hE  - hgt, 2);
-		slope |= slope_t::raised_SE * min(hSE - hgt, 2);
-		slope |= slope_t::raised_SW * min(hSW - hgt, 2);
-		slope |= slope_t::raised_W  * min(hW  - hgt, 2);
-		slope |= slope_t::raised_NW * min(hNW - hgt, 2);
-		slope |= slope_t::raised_NE * min(hNE - hgt, 2);
+		slope  = slope_t::raised_E  * min(hE  - hgt, 3);
+		slope |= slope_t::raised_SE * min(hSE - hgt, 3);
+		slope |= slope_t::raised_SW * min(hSW - hgt, 3);
+		slope |= slope_t::raised_W  * min(hW  - hgt, 3);
+		slope |= slope_t::raised_NW * min(hNW - hgt, 3);
+		slope |= slope_t::raised_NE * min(hNE - hgt, 3);
 	}
 }
 
@@ -515,6 +515,9 @@ void surface_t::raise_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 
 		return;
 	}
 	grid_hgts[slot] = h;
+	if (h <= get_min_allowed_height()) {
+		return;
+	}
 	const sint8 h1 = h - 1;
 	hex_vertex_t nb[3];
 	vertex_neighbours(cv, nb);
@@ -536,6 +539,9 @@ void surface_t::lower_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 
 		return;
 	}
 	grid_hgts[slot] = h;
+	if (h >= get_max_allowed_height()) {
+		return;
+	}
 	const sint8 h1 = h + 1;
 	hex_vertex_t nb[3];
 	vertex_neighbours(cv, nb);
@@ -618,8 +624,8 @@ slope_t::type surface_t::calc_natural_slope( const koord k ) const
 
 	// Read the 6 hex corner heights for tile k via the per-vertex
 	// accessor; derive the slope from the deltas above the minimum
-	// corner.  Deltas are clamped to 2 (the max corner height under
-	// the 6-corner base-3 encoding) so pathological terrain can't
+	// corner.  Deltas are clamped to 3 (the max corner height under
+	// the 6-corner base-4 encoding) so pathological terrain can't
 	// overflow into an unrelated slope value.
 	const int hE  = lookup_hgt_nocheck(k, hex_corner_t::E);
 	const int hSE = lookup_hgt_nocheck(k, hex_corner_t::SE);
@@ -631,12 +637,12 @@ slope_t::type surface_t::calc_natural_slope( const koord k ) const
 	const int mini = min( min( min(hE, hSE), min(hSW, hW) ),
 	                      min(hNW, hNE) );
 
-	const int dE  = min(hE  - mini, 2);
-	const int dSE = min(hSE - mini, 2);
-	const int dSW = min(hSW - mini, 2);
-	const int dW  = min(hW  - mini, 2);
-	const int dNW = min(hNW - mini, 2);
-	const int dNE = min(hNE - mini, 2);
+	const int dE  = min(hE  - mini, 3);
+	const int dSE = min(hSE - mini, 3);
+	const int dSW = min(hSW - mini, 3);
+	const int dW  = min(hW  - mini, 3);
+	const int dNW = min(hNW - mini, 3);
+	const int dNE = min(hNE - mini, 3);
 
 	return encode_corners_hex(dE, dSE, dSW, dW, dNW, dNE);
 }

@@ -106,6 +106,7 @@ restore after the region-selection tools are hex-aware.
 
 **Per-vertex grid topology.**
 `test_building_build_multi_tile_sloped`,
+`test_terraform_raise_lower_land_at_water_center`,
 `test_terraform_raise_lower_land_at_water_corner` and
 `test_terraform_raise_lower_land_at_water_edge` depend on 4-way
 vertex sharing (hex shares 3 per vertex).  With the terraformer
