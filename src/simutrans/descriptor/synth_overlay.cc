@@ -588,6 +588,7 @@ void init()
 		return;
 	}
 
+	int generated = 0;
 	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
 		uint8 ch[hex_corner_t::count];
 		decode_corner_heights((slope_t::type)s, ch);
@@ -607,6 +608,7 @@ void init()
 		if(  !valid  ) {
 			continue;
 		}
+		generated++;
 
 		plane_partition::hex_partition_t partition;
 		partition.region_count = 0;
@@ -638,14 +640,10 @@ void init()
 	}
 
 	initialised = true;
+	const auto bbox = synth_hex_geometry(u, TILE_HEIGHT_STEP);
 	DBG_DEBUG("synth_overlay::init",
-	          "synthesised %d marker + %d ground + %d alpha + %d border sprites (u=%d, bbox %dx%d)",
-	          slope_t::max_slopes * 2,
-	          slope_t::max_slopes * ground_climate_slots,
-	          slope_t::max_slopes,
-	          slope_t::max_slopes,
-	          u, synth_hex_geometry(u, TILE_HEIGHT_STEP).w,
-	          synth_hex_geometry(u, TILE_HEIGHT_STEP).h);
+	          "synthesised sprites for %d/%d slopes (u=%d, bbox %dx%d)",
+	          generated, slope_t::max_slopes, u, bbox.w, bbox.h);
 }
 
 
