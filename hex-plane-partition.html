@@ -357,7 +357,7 @@
         <p class="label">regions</p>
         <div class="regions-display" id="regions-display"></div>
       </div>
-      <p class="hint">click any corner to cycle 0 → 1 → 2 → 0</p>
+      <p class="hint">click any corner to cycle 0 → 1 → 2 → 3 → 0</p>
     </div>
   </div>
 </section>
@@ -384,7 +384,9 @@
       <li>Enumerate every non-crossing chord subset by backtracking. For a hex this is ≈ 50 sets.</li>
       <li>For each set, repeatedly split the hex along chords to compute the resulting regions.</li>
       <li>Reject any region whose 3D corners aren't coplanar.</li>
-      <li>Return the surviving partition with the fewest regions.</li>
+      <li>Return the surviving partition with the fewest regions, breaking ties first
+          by minimum total within-region height range, then by maximum total flat
+          (horizontal) top-view area.</li>
     </ol>
     <p>
       Triangles are auto-planar, so any triangulation (4 triangles for a hex) is a
@@ -392,6 +394,20 @@
       Restricting to corner-vertex partitions is provably optimal: introducing
       Steiner points (interior or edge-midpoint vertices) can only subdivide
       regions further, never merge separately-coplanar ones.
+    </p>
+    <p>
+      The tiebreaker matters because minimal partitions are not always unique.
+      <code>(0,1,2,3,2,1)</code>, for example, admits three distinct 3-region
+      partitions: an asymmetric mirror pair (each total within-region range 7)
+      and one mirror-symmetric partition (total range 3). Total range is
+      invariant under any symmetry of the input, so mirror-symmetric heights
+      naturally select a mirror-symmetric partition rather than landing on an
+      arbitrary mirror image. Flat regions contribute zero to the range sum,
+      so partitions with more strictly-flat regions still win when they exist
+      (<code>(0,0,0,1,1,1)</code> picks the two-flat-triangle partition). The
+      flat-area fallback handles cases like <code>(0,0,0,1,0,1)</code> where
+      two candidates tie on range sum but one contains a flat quadrilateral
+      and the other only a flat triangle.
     </p>
     <p>
       Coplanarity for regions with four or more corners is checked by testing every
@@ -534,16 +550,71 @@ function computeRegions(chordSet) {
 }
 
 /**
+ * Within-region height range.  Sum across regions is the secondary tiebreaker:
+ * lower is flatter.  The metric is invariant under any symmetry of the input,
+ * so mirror-symmetric inputs (e.g. 012321) get a mirror-symmetric partition
+ * rather than one of two arbitrary mirror images.  Flat regions contribute 0,
+ * so partitions with more flat regions still win when they exist.
+ */
+function partitionRangeSum(regions, heights) {
+  let total = 0;
+  for (let r = 0; r < regions.length; r++) {
+    let lo = heights[regions[r][0]];
+    let hi = lo;
+    for (let i = 1; i < regions[r].length; i++) {
+      const h = heights[regions[r][i]];
+      if (h < lo) lo = h;
+      if (h > hi) hi = h;
+    }
+    total += hi - lo;
+  }
+  return total;
+}
+
+/**
+ * Total horizontal-projected area of strictly-flat regions (all corners at the
+ * same height).  Tertiary tiebreaker — disambiguates 000101 / 010111 etc.
+ * where two candidates tie on range sum but one has a flat quad and the
+ * other only a flat triangle.
+ */
+function partitionFlatArea(regions, heights) {
+  let total = 0;
+  for (let r = 0; r < regions.length; r++) {
+    const reg = regions[r];
+    const h0 = heights[reg[0]];
+    let allFlat = true;
+    for (let i = 1; i < reg.length; i++) {
+      if (heights[reg[i]] !== h0) { allFlat = false; break; }
+    }
+    if (!allFlat) continue;
+    let s = 0;
+    for (let i = 0; i < reg.length; i++) {
+      const j = (i + 1) % reg.length;
+      const [x1, y1] = CORNERS_2D[reg[i]];
+      const [x2, y2] = CORNERS_2D[reg[j]];
+      s += x1 * y2 - x2 * y1;
+    }
+    total += Math.abs(s) / 2;
+  }
+  return total;
+}
+
+/**
  * Solver. Brute-force over every non-crossing chord set; pick the smallest
- * partition where every region is coplanar.
+ * partition where every region is coplanar.  Tiebreak ties at equal region
+ * count by minimum range_sum, then by maximum flat area.  Matches the C++
+ * solver in src/simutrans/descriptor/synth_plane_partition.h.
  *
- * Returns { chordSet, regions } or null (the empty chord set always works as
- * a fallback when the whole hex is coplanar; in worst case a triangulation
- * is found, so this never actually returns null for any valid input).
+ * Returns { chordSet, regions, rangeSum, flatArea } or null (the empty chord
+ * set always works as a fallback when the whole hex is coplanar; in worst
+ * case a triangulation is found, so this never actually returns null for
+ * any valid input).
  */
 function findMinPartition(heights) {
   let best = null;
   let bestCount = Infinity;
+  let bestRangeSum = Infinity;
+  let bestFlatArea = -1;
   for (let s = 0; s < ALL_NONCROSSING_SETS.length; s++) {
     const chordSet = ALL_NONCROSSING_SETS[s];
     const regions = computeRegions(chordSet);
@@ -552,9 +623,18 @@ function findMinPartition(heights) {
     for (let i = 0; i < regions.length; i++) {
       if (!regionCoplanar(regions[i], heights)) { allCop = false; break; }
     }
-    if (allCop && regions.length < bestCount) {
+    if (!allCop) continue;
+    const rangeSum = partitionRangeSum(regions, heights);
+    const flatArea = partitionFlatArea(regions, heights);
+    const better =
+         regions.length < bestCount
+      || (regions.length === bestCount && rangeSum < bestRangeSum)
+      || (regions.length === bestCount && rangeSum === bestRangeSum && flatArea > bestFlatArea);
+    if (better) {
       bestCount = regions.length;
-      best = { chordSet, regions };
+      bestRangeSum = rangeSum;
+      bestFlatArea = flatArea;
+      best = { chordSet, regions, rangeSum, flatArea };
     }
   }
   return best;
@@ -669,16 +749,16 @@ function runBootTests() {
     return true;
   });
 
-  // ---- 3. Exhaustive: all 729 height configurations are valid ----
+  // ---- 3. Exhaustive: all 4096 height configurations (0..3) are valid ----
   let exhPass = 0;
   const exhFails = [];
   let maxPlanes = 0;
-  for (let h0 = 0; h0 < 3; h0++)
-   for (let h1 = 0; h1 < 3; h1++)
-    for (let h2 = 0; h2 < 3; h2++)
-     for (let h3 = 0; h3 < 3; h3++)
-      for (let h4 = 0; h4 < 3; h4++)
-       for (let h5 = 0; h5 < 3; h5++) {
+  for (let h0 = 0; h0 < 4; h0++)
+   for (let h1 = 0; h1 < 4; h1++)
+    for (let h2 = 0; h2 < 4; h2++)
+     for (let h3 = 0; h3 < 4; h3++)
+      for (let h4 = 0; h4 < 4; h4++)
+       for (let h5 = 0; h5 < 4; h5++) {
          const h = [h0,h1,h2,h3,h4,h5];
          const r = findMinPartition(h);
          if (!r) { exhFails.push({ h, why: 'no partition' }); continue; }
@@ -692,7 +772,7 @@ function runBootTests() {
                               exhFails.push({ h, why: "regions don't tile" });
          else exhPass++;
        }
-  check(`exhaustive: all 729 height configs valid (${exhPass} pass)`, () =>
+  check(`exhaustive: all 4096 height configs valid (${exhPass} pass)`, () =>
     exhFails.length === 0
       ? true
       : `${exhFails.length} failure(s), e.g. heights=[${exhFails[0].h.join(',')}] (${exhFails[0].why})`
@@ -711,12 +791,12 @@ function runBootTests() {
     return out;
   }
   outer:
-  for (let h0 = 0; h0 < 3; h0++)
-   for (let h1 = 0; h1 < 3; h1++)
-    for (let h2 = 0; h2 < 3; h2++)
-     for (let h3 = 0; h3 < 3; h3++)
-      for (let h4 = 0; h4 < 3; h4++)
-       for (let h5 = 0; h5 < 3; h5++) {
+  for (let h0 = 0; h0 < 4; h0++)
+   for (let h1 = 0; h1 < 4; h1++)
+    for (let h2 = 0; h2 < 4; h2++)
+     for (let h3 = 0; h3 < 4; h3++)
+      for (let h4 = 0; h4 < 4; h4++)
+       for (let h5 = 0; h5 < 4; h5++) {
          const h = [h0,h1,h2,h3,h4,h5];
          const base = findMinPartition(h).regions.length;
          for (let k = 1; k < 6; k++) {
@@ -728,7 +808,7 @@ function runBootTests() {
            }
          }
        }
-  check(`rotation invariance (3645 rotated configs)`, () =>
+  check(`rotation invariance (20480 rotated configs)`, () =>
     symFails.length === 0
       ? true
       : `${symFails.length} mismatch(es), e.g. ${JSON.stringify(symFails[0])}`
@@ -737,23 +817,37 @@ function runBootTests() {
   // ---- 5. Mirror invariance: reflecting heights gives same plane count ----
   // The hex has reflection symmetry as well as rotation.
   const mirFails = [];
-  for (let h0 = 0; h0 < 3; h0++)
-   for (let h1 = 0; h1 < 3; h1++)
-    for (let h2 = 0; h2 < 3; h2++)
-     for (let h3 = 0; h3 < 3; h3++)
-      for (let h4 = 0; h4 < 3; h4++)
-       for (let h5 = 0; h5 < 3; h5++) {
+  for (let h0 = 0; h0 < 4; h0++)
+   for (let h1 = 0; h1 < 4; h1++)
+    for (let h2 = 0; h2 < 4; h2++)
+     for (let h3 = 0; h3 < 4; h3++)
+      for (let h4 = 0; h4 < 4; h4++)
+       for (let h5 = 0; h5 < 4; h5++) {
          const h = [h0,h1,h2,h3,h4,h5];
          const m = [h[0], h[5], h[4], h[3], h[2], h[1]]; // reflect across x-axis
          const base = findMinPartition(h).regions.length;
          const mir  = findMinPartition(m).regions.length;
          if (base !== mir) mirFails.push({ h, base, mir });
        }
-  check(`mirror invariance (729 reflections)`, () =>
+  check(`mirror invariance (4096 reflections)`, () =>
     mirFails.length === 0
       ? true
       : `${mirFails.length} mismatch(es), e.g. ${JSON.stringify(mirFails[0])}`
   );
+
+  // ---- 6. Tiebreaker picks mirror-symmetric partition for (0,1,2,3,2,1) ----
+  // 012321 is mirror-symmetric across the E–W axis and admits three minimal
+  // 3-region partitions: an asymmetric mirror pair (range_sum 7 each) and one
+  // mirror-symmetric partition (range_sum 3). Without a symmetry-respecting
+  // tiebreaker, the solver picks one of the asymmetric pair by iteration
+  // order, which would render a tile that doesn't reflect the input symmetry.
+  check('tiebreak: 012321 picks mirror-symmetric partition (range_sum=3)', () => {
+    const r = findMinPartition([0, 1, 2, 3, 2, 1]);
+    if (!r) return 'no partition';
+    if (r.regions.length !== 3) return `expected 3 regions, got ${r.regions.length}`;
+    if (r.rangeSum !== 3) return `expected range_sum=3, got ${r.rangeSum}`;
+    return true;
+  });
 
   const elapsed = (performance.now() - t0).toFixed(0);
   return { log, elapsed };
@@ -804,7 +898,7 @@ function render() {
   svg.querySelectorAll('.corner-hit').forEach(el => {
     el.addEventListener('click', () => {
       const i = parseInt(el.dataset.corner, 10);
-      heights[i] = (heights[i] + 1) % 3;
+      heights[i] = (heights[i] + 1) % 4;
       render();
     });
   });
@@ -861,6 +955,7 @@ const PRESETS = [
   ['single peak',  '0,0,0,0,0,2'],
   ['spiral',       '0,1,2,0,1,2'],
   ['tricky',       '2,0,0,1,1,2'],
+  ['mirror ramp',  '0,1,2,3,2,1'],
   ['random',       'random'],
 ];
 const ctrl = document.getElementById('controls');
@@ -869,7 +964,7 @@ PRESETS.forEach(([label, val]) => {
   b.textContent = label;
   b.addEventListener('click', () => {
     heights = (val === 'random')
-      ? Array.from({length: 6}, () => Math.floor(Math.random() * 3))
+      ? Array.from({length: 6}, () => Math.floor(Math.random() * 4))
       : val.split(',').map(n => parseInt(n, 10));
     render();
   });

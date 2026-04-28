@@ -212,9 +212,27 @@ inline uint8 partition_flat_projected_area2(const hex_partition_t &partition, co
 	return area2;
 }
 
+inline uint8 partition_height_range_sum(const hex_partition_t &partition, const uint8 ch[hex_corner_t::count])
+{
+	uint8 total = 0;
+	for(  uint8 ri = 0;  ri < partition.region_count;  ri++  ) {
+		const hex_region_t &region = partition.region[ri];
+		uint8 lo = ch[region.v[0]];
+		uint8 hi = ch[region.v[0]];
+		for(  uint8 i = 1;  i < region.len;  i++  ) {
+			const uint8 h = ch[region.v[i]];
+			if(  h < lo  ) { lo = h; }
+			if(  h > hi  ) { hi = h; }
+		}
+		total = (uint8)(total + (hi - lo));
+	}
+	return total;
+}
+
 inline bool find_min_partition(const uint8 ch[hex_corner_t::count], hex_partition_t &best)
 {
 	uint8 best_regions = std::numeric_limits<uint8>::max();
+	uint8 best_range_sum = 0;
 	uint8 best_flat_area2 = 0;
 	bool found = false;
 
@@ -244,13 +262,26 @@ inline bool find_min_partition(const uint8 ch[hex_corner_t::count], hex_partitio
 				break;
 			}
 		}
-		// Keep region count primary.  For equal-size partitions (notably
-		// 000111 and rotations), prefer more horizontal top-view area.
-		const uint8 flat_area2 = ok ? partition_flat_projected_area2(candidate, ch) : 0;
-		if(  ok
-		  &&  (candidate.region_count < best_regions
-		    || (candidate.region_count == best_regions && flat_area2 > best_flat_area2))  ) {
+		if(  !ok  ) {
+			continue;
+		}
+		// Region count is primary.  Tiebreak by minimum total within-region
+		// height range: the metric is invariant under any symmetry of the
+		// input, so mirror-symmetric heights (e.g. 012321) get a mirror-
+		// symmetric partition rather than one of two arbitrary mirror images.
+		// Flat regions contribute zero, so this still prefers more flat
+		// regions (e.g. 000111 still picks the two-flat-triangle partition).
+		// Fall back to maximum horizontal top-view area for cases that the
+		// range sum cannot distinguish (e.g. 000101, 010111, where one
+		// candidate has a flat quad and another has only a flat triangle).
+		const uint8 range_sum = partition_height_range_sum(candidate, ch);
+		const uint8 flat_area2 = partition_flat_projected_area2(candidate, ch);
+		const bool better = candidate.region_count < best_regions
+		    || (candidate.region_count == best_regions && range_sum < best_range_sum)
+		    || (candidate.region_count == best_regions && range_sum == best_range_sum && flat_area2 > best_flat_area2);
+		if(  better  ) {
 			best_regions = candidate.region_count;
+			best_range_sum = range_sum;
 			best_flat_area2 = flat_area2;
 			best = candidate;
 			found = true;

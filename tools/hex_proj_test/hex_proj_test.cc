@@ -994,6 +994,32 @@ static void test_plane_partition_disambiguates_000111_by_flat_area()
 }
 
 
+// 012321 is mirror-symmetric across the E–W axis (SE↔NE, SW↔NW) and admits
+// three minimal 3-region partitions: an asymmetric mirror pair (each with
+// total within-region height range 7) and one mirror-symmetric partition
+// (total range 3, regions {SW,W,NW}, {NE,E,SE}, {NW,NE,SE,SW}).  The solver
+// must pick the symmetric one so that the rendered tile reflects the
+// input's symmetry rather than landing on an arbitrary mirror image.
+static void test_plane_partition_012321_picks_symmetric()
+{
+	static const uint8 h[6] = {0,1,2,3,2,1};
+	synth_overlay::plane_partition::hex_partition_t p;
+	const bool ok = synth_overlay::plane_partition::find_min_partition(h, p);
+	if(  !ok || p.region_count != 3  ) {
+		std::fprintf(stderr, "012321 partition failed: ok=%d regions=%d\n",
+		             (int)ok, ok ? (int)p.region_count : -1);
+		std::abort();
+	}
+	const uint8 range_sum = synth_overlay::plane_partition::partition_height_range_sum(p, h);
+	if(  range_sum != 3  ) {
+		std::fprintf(stderr,
+		             "012321 partition range_sum=%d, want 3 (mirror-symmetric pick)\n",
+		             (int)range_sum);
+		std::abort();
+	}
+}
+
+
 static bool hex_corner_neighbour_diffs_within_one(const uint8 h[6])
 {
 	for(  uint8 i = 0;  i < 6;  i++  ) {
@@ -1048,6 +1074,7 @@ static bool hex_corner_known_equal_score_tie_shape(const uint8 h[6])
 
 struct plane_partition_score_t {
 	uint8 regions;
+	uint8 range_sum;
 	uint8 flat_area2;
 	uint16 count;
 };
@@ -1055,7 +1082,7 @@ struct plane_partition_score_t {
 
 static plane_partition_score_t plane_partition_best_score_for_heights(const uint8 h[6])
 {
-	plane_partition_score_t best = {255, 0, 0};
+	plane_partition_score_t best = {255, 255, 0, 0};
 	for(  uint16 mask = 0;  mask < (1u << 9);  mask++  ) {
 		bool ok = true;
 		for(  uint8 i = 0;  i < 9 && ok;  i++  ) {
@@ -1085,14 +1112,21 @@ static plane_partition_score_t plane_partition_best_score_for_heights(const uint
 		if(  !ok  ) {
 			continue;
 		}
+		const uint8 range_sum = synth_overlay::plane_partition::partition_height_range_sum(candidate, h);
 		const uint8 flat_area2 = synth_overlay::plane_partition::partition_flat_projected_area2(candidate, h);
-		if(  candidate.region_count < best.regions
-		  ||  (candidate.region_count == best.regions && flat_area2 > best.flat_area2)  ) {
+		const bool strictly_better = candidate.region_count < best.regions
+		    || (candidate.region_count == best.regions && range_sum < best.range_sum)
+		    || (candidate.region_count == best.regions && range_sum == best.range_sum && flat_area2 > best.flat_area2);
+		const bool tied = candidate.region_count == best.regions
+		    && range_sum == best.range_sum
+		    && flat_area2 == best.flat_area2;
+		if(  strictly_better  ) {
 			best.regions = candidate.region_count;
+			best.range_sum = range_sum;
 			best.flat_area2 = flat_area2;
 			best.count = 1;
 		}
-		else if(  candidate.region_count == best.regions && flat_area2 == best.flat_area2  ) {
+		else if(  tied  ) {
 			best.count++;
 		}
 	}
@@ -1105,9 +1139,10 @@ static void test_plane_partition_exhaustive_ternary()
 	// Domain is canonicalized to plausible ground-local shapes: no edge
 	// jump over one height unit, and at least one zero-height corner
 	// (otherwise all corners can shift down).  Even there, 14 cases are
-	// true equal-score ties after min-region/max-flat-area selection:
-	// the rotations of 110100, 101100, and the two rotations of 101010.
-	// The solver therefore promises an optimal score, not uniqueness.
+	// true equal-score ties after the (region count, range sum, flat area)
+	// selection: the rotations of 110100, 101100, and the two rotations of
+	// 101010.  The solver therefore promises an optimal score, not
+	// uniqueness.
 	uint16 known_tie_shapes = 0;
 	uint16 unique_shapes = 0;
 	for(  uint8 h0 = 0;  h0 < 3;  h0++  )
@@ -1129,16 +1164,17 @@ static void test_plane_partition_exhaustive_ternary()
 			std::abort();
 		}
 
+		const uint8 range_sum = synth_overlay::plane_partition::partition_height_range_sum(p, h);
 		const uint8 flat_area2 = synth_overlay::plane_partition::partition_flat_projected_area2(p, h);
 		if(  p.region_count < 1 || p.region_count > 4  ) {
 			std::fprintf(stderr, "partition count out of range (%d) for heights [%d,%d,%d,%d,%d,%d]\n",
 			             (int)p.region_count, h0, h1, h2, h3, h4, h5);
 			std::abort();
 		}
-		if(  p.region_count != best.regions || flat_area2 != best.flat_area2  ) {
-			std::fprintf(stderr, "partition score mismatch for heights [%d,%d,%d,%d,%d,%d]: got regions=%d flat_area2=%d want regions=%d flat_area2=%d\n",
+		if(  p.region_count != best.regions || range_sum != best.range_sum || flat_area2 != best.flat_area2  ) {
+			std::fprintf(stderr, "partition score mismatch for heights [%d,%d,%d,%d,%d,%d]: got regions=%d range_sum=%d flat_area2=%d want regions=%d range_sum=%d flat_area2=%d\n",
 			             h0, h1, h2, h3, h4, h5,
-			             (int)p.region_count, (int)flat_area2, (int)best.regions, (int)best.flat_area2);
+			             (int)p.region_count, (int)range_sum, (int)flat_area2, (int)best.regions, (int)best.range_sum, (int)best.flat_area2);
 			std::abort();
 		}
 
@@ -1202,6 +1238,7 @@ int main()
 	test_vertex_owners_neighbour_closure();
 	test_plane_partition_known_cases();
 	test_plane_partition_disambiguates_000111_by_flat_area();
+	test_plane_partition_012321_picks_symmetric();
 	test_plane_partition_exhaustive_ternary();
 
 	// Verify that every valid base-4 slope (per-edge diff ≤ 1, corner ∈ 0..3)
