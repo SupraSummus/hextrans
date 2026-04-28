@@ -400,7 +400,12 @@ void hausbauer_t::remove( player_t *player, gebaeude_t *gb )
 			const koord newk = pos.get_2d();
 			sint8 new_hgt;
 			slope_t::type new_slope;
-			welt->get_height_slope_from_grid(newk, new_hgt, new_slope);
+			// Read from the natural channel — same intent as the
+			// `recalc_natural_slope` call below, just an earlier guess
+			// used to pick wasser_t vs boden_t for the post-removal
+			// tile.  The visible channel can be polluted by a
+			// neighbour's set-slope at a shared vertex.
+			welt->get_natural_height_slope_from_grid(newk, new_hgt, new_slope);
 
 			// test for ground at new height
 			const grund_t *gr2 = welt->lookup(koord3d(newk,new_hgt));

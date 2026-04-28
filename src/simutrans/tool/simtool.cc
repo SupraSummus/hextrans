@@ -1617,12 +1617,14 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 					// than the water level.  min_hgt is the lowest hex
 					// corner — the natural "tile reference" for a water
 					// tile, which is flat at water_hgt so the min is
-					// always water_hgt.
+					// always water_hgt.  Visible-only: set-slope is an
+					// artificial overlay; the natural channel keeps the
+					// pre-tool baseline so a later restore can recover it.
 					sint8 grid_hgt = min( water_hgt, welt->min_hgt( k ) );
-					welt->set_grid_hgt_nocheck(k, hex_corner_t::NW, grid_hgt );
+					welt->set_grid_hgt_visible_only(k, hex_corner_t::NW, grid_hgt );
 				}
 				else {
-					welt->set_grid_hgt_nocheck(k, hex_corner_t::NW, gr1->get_hoehe()+ corner_nw(gr1->get_grund_hang()) );
+					welt->set_grid_hgt_visible_only(k, hex_corner_t::NW, gr1->get_hoehe()+ corner_nw(gr1->get_grund_hang()) );
 				}
 				minimap_t::get_instance()->calc_map_pixel(k);
 

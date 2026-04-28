@@ -260,16 +260,6 @@ use `(tile, hex_corner_t)`, `min_hgt` / `max_hgt`, or
 `grund_t::get_hoehe` as appropriate.  Clusters still on the legacy
 hatches or unfinished ports:
 
-*Square-corner reader ritual* — `surface.cc` 12 sites in
-`get_neighbour_heights`'s `[8][4]` boundary fallback, routed through
-`legacy_grid_hgt` to keep the function compiling.  Slot semantics
-match the old shim (E corner of tile `(x-1, y-1)`); the values are
-geometrically wrong under hex but consistent with what the
-`recalc_natural_slope` consumer expects.  Retires together with the
-`recalc_natural_slope` hex port — the function still iterates 8
-square-grid neighbours and composes 4 corners per neighbour, none of
-which match the 6-corner hex model.
-
 *"Tile reference height" readers — semantic drift bubble (partial)* —
 the shim's old "what is this tile's reference height" pattern picked
 a single slot on tile `(x-1, y-1)`, which was geometrically wrong
@@ -301,13 +291,24 @@ site, blocked on import decision as noted above).
 
 Each cluster above has an independent trigger; retire separately.
 
-Remaining hex-aware readers still 4-corner: `recalc_natural_slope`
-with its `get_neighbour_heights[8][4]` scaffold, and the
-climate-transition bitmask in `recalc_transitions` /
-`grund_t::display_if_visible`.  Both are bigger than the readers
-that already ported — they don't just read six heights, they walk
-six neighbours and compose per-corner data.  Sketch the 6-corner
-equivalent before diving in.
+The natural-height channel (`natural_grid_hgts`) is not yet persisted
+in saves.  On load it is seeded from `grid_hgts` as a best effort, so
+saves that include set-slope-tool overlays will round-trip with those
+overlays looking like natural ground to a post-load
+`recalc_natural_slope`.  The loss is contained — the visible grid is
+unchanged across save/load, only the natural-vs-artificial
+distinction at already-overlaid vertices is lost — and a save-format
+bump will fix it.  Tied to the wider save-format cluster.
+
+The set-slope tool's NW-only write (`simtool.cc:1622/1625`) leaves
+`grid_hgts` disagreeing with `gr->get_grund_hang()` at the other 5
+vertices of an artificially-sloped tile.  No current reader derives a
+slope from the visible channel and expects it to round-trip through
+the per-tile slope (`get_natural_height_slope_from_grid` covers the
+two consumers — `recalc_natural_slope` and `hausbauer.cc:403`'s
+foundation-removal probe).  If a future reader does, audit it;
+the cleaner long-term fix is to have set-slope write all 6 vertices
+on the visible channel.
 
 `karte_t::calc_humidity_map_region` branches on `ribi_t::northwest`
 / `southeast` / `north` for wind direction, leaving NE, SW and
