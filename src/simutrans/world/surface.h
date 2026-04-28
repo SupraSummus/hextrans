@@ -97,6 +97,24 @@ protected:
 	sint8 *grid_hgts = NULL;
 
 	/**
+	 * Per-vertex *natural* height array.
+	 *
+	 * Same layout and indexing as @c grid_hgts (one byte per canonical
+	 * world vertex, `vertex_slot_count(W, H)` slots).  Mirrors
+	 * @c grid_hgts for natural-terrain writers — perlin gen,
+	 * heightfield import, terraformer, water creation, terraform
+	 * tool, save load — but stays unchanged when an *artificial*
+	 * writer (set-slope tool, foundation placement) overlays a height
+	 * onto @c grid_hgts.  `recalc_natural_slope` reads from this
+	 * array so neighbour-driven natural-slope reconstruction is not
+	 * contaminated by player-applied overlays at shared vertices.
+	 *
+	 * Save format: not yet persisted; on load this is initialised
+	 * from @c grid_hgts as a best effort.  See `TODO.md`.
+	 */
+	sint8 *natural_grid_hgts = NULL;
+
+	/**
 	 * Array representing the height of water on each point of the grid.
 	 * @see cached_grid_size
 	 */
@@ -331,15 +349,14 @@ public:
 	void set_grid_hgt_nocheck(koord k, sint8 hgt);
 
 	// HEX-PORT: narrow escape hatch for callers the fatal shim above
-	// would catch but that genuinely cannot port yet.  Two clusters use
-	// it today — the rdwr round-trippers (`grund.cc`, `simplan.cc`) which
-	// are bubble-consistent by construction and retire with the
-	// save-format bump, and the `[8][4]` boundary fallback in
-	// `surface_t::get_neighbour_heights` which retires with the
-	// `recalc_natural_slope` hex port.  Slot semantics are identical to
-	// the old shim (E canonical corner of tile `(x-1, y-1)`); the slot
-	// is geometrically wrong under hex but consistent between paired
-	// reader/writer sites.  Do not add new callers — see TODO.md.
+	// would catch but that genuinely cannot port yet.  One cluster
+	// uses it today — the rdwr round-trippers (`grund.cc`,
+	// `simplan.cc`), which are bubble-consistent by construction and
+	// retire with the save-format bump.  Slot semantics are identical
+	// to the old shim (E canonical corner of tile `(x-1, y-1)`); the
+	// slot is geometrically wrong under hex but consistent between
+	// paired reader/writer sites.  Do not add new callers — see
+	// TODO.md.
 	inline sint8 legacy_grid_hgt(koord k) const {
 		return is_within_grid_limits(k.x, k.y)
 			? grid_hgts[(k.x + k.y*(uint32)(cached_grid_size.x+1)) * 2u]
@@ -355,13 +372,47 @@ public:
 	// — see `documentation/hex-vertex-storage.md`.  The three owners
 	// of a shared world vertex all resolve to the same storage slot,
 	// so terraforming stays consistent across tile boundaries.
+	//
+	// The writer updates *both* the visible (`grid_hgts`) and natural
+	// (`natural_grid_hgts`) channels; the natural channel exists so
+	// `recalc_natural_slope` can read pristine ground heights even
+	// after a player applies an artificial overlay (set-slope tool).
+	// Map gen, terraformer, water creation, rdwr load — all natural
+	// writers — use this default form.  The two artificial overlay
+	// sites (set-slope NW write) call `set_grid_hgt_visible_only`
+	// instead.
 	inline sint8 lookup_hgt_nocheck(koord tile, hex_corner_t::type c) const {
 		return grid_hgts[vertex_slot_index(canonical_vertex({tile, c}), cached_grid_size.x)];
 	}
 
 	inline void set_grid_hgt_nocheck(koord tile, hex_corner_t::type c, sint8 hgt) {
+		const uint32 slot = vertex_slot_index(canonical_vertex({tile, c}), cached_grid_size.x);
+		grid_hgts[slot] = hgt;
+		natural_grid_hgts[slot] = hgt;
+	}
+
+	// Natural-channel reader.  Same canonical `(tile, corner)` slot
+	// indexing as `lookup_hgt_nocheck` but routes to
+	// `natural_grid_hgts`.  Used by `recalc_natural_slope` and the
+	// foundation-removal land-restore path.
+	inline sint8 lookup_natural_hgt_nocheck(koord tile, hex_corner_t::type c) const {
+		return natural_grid_hgts[vertex_slot_index(canonical_vertex({tile, c}), cached_grid_size.x)];
+	}
+
+	// Artificial-overlay writer: touches only the visible channel,
+	// leaving the natural channel as the pre-overlay baseline so
+	// `recalc_natural_slope` can still recover it.  Only the
+	// set-slope tool's NW writes call this.
+	inline void set_grid_hgt_visible_only(koord tile, hex_corner_t::type c, sint8 hgt) {
 		grid_hgts[vertex_slot_index(canonical_vertex({tile, c}), cached_grid_size.x)] = hgt;
 	}
+
+	// Copy `grid_hgts` over `natural_grid_hgts` wholesale — used by
+	// raw-indexing writers that don't go through the per-vertex API
+	// (today: heightfield import).  The per-vertex writer above
+	// already keeps the channels in sync, so most callers don't need
+	// this.
+	void reset_natural_to_visible();
 
 public:
 	/// @return water height - versions without checks for speed
@@ -423,16 +474,13 @@ public:
 	sint8 max_hgt(koord k) const;
 
 public:
-	void get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &slope);
+	void get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &slope) const;
 
-	/**
-	 * Fills array with corner heights of neighbours
-	 */
-	// HEX-PORT TODO: array shape is square-grid (8 neighbours × 4 corners);
-	// kept until calculate_natural_slope and friends are ported away from
-	// 4-corner geometry.  The function fills only the first 6 entries
-	// with hex neighbour data and zeroes the rest.
-	void get_neighbour_heights(const koord k, sint8 neighbour_height[8][4]) const;
+	// Same shape as `get_height_slope_from_grid` but reads from the
+	// natural channel.  Used by `recalc_natural_slope` so an artificial
+	// overlay at a shared vertex does not contaminate a neighbour's
+	// natural-slope reconstruction.
+	void get_natural_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &slope) const;
 
 	//
 	// Terraforming related

@@ -418,10 +418,14 @@ void karte_t::cleanup_karte( int xoff, int yoff )
 	}
 	delete [] grid_hgts_cpy;
 
-	// but to leave the map unchanged, we lower the height again
+	// but to leave the map unchanged, we lower the height again.
+	// Mirror the decrement onto the natural channel — raise_grid_to
+	// above wrote both, so the unwind has to too.
 	for(j=0; j<=get_size().y; j++) {
 		for(i=j>=yoff?0:xoff; i<=get_size().x; i++) {
-			grid_hgts[(i+j*(get_size().x+1)) * 2] --;
+			const uint32 slot = (i+j*(get_size().x+1)) * 2;
+			grid_hgts[slot] --;
+			natural_grid_hgts[slot] --;
 		}
 	}
 
@@ -525,6 +529,9 @@ void karte_t::destroy()
 	// gitter aufraeumen
 	delete [] grid_hgts;
 	grid_hgts = NULL;
+
+	delete [] natural_grid_hgts;
+	natural_grid_hgts = NULL;
 
 	delete [] water_hgts;
 	water_hgts = NULL;
@@ -644,8 +651,10 @@ void karte_t::init_tiles()
 	// documentation/hex-vertex-storage.md.
 	const uint32 hgts_slots = vertex_slot_count(get_size().x, get_size().y);
 	grid_hgts = new sint8[hgts_slots];
+	natural_grid_hgts = new sint8[hgts_slots];
 	max_height = min_height = 0;
 	MEMZERON(grid_hgts, hgts_slots);
+	MEMZERON(natural_grid_hgts, hgts_slots);
 	water_hgts = new sint8[x * y];
 	MEMZERON(water_hgts, x * y);
 
@@ -1720,11 +1729,13 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	// slots, not (W+1)*(H+1).  Allocation, memset, and the
 	// migration copy loop below all carry the doubled stride.
 	const uint32 new_hgts_slots = vertex_slot_count(new_size.x, new_size.y);
-	sint8 *new_grid_hgts    = new sint8        [new_hgts_slots];
-	sint8 *new_water_hgts   = new sint8        [(uint32) new_size.x      * (uint32) new_size.y];
+	sint8 *new_grid_hgts         = new sint8        [new_hgts_slots];
+	sint8 *new_natural_grid_hgts = new sint8        [new_hgts_slots];
+	sint8 *new_water_hgts        = new sint8        [(uint32) new_size.x      * (uint32) new_size.y];
 
-	memset( new_grid_hgts,  groundwater, sizeof(sint8) * new_hgts_slots );
-	memset( new_water_hgts, groundwater, sizeof(sint8) *  new_size.x      *  new_size.y );
+	memset( new_grid_hgts,         groundwater, sizeof(sint8) * new_hgts_slots );
+	memset( new_natural_grid_hgts, groundwater, sizeof(sint8) * new_hgts_slots );
+	memset( new_water_hgts,        groundwater, sizeof(sint8) *  new_size.x      *  new_size.y );
 
 	const koord old_size = get_size();
 	const bool new_world = old_size.x == 0 && old_size.y == 0;
@@ -1771,6 +1782,8 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 				uint32 nnr = (ix + iy*(uint32)(new_size.x+1)) * 2;
 				new_grid_hgts[nnr    ] = grid_hgts[nr    ];
 				new_grid_hgts[nnr + 1] = grid_hgts[nr + 1];
+				new_natural_grid_hgts[nnr    ] = natural_grid_hgts[nr    ];
+				new_natural_grid_hgts[nnr + 1] = natural_grid_hgts[nr + 1];
 			}
 		}
 		max_display_progress = 16 + sets->get_city_count()*2 + cities.get_count()*4;
@@ -1784,6 +1797,8 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	plan = new_plan;
 	delete [] grid_hgts;
 	grid_hgts = new_grid_hgts;
+	delete [] natural_grid_hgts;
+	natural_grid_hgts = new_natural_grid_hgts;
 	delete [] water_hgts;
 	water_hgts = new_water_hgts;
 
@@ -1814,6 +1829,9 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 		memcpy( grid_hgts + row_slots*(sint32)cached_grid_size.y,
 				grid_hgts + row_slots*(sint32)(cached_grid_size.y-1),
 				row_slots );
+		// Heightfield import is a fresh map — seed natural channel
+		// from the just-imported visible heights.
+		reset_natural_to_visible();
 		ls.set_progress(2);
 	}
 	else {
@@ -2469,8 +2487,10 @@ DBG_MESSAGE( "karte_t::rotate90()", "called" );
 	// result is geometrically wrong for hex.  Ship a real hex
 	// rotation (or a refusal) with the viewport port.
 	const uint32 new_hgts_slots = vertex_slot_count(cached_grid_size.x, cached_grid_size.y);
-	sint8* new_hgts = new sint8[new_hgts_slots];
-	memset(new_hgts, groundwater, new_hgts_slots);
+	sint8* new_hgts         = new sint8[new_hgts_slots];
+	sint8* new_natural_hgts = new sint8[new_hgts_slots];
+	memset(new_hgts,         groundwater, new_hgts_slots);
+	memset(new_natural_hgts, groundwater, new_hgts_slots);
 	const int LOOP_BLOCK = 64;
 	for (int yy = 0; yy <= cached_grid_size.y; yy += LOOP_BLOCK) {
 		for (int xx = 0; xx <= cached_grid_size.x; xx += LOOP_BLOCK) {
@@ -2482,12 +2502,16 @@ DBG_MESSAGE( "karte_t::rotate90()", "called" );
 					const int new_nr = ((cached_grid_size.y - y) + x * (cached_grid_size.y + 1)) * 2;
 					new_hgts[new_nr    ] = grid_hgts[nr    ];
 					new_hgts[new_nr + 1] = grid_hgts[nr + 1];
+					new_natural_hgts[new_nr    ] = natural_grid_hgts[nr    ];
+					new_natural_hgts[new_nr + 1] = natural_grid_hgts[nr + 1];
 				}
 			}
 		}
 	}
 	delete[] grid_hgts;
 	grid_hgts = new_hgts;
+	delete[] natural_grid_hgts;
+	natural_grid_hgts = new_natural_hgts;
 
 	// rotate borders
 	sint16 xw = cached_size.x;
@@ -4712,6 +4736,17 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 			}
 			DBG_MESSAGE("karte_t::rdwr_gamestate()", "saved hgt");
 		}
+	}
+
+	if(  file->is_loading()  ) {
+		// Modern saves route every loaded vertex through the per-vertex
+		// writer (`grund_t::rdwr` etc.), which already keeps both
+		// channels in sync.  Ancient legacy paths above (versions
+		// < 102.2) write `grid_hgts[i*2]` directly, so seed the natural
+		// channel from visible as a catch-up — the natural channel is
+		// not persisted in saves yet, see TODO.md.  The bulk copy is a
+		// no-op for modern saves and only fires once at load.
+		reset_natural_to_visible();
 	}
 
 	// rdwr climate map
