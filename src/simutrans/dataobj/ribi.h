@@ -252,6 +252,22 @@ static inline slope_t::type slope_from_slope4(slope4_t sl, sint8 pak_height_fact
 						  scorner_nw(sl) * pak_height_factor);
 }
 
+/**
+ * Convert a square-era slope-table value (0..80) to the current
+ * slope encoding.  The old table was four base-3 digits in SW, SE,
+ * NE, NW order, so values such as 36/4/12/28 mean the four cardinal
+ * slopes and 72/8/24/56 their double-height variants.
+ */
+static constexpr slope_t::type slope_from_legacy_slope4_table(sint16 sl)
+{
+	return encode_corners(sl % 3, (sl / 3) % 3, (sl / 9) % 3, (sl / 27) % 3);
+}
+
+static_assert(slope_from_legacy_slope4_table(36) == slope_t::south, "legacy south slope value changed");
+static_assert(slope_from_legacy_slope4_table(4) == slope_t::north, "legacy north slope value changed");
+static_assert(slope_from_legacy_slope4_table(12) == slope_t::west, "legacy west slope value changed");
+static_assert(slope_from_legacy_slope4_table(28) == slope_t::east, "legacy east slope value changed");
+
 
 /**
  * Directions in simutrans.

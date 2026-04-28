@@ -1255,10 +1255,27 @@ void tool_setslope_t::rdwr_custom_data(memory_rw_t *packet)
 
 const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos, int new_slope, bool old_slope_compatibility, bool just_check )
 {
+	if(  old_slope_compatibility  ) {
+		// Translate old menuconf/tool-packet parameters to the widened
+		// hex encoding before validation.  Concrete slope-table values
+		// were 4-corner base-3 slots; sentinels were 82/83 in pak64.
+		switch(  new_slope  ) {
+			case LEGACY_ALL_UP_SLOPE:
+			case ALL_UP_SLOPE_SINGLE:   new_slope = ALL_UP_SLOPE;   break;
+			case LEGACY_ALL_DOWN_SLOPE:
+			case ALL_DOWN_SLOPE_SINGLE: new_slope = ALL_DOWN_SLOPE; break;
+			case RESTORE_SLOPE_SINGLE:  new_slope = RESTORE_SLOPE;  break;
+			default:
+				if(  0 < new_slope  &&  new_slope <= LEGACY_SLOPE4_MAX  ) {
+					new_slope = slope_from_legacy_slope4_table(new_slope);
+				}
+		}
+	}
+
 	const bool is_sentinel = (new_slope == ALL_UP_SLOPE || new_slope == ALL_DOWN_SLOPE || new_slope == RESTORE_SLOPE
 	                      || new_slope == ALL_UP_SLOPE_SINGLE || new_slope == ALL_DOWN_SLOPE_SINGLE || new_slope == RESTORE_SLOPE_SINGLE);
 
-	if(  !ground_desc_t::double_grounds  &&  !old_slope_compatibility  &&  !is_sentinel  ) {
+	if(  !ground_desc_t::double_grounds  &&  !is_sentinel  ) {
 		// do not build double slopes if no graphics are available.
 		// Skip the check for sentinels (ALL_UP_SLOPE etc.) since
 		// their values are outside the slope range and max_diff()
@@ -1268,25 +1285,8 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 		}
 	}
 
-	if(  !ground_desc_t::double_grounds  &&  old_slope_compatibility  ) {
-		// Translate old single-slope parameters to the widened hex
-		// encoding.  The square-era concrete slope range was
-		// 0..LEGACY_SLOPE4_MAX.
-		if(  0 < new_slope  &&  new_slope <= LEGACY_SLOPE4_MAX  ) {
-			new_slope = slope_from_slope4(slope4_t(new_slope), 1);
-		}
-		else {
-			switch(  new_slope  ) {
-				case ALL_UP_SLOPE:
-				case ALL_UP_SLOPE_SINGLE:   new_slope = ALL_UP_SLOPE;   break;
-				case ALL_DOWN_SLOPE:
-				case ALL_DOWN_SLOPE_SINGLE: new_slope = ALL_DOWN_SLOPE; break;
-				case RESTORE_SLOPE:
-				case RESTORE_SLOPE_SINGLE:  new_slope = RESTORE_SLOPE;  break;
-				default:
-					return ""; // invalid parameter
-			}
-		}
+	if(  new_slope < 0  ||  (!is_sentinel  &&  new_slope > slope_t::max_number)  ) {
+		return ""; // invalid parameter
 	}
 
 	bool ok = false;

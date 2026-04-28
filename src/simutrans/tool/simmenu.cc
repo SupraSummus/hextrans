@@ -47,9 +47,6 @@
 
 karte_ptr_t tool_t::welt;
 
-#define SIMMENU_STRINGIFY_VALUE_HELPER(x) #x
-#define SIMMENU_STRINGIFY_VALUE(x) SIMMENU_STRINGIFY_VALUE_HELPER(x)
-
 // emulate control key by tool
 uint8 tool_t::control_invert = 0;
 
@@ -501,20 +498,19 @@ static const char* normalize_general_tool_default_param(uint16 toolnr, const cha
 		return param_str;
 	}
 
-	// Square-era menuconf entries encode "all down" and "all up" as
-	// the first two values after the concrete 4-corner slope range
-	// (LEGACY_SLOPE4_MAX).  Normalize them at toolbar load time so
-	// emitted tool commands carry the modern sentinel values instead
-	// of legacy slope-table numbers.
-	switch(  atoi(param_str)  ) {
-		case LEGACY_ALL_DOWN_SLOPE: return SIMMENU_STRINGIFY_VALUE(ALL_DOWN_SLOPE);
-		case LEGACY_ALL_UP_SLOPE:   return SIMMENU_STRINGIFY_VALUE(ALL_UP_SLOPE);
+	static char normalized[8];
+	const sint16 legacy_slope = atoi(param_str);
+
+	// Normalize legacy sentinels at toolbar load time so emitted UI
+	// commands carry modern all-up/all-down values.  Concrete legacy
+	// slope-table values stay in compatibility mode and are converted
+	// exactly once by tool_setslope_t::tool_set_slope_work().
+	switch(  legacy_slope  ) {
+		case LEGACY_ALL_UP_SLOPE:   sprintf(normalized, "%d", ALL_UP_SLOPE);   return normalized;
+		case LEGACY_ALL_DOWN_SLOPE: sprintf(normalized, "%d", ALL_DOWN_SLOPE); return normalized;
 		default: return param_str;
 	}
 }
-
-#undef SIMMENU_STRINGIFY_VALUE
-#undef SIMMENU_STRINGIFY_VALUE_HELPER
 
 
 /**

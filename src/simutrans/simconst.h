@@ -94,11 +94,12 @@
 
 
 // Square-era set-slope parameters used by legacy menuconf toolbar
-// entries.  Concrete 4-corner slopes occupied 0..80; all-down/all-up
-// toolbar commands followed immediately after that range.
+// entries.  Concrete 4-corner base-3 slopes occupied 0..80; 81 was
+// not used by pak64's slope toolbar, and all-up/all-down followed at
+// 82/83.  Restore had a separate general_tool entry in pak64.
 #define LEGACY_SLOPE4_MAX (80)
-#define LEGACY_ALL_DOWN_SLOPE (LEGACY_SLOPE4_MAX + 1)
-#define LEGACY_ALL_UP_SLOPE (LEGACY_SLOPE4_MAX + 2)
+#define LEGACY_ALL_UP_SLOPE (82)
+#define LEGACY_ALL_DOWN_SLOPE (83)
 
 // Terraform-tool sentinels, used via tool_setslope / tool_restoreslope
 // to request "raise by one step", "lower by one step", "restore the
