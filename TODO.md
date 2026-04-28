@@ -183,16 +183,19 @@ hex-aware water-table propagation pass when that gets scheduled.
 
 ## World-gen raise_grid_to / lower_grid_to callers
 
-`simworld.cc:415` (terrain smoothing), `1576–1579` (beach generation),
-and `1869–1885` (map expansion) still call `raise_grid_to` /
-`lower_grid_to`, which are now thin adapters that forward to
-`raise_vertex_to(x-1, y-1, E, h)`.  That writes only the E canonical
-vertex at each grid point, leaving the SE canonical vertices unset and
-producing partially-initialised terrain during world creation.  Retire
-by porting each site to call `raise_vertex_to` / `lower_vertex_to`
-directly on the full set of hex vertices that the operation logically
-covers.  Once the last caller is gone, `raise_grid_to`, `lower_grid_to`
-and their declarations in `surface.h` can be deleted.
+`simworld.cc:1591–1594` (beach generation) and `1893–1909` (map
+expansion) still call `raise_grid_to` / `lower_grid_to`, which are now
+thin adapters that forward to `raise_vertex_to(x-1, y-1, E, h)`.  That
+writes only the E canonical vertex at each grid point, leaving the SE
+canonical vertices unset and producing partially-initialised terrain
+during world creation.  The map-expansion block also has a suspicious
+`raise_grid_to(old_size.x+1, i, h)` / `lower_grid_to(old_size.y+1, i, h)`
+pair on the east edge; port that with the rest of the block instead of
+preserving the mismatched legacy coordinates.  Retire by porting each
+site to call `raise_vertex_to` / `lower_vertex_to` directly on the full
+set of hex vertices that the operation logically covers.  Once the last
+caller is gone, `raise_grid_to`, `lower_grid_to` and their declarations
+in `surface.h` can be deleted.
 
 ## max_diff callers assume max-corner ≤ 2
 

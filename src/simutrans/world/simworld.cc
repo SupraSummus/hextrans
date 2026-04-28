@@ -400,34 +400,40 @@ void karte_t::cleanup_grounds_loop( sint16 x_min, sint16 x_max, sint16 y_min, si
 void karte_t::cleanup_karte( int xoff, int yoff )
 {
 	// we need a copy to smooth the map to a realistic level
-	// HEX-PORT: grid_hgts is per-hex-vertex now — see surface.h.
-	// The copy is full-size (E + SE slots); the raise/lower loops
-	// still iterate by grid-point `(i, j)` and touch only the E
-	// canonical slot via the doubled index.  SE slots are carried
-	// through but unmodified.
+	// HEX-PORT: grid_hgts is per-hex-vertex now.  Smooth over the
+	// canonical vertex graph, not the legacy square-grid adapter, so
+	// generated high-roughness terrain cannot leave >1 height deltas
+	// along hex edges.
 	const sint32 grid_size = vertex_slot_count(get_size().x, get_size().y);
 	sint8 *grid_hgts_cpy = new sint8[grid_size];
 	memcpy( grid_hgts_cpy, grid_hgts, grid_size );
 
-	// the trick for smoothing is to raise each tile by one
-	sint32 i,j;
-	for(j=0; j<=get_size().y; j++) {
-		for(i=j>=yoff?0:xoff; i<=get_size().x; i++) {
-			raise_grid_to(i,j, grid_hgts_cpy[(i+j*(get_size().x+1)) * 2] + 1);
+	auto for_each_cleanup_vertex = [&](auto const& fn) {
+		for(sint32 y=0; y<=get_size().y + 1; y++) {
+			const sint32 x_start = y >= yoff ? 0 : xoff;
+			for(sint32 x=x_start; x<=get_size().x; x++) {
+				const koord tile((sint16)(x - 1), (sint16)(y - 1));
+				fn(tile, hex_corner_t::E);
+				fn(tile, hex_corner_t::SE);
+			}
 		}
-	}
+	};
+
+	// the trick for smoothing is to raise each vertex by one
+	for_each_cleanup_vertex([&](koord tile, hex_corner_t::type corner) {
+		const uint32 slot = vertex_slot_index({tile, corner}, get_size().x);
+		raise_vertex_to(tile.x, tile.y, corner, grid_hgts_cpy[slot] + 1);
+	});
 	delete [] grid_hgts_cpy;
 
 	// but to leave the map unchanged, we lower the height again.
-	// Mirror the decrement onto the natural channel — raise_grid_to
+	// Mirror the decrement onto the natural channel — raise_vertex_to
 	// above wrote both, so the unwind has to too.
-	for(j=0; j<=get_size().y; j++) {
-		for(i=j>=yoff?0:xoff; i<=get_size().x; i++) {
-			const uint32 slot = (i+j*(get_size().x+1)) * 2;
-			grid_hgts[slot] --;
-			natural_grid_hgts[slot] --;
-		}
-	}
+	for_each_cleanup_vertex([&](koord tile, hex_corner_t::type corner) {
+		const uint32 slot = vertex_slot_index({tile, corner}, get_size().x);
+		grid_hgts[slot] --;
+		natural_grid_hgts[slot] --;
+	});
 
 	if(  xoff==0 && yoff==0  ) {
 //		world_xy_loop(&karte_t::cleanup_grounds_loop, 0);
