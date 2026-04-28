@@ -58,12 +58,13 @@ inline synth_hex_geometry_t synth_hex_geometry(sint32 u, sint16 height_step)
 	synth_hex_geometry_t g;
 	g.u = u;
 	g.w = 4 * u;
-	// Half-lift: height-3 corners (base-4 encoding) need 3*lift headroom.
-	// Using lift = full_lift/2 keeps top_pad = 2*full_lift (same absolute
-	// pixels as before) while satisfying top_pad >= 3*lift = 1.5*full_lift.
-	const sint32 full_lift = tile_raster_scale_y(height_step, g.w);
-	g.lift    = full_lift / 2;
-	g.top_pad = 2 * full_lift; // = 4 * g.lift
+	// Per-step screen lift comes from `hex_height_raster_scale_y` so the
+	// sprite bbox tracks any change to the display-side z scale without a
+	// duplicated /2 here.  height-3 corners (base-4 encoding) need 3*lift
+	// headroom; top_pad = 4*lift keeps a comfortable extra step of margin
+	// and matches the legacy 2*full_lift absolute pixel count.
+	g.lift    = hex_height_raster_scale_y(height_step, g.w);
+	g.top_pad = 4 * g.lift;
 	g.h = 2 * u + g.top_pad;
 	g.top_y = g.top_pad;
 	g.mid_y = g.top_pad + u;
