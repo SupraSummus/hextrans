@@ -660,8 +660,12 @@ void grund_t::info(cbuffer_t& buf) const
 	buf.printf("\nflags $%0X", flags );
 	buf.printf("\n\npos: (%s)",pos.get_str());
 	buf.printf("\nslope: %i",get_grund_hang());
-	buf.printf("\nback0: %i",abs(back_imageid)%11);
-	buf.printf("\nback1: %i",(abs(back_imageid)/11)+11);
+	{
+		const sint16 abs_id = (sint16)abs(back_imageid);
+		buf.printf("\nback0: %i", abs_id % grund_t::WALL_IMAGE_COUNT);
+		buf.printf("\nback1: %i", (abs_id / grund_t::WALL_IMAGE_COUNT) % grund_t::WALL_IMAGE_COUNT);
+		buf.printf("\nback2: %i", abs_id / (grund_t::WALL_IMAGE_COUNT * grund_t::WALL_IMAGE_COUNT));
+	}
 	if(  get_weg_nr(0)  ) {
 		buf.printf("\nway slope %i", (int)get_weg_hang() );
 	}
@@ -741,12 +745,60 @@ image_id grund_t::get_back_image(int leftback) const
 	if(back_imageid==0) {
 		return IMG_EMPTY;
 	}
-	const uint16 abs_id = abs(back_imageid);
+	const uint16 abs_id = (uint16)abs(back_imageid);
+	// Legacy 2-arg API: leftback selects wall 0 (NW edge) or 1 (N edge).
+	// Wall 2 (NE edge) is not exposed through this entry point; callers
+	// asking for the "back" wall under hex should consult `back_imageid`
+	// directly or extend this API to take a `wall` argument.
 	const uint8 wall = leftback ? 1 : 0;
-	const uint16 index = wall == 1
-		? (uint16)(abs_id / grund_t::WALL_IMAGE_COUNT)
-		: (uint16)(abs_id % grund_t::WALL_IMAGE_COUNT);
+	uint16 v = abs_id;
+	for(  uint8 j = 0;  j < wall;  j++  ) {
+		v = (uint16)(v / grund_t::WALL_IMAGE_COUNT);
+	}
+	const uint16 index = (uint16)(v % grund_t::WALL_IMAGE_COUNT);
 	return ground_desc_t::get_back_wall_image(index, back_imageid < 0, wall);
+}
+
+
+// HEX-PORT: per-back-wall geometry shared by `calc_back_image` and
+// `display_boden`.  Under flat-top hex the 3 screen-up neighbours
+// (NW, N, NE) each share an edge with this tile.  For each wall this
+// table records:
+//   * `nbr`        — the neighbour's axial offset
+//   * `nbr_ribi`   — the matching ribi bit (used by the fence-on-bridge
+//                    bypass to ask whether a way runs in that direction)
+//   * `this_a/b`   — this tile's two corners along the shared edge
+//                    (screen-left endpoint first, screen-right second)
+//   * `nbr_a/b`    — the same two world vertices named on the neighbour
+//                    tile (each shared hex vertex has 3 (tile, corner)
+//                    owners; pick the one whose tile is the neighbour
+//                    — see `vertex_owners()` in `dataobj/koord.cc`).
+struct back_wall_geometry_t {
+	koord nbr;
+	ribi_t::ribi nbr_ribi;
+	hex_corner_t::type this_a, this_b, nbr_a, nbr_b;
+};
+static const back_wall_geometry_t back_wall_geometry[grund_t::BACK_WALL_COUNT] = {
+	{ koord(-1,  0), ribi_t::northwest, hex_corner_t::W,  hex_corner_t::NW, hex_corner_t::SE, hex_corner_t::E  }, // wall 0: NW edge
+	{ koord( 0, -1), ribi_t::north,     hex_corner_t::NW, hex_corner_t::NE, hex_corner_t::SW, hex_corner_t::SE }, // wall 1: N  edge
+	{ koord( 1, -1), ribi_t::northeast, hex_corner_t::NE, hex_corner_t::E,  hex_corner_t::W,  hex_corner_t::SW }, // wall 2: NE edge
+};
+
+
+// Slope corner height by hex-corner index.  Mirrors
+// `synth_overlay::hex_corner_height` (synth_geometry.h) but kept local
+// here so the rendering side does not need to pull in synth headers.
+static inline uint8 corner_height(slope_t::type s, hex_corner_t::type c)
+{
+	switch (c) {
+		case hex_corner_t::E:  return (uint8)corner_e(s);
+		case hex_corner_t::SE: return (uint8)corner_se(s);
+		case hex_corner_t::SW: return (uint8)corner_sw(s);
+		case hex_corner_t::W:  return (uint8)corner_w(s);
+		case hex_corner_t::NW: return (uint8)corner_nw(s);
+		case hex_corner_t::NE: return (uint8)corner_ne(s);
+		default: return 0;
+	}
 }
 
 
@@ -792,20 +844,26 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 		return;
 	}
 
-	// store corner heights sw, nw, ne scaled to screen dimensions
+	// 4 screen-up corners (W, NW, NE, E) bound the 3 screen-shared edges
+	// to the NW, N and NE neighbours.  Indexed 0..3 across W → E so wall
+	// `i` spans `wall_corners[i] → wall_corners[i+1]`.  Per-wall lift
+	// contributions accumulate into `wall_corners_add`.
 	const sint16 scale_z_step = tile_raster_scale_y(TILE_HEIGHT_STEP,64);
 	const sint16 scale_y_step = 64/2;
 
-	sint16 corners[grund_t::BACK_CORNER_COUNT] = {(sint16)(scale_z_step*(hgt + corner_sw(slope_this))),
-	                     (sint16)(scale_z_step*(hgt + corner_nw(slope_this))),
-	                     (sint16)(scale_z_step*(hgt + corner_ne(slope_this)))};
-	sint16 corners_add[grund_t::BACK_CORNER_COUNT] = {0,0,0}; // extra height of possible back-image
+	sint16 wall_corners[grund_t::BACK_WALL_COUNT + 1] = {
+		(sint16)(scale_z_step * (hgt + corner_w (slope_this))),
+		(sint16)(scale_z_step * (hgt + corner_nw(slope_this))),
+		(sint16)(scale_z_step * (hgt + corner_ne(slope_this))),
+		(sint16)(scale_z_step * (hgt + corner_e (slope_this))),
+	};
+	sint16 wall_corners_add[grund_t::BACK_WALL_COUNT + 1] = {0};
 
 	// now calculate back image
-	sint8 back_imageid=0;
+	sint16 back_imageid=0;
 	bool is_building = get_typ()==grund_t::fundament;
 	const bool isvisible = is_visible();
-	bool fence[grund_t::BACK_WALL_COUNT] = {false, false};
+	bool fence[grund_t::BACK_WALL_COUNT] = {false, false, false};
 	const koord k = get_pos().get_2d();
 
 	clear_flag(grund_t::draw_as_obj);
@@ -816,36 +874,23 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 		set_flag(grund_t::draw_as_obj);
 	}
 
-	// HEX-PORT: the 2 "back walls" under 2:1 isometric are the upward-
-	// on-screen neighbours — NW and N under hex (same displacements
-	// the old square code reached via W and N cardinals; no change).
-	static const koord back_wall_neighbour[grund_t::BACK_WALL_COUNT] = {
-		koord(-1,  0),  // NW (was old square "west")
-		koord( 0, -1),  // N
-	};
-	// Matching ribi bit for each back-wall neighbour, used by the
-	// fence test further down.  HEX-PORT: the old code spelled this
-	// `ribi_t::nesw[(i+3)&3]` which happened to give {W-bit, N-bit}
-	// under the 4-bit layout but gives {NW-bit, SE-bit} under the
-	// 6-bit layout — wrong for the second wall.  Using an explicit
-	// table keeps semantics correct.
-	static const ribi_t::ribi back_wall_ribi[grund_t::BACK_WALL_COUNT] = {
-		ribi_t::northwest,
-		ribi_t::north,
-	};
-	for(  size_t i=0;  i<grund_t::BACK_WALL_COUNT;  i++  ) {
+	sint16 mult = 1; // base-WALL_IMAGE_COUNT digit weight, advanced once per wall
+	for(  size_t i=0;  i<grund_t::BACK_WALL_COUNT;  i++, mult *= grund_t::WALL_IMAGE_COUNT  ) {
+		const back_wall_geometry_t &g = back_wall_geometry[i];
 		// now enter the left/back two height differences
-		if(  const grund_t *gr=welt->lookup_kartenboden(k + back_wall_neighbour[i])  ) {
-			const uint8 back_height = min(corner_nw(slope_this),(i==0?corner_sw(slope_this):corner_ne(slope_this)));
+		if(  const grund_t *gr=welt->lookup_kartenboden(k + g.nbr)  ) {
+			const uint8 this_a = corner_height(slope_this, g.this_a);
+			const uint8 this_b = corner_height(slope_this, g.this_b);
+			const uint8 back_height = min(this_a, this_b);
 
 			const sint16 left_hgt=gr->get_disp_height()-back_height;
 			const slope_t::type slope=gr->get_disp_slope();
 
-			const uint8 corner_a = (i==0?corner_sw(slope_this):corner_nw(slope_this))-back_height;
-			const uint8 corner_b = (i==0?corner_nw(slope_this):corner_ne(slope_this))-back_height;
+			const uint8 corner_a = this_a - back_height;
+			const uint8 corner_b = this_b - back_height;
 
-			sint8 diff_from_ground_1 = left_hgt+(i==0?corner_se(slope):corner_sw(slope))-hgt;
-			sint8 diff_from_ground_2 = left_hgt+(i==0?corner_ne(slope):corner_se(slope))-hgt;
+			sint8 diff_from_ground_1 = left_hgt + corner_height(slope, g.nbr_a) - hgt;
+			sint8 diff_from_ground_2 = left_hgt + corner_height(slope, g.nbr_b) - hgt;
 
 			if (underground_mode==ugm_level) {
 				const bool gr_is_visible = gr->is_visible();
@@ -883,8 +928,8 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 					// ok, we need a fence here, if there is not a vertical bridgehead
 					weg_t const* w;
 					fence[i] = !(w = get_weg_nr(0)) || (
-						!(w->get_ribi_unmasked() & back_wall_ribi[i]) &&
-						(!(w = get_weg_nr(1)) || !(w->get_ribi_unmasked() & back_wall_ribi[i]))
+						!(w->get_ribi_unmasked() & g.nbr_ribi) &&
+						(!(w = get_weg_nr(1)) || !(w->get_ribi_unmasked() & g.nbr_ribi))
 					);
 
 					// no fences between water tiles or between invisible tiles
@@ -893,25 +938,33 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 					}
 				}
 			}
-			// any height difference AND something to see?
+			// any height difference AND something to see?  Pack the image
+			// index as a base-WALL_IMAGE_COUNT digit at position i — `mult`
+			// is `WALL_IMAGE_COUNT^i`, advanced by the loop step.
 			if(  (diff_from_ground_1-corner_a>0  ||  diff_from_ground_2-corner_b>0)
 				&&  (diff_from_ground_1>0  ||  diff_from_ground_2>0)  ) {
-				back_imageid += get_back_image_from_diff( diff_from_ground_1, diff_from_ground_2 )*(i==0?1:grund_t::WALL_IMAGE_COUNT);
+				back_imageid += get_back_image_from_diff( diff_from_ground_1, diff_from_ground_2 ) * mult;
 				is_building |= gr->get_typ()==grund_t::fundament;
 			}
 			// update corner heights
 			if (diff_from_ground_1 > corner_a) {
-				corners_add[i] = max(corners_add[i], scale_z_step * (diff_from_ground_1-corner_a));
+				wall_corners_add[i] = max(wall_corners_add[i], scale_z_step * (diff_from_ground_1-corner_a));
 			}
 			if (diff_from_ground_2 > corner_b) {
-				corners_add[i+1] = max(corners_add[i+1], scale_z_step * (diff_from_ground_2 - corner_b));
+				wall_corners_add[i+1] = max(wall_corners_add[i+1], scale_z_step * (diff_from_ground_2 - corner_b));
 			}
 		}
 	}
 
-	for(uint i=0; i<grund_t::BACK_CORNER_COUNT; i++) {
-		corners[i] += corners_add[i];
-	}
+	// Hide-test samples 3 corners along the screen-up boundary; map them
+	// to the leftmost three hex back-wall corners (W, NW, NE).  The
+	// rightmost corner E and wall 2 (NE neighbour) are not yet covered
+	// by the hide test — known approximation, see TODO.md.
+	sint16 corners[grund_t::BACK_CORNER_COUNT] = {
+		(sint16)(wall_corners[0] + wall_corners_add[0]),
+		(sint16)(wall_corners[1] + wall_corners_add[1]),
+		(sint16)(wall_corners[2] + wall_corners_add[2]),
+	};
 
 	// now test more tiles behind whether they are hidden by this tile
 	static const koord  testdir[grund_t::BACK_CORNER_COUNT] = { koord(-1,0), koord(-1,-1), koord(0,-1) };
@@ -933,13 +986,13 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 					}
 				}
 				// take backimage into account, take base-height of back image as corner heights
-				sint8 bb = abs(gr->back_imageid);
+				sint16 bb = abs(gr->back_imageid);
 				sint8 lh = 2, rh = 2; // height of start of back image
 				if (bb  &&  bb<grund_t::BIID_ENCODE_FENCE_OFFSET) {
 					if (bb % grund_t::WALL_IMAGE_COUNT) {
 						lh = min(corner_sw(s), corner_nw(s));
 					}
-					if (bb / grund_t::WALL_IMAGE_COUNT) {
+					if ((bb / grund_t::WALL_IMAGE_COUNT) % grund_t::WALL_IMAGE_COUNT) {
 						rh = min(corner_ne(s), corner_nw(s));
 					}
 				}
@@ -965,9 +1018,14 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 
 	// needs a fence?
 	if(back_imageid==0) {
-		sint8 fence_offset = fence[0] + 2 * fence[1];
+		// 3-bit fence-presence mask, one bit per back-wall slot.  Pakset
+		// fence sprite lists typically only carry the 3 legacy combos
+		// (wall0, wall1, both); the 4 new combos involving wall 2 fall
+		// out of the pakset image range and get IMG_EMPTY at draw time
+		// — known gap, see TODO.md.
+		sint8 fence_offset = (sint8)(fence[0] + 2 * fence[1] + 4 * fence[2]);
 		if(fence_offset) {
-			back_imageid = grund_t::BIID_ENCODE_FENCE_OFFSET + fence_offset;
+			back_imageid = (sint16)(grund_t::BIID_ENCODE_FENCE_OFFSET + fence_offset);
 		}
 	}
 	this->back_imageid = (is_building!=0)? -back_imageid : back_imageid;
@@ -988,34 +1046,31 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 
 	// walls, fences, foundations etc
 	if(back_imageid!=0) {
-		const uint8 abs_back_imageid = abs(back_imageid);
+		const sint16 abs_back_imageid = abs(back_imageid);
 		const bool artificial = back_imageid < 0;
 		if(abs_back_imageid > grund_t::BIID_ENCODE_FENCE_OFFSET) {
 			// fence before a drop
 			const sint16 offset = -tile_raster_scale_y( TILE_HEIGHT_STEP*corner_nw(get_grund_hang()), raster_tile_width);
-			const uint16 typ = abs_back_imageid - grund_t::BIID_ENCODE_FENCE_OFFSET - 1 + (artificial ? grund_t::FENCE_IMAGE_COUNT : 0);
+			const uint16 typ = (uint16)(abs_back_imageid - grund_t::BIID_ENCODE_FENCE_OFFSET - 1 + (artificial ? grund_t::FENCE_IMAGE_COUNT : 0));
 			gfx->draw_normal( ground_desc_t::fences->get_image(typ), xpos, ypos + offset, 0, true, dirty CLIP_NUM_PAR );
 		}
 		else {
-			// artificial slope
-			const uint16 back_image[grund_t::BACK_WALL_COUNT] = {(uint16)(abs_back_imageid % grund_t::WALL_IMAGE_COUNT), (uint16)(abs_back_imageid / grund_t::WALL_IMAGE_COUNT)};
-
-			// choose foundation or natural slopes for the multi-step
-			// extension cliffs below — those still go through the
-			// pakset path verbatim (synth doesn't cover the
-			// `WALL_IMAGE_COUNT*2 + ...` extension indices yet).
-			const ground_desc_t *sl_draw = artificial ? ground_desc_t::fundament : ground_desc_t::slopes;
+			// artificial slope: per-wall index unpacked from base-WALL_IMAGE_COUNT digits.
+			uint16 back_image[grund_t::BACK_WALL_COUNT];
+			{
+				uint16 v = (uint16)abs_back_imageid;
+				for(  size_t i = 0;  i < grund_t::BACK_WALL_COUNT;  i++  ) {
+					back_image[i] = (uint16)(v % grund_t::WALL_IMAGE_COUNT);
+					v = (uint16)(v / grund_t::WALL_IMAGE_COUNT);
+				}
+			}
 
 			const slope_t::type disp_slope = get_disp_slope();
-			// first draw left, then back slopes
-			// HEX-PORT: same back-wall neighbours as calc_back_image
-			// above — NW and N under flat-top hex 2:1 isometric.
-			static const koord back_wall_neighbour_draw[grund_t::BACK_WALL_COUNT] = {
-				koord(-1,  0),  // NW
-				koord( 0, -1),  // N
-			};
 			for(  size_t i=0;  i<grund_t::BACK_WALL_COUNT;  i++  ) {
-				const uint8 back_height = min(i==0?corner_sw(disp_slope):corner_ne(disp_slope),corner_nw(disp_slope));
+				const back_wall_geometry_t &g = back_wall_geometry[i];
+				const uint8 this_a = corner_height(disp_slope, g.this_a);
+				const uint8 this_b = corner_height(disp_slope, g.this_b);
+				const uint8 back_height = min(this_a, this_b);
 
 				if (back_height + get_disp_height() > underground_level) {
 					continue;
@@ -1029,12 +1084,11 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 				sint16 yoff = hex_height_raster_scale_y( -TILE_HEIGHT_STEP*back_height, raster_tile_width );
 				if(  back_image[i]  ) {
 					// Draw extra wall images for walls that cannot be represented by a image.
-					grund_t *gr = welt->lookup_kartenboden( k + back_wall_neighbour_draw[i] );
+					grund_t *gr = welt->lookup_kartenboden( k + g.nbr );
 					if(  gr  ) {
-						// for left we test corners 2 and 3 (east), for back we use 1 and 2 (south)
 						const slope_t::type gr_slope = gr->get_disp_slope();
-						uint8 corner_a = corner_se(gr_slope);
-						uint8 corner_b = i==0?corner_ne(gr_slope):corner_sw(gr_slope);
+						uint8 corner_a = corner_height(gr_slope, g.nbr_a);
+						uint8 corner_b = corner_height(gr_slope, g.nbr_b);
 
 						// at least one level of solid wall between invisible and visible tiles
 						if (!visible  &&  gr->is_visible()) {
@@ -1046,12 +1100,12 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 							+ ((underground_mode == ugm_level  &&  gr->pos.z > underground_level) ? 1 : 0);
 
 						while(  hgt_diff > 2  ||  (hgt_diff > 0  &&  corner_a != corner_b)  ) {
-							uint16 img_index = grund_t::WALL_IMAGE_COUNT * 2 + (hgt_diff>1) + 2 * (uint16)i;
-							if( sl_draw->get_image( img_index ) == IMG_EMPTY ) {
-								img_index = 4 + 4 * (hgt_diff>1) + grund_t::WALL_IMAGE_COUNT * (uint16)i;
+							const bool two_step = (hgt_diff > 1);
+							const image_id ext_img = ground_desc_t::get_back_wall_extension_image((uint8)i, two_step, artificial);
+							if(  ext_img != IMG_EMPTY  ) {
+								gfx->draw_normal( ext_img, xpos, ypos + yoff, 0, true, dirty CLIP_NUM_PAR );
 							}
-							gfx->draw_normal( sl_draw->get_image( img_index ), xpos, ypos + yoff, 0, true, dirty CLIP_NUM_PAR );
-							yoff     -= hex_height_raster_scale_y( TILE_HEIGHT_STEP * (hgt_diff > 1 ? 2 : 1), raster_tile_width );
+							yoff     -= hex_height_raster_scale_y( TILE_HEIGHT_STEP * (two_step ? 2 : 1), raster_tile_width );
 							hgt_diff -= 2;
 						}
 					}

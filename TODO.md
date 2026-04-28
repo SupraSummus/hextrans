@@ -561,45 +561,38 @@ the textured-tile loop indexes `light_map` with the raw 6-corner
 value past its legacy 4-corner range; the back-fill that covers
 single-grounds (pak64) doesn't apply.
 
-**Cliff (back-wall) rendering — encoding mismatch and missing
-sites.**  `synth_overlay::get_back_wall` synthesises hex-shaped
-cliff faces for the 2 walls `calc_back_image` already encodes (NW
-and N neighbours), and `display_boden`'s cliff yoff is now in hex
-z-basis to match `simview.cc`'s tile world-z.  Pakset cliff art
-(legacy z, square-projected silhouette) is still the synth fallback
-and now under-shoots vertically — knowing trade-off, was already
-visibly wrong before.  Three real gaps remain.
+**Cliff (back-wall) rendering — residual gaps.**  Pakset cliff sprites
+are authored in legacy z and projected from a square silhouette; under
+hex they under-shoot vertically and only cover 2 of the 3 walls (NW, N
+— wall 2 is hex-only).  Fixing means either dropping the pakset path
+for walls and going synth-only, or porting the pakset sprites to hex z
++ adding a wall-2 family.
 
-`calc_back_image` reads the wrong corner pair for wall 0:
-`corner_sw + corner_nw` is the W edge of this hex, but the
-screen-shared edge with the NW neighbour is the NW edge
-(`corner_w + corner_nw`); the matching neighbour-side corner
-`corner_ne` should be `corner_e` (the NW neighbour's E corner
-aligns with this tile's NW corner under the hex lattice, not its
-NE).  Synth art draws against the correct edge, so encoded h1/h2
-and visible endpoints disagree on sloped tiles.  One contained fix
-in `calc_back_image`'s `i==0` branch.
+The hide-test loop in `calc_back_image` is still the square 3-corner
+sweep with `testdir` including the hex-invalid `(-1,-1)`; it samples
+W, NW, NE and ignores E + wall 2.  The `> 11` magic check in
+`brueckenboden_t::calc_image_internal` and `tunnelboden_t` was
+"is wall 1 non-trivial" under the old base-11 2-digit encoding;
+under the 3-digit encoding (`w0 + 11*w1 + 121*w2`) the threshold no
+longer maps cleanly, so bridge / tunnel "draw as obj" logic can
+misfire on hex-only edge slopes.  Both retire together with the
+hex-aware brueckenboden / tunnelboden rewrite.
 
-Hex has 3 screen-up neighbours (NW, N, NE) but `calc_back_image` /
-`display_boden` iterate 2.  The NE-neighbour cliff isn't drawn at
-all.  Wiring it up means a 3rd entry in `back_wall_neighbour[]`
-plus widening the `back_imageid` byte (currently 2 × 11-state
-walls — no room for a third), `BACK_WALL_COUNT` /
-`WALL_IMAGE_COUNT`, and the synth `back_wall[][]` table.
+`grund_t::get_back_image(leftback)` exposes only walls 0 and 1 (the
+two callers in brueckenboden / tunnelboden); replace with a
+`back_imageid`-direct accessor or widen the API when those bridge /
+tunnel sites get ported.
 
-Multi-step extension cliffs (`hgt_diff > 2` loop in `display_boden`,
-indices `WALL_IMAGE_COUNT*2 + ...` and `4 + 4*(hgt_diff>1) + ...`)
-still go through pakset verbatim.  Extend `get_back_wall` with a
-per-step extension family.  Same caveat for fence sprites
-(`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
-`ground_desc_t::fences`, still using `tile_raster_scale_y` for the
-`corner_nw` offset) — synthesise alongside cliffs and move the
-offset to hex z when fences come back into scope.
+Fence sprites (`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
+`ground_desc_t::fences`) still use `tile_raster_scale_y` for the
+`corner_nw` offset and have only 3 pakset combos for walls 0+1; the 4
+new wall-2-involving combos return IMG_EMPTY at draw time.  Synthesise
+alongside cliffs and move the offset to hex z when fences come back
+into scope.
 
-Middle-slope indices 9 / 10 are drawn as single-step half-cliffs
-(one corner at 0, one at 1) — placeholder for the legacy
-double-height notch shape; revisit if stacked terraforming reads
-wrong.
+Middle-slope indices 9 / 10 are drawn as single-step half-cliffs (one
+corner at 0, one at 1) — placeholder for the legacy double-height
+notch shape; revisit if stacked terraforming reads wrong.
 
 **Phase C — flow-on.**  Minimap (`gui/minimap.cc`, square pixels
 per tile), per-step vehicle interpolation offsets
