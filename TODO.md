@@ -260,16 +260,6 @@ use `(tile, hex_corner_t)`, `min_hgt` / `max_hgt`, or
 `grund_t::get_hoehe` as appropriate.  Clusters still on the legacy
 hatches or unfinished ports:
 
-*Square-corner reader ritual* — `surface.cc` 12 sites in
-`get_neighbour_heights`'s `[8][4]` boundary fallback, routed through
-`legacy_grid_hgt` to keep the function compiling.  Slot semantics
-match the old shim (E corner of tile `(x-1, y-1)`); the values are
-geometrically wrong under hex but consistent with what the
-`recalc_natural_slope` consumer expects.  Retires together with the
-`recalc_natural_slope` hex port — the function still iterates 8
-square-grid neighbours and composes 4 corners per neighbour, none of
-which match the 6-corner hex model.
-
 *"Tile reference height" readers — semantic drift bubble (partial)* —
 the shim's old "what is this tile's reference height" pattern picked
 a single slot on tile `(x-1, y-1)`, which was geometrically wrong
@@ -301,13 +291,20 @@ site, blocked on import decision as noted above).
 
 Each cluster above has an independent trigger; retire separately.
 
-Remaining hex-aware readers still 4-corner: `recalc_natural_slope`
-with its `get_neighbour_heights[8][4]` scaffold, and the
-climate-transition bitmask in `recalc_transitions` /
-`grund_t::display_if_visible`.  Both are bigger than the readers
-that already ported — they don't just read six heights, they walk
-six neighbours and compose per-corner data.  Sketch the 6-corner
-equivalent before diving in.
+Foundation placement (`hausbauer.cc:457`, `simtool.cc:1622/1625`)
+still writes only the NW vertex of the affected tile, so a fundament
+can leave one shared vertex at an artificially-elevated height while
+the other five stay natural.  Per-vertex readers (`recalc_natural_slope`,
+`calc_natural_slope`, `get_height_slope_from_grid`) now trust the
+canonical storage as ground truth, so when one of those readers runs
+on a tile that shares its NW vertex with a neighbour fundament, it
+picks up the elevated value with no way to flag it as non-natural.
+The fix is at the writer side — either write all 6 corners of the
+foundation tile consistently with artificial heights and keep a
+separate "natural ground" channel for recalc, or restore natural
+heights when a foundation is torn down before any neighbour recalc
+fires.  Pick a direction together with the wider per-vertex
+writer port.
 
 `karte_t::calc_humidity_map_region` branches on `ribi_t::northwest`
 / `southeast` / `north` for wind direction, leaving NE, SW and

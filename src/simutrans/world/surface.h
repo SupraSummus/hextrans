@@ -331,15 +331,14 @@ public:
 	void set_grid_hgt_nocheck(koord k, sint8 hgt);
 
 	// HEX-PORT: narrow escape hatch for callers the fatal shim above
-	// would catch but that genuinely cannot port yet.  Two clusters use
-	// it today — the rdwr round-trippers (`grund.cc`, `simplan.cc`) which
-	// are bubble-consistent by construction and retire with the
-	// save-format bump, and the `[8][4]` boundary fallback in
-	// `surface_t::get_neighbour_heights` which retires with the
-	// `recalc_natural_slope` hex port.  Slot semantics are identical to
-	// the old shim (E canonical corner of tile `(x-1, y-1)`); the slot
-	// is geometrically wrong under hex but consistent between paired
-	// reader/writer sites.  Do not add new callers — see TODO.md.
+	// would catch but that genuinely cannot port yet.  One cluster
+	// uses it today — the rdwr round-trippers (`grund.cc`,
+	// `simplan.cc`), which are bubble-consistent by construction and
+	// retire with the save-format bump.  Slot semantics are identical
+	// to the old shim (E canonical corner of tile `(x-1, y-1)`); the
+	// slot is geometrically wrong under hex but consistent between
+	// paired reader/writer sites.  Do not add new callers — see
+	// TODO.md.
 	inline sint8 legacy_grid_hgt(koord k) const {
 		return is_within_grid_limits(k.x, k.y)
 			? grid_hgts[(k.x + k.y*(uint32)(cached_grid_size.x+1)) * 2u]
@@ -423,16 +422,7 @@ public:
 	sint8 max_hgt(koord k) const;
 
 public:
-	void get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &slope);
-
-	/**
-	 * Fills array with corner heights of neighbours
-	 */
-	// HEX-PORT TODO: array shape is square-grid (8 neighbours × 4 corners);
-	// kept until calculate_natural_slope and friends are ported away from
-	// 4-corner geometry.  The function fills only the first 6 entries
-	// with hex neighbour data and zeroes the rest.
-	void get_neighbour_heights(const koord k, sint8 neighbour_height[8][4]) const;
+	void get_height_slope_from_grid(koord k, sint8 &hgt, slope_t::type &slope) const;
 
 	//
 	// Terraforming related
