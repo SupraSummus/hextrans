@@ -325,8 +325,16 @@ const char *terraformer_t::can_raise_tile_to(const node_t &node, const player_t 
 	const grund_t *gr = welt->lookup_kartenboden_nocheck(node.x,node.y);
 	const sint8 water_hgt = welt->get_water_hgt_nocheck(node.x,node.y);
 
+	sint8 h0[HEX_N];
+	read_corners(welt, node.x, node.y, h0);
+
+	sint8 hn[HEX_N];
+	for (uint8 c = 0; c < HEX_N; c++) {
+		hn[c] = max(node.h[c], h0[c]);
+	}
+
 	sint8 min_hgt, max_hgt;
-	min_max_corners(node.h, min_hgt, max_hgt);
+	min_max_corners(hn, min_hgt, max_hgt);
 
 	if(  gr->is_water()  &&  keep_water  &&  max_hgt > water_hgt  ) {
 		return "";
@@ -340,8 +348,16 @@ const char* terraformer_t::can_lower_tile_to(const node_t &node, const player_t 
 {
 	assert(welt->is_within_limits(node.x,node.y));
 
+	sint8 h0[HEX_N];
+	read_corners(welt, node.x, node.y, h0);
+
+	sint8 hn[HEX_N];
+	for (uint8 c = 0; c < HEX_N; c++) {
+		hn[c] = min(node.h[c], h0[c]);
+	}
+
 	sint8 hneu, max_hgt_ignored;
-	min_max_corners(node.h, hneu, max_hgt_ignored);
+	min_max_corners(hn, hneu, max_hgt_ignored);
 
 	if( hneu < welt->get_min_allowed_height() ) {
 		return "Maximum tile height difference reached.";
