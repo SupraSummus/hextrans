@@ -834,6 +834,20 @@ void grund_t::mark_image_dirty() const
 	}
 }
 
+
+bool grund_t::has_artificial_slope_overlay() const
+{
+	if(  !ist_karten_boden()  ||  !(get_typ() == grund_t::boden  ||  get_typ() == grund_t::wasser)  ) {
+		return false;
+	}
+
+	sint8 natural_height;
+	slope_t::type natural_slope;
+	welt->get_natural_height_slope_from_grid(pos.get_2d(), natural_height, natural_slope);
+	return natural_height != get_disp_height()  ||  natural_slope != get_disp_slope();
+}
+
+
 // artificial walls from here on ...
 void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 {
@@ -861,7 +875,7 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 
 	// now calculate back image
 	sint16 back_imageid=0;
-	bool is_building = get_typ()==grund_t::fundament;
+	bool is_building = get_typ()==grund_t::fundament || has_artificial_slope_overlay();
 	const bool isvisible = is_visible();
 	bool fence[grund_t::BACK_WALL_COUNT] = {false, false, false};
 	const koord k = get_pos().get_2d();
@@ -943,8 +957,9 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 			// is `WALL_IMAGE_COUNT^i`, advanced by the loop step.
 			if(  (diff_from_ground_1-corner_a>0  ||  diff_from_ground_2-corner_b>0)
 				&&  (diff_from_ground_1>0  ||  diff_from_ground_2>0)  ) {
+				const bool neighbour_artificial = gr->has_artificial_slope_overlay();
 				back_imageid += get_back_image_from_diff( diff_from_ground_1, diff_from_ground_2 ) * mult;
-				is_building |= gr->get_typ()==grund_t::fundament;
+				is_building |= gr->get_typ()==grund_t::fundament || neighbour_artificial;
 			}
 			// update corner heights
 			if (diff_from_ground_1 > corner_a) {

@@ -47,6 +47,9 @@
 
 karte_ptr_t tool_t::welt;
 
+#define SIMMENU_STRINGIFY_VALUE_HELPER(x) #x
+#define SIMMENU_STRINGIFY_VALUE(x) SIMMENU_STRINGIFY_VALUE_HELPER(x)
+
 // emulate control key by tool
 uint8 tool_t::control_invert = 0;
 
@@ -492,6 +495,28 @@ void set_defaults_general_tool(tool_t* tool, const char* param_str)
 }
 
 
+static const char* normalize_general_tool_default_param(uint16 toolnr, const char* param_str)
+{
+	if(  param_str == NULL  ||  toolnr != TOOL_SETSLOPE  ) {
+		return param_str;
+	}
+
+	// Square-era menuconf entries encode "all down" and "all up" as
+	// the first two values after the concrete 4-corner slope range
+	// (LEGACY_SLOPE4_MAX).  Normalize them at toolbar load time so
+	// emitted tool commands carry the modern sentinel values instead
+	// of legacy slope-table numbers.
+	switch(  atoi(param_str)  ) {
+		case LEGACY_ALL_DOWN_SLOPE: return SIMMENU_STRINGIFY_VALUE(ALL_DOWN_SLOPE);
+		case LEGACY_ALL_UP_SLOPE:   return SIMMENU_STRINGIFY_VALUE(ALL_UP_SLOPE);
+		default: return param_str;
+	}
+}
+
+#undef SIMMENU_STRINGIFY_VALUE
+#undef SIMMENU_STRINGIFY_VALUE_HELPER
+
+
 /**
  * Checks whether a tool is available in the current timeline.
  *
@@ -880,6 +905,7 @@ bool tool_t::read_menu(const std::string& menuconf_path)
 			if (char const* const c = strstart(toolname, "general_tool[")) {
 				uint8 toolnr = atoi(c);
 				if (toolnr < GENERAL_TOOL_COUNT) {
+					param_str = normalize_general_tool_default_param(toolnr, param_str);
 					if (create_tool) {
 						// compatibility mode: tool_cityroad is used for tool_wegebau with defaultparam 'cityroad'
 						if (toolnr == TOOL_BUILD_WAY && param_str && strcmp(param_str, "city_road") == 0) {

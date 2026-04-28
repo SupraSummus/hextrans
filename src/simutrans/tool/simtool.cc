@@ -1243,8 +1243,10 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 	}
 
 	if(  !ground_desc_t::double_grounds  &&  old_slope_compatibility  ) {
-		// translate old single slope parameter to new double slope
-		if(  0 < new_slope  &&  new_slope < ALL_UP_SLOPE_SINGLE  ) {
+		// Translate old single-slope parameters to the widened hex
+		// encoding.  The square-era concrete slope range was
+		// 0..LEGACY_SLOPE4_MAX.
+		if(  0 < new_slope  &&  new_slope <= LEGACY_SLOPE4_MAX  ) {
 			new_slope = slope_from_slope4(slope4_t(new_slope), 1);
 		}
 		else {

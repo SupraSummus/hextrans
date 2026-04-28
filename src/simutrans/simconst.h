@@ -93,6 +93,13 @@
 /**************************** automatic stuff ********************************/
 
 
+// Square-era set-slope parameters used by legacy menuconf toolbar
+// entries.  Concrete 4-corner slopes occupied 0..80; all-down/all-up
+// toolbar commands followed immediately after that range.
+#define LEGACY_SLOPE4_MAX (80)
+#define LEGACY_ALL_DOWN_SLOPE (LEGACY_SLOPE4_MAX + 1)
+#define LEGACY_ALL_UP_SLOPE (LEGACY_SLOPE4_MAX + 2)
+
 // Terraform-tool sentinels, used via tool_setslope / tool_restoreslope
 // to request "raise by one step", "lower by one step", "restore the
 // natural slope" instead of a specific target slope.  Must stay

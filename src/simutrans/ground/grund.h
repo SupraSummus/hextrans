@@ -211,7 +211,7 @@ protected:
 	/**
 	 * Image of the walls.  Three back walls (NW, N, NE neighbours) combined
 	 * in base-WALL_IMAGE_COUNT, plus a fence-encoding range above
-	 * BIID_ENCODE_FENCE_OFFSET; sign indicates fundament vs natural cliff.
+	 * BIID_ENCODE_FENCE_OFFSET; sign indicates artificial/fundament vs natural cliff.
 	 */
 	sint16 back_imageid;
 
@@ -236,6 +236,8 @@ protected:
 	* Change to instance variable once more than one world is available.
 	*/
 	static karte_ptr_t welt;
+
+	bool has_artificial_slope_overlay() const;
 
 	// calculates the slope image and sets the draw_as_obj flag correctly
 	void calc_back_image(const sint8 hgt,const slope_t::type slope_this);
