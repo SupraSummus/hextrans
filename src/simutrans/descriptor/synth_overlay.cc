@@ -68,6 +68,16 @@ static image_t* alpha[slope_t::max_slopes];
 // is not bracketed around tile content.
 static image_t* border[slope_t::max_slopes];
 
+// Cliff-face sprites for back walls (NW and N edges).  Indexed by
+// [artificial][wall][image_index], following the encoding produced by
+// `get_back_image_from_diff` in `grund.cc` (see header).  The fundament
+// (artificial=true) and natural-cliff (artificial=false) variants share
+// geometry and differ only in palette, mirroring the
+// `ground_desc_t::fundament` vs `ground_desc_t::slopes` split on the
+// pakset path.  Slope is not part of the key — the cliff face only
+// uses h1, h2 from the index, not this tile's overall slope.
+static image_t* back_wall[2][back_wall_count][back_wall_image_count];
+
 static bool initialised = false;
 
 
@@ -121,6 +131,14 @@ static void free_all()
 	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
 		delete border[s];
 		border[s] = NULL;
+	}
+	for(  int a = 0;  a < 2;  a++  ) {
+		for(  int w = 0;  w < back_wall_count;  w++  ) {
+			for(  int i = 0;  i < back_wall_image_count;  i++  ) {
+				delete back_wall[a][w][i];
+				back_wall[a][w][i] = NULL;
+			}
+		}
 	}
 }
 
@@ -561,6 +579,120 @@ static image_t* build_alpha(const image_t* ground)
 }
 
 
+// Cliff-face palette.  Natural cliffs read as exposed rock / dirt;
+// fundament reads as a man-made platform.  Picked to be visibly
+// different from the climate-base ground tones in CLIMATE_RGB555 so
+// the cliff face stands out from the surrounding terrain.
+#define RGB555(r, g, b) (PIXVAL)(((r) << 10) | ((g) << 5) | (b))
+static const PIXVAL CLIFF_NATURAL = RGB555(13, 11,  7); // dirt brown
+static const PIXVAL CLIFF_FUNDAMENT = RGB555(20, 20, 20); // light grey
+#undef RGB555
+
+// Per-wall shading multiplier (256 = 1.0x).  Wall 0 (NW edge) faces
+// the screen-up-left, wall 1 (N edge) faces screen-up; under the same
+// directional light the synth ground uses (`Lx=1, Ly=-1, Lz=2`) wall
+// 1 catches more light than wall 0.  Hand-picked rather than running
+// the Lambert helper because vertical wall normals fall well below
+// the flat-ground reference cosine and the helper clamps both walls
+// to the same minimum brightness, losing the wall-to-wall contrast.
+static const sint32 WALL_SHADE[back_wall_count] = { 192, 224 };
+
+
+// Build one cliff-face sprite.  Wall 0 attaches along this hex's NW
+// edge (W → NW corners in screen space); wall 1 attaches along the N
+// edge (NW → NE).  The lower edge sits at the unlifted edge position;
+// the upper edge is lifted by `h1 * geom.lift` at corner_a and
+// `h2 * geom.lift` at corner_b.  The renderer composes this with a
+// `back_height` shift via `yoff` at draw time, so the sprite itself
+// only encodes the cliff face above that baseline.
+//
+// `index` follows the encoding `get_back_image_from_diff` in
+// `grund.cc` produces: index 0 = no cliff, 1..8 = `(h1, h2)` for
+// `h1, h2 ∈ {0, 1, 2}` with `index = h1 + 3*h2`, and 9..10 = the
+// middle slopes of double-height stacks (one corner below baseline,
+// one above).  Today 9 / 10 are drawn as the corresponding
+// single-step half-cliffs (h1=0,h2=1 / h1=1,h2=0); see TODO.md for
+// the missing notch shape.
+static image_t* build_back_wall(sint32 u, uint8 wall, uint8 index, bool artificial)
+{
+	const synth_hex_geometry_t geom = synth_hex_geometry(u, TILE_HEIGHT_STEP);
+	const sint32 w = geom.w;
+	const sint32 h = geom.h;
+
+	const sint8 h1 = (index == 10) ? 1 : (index == 9 ? 0 : (sint8)(index % 3));
+	const sint8 h2 = (index == 10) ? 0 : (index == 9 ? 1 : (sint8)(index / 3));
+
+	// Wall lower-edge endpoints in sprite-local screen space, flat
+	// (no per-corner ground lift — the cliff sprite carries h1/h2
+	// lift, not the underlying ground slope).
+	static const hex_corner_t::type endpoints[back_wall_count][2] = {
+		{ hex_corner_t::W,  hex_corner_t::NW }, // wall 0: NW edge
+		{ hex_corner_t::NW, hex_corner_t::NE }, // wall 1: N  edge
+	};
+	const sint32 ax = geom.vx     [endpoints[wall][0]];
+	const sint32 ay = geom.vy_base[endpoints[wall][0]];
+	const sint32 bx = geom.vx     [endpoints[wall][1]];
+	const sint32 by = geom.vy_base[endpoints[wall][1]];
+
+	const sint32 lift1 = (sint32)h1 * geom.lift;
+	const sint32 lift2 = (sint32)h2 * geom.lift;
+
+	PIXVAL* buf = new PIXVAL[w * h];
+	memset(buf, 0, w * h * sizeof(PIXVAL));
+
+	if(  lift1 > 0 || lift2 > 0  ) {
+		const PIXVAL base = artificial ? CLIFF_FUNDAMENT : CLIFF_NATURAL;
+		const PIXVAL face_color = shade_pixval(base, WALL_SHADE[wall]);
+
+		// Cliff polygon: lower edge (a → b), upper edge lifted
+		// (b → b - lift2, a - lift1 → a).  Even-odd parity, so
+		// winding doesn't matter.
+		const sint32 xs[4] = { ax, bx, bx,         ax         };
+		const sint32 ys[4] = { ay, by, by - lift2, ay - lift1 };
+		fill_polygon(buf, w, h, xs, ys, 4, face_color);
+
+		// `fill_polygon` skips horizontal edges by design (parity
+		// correctness), so close them explicitly — same pattern as
+		// `build_ground`.  Wall 1's lower edge is horizontal (y=top_y);
+		// the upper edge is horizontal whenever lift1 == lift2.
+		for(  uint8 i = 0;  i < 4;  i++  ) {
+			const uint8 j = (uint8)((i + 1) % 4);
+			if(  ys[i] != ys[j]  ) {
+				continue;
+			}
+			const sint32 y = ys[i];
+			if(  y < 0 || y >= h  ) {
+				continue;
+			}
+			sint32 x0 = xs[i] < xs[j] ? xs[i] : xs[j];
+			sint32 x1 = xs[i] < xs[j] ? xs[j] : xs[i];
+			if(  x0 < 0   ) { x0 = 0; }
+			if(  x1 >= w  ) { x1 = w - 1; }
+			for(  sint32 x = x0;  x <= x1;  x++  ) {
+				buf[y * w + x] = face_color;
+			}
+		}
+	}
+
+	const size_t cap = (size_t)w * h * 2 + (size_t)h * 4 + 4;
+	PIXVAL* tmp = new PIXVAL[cap];
+	const size_t rle_len = encode_rle(buf, w, h, tmp);
+	delete [] buf;
+
+	image_t* img = new image_t(rle_len);
+	memcpy(img->data, tmp, rle_len * sizeof(PIXVAL));
+	delete [] tmp;
+
+	img->w = (scr_coord_val)w;
+	img->h = (scr_coord_val)h;
+	img->x = 0;
+	img->y = geom.image_y();
+	img->zoomable = 1;
+
+	return img;
+}
+
+
 void init()
 {
 	if(  initialised  ) {
@@ -639,6 +771,21 @@ void init()
 		border[s] = bd;
 	}
 
+	// Cliff-face sprites are not slope-keyed (they take h1/h2 from
+	// the encoded back_image index, not from this tile's overall
+	// slope), so build them once per (artificial × wall × index)
+	// outside the slope loop.  Index 0 = "no cliff"; we leave it as
+	// NULL and rely on the caller's IMG_EMPTY check.
+	for(  uint8 art = 0;  art < 2;  art++  ) {
+		for(  uint8 wall = 0;  wall < back_wall_count;  wall++  ) {
+			for(  uint8 idx = 1;  idx < back_wall_image_count;  idx++  ) {
+				image_t* img = build_back_wall(u, wall, idx, art == 1);
+				img->register_image();
+				back_wall[art][wall][idx] = img;
+			}
+		}
+	}
+
 	initialised = true;
 	const auto bbox = synth_hex_geometry(u, TILE_HEIGHT_STEP);
 	DBG_DEBUG("synth_overlay::init",
@@ -686,6 +833,19 @@ image_id get_border(slope_t::type slope)
 		return IMG_EMPTY;
 	}
 	const image_t* img = border[slope];
+	return img != NULL ? img->get_id() : IMG_EMPTY;
+}
+
+
+image_id get_back_wall(uint8 wall, uint8 index, bool artificial)
+{
+	if(  !initialised
+	  ||  wall >= back_wall_count
+	  ||  index == 0
+	  ||  index >= back_wall_image_count  ) {
+		return IMG_EMPTY;
+	}
+	const image_t* img = back_wall[artificial ? 1 : 0][wall][index];
 	return img != NULL ? img->get_id() : IMG_EMPTY;
 }
 
