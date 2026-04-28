@@ -122,8 +122,11 @@ inline void synth_ground_lambert_face_normal(const synth_hex_geometry_t &geom,
  */
 inline sint32 synth_ground_lambert_brightness(double nx, double ny, double nz)
 {
-	const double Lx =  1.0;
-	const double Ly = -1.0;
+	// Hex S projects to screen bottom-left, between the SE and SW
+	// vertices.  Keep the synthetic terrain light aligned with that
+	// direction so the generated slopes match the port's compass.
+	const double Lx = -1.0;
+	const double Ly =  1.0;
 	const double Lz =  2.0;
 	const double L_norm = std::sqrt(Lx*Lx + Ly*Ly + Lz*Lz);
 	const double flat_cos = Lz / L_norm;

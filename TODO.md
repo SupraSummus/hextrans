@@ -629,8 +629,9 @@ synth ground vector bbox/anchor contract, `synth_ground_lambert_face_normal`
 flat-plane-calibrated synth brightness transfer.  The normal test checks
 against an independent cross product from `geom.vy`, and checks divergence
 from a buggy unlifted reference kept only in `hex_proj_test.cc`.  The
-brightness test only protects the intended invariant — flat ground stays
-base-coloured while raised slopes produce real light/dark spread — not the
+brightness test protects the intended invariant — flat ground stays
+base-coloured while raised slopes produce real light/dark spread, with
+the terrain light coming from hex S / screen bottom-left — not the
 subjective palette aesthetics.  The vertex-closure check in the same file
 mirrors `koord.cc::vertex_owners` by formula only — the standalone binary
 stays one TU and does not link `koord.cc`.  It still does not cover sprite

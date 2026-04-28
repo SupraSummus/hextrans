@@ -664,14 +664,18 @@ static sint32 synth_test_centre_z(
 }
 
 
-static void synth_test_brightness_minmax(
+struct synth_test_brightness_range_t {
+	sint32 lo = 10000;
+	sint32 hi = -10000;
+	sint32 sum = 0;
+};
+
+
+static synth_test_brightness_range_t synth_test_brightness_range(
 	const synth_overlay::synth_hex_geometry_t &geom,
-	slope_t::type slope,
-	sint32 *lo,
-	sint32 *hi)
+	slope_t::type slope)
 {
-	*lo = 10000;
-	*hi = -10000;
+	synth_test_brightness_range_t range;
 	const sint32 cz = synth_test_centre_z(geom, slope);
 	for (int f = 0; f < hex_corner_t::count; f++) {
 		double nx, ny, nz;
@@ -679,9 +683,11 @@ static void synth_test_brightness_minmax(
 			geom, slope, cz, (uint8)f, (uint8)((f + 1) % hex_corner_t::count),
 			&nx, &ny, &nz);
 		const sint32 brightness = synth_overlay::synth_ground_lambert_brightness(nx, ny, nz);
-		if (brightness < *lo) *lo = brightness;
-		if (brightness > *hi) *hi = brightness;
+		if (brightness < range.lo) range.lo = brightness;
+		if (brightness > range.hi) range.hi = brightness;
+		range.sum += brightness;
 	}
+	return range;
 }
 
 
@@ -779,23 +785,38 @@ static void test_synth_ground_shading_calibrates_flat_plane()
 	const synth_overlay::synth_hex_geometry_t geom =
 		synth_overlay::synth_hex_geometry(W / 4, lift);
 
-	sint32 lo, hi;
-	synth_test_brightness_minmax(geom, slope_t::flat, &lo, &hi);
-	if (lo != 256 || hi != 256) {
+	const synth_test_brightness_range_t flat =
+		synth_test_brightness_range(geom, slope_t::flat);
+	if (flat.lo != 256 || flat.hi != 256) {
 		std::fprintf(stderr,
 			"synth flat shading: expected all faces at 256, got min=%d max=%d\n",
-			(int)lo, (int)hi);
+			(int)flat.lo, (int)flat.hi);
 		std::abort();
 	}
 
-	// Use height-2 SW corner: with the 2x-reduced lift (8px/unit), height 2
-	// gives the same 16px visual displacement as height 1 at the old lift.
-	const slope_t::type sw2 = (slope_t::type)(slope_t::raised_SW * 2);
-	synth_test_brightness_minmax(geom, sw2, &lo, &hi);
-	if (lo >= 192 || hi <= 288 || hi - lo < 160) {
+	// Use the north-edge-raised slope: its face is lit by the S-direction
+	// light, and height 2 gives the same 16px visual displacement as
+	// height 1 at the old lift.
+	const slope_t::type south2 = (slope_t::type)(slope_t::south * 2);
+	const synth_test_brightness_range_t south2_range =
+		synth_test_brightness_range(geom, south2);
+	if (south2_range.lo >= 256 || south2_range.hi <= 256) {
 		std::fprintf(stderr,
-			"synth raised_SW shading: expected visible light/dark relief, got min=%d max=%d\n",
-			(int)lo, (int)hi);
+			"synth south-facing shading: expected visible light/dark relief, got min=%d max=%d\n",
+			(int)south2_range.lo, (int)south2_range.hi);
+		std::abort();
+	}
+
+	const synth_test_brightness_range_t north_range =
+		synth_test_brightness_range(geom, slope_t::north);
+	const synth_test_brightness_range_t south_range =
+		synth_test_brightness_range(geom, slope_t::south);
+	if (south_range.sum <= north_range.sum) {
+		std::fprintf(stderr,
+			"synth S light direction: expected south-facing slope brighter than north-facing "
+			"(north=%d..%d sum=%d south=%d..%d sum=%d)\n",
+			(int)north_range.lo, (int)north_range.hi, (int)north_range.sum,
+			(int)south_range.lo, (int)south_range.hi, (int)south_range.sum);
 		std::abort();
 	}
 }

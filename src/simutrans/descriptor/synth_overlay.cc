@@ -590,12 +590,11 @@ static const PIXVAL CLIFF_FUNDAMENT = RGB555(20, 20, 20); // light grey
 
 // Per-wall shading multiplier (256 = 1.0x).  Wall 0 (NW edge) faces
 // screen-up-left, wall 1 (N edge) faces screen-up, wall 2 (NE edge)
-// faces screen-up-right; under the same directional light the synth
-// ground uses (`Lx=1, Ly=-1, Lz=2`) the brightness ranks NE > N > NW.
-// Hand-picked rather than running the Lambert helper because vertical
-// wall normals fall well below the flat-ground reference cosine and
-// the helper clamps every wall to the same minimum brightness,
-// losing the wall-to-wall contrast.
+// faces screen-up-right.  These values are hand-picked rather than
+// derived from the terrain Lambert helper: vertical wall normals fall
+// well below the flat-ground reference cosine and the helper clamps
+// every wall to the same minimum brightness, losing the wall-to-wall
+// contrast.
 static const sint32 WALL_SHADE[back_wall_count] = { 192, 224, 256 };
 
 
