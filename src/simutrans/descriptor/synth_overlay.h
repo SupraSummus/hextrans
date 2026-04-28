@@ -167,10 +167,9 @@ image_id get_alpha(slope_t::type slope);
 /// Number of "back walls" (cliff faces against screen-up neighbours)
 /// the synth covers.  Mirrors `grund_t::BACK_WALL_COUNT`.  Wall 0 is
 /// the NW-neighbour cliff (along this hex's NW edge), wall 1 is the
-/// N-neighbour cliff (along this hex's N edge).  See TODO.md for the
-/// missing third hex back-wall (NE neighbour) and the legacy corner-pair
-/// mismatch in `calc_back_image`.
-static const uint8 back_wall_count = 2;
+/// N-neighbour cliff (along this hex's N edge), wall 2 is the
+/// NE-neighbour cliff (along this hex's NE edge).
+static const uint8 back_wall_count = 3;
 
 /// Number of distinct cliff-face sprites per wall (matches the
 /// `(h1, h2)` encoding produced by `get_back_image_from_diff` in
@@ -180,16 +179,16 @@ static const uint8 back_wall_image_count = 11;
 
 
 /**
- * Cliff-face sprite for back-wall @p wall (0 = NW edge, 1 = N edge)
- * with image index @p index (0..10) under the encoding produced by
- * `get_back_image_from_diff`: index 0 = no cliff, 1..8 = `(h1, h2)`
- * for `h1, h2 ∈ {0, 1, 2}` with `index = h1 + 3*h2`, 9..10 = middle
- * slopes of double-height stacks.  @p artificial picks the fundament
- * (man-made platform) palette; false picks the natural-cliff palette,
- * matching the sign of `back_imageid` (`< 0` → fundament).
+ * Cliff-face sprite for back-wall @p wall (0 = NW edge, 1 = N edge,
+ * 2 = NE edge) with image index @p index (0..10) under the encoding
+ * produced by `get_back_image_from_diff`: index 0 = no cliff, 1..8 =
+ * `(h1, h2)` for `h1, h2 ∈ {0, 1, 2}` with `index = h1 + 3*h2`, 9..10 =
+ * middle slopes of double-height stacks.  @p artificial picks the
+ * fundament (man-made platform) palette; false picks the natural-cliff
+ * palette, matching the sign of `back_imageid` (`< 0` → fundament).
  *
  * Geometry is anchored against `synth_hex_geometry` so the cliff
- * face attaches along this tile's NW or N hex edge rather than the
+ * face attaches along this tile's NW, N or NE hex edge rather than the
  * legacy diamond silhouette.  Vertical lift uses the same `geom.lift`
  * (= `hex_height_raster_scale_y(TILE_HEIGHT_STEP, W)`) as synth ground
  * per-corner lift and as `simview.cc`'s tile world-z translation, so

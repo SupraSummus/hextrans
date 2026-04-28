@@ -589,22 +589,24 @@ static const PIXVAL CLIFF_FUNDAMENT = RGB555(20, 20, 20); // light grey
 #undef RGB555
 
 // Per-wall shading multiplier (256 = 1.0x).  Wall 0 (NW edge) faces
-// the screen-up-left, wall 1 (N edge) faces screen-up; under the same
-// directional light the synth ground uses (`Lx=1, Ly=-1, Lz=2`) wall
-// 1 catches more light than wall 0.  Hand-picked rather than running
-// the Lambert helper because vertical wall normals fall well below
-// the flat-ground reference cosine and the helper clamps both walls
-// to the same minimum brightness, losing the wall-to-wall contrast.
-static const sint32 WALL_SHADE[back_wall_count] = { 192, 224 };
+// screen-up-left, wall 1 (N edge) faces screen-up, wall 2 (NE edge)
+// faces screen-up-right; under the same directional light the synth
+// ground uses (`Lx=1, Ly=-1, Lz=2`) the brightness ranks NE > N > NW.
+// Hand-picked rather than running the Lambert helper because vertical
+// wall normals fall well below the flat-ground reference cosine and
+// the helper clamps every wall to the same minimum brightness,
+// losing the wall-to-wall contrast.
+static const sint32 WALL_SHADE[back_wall_count] = { 192, 224, 256 };
 
 
 // Build one cliff-face sprite.  Wall 0 attaches along this hex's NW
 // edge (W → NW corners in screen space); wall 1 attaches along the N
-// edge (NW → NE).  The lower edge sits at the unlifted edge position;
-// the upper edge is lifted by `h1 * geom.lift` at corner_a and
-// `h2 * geom.lift` at corner_b.  The renderer composes this with a
-// `back_height` shift via `yoff` at draw time, so the sprite itself
-// only encodes the cliff face above that baseline.
+// edge (NW → NE); wall 2 attaches along the NE edge (NE → E).  The
+// lower edge sits at the unlifted edge position; the upper edge is
+// lifted by `h1 * geom.lift` at corner_a and `h2 * geom.lift` at
+// corner_b.  The renderer composes this with a `back_height` shift
+// via `yoff` at draw time, so the sprite itself only encodes the
+// cliff face above that baseline.
 //
 // `index` follows the encoding `get_back_image_from_diff` in
 // `grund.cc` produces: index 0 = no cliff, 1..8 = `(h1, h2)` for
@@ -628,6 +630,7 @@ static image_t* build_back_wall(sint32 u, uint8 wall, uint8 index, bool artifici
 	static const hex_corner_t::type endpoints[back_wall_count][2] = {
 		{ hex_corner_t::W,  hex_corner_t::NW }, // wall 0: NW edge
 		{ hex_corner_t::NW, hex_corner_t::NE }, // wall 1: N  edge
+		{ hex_corner_t::NE, hex_corner_t::E  }, // wall 2: NE edge
 	};
 	const sint32 ax = geom.vx     [endpoints[wall][0]];
 	const sint32 ay = geom.vy_base[endpoints[wall][0]];

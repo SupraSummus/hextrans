@@ -108,20 +108,26 @@ public:
 	};
 
 	/**
-	 * @brief Back wall corner count.
+	 * @brief Hide-test corner count.
 	 *
-	 * Number of corners used to produce tile back walls. Visually these corners
-	 * are the left, top and right corners of a tile.
+	 * Number of corners sampled by `calc_back_image`'s "is something
+	 * behind us" loop.  Square era was 3 (left/top/right corners); under
+	 * hex the same 3-direction sweep approximates the upper boundary,
+	 * even though the underlying hex has 4 screen-up corners (W, NW,
+	 * NE, E) bounding the 3 back-wall edges.  Kept at 3 — the extra
+	 * hex corner is a known hide-test approximation, see TODO.md.
 	 */
 	static size_t const BACK_CORNER_COUNT = 3;
 
 	/**
 	 * @brief Back wall count.
 	 *
-	 * Number of back walls a tile can have. Visually these walls are along the
-	 * top left and right edges of the tile.
+	 * Number of back walls a tile can have. Under flat-top hex the
+	 * screen-up edges shared with the NW, N and NE neighbours each get a
+	 * back-wall slot.  Square era only had 2 (NW + N); the NE neighbour
+	 * is hex-only and was missing.
 	 */
-	static size_t const BACK_WALL_COUNT = BACK_CORNER_COUNT - 1;
+	static size_t const BACK_WALL_COUNT = 3;
 
 	/**
 	 * @brief Number of wall images per wall.
@@ -142,9 +148,11 @@ public:
 	 * @brief Back image ID offset for encoding fences.
 	 *
 	 * The offset used to encode the fence image into a back image ID. Anything
-	 * less than this offset can be considered a wall.
+	 * less than this offset can be considered a wall.  Under hex, three back
+	 * walls combine in base-WALL_IMAGE_COUNT (11^3 = 1331), so the encoding
+	 * needs 16-bit storage.
 	 */
-	static sint8 const BIID_ENCODE_FENCE_OFFSET = (sint8)(WALL_IMAGE_COUNT * WALL_IMAGE_COUNT);
+	static sint16 const BIID_ENCODE_FENCE_OFFSET = (sint16)(WALL_IMAGE_COUNT * WALL_IMAGE_COUNT * WALL_IMAGE_COUNT);
 
 	/**
 	 * @brief Maximum distance in tiles that hide test will be performed for.
@@ -201,9 +209,11 @@ protected:
 	slope_t::type slope;
 
 	/**
-	 * Image of the walls
+	 * Image of the walls.  Three back walls (NW, N, NE neighbours) combined
+	 * in base-WALL_IMAGE_COUNT, plus a fence-encoding range above
+	 * BIID_ENCODE_FENCE_OFFSET; sign indicates fundament vs natural cliff.
 	 */
-	sint8 back_imageid;
+	sint16 back_imageid;
 
 	/**
 	 * Flags to indicate existence of halts, ways, to mark dirty

@@ -122,20 +122,58 @@ public:
 	}
 
 	/// Cliff-face sprite for back-wall @p wall (0 = NW edge,
-	/// 1 = N edge) with per-wall image @p index (0..10) and the
-	/// pakset's `fundament` (artificial=true) vs `slopes`
+	/// 1 = N edge, 2 = NE edge) with per-wall image @p index (0..10)
+	/// and the pakset's `fundament` (artificial=true) vs `slopes`
 	/// (artificial=false) split — the same encoding the legacy
 	/// `grund_t::get_back_image(leftback)` returned, hoisted to a
 	/// static so `synth_overlay` can take precedence the same way
 	/// `get_marker_image` and `get_border_image` do.  Legacy pakset
-	/// stacks both walls in one sprite list with wall 1 offset by
-	/// `back_wall_image_count` (= legacy `WALL_IMAGE_COUNT` = 11);
-	/// applied here so callers pass the per-wall index unmodified.
+	/// stacks the 2 square-era walls in one sprite list with wall 1
+	/// offset by `back_wall_image_count` (= legacy `WALL_IMAGE_COUNT` =
+	/// 11); applied here so callers pass the per-wall index unmodified.
+	/// Wall 2 (NE neighbour) is hex-only — pakset has no sprites for
+	/// it, so the pakset path returns IMG_EMPTY there and the synth
+	/// fallback kicks in.
 	static image_id get_back_wall_image(uint16 index, bool artificial, uint8 wall)
 	{
-		const uint16 pakset_offset = (wall == 1) ? synth_overlay::back_wall_image_count : 0;
-		const image_id pakset_id = (artificial ? fundament : slopes)->get_image(index + pakset_offset);
+		const uint16 pakset_offset = (uint16)(wall * synth_overlay::back_wall_image_count);
+		// pakset's `fundament` / `slopes` only carry wall 0 + wall 1 sprites
+		const image_id pakset_id = (wall < 2)
+			? (artificial ? fundament : slopes)->get_image(index + pakset_offset)
+			: IMG_EMPTY;
 		const image_id synth_id = synth_overlay::get_back_wall(wall, (uint8)index, artificial);
+
+		if(  synth_overlay::prefer_over_pakset  ) {
+			return synth_id != IMG_EMPTY ? synth_id : pakset_id;
+		}
+		return pakset_id != IMG_EMPTY ? pakset_id : synth_id;
+	}
+
+	/// Multi-step extension cliff segment for back-wall @p wall.  Draws a
+	/// uniform vertical face one or two height-steps tall (chosen by
+	/// @p two_step), used by `grund_t::display_boden` to stack cliff
+	/// segments below the final cliff face when a neighbour is more than
+	/// two steps higher.  The pakset paths use legacy hard-coded indices
+	/// (`WALL_IMAGE_COUNT*2 + (two_step?1:0) + 2*wall`, falling back to
+	/// `4 + 4*(two_step?1:0) + WALL_IMAGE_COUNT*wall` for older pakset
+	/// layouts); both lists only cover wall 0 + 1 so wall 2 always lands
+	/// on the synth fallback.  The synth fallback reuses the uniform
+	/// single- and double-height back-wall sprites (indices 4 and 8 of
+	/// `back_wall`), which are already shaped as full-height rectangular
+	/// cliffs by `build_back_wall`.
+	static image_id get_back_wall_extension_image(uint8 wall, bool two_step, bool artificial)
+	{
+		const ground_desc_t *sl_draw = artificial ? fundament : slopes;
+		image_id pakset_id = IMG_EMPTY;
+		if(  wall < 2  ) {
+			const uint16 idx_primary = (uint16)(synth_overlay::back_wall_image_count * 2 + (two_step ? 1 : 0) + 2 * wall);
+			pakset_id = sl_draw->get_image(idx_primary);
+			if(  pakset_id == IMG_EMPTY  ) {
+				const uint16 idx_fallback = (uint16)(4 + (two_step ? 4 : 0) + synth_overlay::back_wall_image_count * wall);
+				pakset_id = sl_draw->get_image(idx_fallback);
+			}
+		}
+		const image_id synth_id = synth_overlay::get_back_wall(wall, two_step ? 8 : 4, artificial);
 
 		if(  synth_overlay::prefer_over_pakset  ) {
 			return synth_id != IMG_EMPTY ? synth_id : pakset_id;
