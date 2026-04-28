@@ -132,8 +132,8 @@ void boden_t::calc_image_internal(const bool calc_only_snowline_change)
 
 	const weg_t *const weg = get_weg( road_wt );
 	if(  weg  &&  weg->hat_gehweg()  ) {
-		// Single or double slope.  Under the 6-corner base-3 encoding
-		// the old `slope >> 1` halving trick (which assumed each base-3
+		// Single, double, or triple slope.  Under the 6-corner base-4
+		// encoding the old `slope >> 1` halving trick (which assumed each
 		// digit was either 0 or 2) is gone; for double-height and
 		// hex-corner slopes we project to the closest square
 		// single-height sprite via `project_to_square_sprite`.

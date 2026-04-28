@@ -364,8 +364,8 @@ namespace script_api {
 	}
 // slopes
 	// HEX-PORT: widened to int across the Squirrel boundary — slope_t::type
-	// is sint16 under 6-corner base-3 (3^6 = 729 slopes) and terraform
-	// sentinels (ALL_UP_SLOPE = 801 etc.) live outside that range again.
+	// is sint16 under 6-corner base-4 (4^6 = 4096 slopes) and terraform
+	// sentinels (ALL_UP_SLOPE = 4097 etc.) live outside that range again.
 	// Used to be uint8, which truncated both slopes ≥ 256 and sentinels.
 	SQInteger param<my_slope_t>::push(HSQUIRRELVM vm, my_slope_t const& v)
 	{

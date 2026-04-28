@@ -381,7 +381,7 @@ function test_depot_build_sloped()
 	local pos = coord3d(4, 3, 0)
 
 	// Walk the buildable single-height slopes instead of every
-	// integer 1..363 — under the hex base-3 encoding most integers
+	// integer 1..1364 — under the hex base-4 encoding most integers
 	// aren't valid slopes.  interesting_slopes() covers flat + 6
 	// single-corner + 6 hex-edge + 2 legacy square diagonals.
 	{

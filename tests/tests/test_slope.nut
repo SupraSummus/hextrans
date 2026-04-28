@@ -182,7 +182,7 @@ function test_slope_get_price()
 		ASSERT_EQUAL(command_x.slope_get_price(sl), 2000 * 100)
 	}
 
-	local restore_slope = 803 // RESTORE_SLOPE from simconst.h
+	local restore_slope = 4099 // RESTORE_SLOPE from simconst.h
 	ASSERT_EQUAL(command_x.slope_get_price(restore_slope), 1500 * 100)
 
 	ASSERT_EQUAL(pl.get_current_cash(),        200000)     // get_current_cash is in credits (returns float)

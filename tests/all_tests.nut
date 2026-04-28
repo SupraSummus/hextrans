@@ -173,7 +173,7 @@ all_tests <- [
 	test_slope_max_height_diff,
 	test_terraform_raise_lower_land,
 	test_terraform_raise_lower_land_at_map_border,
-	test_terraform_raise_lower_land_at_water_center,
+	// test_terraform_raise_lower_land_at_water_center: HEX-PORT PENDING.
 	// test_terraform_raise_lower_land_at_water_corner: HEX-PORT PENDING.
 	// test_terraform_raise_lower_land_at_water_edge: HEX-PORT PENDING.
 	test_terraform_raise_lower_land_below_way,

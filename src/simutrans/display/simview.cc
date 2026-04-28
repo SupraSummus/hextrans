@@ -181,7 +181,7 @@ void main_view_t::display(bool force_dirty)
 	const sint8 hmax_ground = (grund_t::underground_mode==grund_t::ugm_level) ? grund_t::underground_level : 127;
 
 	// lower limit for y: display correctly water/outside graphics at upper border of screen
-	int y_min = (-const_y_off + 4*tile_raster_scale_y( min(hmax_ground, welt->min_height)*TILE_HEIGHT_STEP, IMG_SIZE )
+	int y_min = (-const_y_off + 4*hex_height_raster_scale_y( min(hmax_ground, welt->min_height)*TILE_HEIGHT_STEP, IMG_SIZE )
 					+ 4*(clip_rr.y-IMG_SIZE)-IMG_SIZE/2-1) / IMG_SIZE;
 
 	// prepare view
@@ -295,7 +295,7 @@ void main_view_t::display(bool force_dirty)
 				const planquadrat_t *plan=welt->access(i,j);
 				if(plan  &&  plan->get_kartenboden()) {
 					const grund_t *gr = plan->get_kartenboden();
-					sint16 yypos = ypos - tile_raster_scale_y( min(gr->get_hoehe(),hmax_ground)*TILE_HEIGHT_STEP, IMG_SIZE);
+					sint16 yypos = ypos - hex_height_raster_scale_y( min(gr->get_hoehe(),hmax_ground)*TILE_HEIGHT_STEP, IMG_SIZE);
 					if(  yypos-IMG_SIZE < clip_rr.get_bottom()  &&  yypos+IMG_SIZE>=clip_rr.y  ) {
 						plan->display_overlay( xpos, yypos );
 						plotted = true;
@@ -418,7 +418,7 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 			if(  xpos + IMG_SIZE > lt.x  ) {
 				const koord pos(i, j);
 				if(  grund_t* const kb = welt->lookup_kartenboden(pos)  ) {
-					const sint16 yypos = ypos - tile_raster_scale_y( min( kb->get_hoehe(), hmax_ground ) * TILE_HEIGHT_STEP, IMG_SIZE );
+					const sint16 yypos = ypos - hex_height_raster_scale_y( min( kb->get_hoehe(), hmax_ground ) * TILE_HEIGHT_STEP, IMG_SIZE );
 					if(  yypos - IMG_SIZE < lt.y + wh.y  &&  yypos + IMG_SIZE > lt.y  ) {
 #ifdef MULTI_THREAD
 						bool force_show_grid = false;
@@ -461,7 +461,7 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 					// check if outside visible
 					outside_visible = true;
 					if(  env_t::draw_outside_tile  ) {
-						const sint16 yypos = ypos - tile_raster_scale_y( welt->min_height * TILE_HEIGHT_STEP, IMG_SIZE );
+						const sint16 yypos = ypos - hex_height_raster_scale_y( welt->min_height * TILE_HEIGHT_STEP, IMG_SIZE );
 						gfx->draw_normal( ground_desc_t::outside->get_image(0), xpos, yypos, 0, true, false  CLIP_NUM_PAR);
 					}
 				}
@@ -521,7 +521,7 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 							hmax = 127;
 							underground_level = 127;
 					} */
-					sint16 yypos = ypos - tile_raster_scale_y( min( gr->get_hoehe(), hmax_ground ) * TILE_HEIGHT_STEP, IMG_SIZE );
+					sint16 yypos = ypos - hex_height_raster_scale_y( min( gr->get_hoehe(), hmax_ground ) * TILE_HEIGHT_STEP, IMG_SIZE );
 					if(  yypos - IMG_SIZE * 3 < wh.y + lt.y  &&  yypos + IMG_SIZE > lt.y  ) {
 						const koord pos(i,j);
 						if(  env_t::hide_under_cursor  &&  needs_hiding  ) {

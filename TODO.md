@@ -106,6 +106,7 @@ restore after the region-selection tools are hex-aware.
 
 **Per-vertex grid topology.**
 `test_building_build_multi_tile_sloped`,
+`test_terraform_raise_lower_land_at_water_center`,
 `test_terraform_raise_lower_land_at_water_corner` and
 `test_terraform_raise_lower_land_at_water_edge` depend on 4-way
 vertex sharing (hex shares 3 per vertex).  With the terraformer
@@ -151,6 +152,66 @@ grund_t slopes but leaves the per-vertex height storage inconsistent.
 Now that the NW-corner-only writers are ported, restoration
 needs a hex-aware test scaffold that raises the right vertices
 directly rather than 4 corners of a 2x2 square.
+
+## Vertex propagation: recursion → worklist
+
+`surface_t::raise_vertex_to` / `lower_vertex_to` walk the 3-neighbour hex
+vertex graph by direct recursion.  Two consequences worth a follow-up
+pass.  First, depth is `O(min(map extent, |h - bound|))` along the
+graph — fine for normal terraforming but unbounded in principle for a
+world-gen call that targets a vertex far from the world edges.  Second,
+the bounds termination check (`h <= min_allowed_height` / `h >= max_allowed_height`)
+runs *after* the slot write, so a caller that passes an out-of-range `h`
+leaks the bad value into `grid_hgts` even though propagation correctly
+stops.  An iterative worklist (queue of `(canonical_vertex, h)` pairs,
+clamp at dequeue, dedup against the current slot value) fixes both at
+once and reads more naturally — the recursion's "set then maybe stop"
+ordering is a hangover from when the function was a 1:1 port of the
+square `raise_grid_to` body.
+
+## Lower_to water-tile NW-only gate
+
+`terraformer_t::lower_to` short-circuits water tiles unless the NW corner
+is being lowered (`terraformer.cc:472-476`); `raise_to` has no symmetric
+gate.  The NW pick is the legacy "tile reference height" corner from the
+square era — under hex no single corner has that role.  In practice the
+gate decides "did the corner the water table is keyed off of drop", and
+the answer probably wants to be "did `min_corner` drop" or "did any
+corner that touches a neighbour-with-higher-water drop".  Real semantic
+choice, not a mechanical refactor; lands together with the wider
+hex-aware water-table propagation pass when that gets scheduled.
+
+## World-gen raise_grid_to / lower_grid_to callers
+
+`simworld.cc:415` (terrain smoothing), `1576–1579` (beach generation),
+and `1869–1885` (map expansion) still call `raise_grid_to` /
+`lower_grid_to`, which are now thin adapters that forward to
+`raise_vertex_to(x-1, y-1, E, h)`.  That writes only the E canonical
+vertex at each grid point, leaving the SE canonical vertices unset and
+producing partially-initialised terrain during world creation.  Retire
+by porting each site to call `raise_vertex_to` / `lower_vertex_to`
+directly on the full set of hex vertices that the operation logically
+covers.  Once the last caller is gone, `raise_grid_to`, `lower_grid_to`
+and their declarations in `surface.h` can be deleted.
+
+## max_diff callers assume max-corner ≤ 2
+
+~35 sites in vehicle, bridge, road-builder, and signal code call
+`slope_t::max_diff()` and assume the result is ≤ 2 (the old base-3
+maximum).  Base-4 encoding allows max-corner = 3, so clearance
+calculations, collision-avoidance predicates, and image-select branches
+at these sites may now compute wrong values on high-delta terrain.  Audit
+each site when the path it guards is next touched for hex correctness.
+
+## Pakset slope sprite range gap
+
+Pakset art covers slopes 0–728 (the 729 base-3 slopes).  Base-4
+introduces 4096 total slopes; synth overlay generates correct ground
+tiles for all of them, but the pakset fallback path (`prefer_over_pakset
+= false`) is broken for any slope with a corner ≥ 2: `light_map` /
+`doubleslope_to_imgnr` index past their table bounds.  Either teach the
+fallback to clamp out-of-range slopes to the nearest pakset entry, or
+drop the toggle and let synth ground be the sole path.
 
 ## Per-vertex height storage — remaining writer-side ports
 
