@@ -71,6 +71,7 @@ function test_building_build_house_invalid_param()
 }
 
 
+// test_building_build_house_random: PAK128-PENDING.
 function test_building_build_house_random()
 {
 	local pl        = player_x(0);
