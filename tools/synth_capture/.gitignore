@@ -1,0 +1,5 @@
+# Build artefact and run output of the standalone capture tool.
+# The PPMs and the binary are cheap to regenerate via `make run`;
+# keeping them out of git avoids a multi-thousand-PPM diff.
+synth_capture
+out/

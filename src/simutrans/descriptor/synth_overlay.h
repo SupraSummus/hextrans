@@ -7,6 +7,7 @@
 #define DESCRIPTOR_SYNTH_OVERLAY_H
 
 
+#include "synth_ground_raster.h"
 #include "../display/simimg.h"
 #include "../dataobj/ribi.h"
 
@@ -111,10 +112,9 @@ image_id get_marker(slope_t::type slope, bool background);
 image_id get_border(slope_t::type slope);
 
 
-/// Number of climate slots `get_ground` accepts.  Indexing matches
-/// the `climate_image[]` block the pakset path uses: 0..6 = climate-1
-/// (desert..arctic non-snow), 7 = snow.
-static const uint8 ground_climate_slots = 8;
+// `ground_climate_slots` is defined in `synth_ground_raster.h` so the
+// rasteriser and the in-engine API agree on a single source of truth
+// (the header-only raster is shared with external capture tools).
 
 
 /**
