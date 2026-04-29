@@ -2,7 +2,11 @@
 # CI for running tests
 #
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 name: Automated Tests
 
 jobs:
