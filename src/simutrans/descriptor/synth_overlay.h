@@ -13,7 +13,7 @@
 
 /**
  * Code-generated overlay sprites — an "algorithmic pakset" for the
- * tile-cursor, grid-line, and cliff-face overlays.
+ * tile-cursor and cliff-face overlays.
  *
  * This module synthesises hex-shaped `image_t`s at startup and
  * registers them through the same `gfx->register_image` path the
@@ -22,7 +22,6 @@
  *   - `get_marker(slope, half)` — outline-only markers for the
  *     cursor and grid-line overlays (front + back halves drawn
  *     bracketing tile content).
- *   - `get_border(slope)` — grid-line border overlays.
  *   - `get_back_wall(wall, index, artificial)` — placeholder cliff
  *     faces for the hex-only back-wall geometry.
  *
@@ -42,17 +41,16 @@ namespace synth_overlay {
  *           slopes the pakset doesn't cover.  Flip when a pakset
  *           ships hex-aware overlay art that should take over.
  *
- * Single knob covers marker, border, and cliff overlays.  Live —
- * the lookup functions read it on every call, so flipping at
- * runtime takes effect on the next frame draw.  Wire to env_t /
- * simuconf.tab when settings UI lands; for now flip from the
- * debugger / a code patch.
+ * Single knob covers marker and cliff overlays.  Live — the lookup
+ * functions read it on every call, so flipping at runtime takes
+ * effect on the next frame draw.  Wire to env_t / simuconf.tab when
+ * settings UI lands; for now flip from the debugger / a code patch.
  */
 extern bool prefer_over_pakset;
 
 /**
- * Generate hex-shaped marker sprites for every slope and register
- * them with the graphics system.  Call from
+ * Generate hex-shaped marker and cliff sprites and register them
+ * with the graphics system.  Call from
  * `ground_desc_t::init_ground_textures` after pakset load and after
  * `image_offset` is set, so synth images are tracked alongside the
  * other runtime-generated ground textures and freed together on the
@@ -76,25 +74,6 @@ void init();
  * should fall back to the legacy lookup in that case.
  */
 image_id get_marker(slope_t::type slope, bool background);
-
-
-/**
- * Grid-line border image for @p slope — a hex-shaped 6-edge outline,
- * the synth equivalent of the pakset `Borders` block consulted by
- * `ground_desc_t::get_border_image`.  One image per slope (no
- * front/back split): the grid overlay is drawn once over the tile,
- * not bracketed around it like the cursor marker.
- *
- * Geometry mirrors `get_marker` (same `4u × 2u` inscribed bbox,
- * same per-corner lift) so the synth grid lines and the synth
- * cursor share the same pixel-level outline; toggling between them
- * doesn't shift the visible hex perimeter.
- *
- * Returns IMG_EMPTY when synth has not been initialised, or when
- * @p slope is out of range.  Callers should fall back to the legacy
- * pakset lookup in that case.
- */
-image_id get_border(slope_t::type slope);
 
 
 /// Number of "back walls" (cliff faces against screen-up neighbours)

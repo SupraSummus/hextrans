@@ -1256,7 +1256,7 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 				if(  show_grid  ){
 #endif
 					// slope_t::type is sint16 (729 values); uint8 truncates >=256
-					// and mis-keys synth_border vs get_ground_tile.
+					// and mis-keys hex border slopes vs get_ground_tile.
 					const slope_t::type hang = get_grund_hang();
 					gfx->draw_normal( ground_desc_t::get_border_image(hang), xpos, ypos, 0, true, dirty CLIP_NUM_PAR );
 				}

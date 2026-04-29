@@ -127,7 +127,7 @@ public:
 	/// (artificial=false) split — the same encoding the legacy
 	/// `grund_t::get_back_image(leftback)` returned, hoisted to a
 	/// static so `synth_overlay` can take precedence the same way
-	/// `get_marker_image` and `get_border_image` do.  Legacy pakset
+	/// `get_marker_image` does.  Legacy pakset
 	/// stacks the 2 square-era walls in one sprite list with wall 1
 	/// offset by `back_wall_image_count` (= legacy `WALL_IMAGE_COUNT` =
 	/// 11); applied here so callers pass the per-wall index unmodified.
@@ -183,23 +183,7 @@ public:
 
 	static image_id get_border_image(slope_t::type slope_in)
 	{
-		// Pakset path — same lossy hex→square projection as
-		// `get_marker_image`; same caveat about pakset always
-		// returning something for hex slopes today.
-		uint8 slope = double_grounds ? slope_in : project_to_square_sprite(slope_in);
-		uint8 index = double_grounds ? (slope % 3) + 3 * ((uint8)(slope / 9)) : (slope & 1) + ((slope >> 1) & 6);
-		const image_id pakset_id = borders->get_image(index);
-
-		// Synth path — algorithmic hex grid outline.  Without this,
-		// the pakset's square-projected grid lines do not align
-		// with the hex tile geometry and the "show grid" toggle
-		// has no visible effect on most slopes.
-		const image_id synth_id = synth_overlay::get_border(slope_in);
-
-		if(  synth_overlay::prefer_over_pakset  ) {
-			return synth_id != IMG_EMPTY ? synth_id : pakset_id;
-		}
-		return pakset_id != IMG_EMPTY ? pakset_id : synth_id;
+		return borders->get_image(slope_t::lower_min_corner(slope_in));
 	}
 };
 

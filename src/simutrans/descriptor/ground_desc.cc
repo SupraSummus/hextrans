@@ -993,10 +993,11 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	}
 #endif
 
-	// Algorithmic overlay sprites — hex-shaped cursor markers, synthesised
-	// in code rather than read from the pakset.  Registered above
-	// `image_offset` so they're freed alongside the runtime ground
-	// textures on the next world (re)load.
+	// Algorithmic overlay sprites — hex-shaped cursor markers and
+	// placeholder cliff faces, synthesised in code rather than read
+	// from the pakset.  Registered above `image_offset` so they're
+	// freed alongside the runtime ground textures on the next world
+	// (re)load.  Grid borders are pakset-owned via `Borders`.
 	synth_overlay::init();
 
 	//dbg->message("ground_desc_t::calc_water_level()", "Last image nr %u", final_tile->get_pic()->imageid);

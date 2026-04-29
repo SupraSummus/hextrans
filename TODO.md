@@ -221,20 +221,6 @@ hex up-slope `Image` keys to be silently dropped the moment a hex
 .dat tries to declare them, and the unused-key warning will be
 the only signal.
 
-## Pakset hex border lookups not wired
-
-The pak128 fork now bakes a raw-`slope_t`-indexed `Borders` block
-(141 entries; `landscape/grounds/borders.{png,dat}`, replacing the
-legacy 27-entry square version).  It indexes by raw `slope_t`
-(base-4 per corner; sparse, gaps read as IMG_EMPTY).  The consumer
-still stays square-projected: `get_border_image` packs `(slope&1) +
-((slope>>1)&6)` into 8 indices (or `(slope%3) + 3*(slope/9)` under
-double_grounds) before checking the pakset.  Add a hex-aware
-`get_hex_border_image(slope)` that shifts `slope_t` so its minimum
-corner is 0 and re-applies the shift in the drawn yoff so factored-out
-elevation comes back at draw time, then let pakset borders win on a
-pakset that ships the hex block and verify in-game.
-
 `HexLightTexture` is now registered as the required ground-lightmap
 descriptor.  Ground texture generation treats that block as sparse raw
 slope slots instead of asking `synth_overlay` for generated
@@ -244,16 +230,15 @@ non-normalised `pos.z`/`grund_hang` pairs instead of silently reusing a
 normalised lightmap at the wrong height.  The remaining ground-art
 caveat is elevated construction code that may still copy or restore
 legacy slope values outside the ordinary setter path; audit those paths
-when the border path gets the same treatment.
+when the associated builders next get hex-port attention.
 
 ## Pakset slope sprite range gap
 
 Pakset art covers a sparse set of raw base-4 slopes.  The
 `HexLightTexture` path skips missing slots during runtime ground
 texture generation and display lookups normalise to existing hex slots
-before fataling on genuinely missing art.  Re-apply the normalised-away
-height as a draw-time y offset once the border path gets the same
-treatment.
+before fataling on genuinely missing art.  Border lookup uses the same
+normalised raw slope key into the pakset `Borders` block.
 
 ## Per-vertex height storage — remaining writer-side ports
 

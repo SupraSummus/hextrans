@@ -47,13 +47,6 @@ static const PIXVAL NO_PIXEL = 0;
 // full set fits comfortably under 3 MB.
 static image_t* marker[2][slope_t::max_slopes];
 
-// Per-slope grid-line border tiles — single-image full hex outline,
-// drawn over the tile when `grund_t::show_grid` is on.  Mirrors the
-// marker geometry but combines both halves into one image since the
-// grid overlay is a single draw call (`grund_t::display_boden`) and
-// is not bracketed around tile content.
-static image_t* border[slope_t::max_slopes];
-
 // Cliff-face sprites for back walls (NW and N edges).  Indexed by
 // [artificial][wall][image_index], following the encoding produced by
 // `get_back_image_from_diff` in `grund.cc` (see header).  The fundament
@@ -74,10 +67,6 @@ static void free_all()
 			delete marker[half][s];
 			marker[half][s] = NULL;
 		}
-	}
-	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
-		delete border[s];
-		border[s] = NULL;
 	}
 	for(  int a = 0;  a < 2;  a++  ) {
 		for(  int w = 0;  w < back_wall_count;  w++  ) {
@@ -172,15 +161,12 @@ static size_t encode_rle(const PIXVAL* buf, sint32 w, sint32 h, PIXVAL* out)
 // See `tools/hex_proj_test/hex_proj_test.cc ::
 // test_synth_slope_bbox_contains_lifted_vertices`.
 //
-// @p path is a list of corner indices to visit in order; @p closed
-// adds the wraparound edge from the last vertex back to the first.
-// `path = {E, SE, SW, W}, closed=false` is the front half of the
-// marker outline (3 south-side edges); `closed=true` over all 6
-// corners is the full grid border.
+// @p path is a list of corner indices to visit in order.  `path = {E,
+// SE, SW, W}` is the front half of the marker outline (3 south-side
+// edges).
 //
 static image_t* rasterise_outline(sint32 u, slope_t::type slope,
-                                  const hex_corner_t::type* path, int n,
-                                  bool closed)
+                                  const hex_corner_t::type* path, int n)
 {
 	const synth_hex_geometry_t geom = synth_hex_geometry(u, TILE_HEIGHT_STEP);
 	const sint32 w = geom.w;
@@ -202,10 +188,9 @@ static image_t* rasterise_outline(sint32 u, slope_t::type slope,
 	PIXVAL* buf = new PIXVAL[w * h];
 	memset(buf, 0, w * h * sizeof(PIXVAL));
 
-	const int n_edges = closed ? n : n - 1;
-	for(  int i = 0;  i < n_edges;  i++  ) {
+	for(  int i = 0;  i < n - 1;  i++  ) {
 		const vertex_t& a = v[path[i]];
-		const vertex_t& b = v[path[(i + 1) % n]];
+		const vertex_t& b = v[path[i + 1]];
 		draw_line(buf, w, h, a.x, a.y, b.x, b.y, OUTLINE_COLOR);
 	}
 
@@ -248,29 +233,7 @@ static image_t* build_marker(sint32 u, slope_t::type slope, bool background)
 		hex_corner_t::E, hex_corner_t::NE, hex_corner_t::NW, hex_corner_t::W
 	};
 	const hex_corner_t::type* path = background ? back_path : front_path;
-	return rasterise_outline(u, slope, path, 4, /*closed=*/false);
-}
-
-
-// Grid border — full closed 6-edge hex outline, drawn once over the
-// tile when `grund_t::show_grid` is on.  Unlike the marker, the grid
-// is not split into front/back halves: it's a single draw call atop
-// tile content (`grund_t::display_boden`), so all 6 edges live in
-// one image.
-//
-// Adjacent tiles draw their own borders on the same shared edge.
-// Per-tile slope storage means two neighbours can disagree on the
-// height of a shared vertex once terraforming touches them, and the
-// two grid lines will visibly mismatch at that vertex.  Retired by
-// per-vertex height storage (AGENTS.md "Critical findings driving
-// priority").
-static image_t* build_border(sint32 u, slope_t::type slope)
-{
-	static const hex_corner_t::type full_path[hex_corner_t::count] = {
-		hex_corner_t::E,  hex_corner_t::SE, hex_corner_t::SW,
-		hex_corner_t::W,  hex_corner_t::NW, hex_corner_t::NE,
-	};
-	return rasterise_outline(u, slope, full_path, hex_corner_t::count, /*closed=*/true);
+	return rasterise_outline(u, slope, path, 4);
 }
 
 
@@ -527,9 +490,6 @@ void init()
 			img->register_image();
 			marker[half][s] = img;
 		}
-		image_t* bd = build_border(u, (slope_t::type)s);
-		bd->register_image();
-		border[s] = bd;
 	}
 
 	// Cliff-face sprites are not slope-keyed (they take h1/h2 from
@@ -561,16 +521,6 @@ image_id get_marker(slope_t::type slope, bool background)
 		return IMG_EMPTY;
 	}
 	const image_t* img = marker[background ? 1 : 0][slope];
-	return img != NULL ? img->get_id() : IMG_EMPTY;
-}
-
-
-image_id get_border(slope_t::type slope)
-{
-	if(  !initialised  ||  slope < 0  ||  slope >= slope_t::max_slopes  ) {
-		return IMG_EMPTY;
-	}
-	const image_t* img = border[slope];
 	return img != NULL ? img->get_id() : IMG_EMPTY;
 }
 
