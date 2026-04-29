@@ -23,6 +23,7 @@ function test_city_add_cannot_afford()
 }
 
 
+// test_city_add_by_public_player: PAK128-PENDING.
 function test_city_add_by_public_player()
 {
 	{
@@ -44,6 +45,7 @@ function test_city_add_by_public_player()
 }
 
 
+// test_city_add_on_existing_townhall: PAK128-PENDING.
 function test_city_add_on_existing_townhall()
 {
 	ASSERT_EQUAL(command_x(tool_add_city).work(player_x(1), coord3d(7, 8, 0)), null)
@@ -62,6 +64,7 @@ function test_city_add_on_existing_townhall()
 }
 
 
+// test_city_add_near_map_border: PAK128-PENDING.
 function test_city_add_near_map_border()
 {
 	{
@@ -83,6 +86,7 @@ function test_city_add_near_map_border()
 }
 
 
+// test_city_change_size_invalid_params: PAK128-PENDING.
 function test_city_change_size_invalid_params()
 {
 	local pl = player_x(0)
@@ -145,6 +149,7 @@ function test_city_change_size_invalid_params()
 }
 
 
+// test_city_change_size_to_minimum: PAK128-PENDING.
 function test_city_change_size_to_minimum()
 {
 	ASSERT_EQUAL(command_x(tool_add_city).work(player_x(1), coord3d(1, 1, 0)), null)

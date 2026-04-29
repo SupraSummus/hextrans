@@ -1247,6 +1247,7 @@ function test_way_road_cityroad_replace_keep_existing()
 }
 
 
+// test_way_road_has_double_slopes: PAK128-PENDING.
 function test_way_road_has_double_slopes()
 {
 	local roads = way_desc_x.get_available_ways(wt_road, st_flat)

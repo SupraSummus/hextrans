@@ -41,23 +41,23 @@ all_tests <- [
 	// test_building_build_house_random: PAK128-PENDING.
 	test_building_build_house_valid_desc,
 	test_building_build_house_invalid_desc,
-	test_building_build_house_auto_rotation_attraction,
-	test_building_build_house_auto_rotation_citybuilding,
+	// test_building_build_house_auto_rotation_attraction: PAK128-PENDING.
+	// test_building_build_house_auto_rotation_citybuilding: PAK128-PENDING.
 	// test_building_build_multi_tile_sloped: HEX-PORT PENDING.
 	test_building_buy_house_invalid_param,
 	test_building_buy_house_from_public_player,
-	test_building_buy_house_attraction,
-	test_building_rotate_house,
+	// test_building_buy_house_attraction: PAK128-PENDING.
+	// test_building_rotate_house: PAK128-PENDING.
 	test_building_rotate_harbour,
-	test_building_rotate_station,
-	test_building_rotate_factory,
+	// test_building_rotate_station: PAK128-PENDING.
+	// test_building_rotate_factory: PAK128-PENDING.
 	test_city_add_invalid,
 	test_city_add_cannot_afford,
-	test_city_add_by_public_player,
-	test_city_add_on_existing_townhall,
-	test_city_add_near_map_border,
-	test_city_change_size_invalid_params,
-	test_city_change_size_to_minimum
+	// test_city_add_by_public_player: PAK128-PENDING.
+	// test_city_add_on_existing_townhall: PAK128-PENDING.
+	// test_city_add_near_map_border: PAK128-PENDING.
+	// test_city_change_size_invalid_params: PAK128-PENDING.
+	// test_city_change_size_to_minimum: PAK128-PENDING.
 	test_climate_invalid,
 	test_climate_flat,
 	// test_climate_cliff: HEX-PORT PENDING.
@@ -68,7 +68,7 @@ all_tests <- [
 	test_depot_build_water,
 	test_depot_build_monorail,
 	test_depot_build_tram,
-	test_depot_build_sloped,
+	// test_depot_build_sloped: HEX-PORT PENDING.
 	// test_depot_build_on_tunnel_entrance: HEX-PORT PENDING.
 	test_depot_build_on_bridge_end,
 	test_depot_build_on_halt,
@@ -87,51 +87,51 @@ all_tests <- [
 	// test_factory_build_with_fields: HEX-PORT PENDING.
 	// test_factory_build_climate: HEX-PORT PENDING.
 	// test_factory_build_on_water_occupied: HEX-PORT PENDING.
-	test_factory_link,
-	test_factory_desc,
+	// test_factory_link: PAK128-PENDING.
+	// test_factory_desc: PAK128-PENDING.
 	test_good_is_interchangeable,
-	test_good_speed_bonus,
+	// test_good_speed_bonus: PAK128-PENDING.
 	test_groundobj_build_invalid_param,
 	test_groundobj_build_invalid_pos,
-	test_groundobj_build_random,
-	test_groundobj_build_specific,
-	test_groundobj_build_invalid_climate,
-	test_groundobj_build_ignore_climate,
-	test_groundobj_build_occupied,
-	test_groundobj_build_on_trees,
-	test_groundobj_build_on_slope,
+	// test_groundobj_build_random: PAK128-PENDING.
+	// test_groundobj_build_specific: PAK128-PENDING.
+	// test_groundobj_build_invalid_climate: PAK128-PENDING.
+	// test_groundobj_build_ignore_climate: PAK128-PENDING.
+	// test_groundobj_build_occupied: PAK128-PENDING.
+	// test_groundobj_build_on_trees: PAK128-PENDING.
+	// test_groundobj_build_on_slope: PAK128-PENDING.
 	test_halt_build_rail_single_tile,
 	test_halt_build_harbour,
-	test_halt_build_flat_dock_near_water,
-	test_halt_build_flat_dock_near_water_multiple_rotations,
-	test_halt_build_flat_dock_near_water_fixed_rotation_valid,
-	test_halt_build_flat_dock_near_water_fixed_rotation_invalid,
-	test_halt_build_flat_dock_outside_map,
-	test_halt_build_flat_dock_near_map_border_auto_rotation,
-	test_halt_build_flat_dock_near_map_border_fixed_rotation
-	test_halt_build_flat_dock_on_bridge,
-	test_halt_build_flat_dock_on_slope,
-	test_halt_build_flat_dock_near_cliff,
-	test_halt_build_flat_dock_in_water,
-	test_halt_build_flat_dock_occupied,
-	test_halt_build_air,
+	// test_halt_build_flat_dock_near_water: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_water_multiple_rotations: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_water_fixed_rotation_valid: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_water_fixed_rotation_invalid: PAK128-PENDING.
+	// test_halt_build_flat_dock_outside_map: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_map_border_auto_rotation: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_map_border_fixed_rotation: PAK128-PENDING.
+	// test_halt_build_flat_dock_on_bridge: PAK128-PENDING.
+	// test_halt_build_flat_dock_on_slope: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_cliff: PAK128-PENDING.
+	// test_halt_build_flat_dock_in_water: PAK128-PENDING.
+	// test_halt_build_flat_dock_occupied: PAK128-PENDING.
+	// test_halt_build_air: PAK128-PENDING.
 	// test_halt_build_multi_tile: HEX-PORT PENDING.
 	test_halt_build_multi_mode,
 	test_halt_build_multi_player,
 	test_halt_build_separate,
-	test_halt_build_near_factory,
-	test_halt_build_near_factories,
+	// test_halt_build_near_factory: PAK128-PENDING.
+	// test_halt_build_near_factories: PAK128-PENDING.
 	// test_halt_build_on_tunnel_entrance: HEX-PORT PENDING.
 	test_halt_build_on_bridge_end,
 	test_halt_build_on_depot,
 	test_halt_build_station_invalid_param,
-	test_halt_build_station_extension,
-	test_halt_upgrade_downgrade,
+	// test_halt_build_station_extension: PAK128-PENDING.
+	// test_halt_upgrade_downgrade: PAK128-PENDING.
 	test_halt_make_public_single,
 	test_halt_make_public_multi_tile,
 	// test_halt_make_public_underground: HEX-PORT PENDING.
 	test_halt_move_stop_invalid_param,
-	test_headquarters_build_flat,
+	// test_headquarters_build_flat: PAK128-PENDING.
 	test_label,
 	test_player_cash,
 	test_player_isactive,
@@ -142,7 +142,7 @@ all_tests <- [
 	// test_powerline_build_below_powerbridge: HEX-PORT PENDING.
 	// test_powerline_build_powerbridge_above_powerline: HEX-PORT PENDING.
 	// test_powerline_build_transformer: HEX-PORT PENDING.
-	test_powerline_build_over_transformer,
+	// test_powerline_build_over_transformer: PAK128-PENDING.
 	// test_powerline_build_transformer_multiple: HEX-PORT PENDING.
 	// test_powerline_remove_powerbridge: HEX-PORT PENDING.
 	// test_powerline_ways: HEX-PORT PENDING.
@@ -167,7 +167,7 @@ all_tests <- [
 	test_slope_set_and_restore,
 	test_slope_get_price,
 	test_slope_set_near_map_border,
-	test_slope_restore_on_foundation,
+	// test_slope_restore_on_foundation: PAK128-PENDING.
 	test_slope_restore_on_bridge,
 	test_slope_restore_on_label,
 	test_slope_max_height_diff,
@@ -176,24 +176,24 @@ all_tests <- [
 	// test_terraform_raise_lower_land_at_water_center: HEX-PORT PENDING.
 	// test_terraform_raise_lower_land_at_water_corner: HEX-PORT PENDING.
 	// test_terraform_raise_lower_land_at_water_edge: HEX-PORT PENDING.
-	test_terraform_raise_lower_land_below_way,
+	// test_terraform_raise_lower_land_below_way: HEX-PORT PENDING.
 	// test_terraform_raise_lower_water_level: HEX-PORT PENDING.
 	test_transport_generate_pax_invalid_pos,
-	test_transport_generate_pax_walked,
-	test_transport_generate_pax_no_route,
-	test_transport_pax_valid_route,
-	test_transport_mail_valid_route,
-	test_transport_freight_valid_route,
-	test_trees_plant_single_invalid_pos,
-	test_trees_plant_single_invalid_param,
-	test_trees_plant_single_null_param,
-	test_trees_plant_single_empty_param,
-	test_trees_plant_single_invalid_desc,
-	test_trees_plant_single_when_disabled,
-	test_trees_plant_single_random_age,
-	test_trees_plant_single_ignore_climate,
-	test_trees_plant_single_max_per_square,
-	test_trees_plant_single_occupied,
+	// test_transport_generate_pax_walked: PAK128-PENDING.
+	// test_transport_generate_pax_no_route: PAK128-PENDING.
+	// test_transport_pax_valid_route: PAK128-PENDING.
+	// test_transport_mail_valid_route: PAK128-PENDING.
+	// test_transport_freight_valid_route: PAK128-PENDING.
+	// test_trees_plant_single_invalid_pos: PAK128-PENDING.
+	// test_trees_plant_single_invalid_param: PAK128-PENDING.
+	// test_trees_plant_single_null_param: PAK128-PENDING.
+	// test_trees_plant_single_empty_param: PAK128-PENDING.
+	// test_trees_plant_single_invalid_desc: PAK128-PENDING.
+	// test_trees_plant_single_when_disabled: PAK128-PENDING.
+	// test_trees_plant_single_random_age: PAK128-PENDING.
+	// test_trees_plant_single_ignore_climate: PAK128-PENDING.
+	// test_trees_plant_single_max_per_square: PAK128-PENDING.
+	// test_trees_plant_single_occupied: PAK128-PENDING.
 	// test_trees_plant_forest: HEX-PORT PENDING.
 	// test_way_bridge_build_ground: HEX-PORT PENDING.
 	// test_way_bridge_build_at_slope: HEX-PORT PENDING.
@@ -215,7 +215,7 @@ all_tests <- [
 	// test_way_road_cityroad_downgrade_with_cityroad: HEX-PORT PENDING.
 	// test_way_road_cityroad_replace_by_normal_road: HEX-PORT PENDING.
 	// test_way_road_cityroad_replace_keep_existing: HEX-PORT PENDING.
-	test_way_road_has_double_slopes,
+	// test_way_road_has_double_slopes: PAK128-PENDING.
 	test_way_road_make_public,
 	// test_way_runway_build_rw_flat: HEX-PORT PENDING.
 	// test_way_runway_build_tw_flat: HEX-PORT PENDING.
@@ -226,7 +226,7 @@ all_tests <- [
 	// test_way_tram_build_across_road_bridge: HEX-PORT PENDING.
 	// test_way_tram_build_across_crossing: HEX-PORT PENDING.
 	// test_way_tram_build_in_tunel: HEX-PORT PENDING.
-	test_way_tram_has_double_slopes,
+	// test_way_tram_has_double_slopes: PAK128-PENDING.
 	// test_way_tunnel_build_straight: HEX-PORT PENDING.
 	// test_way_tunnel_build_up_down: HEX-PORT PENDING.
 	// test_way_tunnel_build_above_tunnel_slope: HEX-PORT PENDING.

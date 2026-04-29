@@ -21,6 +21,7 @@ function test_transport_generate_pax_invalid_pos()
 }
 
 
+// test_transport_generate_pax_walked: PAK128-PENDING.
 function test_transport_generate_pax_walked()
 {
 	local pl = player_x(0)
@@ -42,6 +43,7 @@ function test_transport_generate_pax_walked()
 }
 
 
+// test_transport_generate_pax_no_route: PAK128-PENDING.
 function test_transport_generate_pax_no_route()
 {
 	local pl = player_x(0)
@@ -63,6 +65,7 @@ function test_transport_generate_pax_no_route()
 }
 
 
+// test_transport_pax_valid_route: PAK128-PENDING.
 function test_transport_pax_valid_route()
 {
 	local pl = player_x(0)
@@ -161,6 +164,7 @@ function test_transport_pax_valid_route()
 }
 
 
+// test_transport_mail_valid_route: PAK128-PENDING.
 function test_transport_mail_valid_route()
 {
 	local pl = player_x(0)
@@ -264,6 +268,7 @@ function test_transport_mail_valid_route()
 }
 
 
+// test_transport_freight_valid_route: PAK128-PENDING.
 function test_transport_freight_valid_route()
 {
 	local pl = player_x(0)

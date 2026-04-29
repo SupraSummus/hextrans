@@ -191,6 +191,7 @@ function test_slope_get_price()
 }
 
 
+// test_slope_restore_on_foundation: PAK128-PENDING.
 function test_slope_restore_on_foundation()
 {
 	local pl = player_x(0)

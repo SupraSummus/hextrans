@@ -217,6 +217,7 @@ function test_factory_build_with_fields()
 }
 
 
+// test_factory_link: PAK128-PENDING.
 function test_factory_link()
 {
 	local pl = player_x(0)
@@ -392,6 +393,7 @@ function test_factory_link()
 }
 
 
+// test_factory_desc: PAK128-PENDING.
 function test_factory_desc()
 {
 	local desc = factory_desc_x("Raffinerie")

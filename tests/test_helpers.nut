@@ -157,18 +157,20 @@ function ASSERT_WAY_PATTERN_MASKED(waytype, lefttop, pattern)
 
 
 // Representative single-height slopes for tests that used to iterate
-// `for sl in 0..slope.raised`.  Under the base-3 hex encoding most
-// integers in 0..363 don't decode to valid slopes; this returns the
+// `for sl in 0..slope.raised`.  Under the base-4 hex encoding most
+// integers in 0..4095 don't decode to valid slopes; this returns the
 // 15 that do and correspond to buildable single-height terrain:
 // flat, each single-corner raised, each adjacent-pair hex edge, and
 // the 2 legacy square diagonals (`slope.east`, `slope.west`).  Omits
-// `slope.raised` (all_up_one): raising all corners uniformly shifts
+// `slope.raised` (all_up_two): raising all corners uniformly shifts
 // the whole tile and breaks the cleanup some callers do after the
 // loop.
 function interesting_slopes()
 {
-	// base-3 digits for the 6 hex corners (see slope_t in ribi.h)
-	local E = 1, SE = 3, SW = 9, W = 27, NW = 81, NE = 243
+	// base-4 digits for the 6 hex corners (see slope_t in ribi.h:
+	// raised_E=1, raised_SE=4, raised_SW=16, raised_W=64,
+	// raised_NW=256, raised_NE=1024)
+	local E = 1, SE = 4, SW = 16, W = 64, NW = 256, NE = 1024
 	return [
 		slope.flat,
 		E, SE, SW, W, NW, NE,                 // 6 single-corner raised

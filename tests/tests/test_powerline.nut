@@ -313,6 +313,7 @@ function test_powerline_build_transformer()
 }
 
 
+// test_powerline_build_over_transformer: PAK128-PENDING.
 function test_powerline_build_over_transformer()
 {
 	local pl = player_x(0)

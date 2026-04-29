@@ -30,6 +30,7 @@ function test_good_is_interchangeable()
 }
 
 
+// test_good_speed_bonus: PAK128-PENDING.
 function test_good_speed_bonus()
 {
 	local pax = good_desc_x.passenger

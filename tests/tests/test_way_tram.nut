@@ -362,6 +362,7 @@ function test_way_tram_build_in_tunel()
 }
 
 
+// test_way_tram_has_double_slopes: PAK128-PENDING.
 function test_way_tram_has_double_slopes()
 {
 	local roads = way_desc_x.get_available_ways(wt_rail, st_tram)

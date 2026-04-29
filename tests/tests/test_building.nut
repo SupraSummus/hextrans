@@ -159,6 +159,7 @@ function test_building_build_house_invalid_desc()
 }
 
 
+// test_building_build_house_auto_rotation_attraction: PAK128-PENDING.
 function test_building_build_house_auto_rotation_attraction()
 {
 	local public_pl = player_x(1)
@@ -189,6 +190,7 @@ function test_building_build_house_auto_rotation_attraction()
 }
 
 
+// test_building_build_house_auto_rotation_citybuilding: PAK128-PENDING.
 function test_building_build_house_auto_rotation_citybuilding()
 {
 	local public_pl = player_x(1)
@@ -311,6 +313,7 @@ function test_building_buy_house_from_public_player()
 }
 
 
+// test_building_buy_house_attraction: PAK128-PENDING.
 function test_building_buy_house_attraction()
 {
 	local pl = player_x(0)
@@ -338,6 +341,7 @@ function test_building_buy_house_attraction()
 }
 
 
+// test_building_rotate_house: PAK128-PENDING.
 function test_building_rotate_house()
 {
 	local pl = player_x(0)
@@ -413,6 +417,7 @@ function test_building_rotate_harbour()
 }
 
 
+// test_building_rotate_station: PAK128-PENDING.
 function test_building_rotate_station()
 {
 	local pl = player_x(0)
@@ -448,6 +453,7 @@ function test_building_rotate_station()
 }
 
 
+// test_building_rotate_factory: PAK128-PENDING.
 function test_building_rotate_factory()
 {
 	local public_pl = player_x(1)

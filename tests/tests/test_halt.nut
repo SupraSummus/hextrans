@@ -141,12 +141,13 @@ function test_halt_build_harbour()
 }
 
 
+// test_halt_build_flat_dock_near_water: PAK128-PENDING.
 function test_halt_build_flat_dock_near_water()
 {
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 2, 0), "" + cl_water), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 0), "LakeShipStop"), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 0), "ShipStop"), null)
 	}
 
 	// clean up
@@ -156,13 +157,14 @@ function test_halt_build_flat_dock_near_water()
 }
 
 
+// test_halt_build_flat_dock_near_water_multiple_rotations: PAK128-PENDING.
 function test_halt_build_flat_dock_near_water_multiple_rotations()
 {
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 2, 0), "" + cl_water), null)
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(0), coord3d(3, 3, 0), coord3d(3, 3, 0), "" + cl_water), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 0), "LakeShipStop"), "More than one possibility to build this dock found.")
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 0), "ShipStop"), "More than one possibility to build this dock found.")
 	}
 
 	// clean up
@@ -172,12 +174,13 @@ function test_halt_build_flat_dock_near_water_multiple_rotations()
 }
 
 
+// test_halt_build_flat_dock_near_water_fixed_rotation_valid: PAK128-PENDING.
 function test_halt_build_flat_dock_near_water_fixed_rotation_valid()
 {
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 2, 0), "" + cl_water), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 0), "LakeShipStop,2"), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 0), "ShipStop,2"), null)
 	}
 
 	// clean up
@@ -187,12 +190,13 @@ function test_halt_build_flat_dock_near_water_fixed_rotation_valid()
 }
 
 
+// test_halt_build_flat_dock_near_water_fixed_rotation_invalid: PAK128-PENDING.
 function test_halt_build_flat_dock_near_water_fixed_rotation_invalid()
 {
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 2, 0), "" + cl_water), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 0), "LakeShipStop,1"), "No suitable ground!")
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 0), "ShipStop,1"), "No suitable ground!")
 	}
 
 	// clean up
@@ -201,10 +205,11 @@ function test_halt_build_flat_dock_near_water_fixed_rotation_invalid()
 }
 
 
+// test_halt_build_flat_dock_outside_map: PAK128-PENDING.
 function test_halt_build_flat_dock_outside_map()
 {
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(-1, -1, 0), "LakeShipStop"), "")
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(-1, -1, 0), "ShipStop"), "")
 	}
 
 	// clean up
@@ -212,12 +217,13 @@ function test_halt_build_flat_dock_outside_map()
 }
 
 
+// test_halt_build_flat_dock_near_map_border_auto_rotation: PAK128-PENDING.
 function test_halt_build_flat_dock_near_map_border_auto_rotation()
 {
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(0), coord3d(4, 1, 0), coord3d(4, 1, 0), "" + cl_water), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 0, 0), "LakeShipStop"), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 0, 0), "ShipStop"), null)
 	}
 
 	// clean up
@@ -227,10 +233,11 @@ function test_halt_build_flat_dock_near_map_border_auto_rotation()
 }
 
 
+// test_halt_build_flat_dock_near_map_border_fixed_rotation: PAK128-PENDING.
 function test_halt_build_flat_dock_near_map_border_fixed_rotation()
 {
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 0, 0), "LakeShipStop,2"), "No suitable ground!")
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 0, 0), "ShipStop,2"), "No suitable ground!")
 	}
 
 	// clean up
@@ -238,6 +245,7 @@ function test_halt_build_flat_dock_near_map_border_fixed_rotation()
 }
 
 
+// test_halt_build_flat_dock_on_bridge: PAK128-PENDING.
 function test_halt_build_flat_dock_on_bridge()
 {
 	ASSERT_EQUAL(command_x.set_slope(player_x(0), coord3d(4, 2, 0), slope.south), null)
@@ -245,7 +253,7 @@ function test_halt_build_flat_dock_on_bridge()
 	ASSERT_EQUAL(command_x(tool_build_bridge).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 4, 0), "Schiffhebewerk"), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 1), "LakeShipStop"), "")
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 1), "ShipStop"), "")
 	}
 
 	// clean up
@@ -256,12 +264,13 @@ function test_halt_build_flat_dock_on_bridge()
 }
 
 
+// test_halt_build_flat_dock_on_slope: PAK128-PENDING.
 function test_halt_build_flat_dock_on_slope()
 {
 	ASSERT_EQUAL(command_x.set_slope(player_x(0), coord3d(4, 2, 0), slope.north), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 2, 0), "LakeShipStop"), "No suitable ground!")
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 2, 0), "ShipStop"), "No suitable ground!")
 	}
 
 	// clean up
@@ -270,13 +279,14 @@ function test_halt_build_flat_dock_on_slope()
 }
 
 
+// test_halt_build_flat_dock_near_cliff: PAK128-PENDING.
 function test_halt_build_flat_dock_near_cliff()
 {
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 2, 0), "" + cl_water), null)
 	ASSERT_EQUAL(command_x.set_slope(player_x(0), coord3d(4, 3, 0), slope.all_up_slope), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 1), "LakeShipStop"), "No suitable ground!")
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 3, 1), "ShipStop"), "No suitable ground!")
 	}
 
 	// clean up
@@ -286,12 +296,13 @@ function test_halt_build_flat_dock_near_cliff()
 }
 
 
+// test_halt_build_flat_dock_in_water: PAK128-PENDING.
 function test_halt_build_flat_dock_in_water()
 {
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 2, 0), "" + cl_water), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 2, 0), "LakeShipStop"), "No suitable ground!")
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 2, 0), "ShipStop"), "No suitable ground!")
 	}
 
 	// clean up
@@ -300,13 +311,14 @@ function test_halt_build_flat_dock_in_water()
 }
 
 
+// test_halt_build_flat_dock_occupied: PAK128-PENDING.
 function test_halt_build_flat_dock_occupied()
 {
 	ASSERT_EQUAL(command_x(tool_add_city).work(player_x(1), coord3d(8, 8, 0), "0"), null)
 	ASSERT_EQUAL(command_x(tool_build_house).work(player_x(1), coord3d(4, 2, 0), "11RES_01_23"), null)
 
 	{
-		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 2, 0), "LakeShipStop"), "No suitable ground!")
+		ASSERT_EQUAL(command_x(tool_build_station).work(player_x(0), coord3d(4, 2, 0), "ShipStop"), "No suitable ground!")
 	}
 
 	// clean up
@@ -317,6 +329,7 @@ function test_halt_build_flat_dock_occupied()
 }
 
 
+// test_halt_build_air: PAK128-PENDING.
 function test_halt_build_air()
 {
 	local pl = player_x(0)
@@ -561,6 +574,7 @@ function test_halt_build_separate()
 }
 
 
+// test_halt_build_near_factory: PAK128-PENDING.
 function test_halt_build_near_factory()
 {
 	local pl = player_x(0)
@@ -591,6 +605,7 @@ function test_halt_build_near_factory()
 }
 
 
+// test_halt_build_near_factories: PAK128-PENDING.
 function test_halt_build_near_factories()
 {
 	local pl = player_x(0)
@@ -826,6 +841,7 @@ function test_halt_build_station_invalid_param()
 }
 
 
+// test_halt_build_station_extension: PAK128-PENDING.
 function test_halt_build_station_extension()
 {
 	local pl = player_x(0)
@@ -903,6 +919,7 @@ function test_halt_build_station_extension()
 }
 
 
+// test_halt_upgrade_downgrade: PAK128-PENDING.
 function test_halt_upgrade_downgrade()
 {
 	local pl = player_x(0)
