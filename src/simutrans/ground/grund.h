@@ -425,7 +425,16 @@ public:
 
 	// slope are now maintained locally
 	slope_t::type get_grund_hang() const { return slope; }
-	void set_grund_hang(slope_t::type sl) { slope = sl; }
+	// Canonicalise terrain state: any common corner height belongs in
+	// pos.z, so the stored slope always has at least one zero-height corner.
+	void set_grund_hang(slope_t::type sl) {
+		const uint8 h = slope_t::min_corner_height(sl);
+		if(  h != 0  ) {
+			pos.z += h;
+			sl = (slope_t::type)(sl - h * slope_t::all_up_one);
+		}
+		slope = sl;
+	}
 
 	/// some ground tiles may be part of halts.
 	void set_halt(halthandle_t halt);

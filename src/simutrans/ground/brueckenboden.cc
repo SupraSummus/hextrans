@@ -28,7 +28,7 @@ brueckenboden_t::brueckenboden_t(koord3d pos, slope_t::type grund_hang, slope_t:
 	grund_t(pos),
 	weg_hang(weg_hang)
 {
-	slope = grund_hang;
+	set_grund_hang(grund_hang);
 }
 
 
@@ -66,7 +66,7 @@ void brueckenboden_t::rdwr(loadsave_t *file)
 	if(file->is_version_less(88, 9)) {
 		uint8 sl;
 		file->rdwr_byte(sl);
-		slope = sl;
+		set_grund_hang(sl);
 	}
 	if(  file->is_saving()  &&  file->is_version_less(112, 7)  ) {
 		// truncate double weg_hang to single weg_hang, better than nothing

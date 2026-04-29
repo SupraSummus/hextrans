@@ -14,14 +14,14 @@
 
 monorailboden_t::monorailboden_t(koord3d pos,slope_t::type slope) : grund_t(pos)
 {
-	this->slope = slope;
+	set_grund_hang(slope);
 
 	// update limits
-	if(  welt->min_height > pos.z  ) {
-		welt->min_height = pos.z;
+	if(  welt->min_height > get_pos().z  ) {
+		welt->min_height = get_pos().z;
 	}
-	else if(  welt->max_height < pos.z  ) {
-		welt->max_height = pos.z;
+	else if(  welt->max_height < get_pos().z  ) {
+		welt->max_height = get_pos().z;
 	}
 }
 
@@ -36,10 +36,10 @@ void monorailboden_t::rdwr(loadsave_t *file)
 			uint8 sl;
 			file->rdwr_byte(sl);
 			// convert slopes from old single height saved game
-			slope = slope_from_slope4(slope4_t(sl), env_t::pak_height_conversion_factor);
+			set_grund_hang(slope_from_slope4(slope4_t(sl), env_t::pak_height_conversion_factor));
 		}
 		else {
-			slope = grund_t::get_grund_hang();
+			set_grund_hang(grund_t::get_grund_hang());
 		}
 	}
 }

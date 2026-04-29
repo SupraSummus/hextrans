@@ -131,6 +131,20 @@ public:
 		return (uint8)max(max(max(corner_e(x), corner_se(x)), max(corner_sw(x), corner_w(x))), max(corner_nw(x), corner_ne(x)));
 	}
 
+	/// Minimum encoded corner height.  Canonical terrain slopes keep this
+	/// at 0 and carry any common vertical offset in the tile's z position.
+	static uint8 min_corner_height(type x) {
+		return (uint8)min( min( min( corner_e(x),  corner_se(x) ),
+		                       min( corner_sw(x), corner_w(x) ) ),
+		                  min( corner_nw(x), corner_ne(x) ) );
+	}
+
+	/// Remove the common encoded corner height from @p x.
+	static type lower_min_corner(type x) {
+		const uint8 h = min_corner_height(x);
+		return h == 0 ? x : (type)(x - h * all_up_one);
+	}
+
 	/// Computes minimum corner-height difference between @p high and @p low.
 	static sint8 min_diff(type high, type low) {
 		return min( min( min( corner_e(high)  - corner_e(low),  corner_se(high) - corner_se(low) ),

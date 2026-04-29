@@ -429,20 +429,6 @@ image_id alpha_corners_image[totalslopes * 15];
 image_id alpha_water_image[totalslopes * 15];
 
 
-static uint8 min_corner_height(slope_t::type slope)
-{
-	return min( min( min( corner_e(slope),  corner_se(slope) ),
-	                 min( corner_sw(slope), corner_w(slope) ) ),
-	            min( corner_nw(slope), corner_ne(slope) ) );
-}
-
-
-static slope_t::type lower_min_corner(slope_t::type slope)
-{
-	const uint8 h = min_corner_height(slope);
-	return h == 0 ? slope : (slope_t::type)(slope - h * slope_t::all_up_one);
-}
-
 /*
  *      called every time an object is read
  *      the object will be assigned according to its name
@@ -985,7 +971,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		if(  slope <= LEGACY_SLOPE4_MAX  ) {
 			hex_slope = slope_from_legacy_slope4_table((sint16)slope);
 		}
-		hex_slope = lower_min_corner(hex_slope);
+		hex_slope = slope_t::lower_min_corner(hex_slope);
 		if(  hex_slope >= 0
 		  &&  hex_slope < totalslopes
 		  &&  hex_slope != slope
@@ -1037,6 +1023,15 @@ static image_id pick_ground_image(slope_t::type slope, sint16 climate_nr)
 }
 
 
+static void require_normalized_ground_slope(slope_t::type slope, const char *caller)
+{
+	const uint8 h = slope_t::min_corner_height(slope);
+	if(  h != 0  ) {
+		dbg->fatal(caller, "non-normalized ground slope %d has common corner height %u", slope, h);
+	}
+}
+
+
 // Alpha-tile lookup.  Pakset-derived alpha images pair with
 // pakset-derived HexLightTexture ground images.
 static image_id pick_alpha_tile(slope_t::type slope, image_id pakset_id)
@@ -1049,6 +1044,7 @@ static image_id pick_alpha_tile(slope_t::type slope, image_id pakset_id)
 image_id ground_desc_t::get_ground_tile(grund_t *gr)
 {
 	slope_t::type slope = gr->get_grund_hang();
+	require_normalized_ground_slope(slope, "ground_desc_t::get_ground_tile");
 	sint16 height = gr->get_hoehe();
 	koord k = gr->get_pos().get_2d();
 	const sint16 tile_h = height - world->get_water_hgt(k);
@@ -1066,6 +1062,7 @@ image_id ground_desc_t::get_ground_tile(grund_t *gr)
 
 image_id ground_desc_t::get_water_tile(slope_t::type slope, int stage)
 {
+	require_normalized_ground_slope(slope, "ground_desc_t::get_water_tile");
 	if(  slope < 0  ||  slope >= totalslopes  ||  doubleslope_to_imgnr[slope] == 255  ) {
 		dbg->fatal("ground_desc_t::get_water_tile", "HexLightTexture has no water lightmap for slope %d", slope);
 	}
@@ -1075,18 +1072,21 @@ image_id ground_desc_t::get_water_tile(slope_t::type slope, int stage)
 
 image_id ground_desc_t::get_climate_tile(climate cl, slope_t::type slope)
 {
+	require_normalized_ground_slope(slope, "ground_desc_t::get_climate_tile");
 	return pick_ground_image(slope, cl <= 0 ? 0 : cl - 1);
 }
 
 
 image_id ground_desc_t::get_snow_tile(slope_t::type slope)
 {
+	require_normalized_ground_slope(slope, "ground_desc_t::get_snow_tile");
 	return pick_ground_image(slope, number_of_climates);
 }
 
 
 image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 {
+	require_normalized_ground_slope(slope, "ground_desc_t::get_beach_tile");
 	// Corner masks are still the legacy 15-entry tables.  The alpha
 	// images themselves are generated from HexLightTexture, so they
 	// match the on-slope water source shape; deep-water stages never
@@ -1098,6 +1098,7 @@ image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 
 image_id ground_desc_t::get_alpha_tile(slope_t::type slope, uint8 corners)
 {
+	require_normalized_ground_slope(slope, "ground_desc_t::get_alpha_tile");
 	const uint8 corners_clamped = corners > 15 ? 15 : corners;
 	return pick_alpha_tile(slope, alpha_corners_image[slope * 15 + corners_clamped - 1]);
 }

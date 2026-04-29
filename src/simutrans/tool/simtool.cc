@@ -1579,8 +1579,8 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 				welt->set_water_hgt_nocheck(k, welt->get_groundwater()-4);
 			}
 			else {
-				gr1->set_grund_hang(new_slope);
 				gr1->set_pos(new_pos);
+				gr1->set_grund_hang(new_slope);
 				gr1->clear_flag(grund_t::marked);
 				gr1->set_flag(grund_t::dirty);
 				// update new positions if changed

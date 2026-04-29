@@ -3848,8 +3848,8 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 									// lower with up slope
 									sint8 max_h = bd->get_hoehe() + slope_t::max_diff(bd->get_grund_hang());
 									// in between, so we raise the entire tile
-									bd->set_grund_hang(slope_type(ribi_t::backward(ribi_t::nesw[r])) * min(max_h - target_h, 2));
 									bd->set_pos(koord3d(k, target_h));
+									bd->set_grund_hang(slope_type(ribi_t::backward(ribi_t::nesw[r])) * min(max_h - target_h, 2));
 									for (int i = 0; i < bd->obj_count(); i++) {
 										bd->obj_bei(i)->set_pos(bd->get_pos());
 									}

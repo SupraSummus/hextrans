@@ -294,6 +294,7 @@ void grund_t::rdwr(loadsave_t *file)
 			// truncate double slopes to single slopes
 			slope = encode_corners(min( corner_sw(slope), 1 ), min( corner_se(slope), 1 ), min( corner_ne(slope), 1 ), min( corner_nw(slope), 1 ));
 		}
+		set_grund_hang(slope);
 	}
 
 	// restore grid

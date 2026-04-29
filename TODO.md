@@ -239,11 +239,12 @@ pakset that ships the hex block and verify in-game.
 descriptor.  Ground texture generation treats that block as sparse raw
 slope slots instead of asking `synth_overlay` for generated
 colour-lightmaps, and missing display-time slopes fatal instead of
-falling back to square `LightTexture`.  The remaining ground-art
-caveat is elevated copies: display lookup now normalises to an existing
-hex slot (including legacy 0..80 slope codes that still leak through),
-but it does not yet re-apply the factored-out elevation as a draw-time
-y offset.  Add that when the border path gets the same treatment.
+falling back to square `LightTexture`.  Ground display also trips on
+non-normalised `pos.z`/`grund_hang` pairs instead of silently reusing a
+normalised lightmap at the wrong height.  The remaining ground-art
+caveat is elevated construction code that may still copy or restore
+legacy slope values outside the ordinary setter path; audit those paths
+when the border path gets the same treatment.
 
 ## Pakset slope sprite range gap
 

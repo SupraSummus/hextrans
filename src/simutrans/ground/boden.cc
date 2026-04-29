@@ -72,7 +72,7 @@ boden_t::boden_t(loadsave_t *file, koord pos ) : grund_t( koord3d(pos,0) )
 
 boden_t::boden_t(koord3d pos, slope_t::type sl) : grund_t(pos)
 {
-	slope = sl;
+	set_grund_hang(sl);
 }
 
 
