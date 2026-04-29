@@ -221,39 +221,38 @@ hex up-slope `Image` keys to be silently dropped the moment a hex
 .dat tries to declare them, and the unused-key warning will be
 the only signal.
 
-## Pakset hex ground / border lookups not wired
+## Pakset hex border lookups not wired
 
-The pak128 fork now bakes two raw-`slope_t`-indexed deliverables —
-`HexLightTexture` (141 entries; `landscape/grounds/texture-hex-lightmap.{png,dat}`)
-and `Borders` (141 entries; `landscape/grounds/borders.{png,dat}`,
-replacing the legacy 27-entry square version).  Both index by raw
-`slope_t` (base-4 per corner; sparse, gaps read as IMG_EMPTY) so
-the engine just needs `slope -= hgt_shift; get_image_ptr(slope)`
-— no compact-index translation table.  The current consumers stay
-square-projected: `get_ground_tile` indexes via
-`climate_image[c] + doubleslope_to_imgnr[slope]`, and
-`get_border_image` packs `(slope&1) + ((slope>>1)&6)` into 8
-indices (or `(slope%3) + 3*(slope/9)` under double_grounds).
-Neither reads the new blocks.  Add a hex-aware `get_hex_ground_tile(slope, c)`
-and `get_hex_border_image(slope)` that shift `slope_t` so its
-minimum corner is 0 and re-apply the shift in the drawn yoff so
-factored-out elevation comes back at draw time, then flip
-`synth_overlay::prefer_over_pakset` to false on a pakset that
-ships the hex blocks and verify in-game.  As a heads-up:
-`synth_overlay::init` itself still iterates 0..4095 and generates
-340 sprites without the min=0 normalisation — worth tightening
-alongside the consumption work since the redundant elevated copies
-waste startup time and gfx slots.
+The pak128 fork now bakes a raw-`slope_t`-indexed `Borders` block
+(141 entries; `landscape/grounds/borders.{png,dat}`, replacing the
+legacy 27-entry square version).  It indexes by raw `slope_t`
+(base-4 per corner; sparse, gaps read as IMG_EMPTY).  The consumer
+still stays square-projected: `get_border_image` packs `(slope&1) +
+((slope>>1)&6)` into 8 indices (or `(slope%3) + 3*(slope/9)` under
+double_grounds) before checking the pakset.  Add a hex-aware
+`get_hex_border_image(slope)` that shifts `slope_t` so its minimum
+corner is 0 and re-applies the shift in the drawn yoff so factored-out
+elevation comes back at draw time, then let pakset borders win on a
+pakset that ships the hex block and verify in-game.
+
+`HexLightTexture` is now registered as the required ground-lightmap
+descriptor.  Ground texture generation treats that block as sparse raw
+slope slots instead of asking `synth_overlay` for generated
+colour-lightmaps, and missing display-time slopes fatal instead of
+falling back to square `LightTexture`.  The remaining ground-art
+caveat is elevated copies: display lookup now normalises to an existing
+hex slot (including legacy 0..80 slope codes that still leak through),
+but it does not yet re-apply the factored-out elevation as a draw-time
+y offset.  Add that when the border path gets the same treatment.
 
 ## Pakset slope sprite range gap
 
-Pakset art covers slopes 0–728 (the 729 base-3 slopes).  Base-4
-introduces 4096 total slopes; synth overlay generates correct ground
-tiles for all of them, but the pakset fallback path (`prefer_over_pakset
-= false`) is broken for any slope with a corner ≥ 2: `light_map` /
-`doubleslope_to_imgnr` index past their table bounds.  Either teach the
-fallback to clamp out-of-range slopes to the nearest pakset entry, or
-drop the toggle and let synth ground be the sole path.
+Pakset art covers a sparse set of raw base-4 slopes.  The
+`HexLightTexture` path skips missing slots during runtime ground
+texture generation and display lookups normalise to existing hex slots
+before fataling on genuinely missing art.  Re-apply the normalised-away
+height as a draw-time y offset once the border path gets the same
+treatment.
 
 ## Per-vertex height storage — remaining writer-side ports
 
@@ -552,28 +551,19 @@ bbox, slope corners, ribi edges, sprite tables, minimap).  Phase A
 with `tools/hex_proj_test/` as its standalone invariant suite.  The
 remaining renderer work splits into:
 
-**Phase B — per-tile detail.**  Base ground sprites now go through
-`synth_overlay::get_ground` first — algorithmic hex-shaped tiles
-per (slope, climate), full 6-corner fidelity, so the 4 hex-only
-edge slopes are visually distinguishable instead of collapsing
-pairwise onto the legacy `east` / `west` square sprites.  Climate
-and snowline overlay alpha tiles flow through the matching
-`synth_overlay::get_alpha`, RLE-shape-identical to the synth ground
-tile so `display_img_alpha_wc`'s lockstep walk stays inside both
-allocations.  The pakset path (square sprites projected via
-`slope_t::project_to_square`, flattened through `doubleslope_to_imgnr`)
-is the fallback when synth isn't initialised or when
-`synth_overlay::prefer_over_pakset` flips.  Climate transitions
-use `vertex_owners` plus `surface_t::vertex_corner_height` /
+**Phase B — per-tile detail.**  Base ground sprites now require
+pakset-provided `HexLightTexture` lightmaps indexed by raw
+`slope_t`; the old `synth_overlay` ground/alpha hooks are gone.
+Climate transitions use
+`vertex_owners` plus `surface_t::vertex_corner_height` /
 `climate_at_clamped` (const members; height uses `canonical_vertex`
 then tile clamp like legacy neighbours) in both `recalc_transitions` and
 `display_boden`; the six-bit mask lives on `planquadrat_t` (save
 124.5: extra byte in `grund_t` for bits 4–5).  Pakset corner alpha
 tables are still 15-wide per slope, so `get_alpha_tile` /
-`get_beach_tile` clamp masks to 15; synth `get_alpha` is still
-full-hex opaque (no per-corner gradient).  Water / beach / snow
-still pair with pakset-shaped sources as below.  Keep
-`synth_overlay::prefer_over_pakset` toggleable for quick rollback.
+`get_beach_tile` clamp masks to 15.  Deep water still pairs with the
+pakset `Water` animation block as below; on-slope water and snow now
+use HexLightTexture-derived shapes.
 `rotate_transitions` still applies a 60° bit-rotate as a stand-in for
 90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
 
@@ -593,15 +583,10 @@ move together: when `synth_overlay` grows a per-stage water family
 `get_water_tile` and `get_beach_tile` in the same change so the
 shapes stay matched.
 
-Water tiles (`get_water_tile`, deep water + on-slope) still go through
-the pakset path — they need animation stages we don't synthesise
-yet; extend `synth_overlay` with a per-stage water family when the
-animation is in scope.  6-edge way / wall / ribi-keyed sprite tables
-remain 4-edge with `rotate60` stubs.  Under `double_grounds` (pak128)
-hex slopes also miss the pakset fallback for non-synth queries —
-the textured-tile loop indexes `light_map` with the raw 6-corner
-value past its legacy 4-corner range; the back-fill that covers
-single-grounds (pak64) doesn't apply.
+On-slope water tiles now use the same required `HexLightTexture`
+ground-lightmap path as climate ground.  Deep water still comes from
+the pakset `Water` animation block.  6-edge way / wall / ribi-keyed
+sprite tables remain 4-edge with `rotate60` stubs.
 
 **Cliff (back-wall) rendering — residual gaps.**  Pakset cliff sprites
 are authored in legacy z and projected from a square silhouette; under
@@ -664,20 +649,13 @@ fixed-point) and *square-row-spacing-preserving* with row step
 `(0, u)` (halves the hex height, sprites overlap massively).
 Revisit when sprite art enters scope.
 
-**Phase A verification gaps.**  No pakset → no visual confirmation
-in this env; `tools/hex_proj_test/` covers the projection math, the
-synth ground vector bbox/anchor contract, `synth_ground_lambert_face_normal`
-(the same helper `build_ground` calls, always lifted screen Y), and the
-flat-plane-calibrated synth brightness transfer.  The normal test checks
-against an independent cross product from `geom.vy`, and checks divergence
-from a buggy unlifted reference kept only in `hex_proj_test.cc`.  The
-brightness test protects the intended invariant — flat ground stays
-base-coloured while raised slopes produce real light/dark spread, with
-the terrain light coming from hex S / screen bottom-left — not the
-subjective palette aesthetics.  The vertex-closure check in the same file
-mirrors `koord.cc::vertex_owners` by formula only — the standalone binary
-stays one TU and does not link `koord.cc`.  It still does not cover sprite
-draw order or pakset-art integration.  One
+**Phase A verification gaps.**  No full-game visual confirmation
+in this env; `tools/hex_proj_test/` covers the projection math, overlay
+vector bbox / anchor contracts, raster half-open edge parity, and vertex
+closure.  The vertex-closure check mirrors `koord.cc::vertex_owners` by
+formula only — the standalone binary stays one TU and does not link
+`koord.cc`.  It still does not cover sprite draw order or pakset-art
+integration.  One
 suspect still to eyeball when a pakset is available: the no-parity
 centring (square renderer had a
 `disp_w/IMG_SIZE & 1` half-row nudge; for hex the natural parity
@@ -693,19 +671,14 @@ already overlay on the right footprint because the lattice was
 picked to keep the W × W/2 bounding box (see "Sprite raster
 choice" above) — ground textures, single-tile buildings, station
 sprites land on roughly correct pixels with adjacency artefacts
-where neighbouring diamonds overlap.  *Already landed*: the
-`synth_overlay` algorithmic-pakset path replaces base ground tiles
-entirely with hex-shaped per-climate sprites carrying Lambertian-
-shaded slope faces; its image bbox carries extra top headroom for
-lifted slope vertices while preserving the same `W × W/2` ground
-footprint.  The diamond overlap goes away and the 4
-hex-only edge slopes become visually distinct.  An alternative
-that wasn't taken — a flat-top hex alpha mask applied at the blit
-(vertices at `(0, W/4)`, `(W/4, 0)`, `(3W/4, 0)`, `(W, W/4)`,
-`(3W/4, W/2)`, `(W/4, W/2)`) — would have kept pakset texture
-fidelity at the cost of still collapsing 6→4 slopes; revisit if
-the synth flat-colour palette reads as cartoonish next to richer
-pakset textures elsewhere on screen.  *Rough but functional*: the 3rd hex axis (NE-SW) has no
+where neighbouring diamonds overlap.  *Already landed*: base ground
+tiles are now driven by pakset-provided `HexLightTexture` lightmaps,
+so the synthetic colour-lightmap path no longer masks real hex art.
+An alternative that wasn't taken — a flat-top hex alpha mask applied
+at the blit (vertices at `(0, W/4)`, `(W/4, 0)`, `(3W/4, 0)`,
+`(W, W/4)`, `(3W/4, W/2)`, `(W/4, W/2)`) — would have kept pakset
+texture fidelity at the cost of still collapsing 6→4 slopes.  *Rough
+but functional*: the 3rd hex axis (NE-SW) has no
 square-pakset equivalent — way sprites, powerline crossings, and
 several other tile decorations are missing 1/3 of the directions
 outright.  60° pixel-art rotation of the N-S sprites is the
@@ -720,7 +693,7 @@ and shading; the realistic plan is `get_dir()` projecting 6 hex
 edges onto whichever 4-slot table the current sprite has, accepting
 visibly wrong direction in roughly 1/3 of cases.  Recommended
 order if a "playable but visibly stubby" demo is wanted before
-real art lands: synth ground tiles already there, so next is
+real art lands: base ground now comes from HexLightTexture, so next is
 `get_dir()` 6→4 projection for vehicles (has to land anyway).
 Skip the 60° way-bend rotations — that's where the cost-quality
 curve gets bad and where pakset replacement most likely lands

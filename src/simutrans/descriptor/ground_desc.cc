@@ -107,11 +107,7 @@ static image_t* create_alpha_tile(const image_t* image_lightmap, slope_t::type s
 	// Single-pixel sentinel for any missing input.  This pairs safely
 	// only with sources that ALSO went through this NULL fallback —
 	// the legacy square-pakset path where both source and alpha came
-	// from the same lightmap and share the sentinel together.  The
-	// hex-shaped synth ground tiles need a synth-shaped alpha to
-	// match their RLE; that pairing is wired into `get_alpha_tile`
-	// via `synth_overlay::get_alpha`, ahead of this function's
-	// pakset-only output.
+	// from the same lightmap and share the sentinel together.
 	if(  image_lightmap == NULL  ||  image_alphamap == NULL  ||  image_alphamap->get_pic()->w < 2  ) {
 		image_t *image_dest = image_t::create_single_pixel();
 		image_dest->register_image();
@@ -388,7 +384,7 @@ sint16 ground_desc_t::water_depth_levels = 0;
 bool ground_desc_t::double_grounds = true;
 
 static const ground_desc_t* boden_texture            = NULL;
-static const ground_desc_t* light_map                = NULL;
+static const ground_desc_t* hex_light_map            = NULL;
 static const ground_desc_t* transition_water_texture = NULL;
 static const ground_desc_t* transition_slope_texture = NULL;
 const ground_desc_t *ground_desc_t::shore = NULL;
@@ -403,7 +399,7 @@ const ground_desc_t *ground_desc_t::outside = NULL;
 static special_obj_tpl<ground_desc_t> const grounds[] = {
 	{ &ground_desc_t::shore,     "Shore"          },
 	{ &boden_texture,            "ClimateTexture" },
-	{ &light_map,                "LightTexture"   },
+	{ &hex_light_map,            "HexLightTexture" },
 	{ &transition_water_texture, "ShoreTrans"     },
 	{ &transition_slope_texture, "SlopeTrans"     },
 	{ &ground_desc_t::fundament, "Basement"       },
@@ -432,12 +428,30 @@ image_id alpha_image[totalslopes];
 image_id alpha_corners_image[totalslopes * 15];
 image_id alpha_water_image[totalslopes * 15];
 
+
+static uint8 min_corner_height(slope_t::type slope)
+{
+	return min( min( min( corner_e(slope),  corner_se(slope) ),
+	                 min( corner_sw(slope), corner_w(slope) ) ),
+	            min( corner_nw(slope), corner_ne(slope) ) );
+}
+
+
+static slope_t::type lower_min_corner(slope_t::type slope)
+{
+	const uint8 h = min_corner_height(slope);
+	return h == 0 ? slope : (slope_t::type)(slope - h * slope_t::all_up_one);
+}
+
 /*
  *      called every time an object is read
  *      the object will be assigned according to its name
  */
 bool ground_desc_t::register_desc(const ground_desc_t *desc)
 {
+	if(strcmp("LightTexture", desc->get_name())==0) {
+		return true;
+	}
 	if(strcmp("Outside", desc->get_name())==0) {
 		image_t const* const image = desc->get_child<image_array_t>(2)->get_image(0,0);
 		dbg->message("ground_desc_t::register_desc()", "setting raster width to %i", image->get_pic()->w);
@@ -501,6 +515,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 
 	// not the wrong tile size?
 	assert(boden_texture->get_image_ptr(0)->get_pic()->w == ground_desc_t::outside->get_image_ptr(0)->get_pic()->w);
+	const ground_desc_t* const ground_light_map = hex_light_map;
 
 	// create rotations of the mixer
 	image_t *all_rotations_beach[totalslopes]; // water->sand->texture
@@ -509,17 +524,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	image_t *final_tile = NULL;
 
 	bool full_climate = true;
-	// check if there are double slopes available.  Pakset art uses the
-	// old 4-corner slope-value indexing (81 images, indices 0..80);
-	// don't scan beyond 81 here — `totalslopes` was widened to 729 for
-	// the 6-corner encoding but paksets haven't been regenerated, and
-	// a NULL at index 81+ doesn't mean the pakset is single-height.
-	for(  int imgindex = 16;  imgindex < 81;  imgindex++  ) {
-		if(  light_map->get_image_ptr(imgindex) == NULL  ) {
-			double_grounds = false;
-			break;
-		}
-	}
+	double_grounds = true;
 	for(  int imgindex = 4;  imgindex < 15;  imgindex++  ) {
 		if(  transition_slope_texture->get_image_ptr(imgindex) == NULL   ||
 			(imgindex<=11  &&  transition_water_texture->get_image_ptr(imgindex) == NULL) ) {
@@ -537,19 +542,17 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		all_rotations_slope[slope] = NULL;
 		doubleslope_to_imgnr[slope] = 255;
 
-		if(  slope != slope_t::all_up_two  &&  (slope_t::is_all_up(slope)  ||  (!double_grounds  &&  slope_t::max_diff(slope)>1)  )  ) {
+		if(  slope != slope_t::all_up_two  &&  slope_t::is_all_up(slope)  ) {
 			// no need to initialize unneeded slopes — all_up_two is
 			// kept below as a special case (bridgehead / flat-top).
 			continue;
 		}
-		// Under the 6-corner hex encoding most slope values have no
-		// sprite in the square pakset; skip those too to avoid
-		// generating garbage single-pixel tiles for every hex-corner
-		// configuration.  all_up_two passes through — it's the
-		// bridgehead / flat-top sentinel and the big switch below
-		// assigns a dedicated sprite for it via the inner full-climate
-		// branch.
-		if(  !double_grounds  &&  slope != slope_t::all_up_two  &&  slopetable(slope) == 0xFF  ) {
+
+		if(  ground_light_map->get_image_ptr((uint16)slope) == NULL  ) {
+			// Sparse hex paksets intentionally leave absent slopes as
+			// empty slots.  Missing display-time slopes trip in the
+			// lookup helpers below rather than falling back to square
+			// lightmaps.
 			continue;
 		}
 
@@ -904,8 +907,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 		for(uint16 stage = 0; stage < water_animation_stages; stage++) {
 			if(  doubleslope_to_imgnr[dslope] != 255  ) {
-				int slope = double_grounds ? dslope : slopetable(dslope);
-				final_tile = create_textured_tile( light_map->get_image_ptr( slope ), water_stage_texture[stage], true);
+				final_tile = create_textured_tile( ground_light_map->get_image_ptr( dslope ), water_stage_texture[stage], true);
 				ground_image_list.append( final_tile );
 			}
 		}
@@ -921,8 +923,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		climate_image[i] = gfx->get_image_count();
 		for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 			if(  doubleslope_to_imgnr[dslope] != 255  ) {
-				int slope = double_grounds ? dslope : slopetable(dslope);
-				final_tile = create_textured_tile( light_map->get_image_ptr( slope ), boden_texture->get_image_ptr( i+1 ) );
+				final_tile = create_textured_tile( ground_light_map->get_image_ptr( dslope ), boden_texture->get_image_ptr( i+1 ) );
 				ground_image_list.append( final_tile );
 			}
 		}
@@ -931,8 +932,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	climate_image[number_of_climates] = final_tile->get_id() + 1;
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 		if(  doubleslope_to_imgnr[dslope] != 255  ) {
-			int slope = double_grounds ? dslope : slopetable(dslope);
-			final_tile = create_textured_tile( light_map->get_image_ptr( slope ), boden_texture->get_image_ptr( arctic_climate ) );
+			final_tile = create_textured_tile( ground_light_map->get_image_ptr( dslope ), boden_texture->get_image_ptr( arctic_climate ) );
 			ground_image_list.append( final_tile );
 		}
 	}
@@ -940,8 +940,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	// alpha slopes for snowline
 	for(  int dslope = 1;  dslope < totalslopes - 1;  dslope++  ) {
 		if(  doubleslope_to_imgnr[dslope] != 255  ) {
-			int slope = double_grounds ? dslope : slopetable(dslope);
-			final_tile = create_alpha_tile( light_map->get_image_ptr( slope ), dslope, all_rotations_slope[dslope] );
+			final_tile = create_alpha_tile( ground_light_map->get_image_ptr( dslope ), dslope, all_rotations_slope[dslope] );
 			alpha_image[dslope] = final_tile->get_id();
 		}
 		else {
@@ -953,8 +952,6 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 		for(  int corners = 1;  corners < 16;  corners++  ) {
 			if(  doubleslope_to_imgnr[dslope] != 255  ) {
-				// slope of tile
-				int slope = double_grounds ? dslope : slopetable(dslope);
 				// Corners with transition.  `corners == 15` used to
 				// resolve to the magic value 80 (= old all_up_two
 				// sentinel) under the 4-corner encoding; under the
@@ -963,12 +960,12 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 				slope_t::type double_corners = corners == 15 ? (slope_t::type)slope_t::all_up_two : slope_from_slope4(slope4_t(corners), 1);
 
 				// create alpha image
-				final_tile = create_alpha_tile( light_map->get_image_ptr( slope ), dslope, all_rotations_slope[double_corners] );
+				final_tile = create_alpha_tile( ground_light_map->get_image_ptr( dslope ), dslope, all_rotations_slope[double_corners] );
 				alpha_corners_image[dslope * 15 + corners - 1] = final_tile->get_id();
 
 				double_corners = corners == 15 ? (slope_t::type)slope_t::all_up_two : slope_from_slope4(slope4_t(15-corners), 1);
 				if(  all_rotations_beach[double_corners]  ) {
-					final_tile = create_alpha_tile( light_map->get_image_ptr( slope ), dslope, all_rotations_beach[double_corners] );
+					final_tile = create_alpha_tile( ground_light_map->get_image_ptr( dslope ), dslope, all_rotations_beach[double_corners] );
 					alpha_water_image[dslope * 15 + corners - 1] = final_tile->get_id();
 				}
 			}
@@ -979,25 +976,25 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		}
 	}
 
-	// Back-fill hex-corner slopes: every slope still at 255 had no
-	// dedicated sprite generated above, but `project_to_square_sprite`
-	// gives it a square projection.  Point its `doubleslope_to_imgnr`
-	// slot at the imgnr of any already-allocated slope that projects
-	// the same way, so `get_climate_tile`/`get_water_tile`/`get_snow_tile`
-	// (and `get_ground_tile`) return a real sprite for hex slopes
-	// instead of reading past the end of the climate sprite block.
-	// Under double_grounds these slopes already got their own slots
-	// (no projection collapsing), so the loop is a no-op there —
-	// double_grounds + hex sprite generation is a separate problem.
 	for(  int slope = 1;  slope < totalslopes;  slope++  ) {
 		if(  doubleslope_to_imgnr[slope] != 255  ) {
 			continue;
 		}
-		const uint8 sq = project_to_square_sprite(slope);
-		for(  int prev = 0;  prev < totalslopes;  prev++  ) {
-			if(  doubleslope_to_imgnr[prev] != 255  &&  project_to_square_sprite(prev) == sq  ) {
-				doubleslope_to_imgnr[slope] = doubleslope_to_imgnr[prev];
-				break;
+
+		slope_t::type hex_slope = (slope_t::type)slope;
+		if(  slope <= LEGACY_SLOPE4_MAX  ) {
+			hex_slope = slope_from_legacy_slope4_table((sint16)slope);
+		}
+		hex_slope = lower_min_corner(hex_slope);
+		if(  hex_slope >= 0
+		  &&  hex_slope < totalslopes
+		  &&  hex_slope != slope
+		  &&  doubleslope_to_imgnr[hex_slope] != 255  ) {
+			doubleslope_to_imgnr[slope] = doubleslope_to_imgnr[hex_slope];
+			alpha_image[slope] = alpha_image[hex_slope];
+			for(  int corners = 0;  corners < 15;  corners++  ) {
+				alpha_corners_image[slope * 15 + corners] = alpha_corners_image[hex_slope * 15 + corners];
+				alpha_water_image[slope * 15 + corners] = alpha_water_image[hex_slope * 15 + corners];
 			}
 		}
 	}
@@ -1029,44 +1026,22 @@ void ground_desc_t::init_ground_textures(karte_t *world)
  * Since not all of the climates are used in their numerical order, we use a
  * private (static table "height_to_texture_climate" for lookup)
  */
-// Synth-or-pakset ground lookup.  The synth fork happens here so it
-// sees the full 6-corner `slope` — the `doubleslope_to_imgnr[]`
-// indirection on the pakset fallback path is what flattens hex-only
-// slopes onto their square projection, and we want the synth path
-// upstream of that.  See synth_overlay::prefer_over_pakset for the
-// precedence policy.
+// Ground lookup.  HexLightTexture owns ground imagery; missing slots
+// trip loudly instead of falling back to legacy square lightmaps.
 static image_id pick_ground_image(slope_t::type slope, sint16 climate_nr)
 {
-	if(  synth_overlay::prefer_over_pakset  ) {
-		const image_id synth_id = synth_overlay::get_ground(slope, (uint8)climate_nr);
-		if(  synth_id != IMG_EMPTY  ) {
-			return synth_id;
-		}
+	if(  slope < 0  ||  slope >= totalslopes  ||  doubleslope_to_imgnr[slope] == 255  ) {
+		dbg->fatal("ground_desc_t::pick_ground_image", "HexLightTexture has no image for slope %d", slope);
 	}
 	return climate_image[climate_nr] + doubleslope_to_imgnr[slope];
 }
 
 
-// Synth-or-pakset alpha-tile lookup.  Mirrors `pick_ground_image`'s
-// precedence so the source and alpha tiles handed to a single blit
-// land on the same path: synth source pairs with synth alpha (both
-// hex-shaped), pakset source pairs with pakset alpha (both
-// lightmap-shaped).  `display_img_alpha_wc` walks the two pointers in
-// lockstep using the source's RLE — shape-identity is what keeps
-// the alpha walk inside its allocation.
-//
-// The synth alpha currently ignores the corners mask and returns a
-// uniform full-opaque hex.  See synth_overlay::get_alpha — per-corner
-// gradient is a future enhancement once corner masking gets wired
-// through.
+// Alpha-tile lookup.  Pakset-derived alpha images pair with
+// pakset-derived HexLightTexture ground images.
 static image_id pick_alpha_tile(slope_t::type slope, image_id pakset_id)
 {
-	if(  synth_overlay::prefer_over_pakset  ) {
-		const image_id synth_id = synth_overlay::get_alpha(slope);
-		if(  synth_id != IMG_EMPTY  ) {
-			return synth_id;
-		}
-	}
+	(void)slope;
 	return pakset_id;
 }
 
@@ -1091,6 +1066,9 @@ image_id ground_desc_t::get_ground_tile(grund_t *gr)
 
 image_id ground_desc_t::get_water_tile(slope_t::type slope, int stage)
 {
+	if(  slope < 0  ||  slope >= totalslopes  ||  doubleslope_to_imgnr[slope] == 255  ) {
+		dbg->fatal("ground_desc_t::get_water_tile", "HexLightTexture has no water lightmap for slope %d", slope);
+	}
 	return water_image + stage + water_animation_stages*doubleslope_to_imgnr[slope];
 }
 
@@ -1109,13 +1087,10 @@ image_id ground_desc_t::get_snow_tile(slope_t::type slope)
 
 image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 {
-	// Pakset alpha only — beach is paired with `get_water_tile` /
-	// `sea->get_image`, both still on the legacy pakset path
-	// (lightmap-shaped square sprite).  Routing this through
-	// `pick_alpha_tile` would hand back a hex-shaped synth alpha that
-	// the lockstep walk in `display_img_alpha_wc` reads off the end
-	// of, since the source is square.  Synth wires through here once
-	// `synth_overlay` grows a per-stage water family to match.
+	// Corner masks are still the legacy 15-entry tables.  The alpha
+	// images themselves are generated from HexLightTexture, so they
+	// match the on-slope water source shape; deep-water stages never
+	// call this path.
 	const uint8 corners_clamped = corners > 15 ? 15 : corners;
 	return alpha_water_image[slope * 15 + corners_clamped - 1];
 }

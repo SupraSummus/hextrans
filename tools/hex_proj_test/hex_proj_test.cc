@@ -11,10 +11,7 @@
 //      recovers (q, r) for every (q, r) in a representative range.
 //   4. Inverse is stable under sub-pixel noise around hex centres.
 //   5. Slope_t corner heights, the hex projection lattice and synth
-//      ground geometry agree at shared rendered slope edges.
-//   5b. `synth_ground_lambert_face_normal` (called from `build_ground`) matches
-//      an independent cross product from `geom.vy`; a local buggy reference
-//      (unlifted screen Y) diverges on sloped tiles.
+//      overlay geometry agree at shared rendered slope edges.
 //   6. Render-loop iteration (hex_render_x_start + hex_render_x_step
 //      with q=x/3, r=(y-q)/2) is a bijection between (x, y) lattice
 //      points and the (q, r) tiles in a y-bounded rectangle — every
@@ -33,7 +30,6 @@
 #include "simutrans/dataobj/koord.h"
 #include "simutrans/dataobj/ribi.h"
 #include "simutrans/descriptor/synth_geometry.h"
-#include "simutrans/descriptor/synth_plane_partition.h"
 
 
 // Use a representative raster width.  Must be a multiple of 4 so the
@@ -431,9 +427,8 @@ static void test_slope_project_to_square_clamping()
 
 // Inscribed-hex vertex positions for a tile bbox of size `w × h`,
 // matching the formula in `descriptor/synth_overlay.cc`
-// (rasterise_outline / build_ground) for a flat slope.  If that
-// formula drifts, this copy stops representing reality — keep the
-// two in sync.
+// for a flat slope.  If that formula drifts, this copy stops
+// representing reality — keep the two in sync.
 //
 // Order matches `hex_corner_t::type` (E, SE, SW, W, NW, NE).
 static void inscribed_hex_vertices(sint32 w, sint32 h, sint32 vx[6], sint32 vy[6])
@@ -486,7 +481,7 @@ static sint32 max_shared_corner_gap(sint32 w, sint32 h)
 // Half-open edge rule used by `synth_overlay::fill_polygon`: the flat
 // hex bottom SE–SW is horizontal (no crossings), and centre→SE /
 // centre→SW both use y_hi == bot_y so half-open contributes zero hits
-// on that row — build_ground closes it with an explicit horizontal chord.
+// on that row.
 static int synth_halfopen_edge_hits(sint32 ya, sint32 yb, sint32 y)
 {
 	if (ya == yb) {
@@ -623,205 +618,6 @@ static void test_synth_slope_bbox_contains_lifted_vertices()
 }
 
 
-// Pre-fix Lambert bug: vy_base / mid_y only (no corner lift in screen Y,
-// centre ignores cz).  Kept in the test TU only — production helper has no
-// flag so `build_ground` cannot accidentally pass `false`.
-static void lambert_face_normal_unlifted_screen_y_bug(
-	const synth_overlay::synth_hex_geometry_t &geom,
-	slope_t::type slope,
-	sint32 cz,
-	uint8 corner_a,
-	uint8 corner_b,
-	double *nx, double *ny, double *nz)
-{
-	uint8 ch[hex_corner_t::count];
-	for (int i = 0; i < hex_corner_t::count; i++) {
-		ch[i] = synth_overlay::hex_corner_height(slope, (hex_corner_t::type)i);
-	}
-	const sint32 cx = geom.w / 2;
-	const sint32 cy_centre = geom.mid_y;
-	const double ax = (double)(geom.vx[corner_a] - cx);
-	const double ay = (double)(geom.vy_base[corner_a] - cy_centre);
-	const double az = (double)((sint32)ch[corner_a] * geom.lift - cz);
-	const double bx = (double)(geom.vx[corner_b] - cx);
-	const double by = (double)(geom.vy_base[corner_b] - cy_centre);
-	const double bz = (double)((sint32)ch[corner_b] * geom.lift - cz);
-	*nx = ay * bz - az * by;
-	*ny = az * bx - ax * bz;
-	*nz = ax * by - ay * bx;
-}
-
-
-static sint32 synth_test_centre_z(
-	const synth_overlay::synth_hex_geometry_t &geom,
-	slope_t::type slope)
-{
-	sint32 sum_h = 0;
-	for (int i = 0; i < hex_corner_t::count; i++) {
-		sum_h += synth_overlay::hex_corner_height(slope, (hex_corner_t::type)i);
-	}
-	return (sum_h * geom.lift) / hex_corner_t::count;
-}
-
-
-struct synth_test_brightness_range_t {
-	sint32 lo = 10000;
-	sint32 hi = -10000;
-	sint32 sum = 0;
-};
-
-
-static synth_test_brightness_range_t synth_test_brightness_range(
-	const synth_overlay::synth_hex_geometry_t &geom,
-	slope_t::type slope)
-{
-	synth_test_brightness_range_t range;
-	const sint32 cz = synth_test_centre_z(geom, slope);
-	for (int f = 0; f < hex_corner_t::count; f++) {
-		double nx, ny, nz;
-		synth_overlay::synth_ground_lambert_face_normal(
-			geom, slope, cz, (uint8)f, (uint8)((f + 1) % hex_corner_t::count),
-			&nx, &ny, &nz);
-		const sint32 brightness = synth_overlay::synth_ground_lambert_brightness(nx, ny, nz);
-		if (brightness < range.lo) range.lo = brightness;
-		if (brightness > range.hi) range.hi = brightness;
-		range.sum += brightness;
-	}
-	return range;
-}
-
-
-// `build_ground` calls `synth_ground_lambert_face_normal` — assert that helper
-// matches an independent cross product built from `geom.vy` (same Y as
-// fill_polygon), and that the unlifted reference diverges on a raised-corner
-// slope.
-static void test_synth_build_ground_normal_uses_lifted_screen_y()
-{
-	constexpr sint32 W = 64;
-	constexpr sint32 lift = 16;
-	const synth_overlay::synth_hex_geometry_t geom =
-		synth_overlay::synth_hex_geometry(W / 4, lift);
-
-	const slope_t::type slope = slope_t::raised_NE;
-	const sint32 cz = synth_test_centre_z(geom, slope);
-	const sint32 cx = geom.w / 2;
-	const sint32 cy = geom.mid_y - cz;
-
-	auto cross3 = [](double ax, double ay, double az,
-	                 double bx, double by, double bz,
-	                 double *ox, double *oy, double *oz) {
-		*ox = ay * bz - az * by;
-		*oy = az * bx - ax * bz;
-		*oz = ax * by - ay * bx;
-	};
-	auto norm2 = [](double x, double y, double z) {
-		return x * x + y * y + z * z;
-	};
-
-	double best_sin2_false = 0.0;
-	for (int f = 0; f < hex_corner_t::count; f++) {
-		const uint8 a = (uint8)f;
-		const uint8 b = (uint8)((f + 1) % hex_corner_t::count);
-
-		double nh_x, nh_y, nh_z;
-		synth_overlay::synth_ground_lambert_face_normal(
-			geom, slope, cz, a, b, &nh_x, &nh_y, &nh_z);
-
-		const double rax = (double)(geom.vx[a] - cx);
-		const double ray = (double)(geom.vy(slope, (hex_corner_t::type)a) - cy);
-		const double raz = (double)(
-			(sint32)synth_overlay::hex_corner_height(slope, (hex_corner_t::type)a) * geom.lift - cz);
-		const double rbx = (double)(geom.vx[b] - cx);
-		const double rby = (double)(geom.vy(slope, (hex_corner_t::type)b) - cy);
-		const double rbz = (double)(
-			(sint32)synth_overlay::hex_corner_height(slope, (hex_corner_t::type)b) * geom.lift - cz);
-		double nr_x, nr_y, nr_z;
-		cross3(rax, ray, raz, rbx, rby, rbz, &nr_x, &nr_y, &nr_z);
-
-		const double nh2 = norm2(nh_x, nh_y, nh_z);
-		const double nr2 = norm2(nr_x, nr_y, nr_z);
-		if (nh2 < 1e-20 || nr2 < 1e-20) {
-			continue;
-		}
-		double cx_, cy_, cz_;
-		cross3(nh_x, nh_y, nh_z, nr_x, nr_y, nr_z, &cx_, &cy_, &cz_);
-		const double sin2_hr = norm2(cx_, cy_, cz_) / (nh2 * nr2);
-		if (sin2_hr > 1e-10) {
-			std::fprintf(stderr,
-				"synth_ground_lambert_face_normal != geom.vy cross product "
-				"(face %d sin^2=%g)\n",
-				f, sin2_hr);
-			std::abort();
-		}
-
-		double nb_x, nb_y, nb_z;
-		lambert_face_normal_unlifted_screen_y_bug(
-			geom, slope, cz, a, b, &nb_x, &nb_y, &nb_z);
-		const double nb2 = norm2(nb_x, nb_y, nb_z);
-		if (nb2 < 1e-20) {
-			continue;
-		}
-		cross3(nh_x, nh_y, nh_z, nb_x, nb_y, nb_z, &cx_, &cy_, &cz_);
-		const double sin2_hf = norm2(cx_, cy_, cz_) / (nh2 * nb2);
-		if (sin2_hf > best_sin2_false) {
-			best_sin2_false = sin2_hf;
-		}
-	}
-
-	if (best_sin2_false < 1e-8) {
-		std::fprintf(stderr,
-			"synth_ground_lambert_face_normal vs unlifted reference did not diverge "
-			"(sin^2 max=%g)\n",
-			best_sin2_false);
-		std::abort();
-	}
-}
-
-
-static void test_synth_ground_shading_calibrates_flat_plane()
-{
-	constexpr sint32 W = 64;
-	constexpr sint32 lift = 16;
-	const synth_overlay::synth_hex_geometry_t geom =
-		synth_overlay::synth_hex_geometry(W / 4, lift);
-
-	const synth_test_brightness_range_t flat =
-		synth_test_brightness_range(geom, slope_t::flat);
-	if (flat.lo != 256 || flat.hi != 256) {
-		std::fprintf(stderr,
-			"synth flat shading: expected all faces at 256, got min=%d max=%d\n",
-			(int)flat.lo, (int)flat.hi);
-		std::abort();
-	}
-
-	// Use the north-edge-raised slope: its face is lit by the S-direction
-	// light, and height 2 gives the same 16px visual displacement as
-	// height 1 at the old lift.
-	const slope_t::type south2 = (slope_t::type)(slope_t::south * 2);
-	const synth_test_brightness_range_t south2_range =
-		synth_test_brightness_range(geom, south2);
-	if (south2_range.lo >= 256 || south2_range.hi <= 256) {
-		std::fprintf(stderr,
-			"synth south-facing shading: expected visible light/dark relief, got min=%d max=%d\n",
-			(int)south2_range.lo, (int)south2_range.hi);
-		std::abort();
-	}
-
-	const synth_test_brightness_range_t north_range =
-		synth_test_brightness_range(geom, slope_t::north);
-	const synth_test_brightness_range_t south_range =
-		synth_test_brightness_range(geom, slope_t::south);
-	if (south_range.sum <= north_range.sum) {
-		std::fprintf(stderr,
-			"synth S light direction: expected south-facing slope brighter than north-facing "
-			"(north=%d..%d sum=%d south=%d..%d sum=%d)\n",
-			(int)north_range.lo, (int)north_range.hi, (int)north_range.sum,
-			(int)south_range.lo, (int)south_range.hi, (int)south_range.sum);
-		std::abort();
-	}
-}
-
-
 // ---- 7b. Visible-centre anchor matches legacy iso convention ---------------
 
 static void test_canvas_anchor_convention()
@@ -829,9 +625,9 @@ static void test_canvas_anchor_convention()
 	// Pakset sprites (cursor.pak, buildings, vehicles) are authored
 	// against the legacy "tile content in bottom half of W×W canvas"
 	// layout: anchor (X, Y) places visible centre at (X+W/2, Y+3W/4).
-	// Synth ground rasteriser and picker both pin to this y; drift
-	// here was the pak128 bug where the looking-glass cursor drew on
-	// the south neighbour of the highlighted hex.
+	// Synth overlay sprites and picker both pin to this y; drift here
+	// was the pak128 bug where the looking-glass cursor drew on the
+	// south neighbour of the highlighted hex.
 	assert(hex_visible_centre_y(W) == 3 * W / 4);
 }
 
@@ -959,242 +755,6 @@ static void test_vertex_owners_neighbour_closure()
 	}
 }
 
-// ---- 10. Plane partition solver invariants ---------------------------------
-// These are regression checks over the shared solver implementation
-// (`synth_plane_partition.h`), not an independent oracle against a
-// second implementation.
-
-static void test_plane_partition_known_cases()
-{
-	struct tc_t { uint8 h[6]; uint8 n; };
-	static const tc_t cases[] = {
-		{{0,0,0,0,0,0}, 1},
-		{{2,2,2,2,2,2}, 1},
-		{{0,0,0,1,1,1}, 3},
-		{{0,0,0,0,0,1}, 2},
-		{{0,0,0,0,1,1}, 2},
-		{{0,1,0,1,0,1}, 3},
-		{{0,1,0,0,2,1}, 4},
-		// height-3 cases (base-4 slope encoding)
-		{{3,3,3,3,3,3}, 1},     // all max-height flat
-		{{0,0,0,0,0,3}, 2},     // one corner raised to 3, same topology as {…,1}
-		{{0,0,0,3,3,3}, 3},     // half raised to 3, same topology as {…,1,1,1}
-		{{0,1,2,3,2,1}, 3},     // max-range ring; coplanar quad NE/E/SW/W → 3 regions
-	};
-	for(  size_t i = 0;  i < sizeof(cases)/sizeof(cases[0]);  i++  ) {
-		synth_overlay::plane_partition::hex_partition_t p;
-		const bool ok = synth_overlay::plane_partition::find_min_partition(cases[i].h, p);
-		if(  !ok || p.region_count != cases[i].n  ) {
-			std::fprintf(stderr, "partition known-case %zu failed: got %d, want %d\n",
-			             i, ok ? (int)p.region_count : -1, (int)cases[i].n);
-			std::abort();
-		}
-	}
-}
-
-
-static void test_plane_partition_disambiguates_000111_by_flat_area()
-{
-	static const uint8 base[6] = {0,0,0,1,1,1};
-	for(  uint8 rot = 0;  rot < 6;  rot++  ) {
-		uint8 h[6];
-		for(  uint8 i = 0;  i < 6;  i++  ) {
-			h[(i + rot) % 6] = base[i];
-		}
-
-		synth_overlay::plane_partition::hex_partition_t p;
-		const bool ok = synth_overlay::plane_partition::find_min_partition(h, p);
-		const uint8 flat_area2 = ok ? synth_overlay::plane_partition::partition_flat_projected_area2(p, h) : 0;
-		if(  !ok || p.region_count != 3 || flat_area2 != 2  ) {
-			std::fprintf(stderr,
-			             "partition 000111 rotation %d failed: regions=%d flat_area2=%d\n",
-			             (int)rot, ok ? (int)p.region_count : -1, (int)flat_area2);
-			std::abort();
-		}
-	}
-}
-
-
-static bool hex_corner_neighbour_diffs_within_one(const uint8 h[6])
-{
-	for(  uint8 i = 0;  i < 6;  i++  ) {
-		const uint8 j = (uint8)((i + 1) % 6);
-		if(  h[i] > h[j] + 1 || h[j] > h[i] + 1  ) {
-			return false;
-		}
-	}
-	return true;
-}
-
-
-static bool hex_corner_has_zero_height(const uint8 h[6])
-{
-	for(  uint8 i = 0;  i < 6;  i++  ) {
-		if(  h[i] == 0  ) {
-			return true;
-		}
-	}
-	return false;
-}
-
-
-static bool hex_corner_matches_rotation(const uint8 h[6], const uint8 pattern[6])
-{
-	for(  uint8 rot = 0;  rot < 6;  rot++  ) {
-		bool match = true;
-		for(  uint8 i = 0;  i < 6;  i++  ) {
-			if(  h[(i + rot) % 6] != pattern[i]  ) {
-				match = false;
-				break;
-			}
-		}
-		if(  match  ) {
-			return true;
-		}
-	}
-	return false;
-}
-
-
-static bool hex_corner_known_equal_score_tie_shape(const uint8 h[6])
-{
-	static const uint8 p110100[6] = {1,1,0,1,0,0};
-	static const uint8 p101100[6] = {1,0,1,1,0,0};
-	static const uint8 p101010[6] = {1,0,1,0,1,0};
-	return hex_corner_matches_rotation(h, p110100)
-	    || hex_corner_matches_rotation(h, p101100)
-	    || hex_corner_matches_rotation(h, p101010);
-}
-
-
-struct plane_partition_score_t {
-	uint8 regions;
-	uint8 flat_area2;
-	uint16 count;
-};
-
-
-static plane_partition_score_t plane_partition_best_score_for_heights(const uint8 h[6])
-{
-	plane_partition_score_t best = {255, 0, 0};
-	for(  uint16 mask = 0;  mask < (1u << 9);  mask++  ) {
-		bool ok = true;
-		for(  uint8 i = 0;  i < 9 && ok;  i++  ) {
-			if(  (mask & (uint16)(1u << i)) == 0  ) { continue; }
-			for(  uint8 j = i + 1;  j < 9;  j++  ) {
-				if(  (mask & (uint16)(1u << j)) == 0  ) { continue; }
-				if(  synth_overlay::plane_partition::partition_chords_cross(synth_overlay::plane_partition::HEX_ALL_CHORDS[i],
-				                                                             synth_overlay::plane_partition::HEX_ALL_CHORDS[j])  ) {
-					ok = false;
-					break;
-				}
-			}
-		}
-		if(  !ok  ) {
-			continue;
-		}
-		synth_overlay::plane_partition::hex_partition_t candidate;
-		if(  !synth_overlay::plane_partition::compute_regions_from_chord_mask(mask, candidate)  ) {
-			continue;
-		}
-		for(  uint8 r = 0;  r < candidate.region_count;  r++  ) {
-			if(  !synth_overlay::plane_partition::region_coplanar(candidate.region[r], h)  ) {
-				ok = false;
-				break;
-			}
-		}
-		if(  !ok  ) {
-			continue;
-		}
-		const uint8 flat_area2 = synth_overlay::plane_partition::partition_flat_projected_area2(candidate, h);
-		if(  candidate.region_count < best.regions
-		  ||  (candidate.region_count == best.regions && flat_area2 > best.flat_area2)  ) {
-			best.regions = candidate.region_count;
-			best.flat_area2 = flat_area2;
-			best.count = 1;
-		}
-		else if(  candidate.region_count == best.regions && flat_area2 == best.flat_area2  ) {
-			best.count++;
-		}
-	}
-	return best;
-}
-
-
-static void test_plane_partition_exhaustive_ternary()
-{
-	// Domain is canonicalized to plausible ground-local shapes: no edge
-	// jump over one height unit, and at least one zero-height corner
-	// (otherwise all corners can shift down).  Even there, 14 cases are
-	// true equal-score ties after min-region/max-flat-area selection:
-	// the rotations of 110100, 101100, and the two rotations of 101010.
-	// The solver therefore promises an optimal score, not uniqueness.
-	uint16 known_tie_shapes = 0;
-	uint16 unique_shapes = 0;
-	for(  uint8 h0 = 0;  h0 < 3;  h0++  )
-	for(  uint8 h1 = 0;  h1 < 3;  h1++  )
-	for(  uint8 h2 = 0;  h2 < 3;  h2++  )
-	for(  uint8 h3 = 0;  h3 < 3;  h3++  )
-	for(  uint8 h4 = 0;  h4 < 3;  h4++  )
-	for(  uint8 h5 = 0;  h5 < 3;  h5++  ) {
-		const uint8 h[6] = { h0, h1, h2, h3, h4, h5 };
-		if(  !hex_corner_neighbour_diffs_within_one(h) || !hex_corner_has_zero_height(h)  ) {
-			continue;
-		}
-
-		const plane_partition_score_t best = plane_partition_best_score_for_heights(h);
-		synth_overlay::plane_partition::hex_partition_t p;
-		if(  !synth_overlay::plane_partition::find_min_partition(h, p)  ) {
-			std::fprintf(stderr, "partition missing for heights [%d,%d,%d,%d,%d,%d]\n",
-			             h0, h1, h2, h3, h4, h5);
-			std::abort();
-		}
-
-		const uint8 flat_area2 = synth_overlay::plane_partition::partition_flat_projected_area2(p, h);
-		if(  p.region_count < 1 || p.region_count > 4  ) {
-			std::fprintf(stderr, "partition count out of range (%d) for heights [%d,%d,%d,%d,%d,%d]\n",
-			             (int)p.region_count, h0, h1, h2, h3, h4, h5);
-			std::abort();
-		}
-		if(  p.region_count != best.regions || flat_area2 != best.flat_area2  ) {
-			std::fprintf(stderr, "partition score mismatch for heights [%d,%d,%d,%d,%d,%d]: got regions=%d flat_area2=%d want regions=%d flat_area2=%d\n",
-			             h0, h1, h2, h3, h4, h5,
-			             (int)p.region_count, (int)flat_area2, (int)best.regions, (int)best.flat_area2);
-			std::abort();
-		}
-
-		if(  hex_corner_known_equal_score_tie_shape(h)  ) {
-			if(  best.count <= 1  ) {
-				std::fprintf(stderr, "expected known tie shape [%d,%d,%d,%d,%d,%d] to have multiple best partitions\n",
-				             h0, h1, h2, h3, h4, h5);
-				std::abort();
-			}
-			known_tie_shapes++;
-			continue;
-		}
-		if(  best.count != 1  ) {
-			std::fprintf(stderr, "unexpected equal-score partition tie for heights [%d,%d,%d,%d,%d,%d]: count=%d\n",
-			             h0, h1, h2, h3, h4, h5, (int)best.count);
-			std::abort();
-		}
-		unique_shapes++;
-
-		for(  uint8 r = 0;  r < p.region_count;  r++  ) {
-			if(  !synth_overlay::plane_partition::region_coplanar(p.region[r], h)  ) {
-				std::fprintf(stderr, "non-coplanar region in partition for heights [%d,%d,%d,%d,%d,%d]\n",
-				             h0, h1, h2, h3, h4, h5);
-				std::abort();
-			}
-		}
-	}
-	if(  known_tie_shapes != 14 || unique_shapes != 121  ) {
-		std::fprintf(stderr, "partition domain count mismatch: known_ties=%d unique=%d\n",
-		             (int)known_tie_shapes, (int)unique_shapes);
-		std::abort();
-	}
-}
-
-
 int main()
 {
 	test_forward_unit_steps();
@@ -1215,52 +775,10 @@ int main()
 	test_synth_raised_E_wedges_have_even_halfopen_hits();
 	test_inscribed_hex_tiles_lattice();
 	test_synth_slope_bbox_contains_lifted_vertices();
-	test_synth_build_ground_normal_uses_lifted_screen_y();
-	test_synth_ground_shading_calibrates_flat_plane();
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();
 	test_vertex_neighbours_closure();
 	test_vertex_owners_neighbour_closure();
-	test_plane_partition_known_cases();
-	test_plane_partition_disambiguates_000111_by_flat_area();
-	test_plane_partition_exhaustive_ternary();
-
-	// Verify that every valid base-4 slope (per-edge diff ≤ 1, corner ∈ 0..3)
-	// has a planar partition and that each region is actually coplanar.
-	{
-		uint32 count = 0;
-		for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
-			uint8 ch[6];
-			for(  int i = 0;  i < 6;  i++  ) {
-				ch[i] = (uint8)synth_overlay::hex_corner_height((slope_t::type)s, (hex_corner_t::type)i);
-			}
-			bool valid = true;
-			for(  int i = 0;  i < 6;  i++  ) {
-				const int j = (i + 1) % 6;
-				if(  ch[i] > ch[j] + 1 || ch[j] > ch[i] + 1  ) { valid = false; break; }
-			}
-			if(  !valid  ) { continue; }
-			count++;
-			synth_overlay::plane_partition::hex_partition_t p;
-			if(  !synth_overlay::plane_partition::find_min_partition(ch, p)  ) {
-				std::fprintf(stderr, "base-4 exhaustive: no partition for slope %d\n", s);
-				std::abort();
-			}
-			if(  p.region_count < 1 || p.region_count > 4  ) {
-				std::fprintf(stderr, "base-4 exhaustive: region count %d out of range for slope %d\n",
-				             (int)p.region_count, s);
-				std::abort();
-			}
-			for(  uint8 r = 0;  r < p.region_count;  r++  ) {
-				if(  !synth_overlay::plane_partition::region_coplanar(p.region[r], ch)  ) {
-					std::fprintf(stderr, "base-4 exhaustive: region %d not coplanar for slope %d\n",
-					             (int)r, s);
-					std::abort();
-				}
-			}
-		}
-		std::printf("  base-4 exhaustive partition: %u valid slopes, all partitioned\n", count);
-	}
 
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;

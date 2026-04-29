@@ -19,8 +19,7 @@ void ground_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& obj)
 
 	write_name_and_copyright(fp, node, obj);
 
-	// The engine indexes ground sprites by raw slope_t value
-	// (see synth_overlay.cc's `image_t* ground[..][slope_t::max_slopes]`),
+	// The engine indexes HexLightTexture sprites by raw slope_t value,
 	// so on-disk slot N must correspond to slope N. Hex slope_t is
 	// sparse (base-4 per corner, 4096 codes, ~140 populated for the
 	// hex lightmap); leave gaps as empty slots rather than breaking

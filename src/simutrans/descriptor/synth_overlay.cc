@@ -8,7 +8,6 @@
 #include "ground_desc.h"
 #include "image.h"
 #include "synth_geometry.h"
-#include "synth_plane_partition.h"
 #include "../display/simgraph.h"
 #include "../display/hex_proj.h"
 #include "../simconst.h"
@@ -16,7 +15,6 @@
 #include "../dataobj/environment.h"
 #include "../dataobj/koord.h"
 
-#include <cmath>
 #include <cstring>
 
 
@@ -49,18 +47,6 @@ static const PIXVAL NO_PIXEL = 0;
 // full set fits comfortably under 3 MB.
 static image_t* marker[2][slope_t::max_slopes];
 
-// Per-climate-slot, per-slope filled hex ground tiles.  Eager build
-// alongside marker; lookup is a flat array read.  Memory budget:
-// each filled hex RLE-compresses to ~3-4 KB at pak64 raster width;
-// only the ~340 valid slopes (per-edge diff ≤ 1) out of 4096 are
-// generated, so the full 8 * 340 set is ~8 MB.
-static image_t* ground[ground_climate_slots][slope_t::max_slopes];
-
-// Per-slope alpha-mask hex tiles, RLE-shape-identical to ground[].
-// Paired with the synth ground source by the climate / beach /
-// snowline overlay blits — see get_alpha in the header.
-static image_t* alpha[slope_t::max_slopes];
-
 // Per-slope grid-line border tiles — single-image full hex outline,
 // drawn over the tile when `grund_t::show_grid` is on.  Mirrors the
 // marker geometry but combines both halves into one image since the
@@ -81,35 +67,6 @@ static image_t* back_wall[2][back_wall_count][back_wall_image_count];
 static bool initialised = false;
 
 
-// Climate base colours (RGB555 PIXVAL).  Picked to roughly match
-// pak64 climate colour intent — desert = sandy yellow, tropic = dark
-// green, ..., arctic = pale grey, snow = near-white.  Indexing
-// matches the `climate_image[]` block the pakset path uses: 0..6 =
-// climate-1 (desert..arctic non-snow), 7 = snow.  Values live in the
-// rgb pixel range 0..0x7FFF — bit 15 is reserved for player-color
-// slots and special palette entries.
-//
-// Hand-picked rather than read from pakset's `boden_texture`: that
-// texture is a tiled noise pattern, not a single colour, and the
-// mid-tone we'd average out of it doesn't always match what a hex
-// climate "ought to look like" (e.g. tundra averages to a muddy grey
-// that reads as rocky next to it).  Easier to specify the palette
-// here and tune by eyeball than to pull mid-tones from a sprite that
-// may not even be loaded yet on synth init.
-#define RGB555(r, g, b) (PIXVAL)(((r) << 10) | ((g) << 5) | (b))
-static const PIXVAL CLIMATE_RGB555[ground_climate_slots] = {
-	RGB555(28, 26, 17), // 0 desert
-	RGB555( 6, 14,  5), // 1 tropic
-	RGB555(15, 17,  8), // 2 mediterran
-	RGB555(11, 17,  8), // 3 temperate
-	RGB555(12, 12,  6), // 4 tundra
-	RGB555(15, 15, 15), // 5 rocky
-	RGB555(20, 22, 22), // 6 arctic non-snow
-	RGB555(29, 29, 29), // 7 snow
-};
-#undef RGB555
-
-
 static void free_all()
 {
 	for(  int half = 0;  half < 2;  half++  ) {
@@ -117,16 +74,6 @@ static void free_all()
 			delete marker[half][s];
 			marker[half][s] = NULL;
 		}
-	}
-	for(  int c = 0;  c < ground_climate_slots;  c++  ) {
-		for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
-			delete ground[c][s];
-			ground[c][s] = NULL;
-		}
-	}
-	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
-		delete alpha[s];
-		alpha[s] = NULL;
 	}
 	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
 		delete border[s];
@@ -316,7 +263,7 @@ static image_t* build_marker(sint32 u, slope_t::type slope, bool background)
 // height of a shared vertex once terraforming touches them, and the
 // two grid lines will visibly mismatch at that vertex.  Retired by
 // per-vertex height storage (AGENTS.md "Critical findings driving
-// priority"); same caveat as the synth ground tile.
+// priority").
 static image_t* build_border(sint32 u, slope_t::type slope)
 {
 	static const hex_corner_t::type full_path[hex_corner_t::count] = {
@@ -330,11 +277,7 @@ static image_t* build_border(sint32 u, slope_t::type slope)
 // Generic scanline polygon fill into a w*h scratch buffer.  Handles
 // non-convex polygons via the even-odd rule: at each scanline y,
 // gather x-intersections of every edge, sort, fill spans between
-// alternate pairs.  Lifted hex slopes mostly stay convex, but
-// double-height-adjacent-corners cases (e.g. NE=2 with NW=0) can
-// briefly invert a vertex above its neighbour and produce a
-// concave silhouette; even-odd handles that without separate
-// casework.  Out-of-range pixels are clipped silently.
+// alternate pairs.  Out-of-range pixels are clipped silently.
 static void fill_polygon(PIXVAL* buf, sint32 w, sint32 h,
                          const sint32* xs, const sint32* ys, int n,
                          PIXVAL color)
@@ -362,9 +305,8 @@ static void fill_polygon(PIXVAL* buf, sint32 w, sint32 h,
 			const sint32 y_hi = ya < yb ? yb : ya;
 			// Half-open [y_lo, y_hi) — textbook scanline parity so a
 			// vertex shared by two edges counts once (avoids odd hit
-			// counts on interior scanlines of sloped wedges).  The flat
-			// hex SE–SW bottom is horizontal (skipped above); that row is
-			// closed in build_ground after the wedge fills.
+			// counts on interior scanlines of sloped wedges).  Horizontal
+			// edges are closed by the caller when needed.
 			if(  y < y_lo  ||  y >= y_hi  ) { continue; }
 			const sint32 xa = xs[i];
 			const sint32 xb = xs[j];
@@ -395,10 +337,7 @@ static void fill_polygon(PIXVAL* buf, sint32 w, sint32 h,
 
 
 // Multiply an RGB555 PIXVAL by `brightness/256`, clamping each
-// channel to [0, 31].  Caller is the per-face shading pass below;
-// `brightness` lives in [128, 352] (= 0.5x .. 1.375x) after the
-// calibrated Lambert remap in `build_ground`; only the upper clamp
-// is live for saturated base colours.
+// channel to [0, 31].  Used by the synthetic cliff-face pass below.
 static PIXVAL shade_pixval(PIXVAL p, sint32 brightness)
 {
 	sint32 r = ((p >> 10) & 0x1F) * brightness / 256;
@@ -411,16 +350,6 @@ static PIXVAL shade_pixval(PIXVAL p, sint32 brightness)
 }
 
 
-// Build the filled hex ground tile for one (slope, climate_idx).
-// Geometry mirrors `build_outline`: a `4u × 2u` lattice footprint (E
-// and W vertices on the horizontal extremes at mid-y; NE/SE/NW/SW at
-// quarter-width on the top and bottom rows), plus bbox headroom for
-// lifted vertices.
-//
-// The tile is partitioned into the minimum number of coplanar corner
-// regions (PoC in `hex-plane-partition.html`, ported here).  Each
-// region is then shaded from one Lambertian normal so genuinely planar
-// quads/pentagons do not pick up centre-fan seam artefacts.
 static inline void decode_corner_heights(slope_t::type slope, uint8 ch[hex_corner_t::count])
 {
 	ch[hex_corner_t::E ] = (uint8)corner_e (slope);
@@ -432,157 +361,8 @@ static inline void decode_corner_heights(slope_t::type slope, uint8 ch[hex_corne
 }
 
 
-static image_t* build_ground(sint32 u, slope_t::type slope, uint8 climate_idx,
-                             const plane_partition::hex_partition_t &partition)
-{
-	const synth_hex_geometry_t geom = synth_hex_geometry(u, TILE_HEIGHT_STEP);
-	const sint32 w = geom.w;
-	const sint32 h = geom.h;
-	const PIXVAL base = CLIMATE_RGB555[climate_idx];
-
-	uint8 ch[hex_corner_t::count];
-	decode_corner_heights(slope, ch);
-
-	// Vertex screen Y after lift (x from geom.vx).  Order matches hex_corner_t.
-	sint32 vy[hex_corner_t::count];
-	for(  int i = 0;  i < hex_corner_t::count;  i++  ) {
-		vy[i] = geom.vy_base[i] - (sint32)ch[i] * geom.lift;
-	}
-
-	PIXVAL* buf = new PIXVAL[w * h];
-	memset(buf, 0, w * h * sizeof(PIXVAL));
-
-	for(  uint8 ri = 0;  ri < partition.region_count;  ri++  ) {
-		const plane_partition::hex_region_t &reg = partition.region[ri];
-		if(  reg.len < 3  ) {
-			continue;
-		}
-
-		const uint8 i0 = reg.v[0];
-		uint8 i1 = reg.v[1];
-		uint8 i2 = reg.v[2];
-		double nx = 0.0, ny = 0.0, nz = 0.0;
-		bool have_normal = false;
-		for(  uint8 k = 2;  k < reg.len;  k++  ) {
-			i1 = reg.v[k - 1];
-			i2 = reg.v[k];
-			const double ax = (double)(geom.vx[i1] - geom.vx[i0]);
-			const double ay = (double)(vy[i1] - vy[i0]);
-			const double az = (double)((sint32)ch[i1] * geom.lift - (sint32)ch[i0] * geom.lift);
-			const double bx = (double)(geom.vx[i2] - geom.vx[i0]);
-			const double by = (double)(vy[i2] - vy[i0]);
-			const double bz = (double)((sint32)ch[i2] * geom.lift - (sint32)ch[i0] * geom.lift);
-			nx = ay * bz - az * by;
-			ny = az * bx - ax * bz;
-			nz = ax * by - ay * bx;
-			if(  nx != 0.0 || ny != 0.0 || nz != 0.0  ) {
-				have_normal = true;
-				break;
-			}
-		}
-		if(  !have_normal  ) {
-			nx = 0.0;
-			ny = 0.0;
-			nz = 1.0;
-		}
-		if(  nz < 0.0  ) {
-			nx = -nx;
-			ny = -ny;
-			nz = -nz;
-		}
-		const sint32 brightness = synth_ground_lambert_brightness(nx, ny, nz);
-		const PIXVAL face_color = shade_pixval(base, brightness);
-
-		sint32 xs[hex_corner_t::count];
-		sint32 ys[hex_corner_t::count];
-		for(  uint8 i = 0;  i < reg.len;  i++  ) {
-			xs[i] = geom.vx[reg.v[i]];
-			ys[i] = vy[reg.v[i]];
-		}
-		fill_polygon(buf, w, h, xs, ys, reg.len, face_color);
-
-		// `fill_polygon` uses half-open scanline crossing and skips
-		// horizontal edges by design (for parity correctness).  Seal
-		// every horizontal boundary edge here so top/bottom rows of
-		// planar regions are filled deterministically.
-		for(  uint8 i = 0;  i < reg.len;  i++  ) {
-			const uint8 j = (uint8)((i + 1) % reg.len);
-			if(  ys[i] != ys[j]  ) {
-				continue;
-			}
-			const sint32 y = ys[i];
-			if(  y < 0 || y >= h  ) {
-				continue;
-			}
-			sint32 x0 = xs[i];
-			sint32 x1 = xs[j];
-			if(  x0 > x1  ) {
-				const sint32 t = x0;
-				x0 = x1;
-				x1 = t;
-			}
-			if(  x0 < 0   ) { x0 = 0; }
-			if(  x1 >= w  ) { x1 = w - 1; }
-			for(  sint32 x = x0;  x <= x1;  x++  ) {
-				buf[y * w + x] = face_color;
-			}
-		}
-	}
-
-	// Encode into RLE.  Worst case as in build_outline: 2 PIXVALs per
-	// pixel + per-row header + tail.
-	const size_t cap = (size_t)w * h * 2 + (size_t)h * 4 + 4;
-	PIXVAL* tmp = new PIXVAL[cap];
-	const size_t rle_len = encode_rle(buf, w, h, tmp);
-	delete [] buf;
-
-	image_t* img = new image_t(rle_len);
-	memcpy(img->data, tmp, rle_len * sizeof(PIXVAL));
-	delete [] tmp;
-
-	img->w = (scr_coord_val)w;
-	img->h = (scr_coord_val)h;
-	img->x = 0;
-	img->y = geom.image_y();
-	img->zoomable = 1;
-
-	return img;
-}
-
-
-// Build the alpha-mask hex tile by copying the ground tile's RLE
-// verbatim and overwriting every coloured-pixel slot with a full
-// opaque PIXVAL.  Copying the RLE byte-for-byte (rather than
-// re-rasterising the geometry) is what guarantees byte-identical
-// RLE shape to the ground tile — `display_img_alpha_wc` walks the
-// source (= ground) and alpha pointers in lockstep using the
-// source's RLE, and any divergence in run boundaries between the
-// two tiles would walk the alpha pointer off the end of its
-// allocation.
-static image_t* build_alpha(const image_t* ground)
-{
-	image_t* img = ground->copy_rotate(0);
-
-	const PIXVAL full_alpha = 0x7FFF;
-	PIXVAL* p = img->data;
-	for(  int y = 0;  y < img->h;  y++  ) {
-		p++; // start_x
-		do {
-			sint16 runlen = *p++;
-			for(  int i = 0;  i < runlen;  i++  ) {
-				*p++ = full_alpha;
-			}
-		} while(  *p++ != 0  );
-	}
-
-	return img;
-}
-
-
 // Cliff-face palette.  Natural cliffs read as exposed rock / dirt;
-// fundament reads as a man-made platform.  Picked to be visibly
-// different from the climate-base ground tones in CLIMATE_RGB555 so
-// the cliff face stands out from the surrounding terrain.
+// fundament reads as a man-made platform.
 #define RGB555(r, g, b) (PIXVAL)(((r) << 10) | ((g) << 5) | (b))
 static const PIXVAL CLIFF_NATURAL = RGB555(13, 11,  7); // dirt brown
 static const PIXVAL CLIFF_FUNDAMENT = RGB555(20, 20, 20); // light grey
@@ -590,11 +370,9 @@ static const PIXVAL CLIFF_FUNDAMENT = RGB555(20, 20, 20); // light grey
 
 // Per-wall shading multiplier (256 = 1.0x).  Wall 0 (NW edge) faces
 // screen-up-left, wall 1 (N edge) faces screen-up, wall 2 (NE edge)
-// faces screen-up-right.  These values are hand-picked rather than
-// derived from the terrain Lambert helper: vertical wall normals fall
-// well below the flat-ground reference cosine and the helper clamps
-// every wall to the same minimum brightness, losing the wall-to-wall
-// contrast.
+// faces screen-up-right.  These values are hand-picked: a flat-ground
+// lighting calibration makes vertical walls bunch at the same dark
+// end, losing wall-to-wall contrast.
 static const sint32 WALL_SHADE[back_wall_count] = { 192, 224, 256 };
 
 
@@ -654,8 +432,8 @@ static image_t* build_back_wall(sint32 u, uint8 wall, uint8 index, bool artifici
 		fill_polygon(buf, w, h, xs, ys, 4, face_color);
 
 		// `fill_polygon` skips horizontal edges by design (parity
-		// correctness), so close them explicitly — same pattern as
-		// `build_ground`.  Wall 1's lower edge is horizontal (y=top_y);
+		// correctness), so close them explicitly.  Wall 1's lower edge
+		// is horizontal (y=top_y);
 		// the upper edge is horizontal whenever lift1 == lift2.
 		for(  uint8 i = 0;  i < 4;  i++  ) {
 			const uint8 j = (uint8)((i + 1) % 4);
@@ -728,9 +506,9 @@ void init()
 		decode_corner_heights((slope_t::type)s, ch);
 
 		// Skip slopes that violate the per-edge ≤ 1 height constraint —
-		// they cannot appear on valid terrain, the partition solver may
-		// fail on them, and generating sprites for them wastes startup
-		// time and memory.  Callers check for NULL via IMG_EMPTY.
+		// they cannot appear on valid terrain, and generating sprites
+		// for them wastes startup time and memory.  Callers check for
+		// NULL via IMG_EMPTY.
 		bool valid = true;
 		for(  int i = 0;  i < hex_corner_t::count;  i++  ) {
 			const int j = (i + 1) % hex_corner_t::count;
@@ -744,30 +522,11 @@ void init()
 		}
 		generated++;
 
-		plane_partition::hex_partition_t partition;
-		partition.region_count = 0;
-		if(  !plane_partition::find_min_partition(ch, partition)  ) {
-			dbg->fatal("synth_overlay::init", "no planar partition for slope %d", s);
-		}
-
 		for(  int half = 0;  half < 2;  half++  ) {
 			image_t* img = build_marker(u, (slope_t::type)s, half == 1);
 			img->register_image();
 			marker[half][s] = img;
 		}
-		for(  int c = 0;  c < ground_climate_slots;  c++  ) {
-			image_t* img = build_ground(u, (slope_t::type)s, (uint8)c, partition);
-			img->register_image();
-			ground[c][s] = img;
-		}
-		// Alpha shape mirrors the climate-0 ground tile — all 8
-		// climate ground tiles for a given slope share the same
-		// geometry (only colours differ), so any climate works as
-		// the donor; pick 0 by convention.
-		image_t* a = build_alpha(ground[0][s]);
-		a->register_image();
-		alpha[s] = a;
-
 		image_t* bd = build_border(u, (slope_t::type)s);
 		bd->register_image();
 		border[s] = bd;
@@ -802,29 +561,6 @@ image_id get_marker(slope_t::type slope, bool background)
 		return IMG_EMPTY;
 	}
 	const image_t* img = marker[background ? 1 : 0][slope];
-	return img != NULL ? img->get_id() : IMG_EMPTY;
-}
-
-
-image_id get_ground(slope_t::type slope, uint8 climate_idx)
-{
-	if(  !initialised
-	  ||  slope < 0
-	  ||  slope >= slope_t::max_slopes
-	  ||  climate_idx >= ground_climate_slots  ) {
-		return IMG_EMPTY;
-	}
-	const image_t* img = ground[climate_idx][slope];
-	return img != NULL ? img->get_id() : IMG_EMPTY;
-}
-
-
-image_id get_alpha(slope_t::type slope)
-{
-	if(  !initialised  ||  slope < 0  ||  slope >= slope_t::max_slopes  ) {
-		return IMG_EMPTY;
-	}
-	const image_t* img = alpha[slope];
 	return img != NULL ? img->get_id() : IMG_EMPTY;
 }
 
