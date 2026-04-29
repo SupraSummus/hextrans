@@ -221,6 +221,30 @@ hex up-slope `Image` keys to be silently dropped the moment a hex
 .dat tries to declare them, and the unused-key warning will be
 the only signal.
 
+## Pakset hex ground / border lookups not wired
+
+The pak128 fork now bakes two raw-`slope_t`-indexed deliverables —
+`HexLightTexture` (141 entries; `landscape/grounds/texture-hex-lightmap.{png,dat}`)
+and `Borders` (141 entries; `landscape/grounds/borders.{png,dat}`,
+replacing the legacy 27-entry square version).  Both index by raw
+`slope_t` (base-4 per corner; sparse, gaps read as IMG_EMPTY) so
+the engine just needs `slope -= hgt_shift; get_image_ptr(slope)`
+— no compact-index translation table.  The current consumers stay
+square-projected: `get_ground_tile` indexes via
+`climate_image[c] + doubleslope_to_imgnr[slope]`, and
+`get_border_image` packs `(slope&1) + ((slope>>1)&6)` into 8
+indices (or `(slope%3) + 3*(slope/9)` under double_grounds).
+Neither reads the new blocks.  Add a hex-aware `get_hex_ground_tile(slope, c)`
+and `get_hex_border_image(slope)` that shift `slope_t` so its
+minimum corner is 0 and re-apply the shift in the drawn yoff so
+factored-out elevation comes back at draw time, then flip
+`synth_overlay::prefer_over_pakset` to false on a pakset that
+ships the hex blocks and verify in-game.  As a heads-up:
+`synth_overlay::init` itself still iterates 0..4095 and generates
+340 sprites without the min=0 normalisation — worth tightening
+alongside the consumption work since the redundant elevated copies
+waste startup time and gfx slots.
+
 ## Pakset slope sprite range gap
 
 Pakset art covers slopes 0–728 (the 729 base-3 slopes).  Base-4
