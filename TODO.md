@@ -206,6 +206,21 @@ calculations, collision-avoidance predicates, and image-select branches
 at these sites may now compute wrong values on high-delta terrain.  Audit
 each site when the path it guards is next touched for hex correctness.
 
+## Other pakset-writer square-slope assumptions
+
+`ground_writer.cc` was widened to scan `slope_t::max_slopes` so
+sparse hex slope indices round-trip into `.pak`.  Sibling writers
+still bake the square shape: `way_writer.cc` enumerates only the
+4 cardinal up-slope names (`{n, w, e, s}` × `{single, double}`)
+in `slope_names[]`, and `way_obj_writer.cc` iterates
+`slope = 3, 6, 9, 12` for `frontimageup` / `backimageup`.  Hex
+slope-up has 6 edges; these need widening when the first hex way
+or way-obj asset wants per-edge climb sprites.  Square paksets
+(pak64 in CI) keep working as-is, so leaving them — but expect
+hex up-slope `Image` keys to be silently dropped the moment a hex
+.dat tries to declare them, and the unused-key warning will be
+the only signal.
+
 ## Pakset slope sprite range gap
 
 Pakset art covers slopes 0–728 (the 729 base-3 slopes).  Base-4

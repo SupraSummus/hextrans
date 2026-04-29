@@ -5,6 +5,7 @@
 
 #include <string>
 #include "../../dataobj/tabfile.h"
+#include "../../dataobj/ribi.h"
 #include "obj_node.h"
 #include "../ground_desc.h"
 #include "text_writer.h"
@@ -18,25 +19,33 @@ void ground_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& obj)
 
 	write_name_and_copyright(fp, node, obj);
 
-	slist_tpl<slist_tpl<std::string> > keys;
-	// summer images
-	for (int slope = 0; slope < 128; slope++) {
-		keys.append();
+	// The engine indexes ground sprites by raw slope_t value
+	// (see synth_overlay.cc's `image_t* ground[..][slope_t::max_slopes]`),
+	// so on-disk slot N must correspond to slope N. Hex slope_t is
+	// sparse (base-4 per corner, 4096 codes, ~140 populated for the
+	// hex lightmap); leave gaps as empty slots rather than breaking
+	// on the first one. Two passes: find the last populated slope so
+	// trailing gaps don't bloat the binary, then materialize.
+	int last_used = -1;
+	for (int slope = 0; slope < slope_t::max_slopes; slope++) {
+		char buf[40];
+		sprintf(buf, "image[%d][0]", slope);
+		if (*obj.get(buf)) {
+			last_used = slope;
+		}
+	}
 
+	slist_tpl<slist_tpl<std::string> > keys;
+	for (int slope = 0; slope <= last_used; slope++) {
+		keys.append();
 		for (int phase = 0; ; phase++) {
 			char buf[40];
-
 			sprintf(buf, "image[%d][%d]", slope, phase);
-
 			std::string str = obj.get(buf);
 			if (str.empty()) {
 				break;
 			}
 			keys.at(slope).append(str);
-		}
-		// empty entries?
-		if (keys.at(slope).empty()) {
-			break;
 		}
 	}
 	imagelist2d_writer_t::instance()->write_obj(fp, node, keys);
