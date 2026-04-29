@@ -399,7 +399,7 @@ const ground_desc_t *ground_desc_t::outside = NULL;
 static special_obj_tpl<ground_desc_t> const grounds[] = {
 	{ &ground_desc_t::shore,     "Shore"          },
 	{ &boden_texture,            "ClimateTexture" },
-	{ &hex_light_map,            "HexLightTexture" },
+	{ &hex_light_map,            "LightTexture" },
 	{ &transition_water_texture, "ShoreTrans"     },
 	{ &transition_slope_texture, "SlopeTrans"     },
 	{ &ground_desc_t::fundament, "Basement"       },
@@ -435,9 +435,6 @@ image_id alpha_water_image[totalslopes * 15];
  */
 bool ground_desc_t::register_desc(const ground_desc_t *desc)
 {
-	if(strcmp("LightTexture", desc->get_name())==0) {
-		return true;
-	}
 	if(strcmp("Outside", desc->get_name())==0) {
 		image_t const* const image = desc->get_child<image_array_t>(2)->get_image(0,0);
 		dbg->message("ground_desc_t::register_desc()", "setting raster width to %i", image->get_pic()->w);
@@ -1013,12 +1010,12 @@ void ground_desc_t::init_ground_textures(karte_t *world)
  * Since not all of the climates are used in their numerical order, we use a
  * private (static table "height_to_texture_climate" for lookup)
  */
-// Ground lookup.  HexLightTexture owns ground imagery; missing slots
+// Ground lookup.  LightTexture owns ground imagery; missing slots
 // trip loudly instead of falling back to legacy square lightmaps.
 static image_id pick_ground_image(slope_t::type slope, sint16 climate_nr)
 {
 	if(  slope < 0  ||  slope >= totalslopes  ||  doubleslope_to_imgnr[slope] == 255  ) {
-		dbg->fatal("ground_desc_t::pick_ground_image", "HexLightTexture has no image for slope %d", slope);
+		dbg->fatal("ground_desc_t::pick_ground_image", "LightTexture has no image for slope %d", slope);
 	}
 	return climate_image[climate_nr] + doubleslope_to_imgnr[slope];
 }
@@ -1034,7 +1031,7 @@ static void require_normalized_ground_slope(slope_t::type slope, const char *cal
 
 
 // Alpha-tile lookup.  Pakset-derived alpha images pair with
-// pakset-derived HexLightTexture ground images.
+// pakset-derived LightTexture ground images.
 static image_id pick_alpha_tile(slope_t::type slope, image_id pakset_id)
 {
 	(void)slope;
@@ -1065,7 +1062,7 @@ image_id ground_desc_t::get_water_tile(slope_t::type slope, int stage)
 {
 	require_normalized_ground_slope(slope, "ground_desc_t::get_water_tile");
 	if(  slope < 0  ||  slope >= totalslopes  ||  doubleslope_to_imgnr[slope] == 255  ) {
-		dbg->fatal("ground_desc_t::get_water_tile", "HexLightTexture has no water lightmap for slope %d", slope);
+		dbg->fatal("ground_desc_t::get_water_tile", "LightTexture has no water lightmap for slope %d", slope);
 	}
 	return water_image + stage + water_animation_stages*doubleslope_to_imgnr[slope];
 }
@@ -1089,7 +1086,7 @@ image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 {
 	require_normalized_ground_slope(slope, "ground_desc_t::get_beach_tile");
 	// Corner masks are still the legacy 15-entry tables.  The alpha
-	// images themselves are generated from HexLightTexture, so they
+	// images themselves are generated from LightTexture, so they
 	// match the on-slope water source shape; deep-water stages never
 	// call this path.
 	const uint8 corners_clamped = corners > 15 ? 15 : corners;

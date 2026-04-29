@@ -221,11 +221,11 @@ hex up-slope `Image` keys to be silently dropped the moment a hex
 .dat tries to declare them, and the unused-key warning will be
 the only signal.
 
-`HexLightTexture` is now registered as the required ground-lightmap
+`LightTexture` is now registered as the required ground-lightmap
 descriptor.  Ground texture generation treats that block as sparse raw
 slope slots instead of asking `synth_overlay` for generated
 colour-lightmaps, and missing display-time slopes fatal instead of
-falling back to square `LightTexture`.  Ground display also trips on
+falling back to the synth path.  Ground display also trips on
 non-normalised `pos.z`/`grund_hang` pairs instead of silently reusing a
 normalised lightmap at the wrong height.  The remaining ground-art
 caveat is elevated construction code that may still copy or restore
@@ -235,7 +235,7 @@ when the associated builders next get hex-port attention.
 ## Pakset slope sprite range gap
 
 Pakset art covers a sparse set of raw base-4 slopes.  The
-`HexLightTexture` path skips missing slots during runtime ground
+`LightTexture` path skips missing slots during runtime ground
 texture generation and display lookups normalise to existing hex slots
 before fataling on genuinely missing art.  Border lookup uses the same
 normalised raw slope key into the pakset `Borders` block.
@@ -538,7 +538,7 @@ with `tools/hex_proj_test/` as its standalone invariant suite.  The
 remaining renderer work splits into:
 
 **Phase B — per-tile detail.**  Base ground sprites now require
-pakset-provided `HexLightTexture` lightmaps indexed by raw
+pakset-provided `LightTexture` lightmaps indexed by raw
 `slope_t`; the old `synth_overlay` ground/alpha hooks are gone.
 Climate transitions use
 `vertex_owners` plus `surface_t::vertex_corner_height` /
@@ -549,7 +549,7 @@ then tile clamp like legacy neighbours) in both `recalc_transitions` and
 tables are still 15-wide per slope, so `get_alpha_tile` /
 `get_beach_tile` clamp masks to 15.  Deep water still pairs with the
 pakset `Water` animation block as below; on-slope water and snow now
-use HexLightTexture-derived shapes.
+use LightTexture-derived shapes.
 `rotate_transitions` still applies a 60° bit-rotate as a stand-in for
 90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
 
@@ -569,7 +569,7 @@ move together: when `synth_overlay` grows a per-stage water family
 `get_water_tile` and `get_beach_tile` in the same change so the
 shapes stay matched.
 
-On-slope water tiles now use the same required `HexLightTexture`
+On-slope water tiles now use the same required `LightTexture`
 ground-lightmap path as climate ground.  Deep water still comes from
 the pakset `Water` animation block.  6-edge way / wall / ribi-keyed
 sprite tables remain 4-edge with `rotate60` stubs.
@@ -658,7 +658,7 @@ picked to keep the W × W/2 bounding box (see "Sprite raster
 choice" above) — ground textures, single-tile buildings, station
 sprites land on roughly correct pixels with adjacency artefacts
 where neighbouring diamonds overlap.  *Already landed*: base ground
-tiles are now driven by pakset-provided `HexLightTexture` lightmaps,
+tiles are now driven by pakset-provided `LightTexture` lightmaps,
 so the synthetic colour-lightmap path no longer masks real hex art.
 An alternative that wasn't taken — a flat-top hex alpha mask applied
 at the blit (vertices at `(0, W/4)`, `(W/4, 0)`, `(3W/4, 0)`,
@@ -679,7 +679,7 @@ and shading; the realistic plan is `get_dir()` projecting 6 hex
 edges onto whichever 4-slot table the current sprite has, accepting
 visibly wrong direction in roughly 1/3 of cases.  Recommended
 order if a "playable but visibly stubby" demo is wanted before
-real art lands: base ground now comes from HexLightTexture, so next is
+real art lands: base ground now comes from LightTexture, so next is
 `get_dir()` 6→4 projection for vehicles (has to land anyway).
 Skip the 60° way-bend rotations — that's where the cost-quality
 curve gets bad and where pakset replacement most likely lands

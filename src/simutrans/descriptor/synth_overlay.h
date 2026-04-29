@@ -25,7 +25,7 @@
  *   - `get_back_wall(wall, index, artificial)` — placeholder cliff
  *     faces for the hex-only back-wall geometry.
  *
- * Ground tiles are pakset-owned again: hex-aware `HexLightTexture`
+ * Ground tiles are pakset-owned again: hex-aware `LightTexture`
  * images are read through `ground_desc_t::init_ground_textures`.
  */
 namespace synth_overlay {
