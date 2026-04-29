@@ -153,6 +153,23 @@ Now that the NW-corner-only writers are ported, restoration
 needs a hex-aware test scaffold that raises the right vertices
 directly rather than 4 corners of a 2x2 square.
 
+## Scenario tests vs pak128 content
+
+CI now runs the scenario suite against `hextrans-pak128` instead of
+upstream pak64.  Test bodies under `tests/` were authored against
+pak64 and reference content names / costs / footprints from that
+pakset (`scenario.set_way_type("dirtroad")`, building dimensions,
+vehicle waytypes, factory chains).  pak128 names the same concepts
+differently or has different economics, so a wave of failures on the
+first pak128 CI run is expected and is pakset-content drift, not hex
+regression.  Triage these the same as the hex-grid mismatches per
+`AGENTS.md` → "Tests and the hex port": *migrate* (rename to the
+pak128 equivalent) when the invariant survives, *delete* when the
+assertion was pak64-specific economics, *fix* when the test is right
+and engine code regressed.  Cascade caveat from `AGENTS.md` applies
+— work the head failure first; most tail failures are downstream of
+a single missing way / building lookup.
+
 ## Vertex propagation: recursion → worklist
 
 `surface_t::raise_vertex_to` / `lower_vertex_to` walk the 3-neighbour hex
@@ -215,11 +232,12 @@ still bake the square shape: `way_writer.cc` enumerates only the
 in `slope_names[]`, and `way_obj_writer.cc` iterates
 `slope = 3, 6, 9, 12` for `frontimageup` / `backimageup`.  Hex
 slope-up has 6 edges; these need widening when the first hex way
-or way-obj asset wants per-edge climb sprites.  Square paksets
-(pak64 in CI) keep working as-is, so leaving them — but expect
-hex up-slope `Image` keys to be silently dropped the moment a hex
-.dat tries to declare them, and the unused-key warning will be
-the only signal.
+or way-obj asset wants per-edge climb sprites.  Shipping with the
+gap because no asset on the hextrans-pak128 side currently declares
+per-edge climb sprites — but expect hex up-slope `Image` keys to be
+silently dropped the moment a hex .dat tries to declare them, and
+the unused-key warning will be the only signal.  Widen alongside
+the first hex way / way-obj asset that needs it.
 
 ## Pakset hex border lookups not wired
 
