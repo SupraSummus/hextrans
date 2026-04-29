@@ -1285,10 +1285,6 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 		}
 	}
 
-	if(  new_slope < 0  ||  (!is_sentinel  &&  new_slope > slope_t::max_number)  ) {
-		return ""; // invalid parameter
-	}
-
 	bool ok = false;
 
 	grund_t *gr1 = welt->lookup(pos);
