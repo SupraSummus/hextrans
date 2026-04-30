@@ -87,7 +87,7 @@ all_tests <- [
 	// test_factory_build_with_fields: HEX-PORT PENDING.
 	// test_factory_build_climate: HEX-PORT PENDING.
 	// test_factory_build_on_water_occupied: HEX-PORT PENDING.
-	// test_factory_link: PAK128-PENDING.
+	test_factory_link,
 	// test_factory_desc: PAK128-PENDING.
 	test_good_is_interchangeable,
 	// test_good_speed_bonus: PAK128-PENDING.
@@ -114,13 +114,13 @@ all_tests <- [
 	// test_halt_build_flat_dock_near_cliff: PAK128-PENDING.
 	// test_halt_build_flat_dock_in_water: PAK128-PENDING.
 	// test_halt_build_flat_dock_occupied: PAK128-PENDING.
-	// test_halt_build_air: PAK128-PENDING.
+	test_halt_build_air,
 	// test_halt_build_multi_tile: HEX-PORT PENDING.
 	test_halt_build_multi_mode,
 	test_halt_build_multi_player,
 	test_halt_build_separate,
-	// test_halt_build_near_factory: PAK128-PENDING.
-	// test_halt_build_near_factories: PAK128-PENDING.
+	test_halt_build_near_factory,
+	test_halt_build_near_factories,
 	// test_halt_build_on_tunnel_entrance: HEX-PORT PENDING.
 	test_halt_build_on_bridge_end,
 	test_halt_build_on_depot,
