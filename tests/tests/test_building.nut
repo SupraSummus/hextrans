@@ -101,9 +101,7 @@ function test_building_build_house_random()
 		ASSERT_TRUE(tile_x(1, 1, 0).is_empty())
 	}
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -131,9 +129,7 @@ function test_building_build_house_valid_desc()
 		ASSERT_TRUE(tile_x(1, 1, 0).is_empty())
 	}
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -151,9 +147,7 @@ function test_building_build_house_invalid_desc()
 		ASSERT_EQUAL(tile_x(0,0,0).find_object(mo_building), null)
 	}
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -181,11 +175,10 @@ function test_building_build_house_auto_rotation_attraction()
 		ASSERT_TRUE(tile_x(1, 1, 0).is_empty())
 	}
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
+
 
 
 function test_building_build_house_auto_rotation_citybuilding()
@@ -205,8 +198,7 @@ function test_building_build_house_auto_rotation_citybuilding()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null); // remove house
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -237,9 +229,7 @@ function test_building_build_multi_tile_sloped()
 
 	ASSERT_EQUAL(command_x.grid_lower(public_pl, coord3d(4, 2, 1)), null)
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -303,13 +293,13 @@ function test_building_buy_house_from_public_player()
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0,0,0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8,8,0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
 
+// test_building_buy_house_attraction: PAK128-PENDING.
 function test_building_buy_house_attraction()
 {
 	local pl = player_x(0)
@@ -331,8 +321,7 @@ function test_building_buy_house_attraction()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0,0,0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8,8,0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -343,7 +332,6 @@ function test_building_rotate_house()
 	local public_pl = player_x(1)
 	local builder = command_x(tool_build_house)
 	local rotator = command_x(tool_rotate_building)
-	local remover = command_x(tool_remover)
 
 	// add the required city
 	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(8, 8, 0), "0"), null)
@@ -358,20 +346,17 @@ function test_building_rotate_house()
 		ASSERT_EQUAL(rotator.work(pl, coord3d(0, 0, 0)), null)
 	}
 
-	ASSERT_EQUAL(builder.work(public_pl, coord3d(0, 0, 0), "01A4_SCHLOSS2"), null)
+	// pak64's single-tile rotatable attraction "4_SCHLOSS2" doesn't
+	// exist in pak128, so the original "rotate single-tile attraction"
+	// sub-case is folded into the multi-tile RUIN_0 case below.  RUIN_0
+	// is a city building (RES type), exercised here at owner-by-other
+	// and owner-by-self rotation paths.
+	ASSERT_EQUAL(builder.work(public_pl, coord3d(0, 0, 0), "1ARUIN_0"), null)
 
 	// cannot rotate buildings owned by other players
 	{
 		ASSERT_EQUAL(rotator.work(pl, coord3d(0, 0, 0)), "Das Feld gehoert\neinem anderen Spieler\n")
 	}
-
-	// rotate single-tile house
-	{
-		ASSERT_EQUAL(rotator.work(public_pl, coord3d(0, 0, 0)), null)
-	}
-
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
-	ASSERT_EQUAL(builder.work(public_pl, coord3d(0, 0, 0), "01RUIN_0"), null)
 
 	// rotate multi-tile house
 	{
@@ -380,8 +365,7 @@ function test_building_rotate_house()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -412,6 +396,7 @@ function test_building_rotate_harbour()
 }
 
 
+// test_building_rotate_station: PAK128-PENDING.
 function test_building_rotate_station()
 {
 	local pl = player_x(0)
@@ -455,8 +440,10 @@ function test_building_rotate_factory()
 
 	local production = 1024 // 1/s
 
-	// non-square building with 2 rotations
-	ASSERT_EQUAL(build_factory(public_pl, coord3d(3, 4, 0), 0, 1, production, "TANKE"), null)
+	// non-square building with 2 rotations (pak128 names the gas
+	// station TANKE1 / TANKE2; either is fine, test essence is the
+	// rotate-rejection on a 2x1 factory)
+	ASSERT_EQUAL(build_factory(public_pl, coord3d(3, 4, 0), 0, 1, production, "TANKE1"), null)
 	ASSERT_TRUE(tile_x(3, 4, 0).find_object(mo_building) != null)
 	ASSERT_TRUE(tile_x(4, 4, 0).find_object(mo_building) != null)
 

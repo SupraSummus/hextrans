@@ -191,6 +191,7 @@ function test_slope_get_price()
 }
 
 
+
 function test_slope_restore_on_foundation()
 {
 	local pl = player_x(0)
@@ -204,8 +205,7 @@ function test_slope_restore_on_foundation()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(4, 2, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(player_x(1), coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(player_x(1), coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 

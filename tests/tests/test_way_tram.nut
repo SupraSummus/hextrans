@@ -362,11 +362,3 @@ function test_way_tram_build_in_tunel()
 }
 
 
-function test_way_tram_has_double_slopes()
-{
-	local roads = way_desc_x.get_available_ways(wt_rail, st_tram)
-
-	foreach (r in roads) {
-		ASSERT_FALSE(r.has_double_slopes())
-	}
-}

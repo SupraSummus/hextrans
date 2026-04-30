@@ -957,7 +957,24 @@ stadt_t::~stadt_t()
 					}
 				}
 				else {
-					gb->set_stadt( NULL );
+					// hausbauer_t::remove iterates the whole building (all tiles)
+					// and runs gebaeude_t::cleanup on each tile, which calls
+					// remove_gebaeude_from_stadt unless the tile's stadt is NULL.
+					// For a multi-tile building we just popped the head tile of:
+					// the other tiles still point at this stadt, so their cleanup
+					// would re-enter remove_gebaeude_from_stadt and assert on
+					// the already-popped tile.  Pop and clear ALL tiles up front,
+					// then run the single hausbauer_t::remove for the building.
+					static vector_tpl<grund_t*> gb_tiles;
+					gb->get_tile_list(gb_tiles);
+					for (grund_t* gr : gb_tiles) {
+						if (gebaeude_t* part = gr->find<gebaeude_t>()) {
+							if (part != gb) {
+								buildings.remove(part);
+							}
+							part->set_stadt(NULL);
+						}
+					}
 					hausbauer_t::remove(welt->get_public_player(),gb);
 				}
 			}

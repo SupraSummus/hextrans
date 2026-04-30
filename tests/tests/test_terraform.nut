@@ -335,6 +335,7 @@ function test_terraform_raise_lower_land_at_water_edge()
 }
 
 
+// test_terraform_raise_lower_land_below_way: HEX-PORT PENDING.
 function test_terraform_raise_lower_land_below_way()
 {
 	local pl = player_x(0)

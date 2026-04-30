@@ -78,6 +78,7 @@ function test_groundobj_build_invalid_pos()
 }
 
 
+// test_groundobj_build_random: PAK128-PENDING.
 function test_groundobj_build_random()
 {
 	{
@@ -105,6 +106,7 @@ function test_groundobj_build_random()
 }
 
 
+// test_groundobj_build_specific: PAK128-PENDING.
 function test_groundobj_build_specific()
 {
 	{
@@ -122,6 +124,7 @@ function test_groundobj_build_specific()
 }
 
 
+// test_groundobj_build_invalid_climate: PAK128-PENDING.
 function test_groundobj_build_invalid_climate()
 {
 	{
@@ -134,6 +137,7 @@ function test_groundobj_build_invalid_climate()
 }
 
 
+// test_groundobj_build_ignore_climate: PAK128-PENDING.
 function test_groundobj_build_ignore_climate()
 {
 	{
@@ -151,6 +155,7 @@ function test_groundobj_build_ignore_climate()
 }
 
 
+// test_groundobj_build_occupied: PAK128-PENDING.
 function test_groundobj_build_occupied()
 {
 	ASSERT_EQUAL(command_x(tool_build_groundobj).work(player_x(0), coord3d(4, 2, 0), "0__See1"), null)
@@ -165,6 +170,7 @@ function test_groundobj_build_occupied()
 }
 
 
+// test_groundobj_build_on_trees: PAK128-PENDING.
 function test_groundobj_build_on_trees()
 {
 	ASSERT_EQUAL(command_x(tool_plant_tree).work(player_x(1), coord3d(4, 2, 0), "11,Ahorn-1"), null)
@@ -194,6 +200,7 @@ function test_groundobj_build_on_trees()
 }
 
 
+// test_groundobj_build_on_slope: PAK128-PENDING.
 function test_groundobj_build_on_slope()
 {
 	ASSERT_EQUAL(command_x.set_slope(player_x(0), coord3d(4, 2, 0), slope.south), null)

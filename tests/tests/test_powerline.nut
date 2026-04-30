@@ -321,16 +321,22 @@ function test_powerline_build_over_transformer()
 	local production = 1024 // 1/s
 	local powerline = way_desc_x.get_available_ways(wt_power, st_flat)[0]
 
-	ASSERT_EQUAL(build_factory(public_pl, coord3d(0, 0, 0), 1, 1, production, "Kohlegrube"), null)
+	// Pak64's Kohlegrube was a 1x2 building so a transformer at (3,1)
+	// landed on bare land adjacent to it; pak128's open_coal_mine is
+	// larger and overlaps that tile.  Use a transformer position
+	// further from the factory but still within the auto-connection
+	// radius.
+	ASSERT_EQUAL(build_factory(public_pl, coord3d(0, 0, 0), 1, 1, production, "open_coal_mine"), null)
 
+	local trafo_pos = coord3d(4, 1, 0)
 	{
-		ASSERT_EQUAL(build_trafo.work(pl, coord3d(3, 1, 0)), null)
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 0, 0), coord3d(3, 2, 0), powerline, true), null)
+		ASSERT_EQUAL(build_trafo.work(pl, trafo_pos), null)
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 0, 0), coord3d(4, 2, 0), powerline, true), null)
 
-		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(3, 0, 0), coord3d(3, 2, 0), "" + wt_power), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(4, 0, 0), coord3d(4, 2, 0), "" + wt_power), null)
 
-		ASSERT_EQUAL(tile_x(3, 1, 0).find_object(mo_transformer_s), null)
-		ASSERT_EQUAL(tile_x(3, 1, 0).find_object(mo_transformer_c), null)
+		ASSERT_EQUAL(tile_x(trafo_pos.x, trafo_pos.y, trafo_pos.z).find_object(mo_transformer_s), null)
+		ASSERT_EQUAL(tile_x(trafo_pos.x, trafo_pos.y, trafo_pos.z).find_object(mo_transformer_c), null)
 	}
 
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)

@@ -153,6 +153,97 @@ Now that the NW-corner-only writers are ported, restoration
 needs a hex-aware test scaffold that raises the right vertices
 directly rather than 4 corners of a 2x2 square.
 
+## Scenario tests vs pak128 content
+
+CI now runs the scenario suite against `hextrans-pak128` instead of
+upstream pak64.  Test bodies under `tests/` were authored against
+pak64 and reference content names / costs / footprints from that
+pakset (`scenario.set_way_type("dirtroad")`, building dimensions,
+vehicle waytypes, factory chains).  pak128 names the same concepts
+differently or has different economics, so a wave of failures on the
+first pak128 CI run is expected and is pakset-content drift, not hex
+regression.  Triage these the same as the hex-grid mismatches per
+`AGENTS.md` → "Tests and the hex port": *migrate* (rename to the
+pak128 equivalent) when the invariant survives, *delete* when the
+assertion was pak64-specific economics, *fix* when the test is right
+and engine code regressed.  Cascade caveat from `AGENTS.md` applies
+— work the head failure first; most tail failures are downstream of
+a single missing way / building lookup.  Use `// foo: PAK128-PENDING.`
+in `tests/all_tests.nut` (and above the function body) so these stay
+distinguishable from `HEX-PORT PENDING` entries; restoration trigger
+is generally "after rewriting the test against pak128 content (build
+roads / buildings explicitly rather than relying on pak64 city
+auto-generation)".
+
+Reusable infrastructure landed during the migration:
+`cleanup_city(pl, pos)` and `count_roads_near(pos)` helpers in
+`tests/test_helpers.nut` replace the pak64-specific
+`tool_remove_way((7,9)→(9,9))` cleanup pattern that was hardcoded
+across many tests.  `interesting_slopes()` in the same file was
+fixed (stale BASE-3 corner constants from before the hex port
+widened `slope_t` to BASE-4 — the old `NE=243` decoded as a
+non-normalised slope under base-4 and fataled at display).  An
+engine-side bug in `stadt_t::~stadt_t()` was fixed too: the
+destructor's per-tile pop_back of a multi-tile building only
+cleared `set_stadt(NULL)` on the popped tile, so the
+`hausbauer_t::remove` call that follows would re-enter
+`remove_gebaeude_from_stadt` for the still-stadt-pointing siblings
+and trip `assert(buildings.remove(...))`.  Pak64's townhall picked
+a 1x1 footprint here so the bug never fired; pak128's `01_CITY`
+is 2x2.
+
+Currently disabled awaiting pak128 rewrite:
+
+*Pakset-feature gaps.*  All 7 active `test_groundobj_build_*` tests
+disabled because pak128 ships no groundobj objects at all.  All
+12 `test_halt_build_flat_dock_*` tests disabled because pak128's
+`ShipStop` requires a slope, while pak64's `LakeShipStop` was the
+flat-water variant the tests target.  Restore when the pakset adds
+the missing assets, or migrate the dock tests to exercise the
+sloped-dock variant pak128 ships.
+
+*Engine-API gaps.*  `test_building_rotate_station` needs
+`get_all_layouts()` exposed to script to filter for the 2-layout
+and 16-layout stations the test assertions distinguish.
+`test_good_speed_bonus` would benefit from `get_speed_bonus()`
+exposed similarly; it can be probed via `calc_revenue` at two
+speeds, but iterating `good_desc_x` from script needs the iterator
+glue (`_nexti` / `_get`) to actually return good instances rather
+than method names — current behaviour is the latter, so probing
+loops never find a good.
+`test_building_buy_house_attraction` can be migrated by name
+(ABBYS_0 substitutes for pak64's STADIUM2), but adding it pushes
+the cumulative Squirrel opcode budget for `run_all_tests()` past
+the 10000-opcode-per-call ceiling and trips the
+script-took-too-long guard in `test_depot_convoy_add_nonelectrified`
+later in the run.  Restoring needs either an opcode-budget bump for
+the test scenario (`scenario.cc:152` calls `start` via `QUEUE`
+which gets 10000 opcodes; `FORCEX` would give 100000) or breaking
+`run_all_tests` into per-test queued calls.
+
+*State-dependent / pak-economics-dependent.*
+`test_headquarters_build_flat` asserts both "downgrading HQ-level-1
+to HQ-level-0 hits 'Insufficient funds!'" (pak128's HQ pricing is
+cheap enough that it doesn't) and "after pl moves HQ from pos1 to
+pos2, public_pl can build an HQ at pos1" (pak128 leaves a
+foundation behind so pos1 isn't empty).  Draining the player's
+cash addresses the first half but not the second; restoring needs
+explicit cleanup of the leftover at pos1 between the move and the
+public_pl placement, with care that the cleanup itself isn't what
+the test ends up exercising.
+
+Real hex-port engine bugs surfaced (kept in `tests/all_tests.nut`
+as HEX-PORT PENDING — hex regressions, not pak content):
+`test_depot_build_sloped` and
+`test_terraform_raise_lower_land_below_way` fatal on
+`HexLightTexture has no image for slope <N>` (243, 2560 in the
+two tests).  The hex pakset bake covers only normalised
+single-height slopes; these tests exercise corners at +2/+3 deltas
+via terrain raising.  Either widen the bake or normalise
+display-time lookups (cross-references the "Pakset hex border
+lookups not wired" / "Pakset slope sprite range gap" entries
+below).
+
 ## Vertex propagation: recursion → worklist
 
 `surface_t::raise_vertex_to` / `lower_vertex_to` walk the 3-neighbour hex
@@ -215,11 +306,12 @@ still bake the square shape: `way_writer.cc` enumerates only the
 in `slope_names[]`, and `way_obj_writer.cc` iterates
 `slope = 3, 6, 9, 12` for `frontimageup` / `backimageup`.  Hex
 slope-up has 6 edges; these need widening when the first hex way
-or way-obj asset wants per-edge climb sprites.  Square paksets
-(pak64 in CI) keep working as-is, so leaving them — but expect
-hex up-slope `Image` keys to be silently dropped the moment a hex
-.dat tries to declare them, and the unused-key warning will be
-the only signal.
+or way-obj asset wants per-edge climb sprites.  Shipping with the
+gap because no asset on the hextrans-pak128 side currently declares
+per-edge climb sprites — but expect hex up-slope `Image` keys to be
+silently dropped the moment a hex .dat tries to declare them, and
+the unused-key warning will be the only signal.  Widen alongside
+the first hex way / way-obj asset that needs it.
 
 `LightTexture` is now registered as the required ground-lightmap
 descriptor.  Ground texture generation treats that block as sparse raw

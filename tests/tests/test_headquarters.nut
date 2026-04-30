@@ -17,6 +17,7 @@ function get_hq_by_level(level)
 }
 
 
+// test_headquarters_build_flat: PAK128-PENDING.
 function test_headquarters_build_flat()
 {
 	local pl        = player_x(0)

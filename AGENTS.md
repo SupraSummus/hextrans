@@ -210,10 +210,15 @@ and launches" is the only signal we have. Behaviour of the ported
 codebase under a real game cannot be validated in this env; flag any
 assumption that depends on running the game.
 
-CI (`.github/workflows/run-tests.yml`) does have a pakset — it
-installs pak64 and runs the full scenario suite under clang+ASAN+UBSAN
-on every push, so any hex regression will surface there. To reproduce
-a CI failure locally, see `documentation/claude-code-web-dev.md` →
+CI (`.github/workflows/run-tests.yml`) does have a pakset — it pulls
+the latest `simupak128-nightly.zip` from the companion fork
+`suprasummus/hextrans-pak128` (whose own CI publishes a Nightly
+release on each push to main) and runs the full scenario suite under
+clang+ASAN+UBSAN, so any hex regression will surface there.  The two
+repos move together: a hex-engine change that depends on a pakset
+descriptor change won't go green until the pakset side ships its
+piece to main and the nightly republishes.  To reproduce a CI failure
+locally, see `documentation/claude-code-web-dev.md` →
 "Running automated tests".
 
 Claude Code on the web checks out a shallow clone — `git log` only

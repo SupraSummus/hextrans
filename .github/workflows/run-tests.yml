@@ -58,17 +58,22 @@ jobs:
     - name: Build Simutrans
       run: |
         CC="ccache clang" CXX="ccache clang++" make -j$(nproc)
-    - name: Install pak64
+    - name: Install hextrans-pak128
+      # Pulls the latest nightly build from suprasummus/hextrans-pak128
+      # (published by that repo's pak128-nightly workflow on push to
+      # main). The zip contains simutrans/pak128/; extract in place so
+      # the pakset lands at simutrans/pak128/.
       run: |
-        pushd simutrans
-        ../tools/get_pak.sh pak64
-        popd
+        curl -fsSL -o pak.zip \
+          https://github.com/suprasummus/hextrans-pak128/releases/download/Nightly/simupak128-nightly.zip
+        unzip -q pak.zip
+        rm pak.zip
     - name: Install language files
       run: tools/get_lang_files.sh
     - name: Link tests as scenario
       run: |
-        mkdir -p ~/simutrans/addons/pak/scenario
-        ln -sT $GITHUB_WORKSPACE/tests ~/simutrans/addons/pak/scenario/automated-tests
+        mkdir -p ~/simutrans/addons/pak128/scenario
+        ln -sT $GITHUB_WORKSPACE/tests ~/simutrans/addons/pak128/scenario/automated-tests
     - name: Create simuconf
       run: |
         mkdir -p ~/simutrans/

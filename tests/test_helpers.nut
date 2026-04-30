@@ -157,18 +157,20 @@ function ASSERT_WAY_PATTERN_MASKED(waytype, lefttop, pattern)
 
 
 // Representative single-height slopes for tests that used to iterate
-// `for sl in 0..slope.raised`.  Under the base-3 hex encoding most
-// integers in 0..363 don't decode to valid slopes; this returns the
+// `for sl in 0..slope.raised`.  Under the base-4 hex encoding most
+// integers in 0..4095 don't decode to valid slopes; this returns the
 // 15 that do and correspond to buildable single-height terrain:
 // flat, each single-corner raised, each adjacent-pair hex edge, and
 // the 2 legacy square diagonals (`slope.east`, `slope.west`).  Omits
-// `slope.raised` (all_up_one): raising all corners uniformly shifts
+// `slope.raised` (all_up_two): raising all corners uniformly shifts
 // the whole tile and breaks the cleanup some callers do after the
 // loop.
 function interesting_slopes()
 {
-	// base-3 digits for the 6 hex corners (see slope_t in ribi.h)
-	local E = 1, SE = 3, SW = 9, W = 27, NW = 81, NE = 243
+	// base-4 digits for the 6 hex corners (see slope_t in ribi.h:
+	// raised_E=1, raised_SE=4, raised_SW=16, raised_W=64,
+	// raised_NW=256, raised_NE=1024)
+	local E = 1, SE = 4, SW = 16, W = 64, NW = 256, NE = 1024
 	return [
 		slope.flat,
 		E, SE, SW, W, NW, NE,                 // 6 single-corner raised
@@ -176,6 +178,59 @@ function interesting_slopes()
 		W + NW, NW + NE, NE + E,
 		SW + NW, SE + NE,                     // 2 legacy square diagonals (== slope.east/west)
 	]
+}
+
+
+// Count road tiles in the 5x5 area around `pos`.  Used by tests that
+// assert "the city auto-generated at least one road" without baking
+// in pak-specific road layout.
+function count_roads_near(pos)
+{
+	local size = world.get_size()
+	local count = 0
+	for (local dx = -2; dx <= 2; dx++) {
+		for (local dy = -2; dy <= 2; dy++) {
+			local x = pos.x + dx
+			local y = pos.y + dy
+			if (x < 0 || y < 0 || x >= size.x || y >= size.y) continue
+			local tile = tile_x(x, y, pos.z)
+			if (tile != null && tile.get_way(wt_road) != null) {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+
+// Remove the townhall at `pos` and any roads the city auto-generated
+// in a 5x5 tile area around it.  pak64 and pak128 lay city roads in
+// different patterns, so tests that build a city via tool_add_city
+// can't hardcode the cleanup tiles.  Doesn't assert — cleanup is
+// best-effort, the test invariant is verified before this is called.
+function cleanup_city(pl, pos)
+{
+	command_x(tool_remover).work(pl, pos)
+	local size = world.get_size()
+	// remove auto-generated buildings (city houses, ruins, etc.) and
+	// roads in a 5x5 area around the townhall.  Range is wider than
+	// the placefinder typically uses but small enough to stay cheap.
+	for (local dx = -2; dx <= 2; dx++) {
+		for (local dy = -2; dy <= 2; dy++) {
+			local x = pos.x + dx
+			local y = pos.y + dy
+			if (x < 0 || y < 0 || x >= size.x || y >= size.y) continue
+			local p = coord3d(x, y, pos.z)
+			local tile = tile_x(x, y, p.z)
+			if (tile == null) continue
+			if (tile.find_object(mo_building) != null) {
+				command_x(tool_remover).work(pl, p)
+			}
+			if (tile.get_way(wt_road) != null) {
+				command_x(tool_remove_way).work(pl, p, p, "" + wt_road)
+			}
+		}
+	}
 }
 
 

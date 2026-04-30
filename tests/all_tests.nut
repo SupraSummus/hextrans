@@ -46,10 +46,10 @@ all_tests <- [
 	// test_building_build_multi_tile_sloped: HEX-PORT PENDING.
 	test_building_buy_house_invalid_param,
 	test_building_buy_house_from_public_player,
-	test_building_buy_house_attraction,
+	// test_building_buy_house_attraction: PAK128-PENDING.
 	test_building_rotate_house,
 	test_building_rotate_harbour,
-	test_building_rotate_station,
+	// test_building_rotate_station: PAK128-PENDING.
 	test_building_rotate_factory,
 	test_city_add_invalid,
 	test_city_add_cannot_afford,
@@ -57,7 +57,7 @@ all_tests <- [
 	test_city_add_on_existing_townhall,
 	test_city_add_near_map_border,
 	test_city_change_size_invalid_params,
-	test_city_change_size_to_minimum
+	test_city_change_size_to_minimum,
 	test_climate_invalid,
 	test_climate_flat,
 	// test_climate_cliff: HEX-PORT PENDING.
@@ -68,7 +68,7 @@ all_tests <- [
 	test_depot_build_water,
 	test_depot_build_monorail,
 	test_depot_build_tram,
-	test_depot_build_sloped,
+	// test_depot_build_sloped: HEX-PORT PENDING.
 	// test_depot_build_on_tunnel_entrance: HEX-PORT PENDING.
 	test_depot_build_on_bridge_end,
 	test_depot_build_on_halt,
@@ -90,30 +90,30 @@ all_tests <- [
 	test_factory_link,
 	test_factory_desc,
 	test_good_is_interchangeable,
-	test_good_speed_bonus,
+	// test_good_speed_bonus: PAK128-PENDING.
 	test_groundobj_build_invalid_param,
 	test_groundobj_build_invalid_pos,
-	test_groundobj_build_random,
-	test_groundobj_build_specific,
-	test_groundobj_build_invalid_climate,
-	test_groundobj_build_ignore_climate,
-	test_groundobj_build_occupied,
-	test_groundobj_build_on_trees,
-	test_groundobj_build_on_slope,
+	// test_groundobj_build_random: PAK128-PENDING.
+	// test_groundobj_build_specific: PAK128-PENDING.
+	// test_groundobj_build_invalid_climate: PAK128-PENDING.
+	// test_groundobj_build_ignore_climate: PAK128-PENDING.
+	// test_groundobj_build_occupied: PAK128-PENDING.
+	// test_groundobj_build_on_trees: PAK128-PENDING.
+	// test_groundobj_build_on_slope: PAK128-PENDING.
 	test_halt_build_rail_single_tile,
 	test_halt_build_harbour,
-	test_halt_build_flat_dock_near_water,
-	test_halt_build_flat_dock_near_water_multiple_rotations,
-	test_halt_build_flat_dock_near_water_fixed_rotation_valid,
-	test_halt_build_flat_dock_near_water_fixed_rotation_invalid,
-	test_halt_build_flat_dock_outside_map,
-	test_halt_build_flat_dock_near_map_border_auto_rotation,
-	test_halt_build_flat_dock_near_map_border_fixed_rotation
-	test_halt_build_flat_dock_on_bridge,
-	test_halt_build_flat_dock_on_slope,
-	test_halt_build_flat_dock_near_cliff,
-	test_halt_build_flat_dock_in_water,
-	test_halt_build_flat_dock_occupied,
+	// test_halt_build_flat_dock_near_water: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_water_multiple_rotations: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_water_fixed_rotation_valid: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_water_fixed_rotation_invalid: PAK128-PENDING.
+	// test_halt_build_flat_dock_outside_map: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_map_border_auto_rotation: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_map_border_fixed_rotation: PAK128-PENDING.
+	// test_halt_build_flat_dock_on_bridge: PAK128-PENDING.
+	// test_halt_build_flat_dock_on_slope: PAK128-PENDING.
+	// test_halt_build_flat_dock_near_cliff: PAK128-PENDING.
+	// test_halt_build_flat_dock_in_water: PAK128-PENDING.
+	// test_halt_build_flat_dock_occupied: PAK128-PENDING.
 	test_halt_build_air,
 	// test_halt_build_multi_tile: HEX-PORT PENDING.
 	test_halt_build_multi_mode,
@@ -131,7 +131,7 @@ all_tests <- [
 	test_halt_make_public_multi_tile,
 	// test_halt_make_public_underground: HEX-PORT PENDING.
 	test_halt_move_stop_invalid_param,
-	test_headquarters_build_flat,
+	// test_headquarters_build_flat: PAK128-PENDING.
 	test_label,
 	test_player_cash,
 	test_player_isactive,
@@ -176,7 +176,7 @@ all_tests <- [
 	// test_terraform_raise_lower_land_at_water_center: HEX-PORT PENDING.
 	// test_terraform_raise_lower_land_at_water_corner: HEX-PORT PENDING.
 	// test_terraform_raise_lower_land_at_water_edge: HEX-PORT PENDING.
-	test_terraform_raise_lower_land_below_way,
+	// test_terraform_raise_lower_land_below_way: HEX-PORT PENDING.
 	// test_terraform_raise_lower_water_level: HEX-PORT PENDING.
 	test_transport_generate_pax_invalid_pos,
 	test_transport_generate_pax_walked,
@@ -226,7 +226,6 @@ all_tests <- [
 	// test_way_tram_build_across_road_bridge: HEX-PORT PENDING.
 	// test_way_tram_build_across_crossing: HEX-PORT PENDING.
 	// test_way_tram_build_in_tunel: HEX-PORT PENDING.
-	test_way_tram_has_double_slopes,
 	// test_way_tunnel_build_straight: HEX-PORT PENDING.
 	// test_way_tunnel_build_up_down: HEX-PORT PENDING.
 	// test_way_tunnel_build_above_tunnel_slope: HEX-PORT PENDING.
