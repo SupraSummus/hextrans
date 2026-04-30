@@ -410,7 +410,10 @@ function test_terraform_raise_lower_land_below_way()
 	// non-dead-end, should fail for all slopes
 	{
 		for (local sl = slope.flat+1; sl <= slope.all_down_slope; ++sl) {
-			if (sl != slope.raised && sl != 81) {
+			// slope.all_up_slope - 1 sits between the concrete slope
+			// range and the terraform sentinels; the engine rejects it
+			// out-of-range before tile validation runs.
+			if (sl != slope.raised && sl != slope.all_up_slope - 1) {
 				ASSERT_EQUAL(setslope(pl, coord3d(4, 3, 0), sl), "Tile not empty.")
 			}
 		}

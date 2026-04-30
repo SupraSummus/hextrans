@@ -93,13 +93,11 @@
 /**************************** automatic stuff ********************************/
 
 
-// Square-era set-slope parameters used by legacy menuconf toolbar
-// entries.  Concrete 4-corner base-3 slopes occupied 0..80; 81 was
-// not used by pak64's slope toolbar, and all-up/all-down followed at
-// 82/83.  Restore had a separate general_tool entry in pak64.
+// Square-era set-slope parameter range used by legacy ground sprite
+// lookups.  Concrete 4-corner base-3 slopes occupied 0..80; this
+// upper bound is still consulted when matching legacy pakset image
+// blocks against the widened hex slope encoding.
 #define LEGACY_SLOPE4_MAX (80)
-#define LEGACY_ALL_UP_SLOPE (82)
-#define LEGACY_ALL_DOWN_SLOPE (83)
 
 // Terraform-tool sentinels, used via tool_setslope / tool_restoreslope
 // to request "raise by one step", "lower by one step", "restore the
@@ -110,14 +108,6 @@
 #define ALL_UP_SLOPE (4097)
 #define ALL_DOWN_SLOPE (4098)
 #define RESTORE_SLOPE (4099)
-// The *_SINGLE variants signalled "single-height mode" from the UI
-// under single-height-only paksets.  Under the hex encoding doubles
-// are still available, so the single/double distinction stays; the
-// values still need to be outside the slope range and distinct from
-// the non-SINGLE sentinels.
-#define ALL_UP_SLOPE_SINGLE (4100)
-#define ALL_DOWN_SLOPE_SINGLE (4101)
-#define RESTORE_SLOPE_SINGLE (4102)
 
 
 // 16 internal pixels per tile, for purposes of object visual offsets.

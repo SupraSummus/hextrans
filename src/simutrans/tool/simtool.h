@@ -134,25 +134,20 @@ public:
 /* slope tool definitions */
 class tool_setslope_t : public tool_t {
 public:
-	tool_setslope_t() : tool_t(TOOL_SETSLOPE | GENERAL_TOOL), old_slope_compatibility_mode(true) {}
-	// if true then slope by default_param will be translated to new double-height system
-	// true by default, can be set to false (used for scripts)
-	bool old_slope_compatibility_mode;
+	tool_setslope_t() : tool_t(TOOL_SETSLOPE | GENERAL_TOOL) {}
 	/**
 	 * Create an artificial slope
-	 * 
+	 *
 	 * @param player the player doing the task
 	 * @param pos position where the slope will be generated
 	 * @param slope the slope type
-	 * @param old_slope_compatibility
 	 * @param just_check
 	 */
-	static const char *tool_set_slope_work( player_t *player, koord3d pos, int slope, bool old_slope_compatibility, bool just_check = false);
-	void rdwr_custom_data(memory_rw_t*) OVERRIDE;
+	static const char *tool_set_slope_work( player_t *player, koord3d pos, int slope, bool just_check = false);
 	char const* get_tooltip(player_t const*) const OVERRIDE { return tooltip_with_price("Built artifical slopes", welt->get_settings().cst_set_slope); }
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	char const* check_pos(player_t*, koord3d) OVERRIDE;
-	char const* work(player_t* const player, koord3d const k) OVERRIDE { return tool_set_slope_work(player, k, default_param ? atoi(default_param) : 0, old_slope_compatibility_mode); }
+	char const* work(player_t* const player, koord3d const k) OVERRIDE { return tool_set_slope_work(player, k, default_param ? atoi(default_param) : 0); }
 	bool init(player_t*) OVERRIDE { return default_param != NULL; }
 };
 
@@ -162,7 +157,7 @@ public:
 	char const* get_tooltip(player_t const*) const OVERRIDE { return tooltip_with_price("Restore natural slope", welt->get_settings().cst_set_slope); }
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	char const* check_pos(player_t*, koord3d) OVERRIDE;
-	char const* work(player_t* const player, koord3d const k) OVERRIDE { return tool_setslope_t::tool_set_slope_work(player, k, RESTORE_SLOPE, true); }
+	char const* work(player_t* const player, koord3d const k) OVERRIDE { return tool_setslope_t::tool_set_slope_work(player, k, RESTORE_SLOPE); }
 };
 
 class tool_marker_t : public kartenboden_tool_t {
