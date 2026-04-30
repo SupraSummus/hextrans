@@ -1094,11 +1094,13 @@ void gebaeude_t::cleanup(player_t *player)
 
 	player_t::book_construction_costs(player, cost, get_pos().get_2d(), tile->get_desc()->get_finance_waytype());
 
-	if (is_city_building() && tile->get_index() == 0) {
-		assert(get_stadt());
-	}
-
-
+	// get_stadt() may legitimately be NULL on the stadt_t::~stadt_t()
+	// path: the destructor pre-clears stadt on every tile of each popped
+	// building so the cascade here short-circuits remove_gebaeude_from_stadt
+	// (its recalc_city_size() is wasted work on a city that's vanishing).
+	// Outside that path callers expect cleanup to remove the building
+	// from its stadt; an absent stadt for a city-building head tile
+	// there means the caller forgot.
 	if (stadt_t *city=get_stadt()) {
 		city->remove_gebaeude_from_stadt(this);
 	}
