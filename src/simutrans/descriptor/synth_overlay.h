@@ -12,69 +12,52 @@
 
 
 /**
- * Code-generated overlay sprites — an "algorithmic pakset" for the
- * tile-cursor and cliff-face overlays.
+ * Code-generated overlay sprites — an "algorithmic pakset" for
+ * cliff-face overlays.
  *
  * This module synthesises hex-shaped `image_t`s at startup and
  * registers them through the same `gfx->register_image` path the
- * pakset reader uses.  The active families today:
+ * pakset reader uses.  The active family today:
  *
- *   - `get_marker(slope, half)` — outline-only markers for the
- *     cursor and grid-line overlays (front + back halves drawn
- *     bracketing tile content).
  *   - `get_back_wall(wall, index, artificial)` — placeholder cliff
  *     faces for the hex-only back-wall geometry.
  *
- * Ground tiles are pakset-owned again: hex-aware `LightTexture`
- * images are read through `ground_desc_t::init_ground_textures`.
+ * Marker and ground tiles are pakset-owned: markers through the
+ * ordinary Marker descriptor, ground through hex-aware `LightTexture`
+ * images read by `ground_desc_t::init_ground_textures`.
  */
 namespace synth_overlay {
 
 /**
- * Precedence flag between synth and pakset overlay sprites.
+ * Precedence flag between synth and pakset cliff sprites.
  *
  *   true  — synth wins when it has an answer; pakset is the fallback
- *           floor.  Default — fitting today, where the only available
- *           pakset art is square-projected and visibly mismatches the
- *           hex tile geometry.
+ *           floor.
  *   false — pakset wins when it has an answer; synth fills in for
- *           slopes the pakset doesn't cover.  Flip when a pakset
- *           ships hex-aware overlay art that should take over.
+ *           slots the pakset doesn't cover.
  *
- * Single knob covers marker and cliff overlays.  Live — the lookup
- * functions read it on every call, so flipping at runtime takes
- * effect on the next frame draw.  Wire to env_t / simuconf.tab when
- * settings UI lands; for now flip from the debugger / a code patch.
+ * Back walls stay synth-first: paksets still only cover the two
+ * square-era wall families, while wall 2 is hex-only.
+ *
+ * Live — the lookup functions read this on every call, so flipping
+ * at runtime takes effect on the next frame draw.  Wire to env_t /
+ * simuconf.tab when settings UI lands; for now flip from the debugger
+ * / a code patch.
  */
-extern bool prefer_over_pakset;
+extern bool prefer_back_wall_over_pakset;
 
 /**
- * Generate hex-shaped marker and cliff sprites and register them
- * with the graphics system.  Call from
+ * Generate hex-shaped cliff sprites and register them with the
+ * graphics system.  Call from
  * `ground_desc_t::init_ground_textures` after pakset load and after
  * `image_offset` is set, so synth images are tracked alongside the
  * other runtime-generated ground textures and freed together on the
  * next world (re)load.
  *
  * Idempotent — a second call frees the previously-synthesised
- * image_t's and rebuilds them.  Bails out (logs a warning, leaves
- * `get_marker` returning IMG_EMPTY) if no template marker is
- * available in the pakset; in that case the legacy square-projection
- * path stays in charge.
+ * image_t's and rebuilds them.
  */
 void init();
-
-/**
- * Marker image for @p slope.  @p background = true returns the rear
- * half of the outline, drawn behind tile content (vehicles, buildings)
- * so they render on top; false returns the front half drawn over.
- *
- * Returns IMG_EMPTY when synth has not been initialised, or when
- * @p slope is out of range (< 0 or >= slope_t::max_slopes).  Callers
- * should fall back to the legacy lookup in that case.
- */
-image_id get_marker(slope_t::type slope, bool background);
-
 
 /// Number of "back walls" (cliff faces against screen-up neighbours)
 /// the synth covers.  Mirrors `grund_t::BACK_WALL_COUNT`.  Wall 0 is

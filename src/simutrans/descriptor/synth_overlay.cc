@@ -21,31 +21,13 @@
 namespace synth_overlay {
 
 
-bool prefer_over_pakset = true;
+bool prefer_back_wall_over_pakset = true;
 
-
-// Outline color in the runtime PIXVAL layout — RGB555 with no flag
-// bit, bits 0..4 = B, 5..9 = G, 10..14 = R (matches the red_comp /
-// green_comp / blue_comp macros in ground_desc.cc).  Values >= 0x8000
-// are reserved for player-color slots and special palette entries
-// (see simgraph16.cc register_image), so RGB pixels live in
-// 0x0000..0x7FFF and are read directly without rgbmap remap.
-//
-// Bright yellow: R=31, G=31, B=0 → (31<<10) | (31<<5) = 0x7FE0.
-static const PIXVAL OUTLINE_COLOR = 0x7FE0;
 
 // Sentinel for "no pixel here" in the raw scratch buffer used during
-// outline rasterisation.  The outline color is non-zero (0x7FE0), so
-// 0 is never produced as an outline pixel and is safe to use.
+// cliff-face rasterisation.  Cliff colors are non-zero RGB555 values,
+// so 0 is never produced as an opaque pixel and is safe to use.
 static const PIXVAL NO_PIXEL = 0;
-
-// One image_t per slope per half — index 0 = front half, 1 = back half
-// (matches the @p background bool exposed in the public API).  Eager
-// build in init(), get_marker() is then a flat table read; this also
-// dodges thread-safety questions in the multi-threaded display path.
-// Memory budget: hex outlines RLE-compress to ~1-2 KB each, so the
-// full set fits comfortably under 3 MB.
-static image_t* marker[2][slope_t::max_slopes];
 
 // Cliff-face sprites for back walls (NW and N edges).  Indexed by
 // [artificial][wall][image_index], following the encoding produced by
@@ -62,12 +44,6 @@ static bool initialised = false;
 
 static void free_all()
 {
-	for(  int half = 0;  half < 2;  half++  ) {
-		for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
-			delete marker[half][s];
-			marker[half][s] = NULL;
-		}
-	}
 	for(  int a = 0;  a < 2;  a++  ) {
 		for(  int w = 0;  w < back_wall_count;  w++  ) {
 			for(  int i = 0;  i < back_wall_image_count;  i++  ) {
@@ -75,32 +51,6 @@ static void free_all()
 				back_wall[a][w][i] = NULL;
 			}
 		}
-	}
-}
-
-
-// Bresenham line into a w*h scratch buffer; out-of-bounds pixels
-// are clipped (silently dropped) so callers can pass vertices that
-// extend above the image when corner heights are raised.
-static void draw_line(PIXVAL* buf, sint32 w, sint32 h,
-                      sint32 x0, sint32 y0, sint32 x1, sint32 y1,
-                      PIXVAL color)
-{
-	const sint32 dx =  (x1 > x0 ? x1 - x0 : x0 - x1);
-	const sint32 dy = -(y1 > y0 ? y1 - y0 : y0 - y1);
-	const sint32 sx = x0 < x1 ? 1 : -1;
-	const sint32 sy = y0 < y1 ? 1 : -1;
-	sint32 err = dx + dy;
-	while(  true  ) {
-		if(  x0 >= 0  &&  x0 < w  &&  y0 >= 0  &&  y0 < h  ) {
-			buf[y0 * w + x0] = color;
-		}
-		if(  x0 == x1  &&  y0 == y1  ) {
-			break;
-		}
-		const sint32 e2 = 2 * err;
-		if(  e2 >= dy  ) { err += dy; x0 += sx; }
-		if(  e2 <= dx  ) { err += dx; y0 += sy; }
 	}
 }
 
@@ -145,95 +95,6 @@ static size_t encode_rle(const PIXVAL* buf, sint32 w, sint32 h, PIXVAL* out)
 		}
 	}
 	return p - out;
-}
-
-
-// Rasterise a sequence of hex-vertex line segments into an image.
-// The flat-top hex footprint is a `4u × 2u` lattice cell (E and W
-// vertices on the horizontal extremes at mid-y, NE/SE/NW/SW at
-// quarter-width on the top and bottom rows), with each vertex lifted
-// by `corner_h * hex_height_raster_scale_y(TILE_HEIGHT_STEP, 4u)` for
-// slope-aware outlines.  The footprint dimensions are dictated by the
-// hex iso lattice in `hex_proj.h` (column step `(3u, u)`, row step
-// `(0, 2u)`).  The image bbox adds headroom above that footprint for
-// the maximum 2-corner lift; without it, raised N-side vertices clip at
-// local y=0 even though neighbouring endpoints mathematically meet.
-// See `tools/hex_proj_test/hex_proj_test.cc ::
-// test_synth_slope_bbox_contains_lifted_vertices`.
-//
-// @p path is a list of corner indices to visit in order.  `path = {E,
-// SE, SW, W}` is the front half of the marker outline (3 south-side
-// edges).
-//
-static image_t* rasterise_outline(sint32 u, slope_t::type slope,
-                                  const hex_corner_t::type* path, int n)
-{
-	const synth_hex_geometry_t geom = synth_hex_geometry(u, TILE_HEIGHT_STEP);
-	const sint32 w = geom.w;
-	const sint32 h = geom.h;
-
-	// Vertex screen coords in image-local pixel space, ordered to
-	// match hex_corner_t::type so @p path indexes in directly.
-	// Y grows down; corner height lifts UP, so subtract.
-	struct vertex_t { sint32 x, y; };
-	const vertex_t v[hex_corner_t::count] = {
-		{ geom.vx[hex_corner_t::E ], geom.vy(slope, hex_corner_t::E ) }, // E
-		{ geom.vx[hex_corner_t::SE], geom.vy(slope, hex_corner_t::SE) }, // SE
-		{ geom.vx[hex_corner_t::SW], geom.vy(slope, hex_corner_t::SW) }, // SW
-		{ geom.vx[hex_corner_t::W ], geom.vy(slope, hex_corner_t::W ) }, // W
-		{ geom.vx[hex_corner_t::NW], geom.vy(slope, hex_corner_t::NW) }, // NW
-		{ geom.vx[hex_corner_t::NE], geom.vy(slope, hex_corner_t::NE) }, // NE
-	};
-
-	PIXVAL* buf = new PIXVAL[w * h];
-	memset(buf, 0, w * h * sizeof(PIXVAL));
-
-	for(  int i = 0;  i < n - 1;  i++  ) {
-		const vertex_t& a = v[path[i]];
-		const vertex_t& b = v[path[i + 1]];
-		draw_line(buf, w, h, a.x, a.y, b.x, b.y, OUTLINE_COLOR);
-	}
-
-	// Encode into RLE.  Worst-case bound for alternating opaque/skip
-	// is 3 PIXVALs per pixel + per-row header, comfortably below
-	// w*h*2 + h*4.
-	const size_t cap = (size_t)w * h * 2 + (size_t)h * 4 + 4;
-	PIXVAL* tmp = new PIXVAL[cap];
-	const size_t rle_len = encode_rle(buf, w, h, tmp);
-	delete [] buf;
-
-	image_t* img = new image_t(rle_len);
-	memcpy(img->data, tmp, rle_len * sizeof(PIXVAL));
-	delete [] tmp;
-
-	img->w = (scr_coord_val)w;
-	img->h = (scr_coord_val)h;
-	img->x = 0;
-	img->y = geom.image_y();
-	img->zoomable = 1;
-
-	return img;
-}
-
-
-// Marker outline half — three S-side edges (front) or three N-side
-// edges (back); E and W endpoints are shared between the halves so
-// the two halves bracket tile content (vehicles, buildings) cleanly.
-//
-// Hex slopes share corners across 3 tiles — that's a terrain-storage
-// problem (per AGENTS.md "per-vertex height storage") not a marker
-// problem; the marker only ever shows one tile's view of its own
-// corners and is consistent by construction.
-static image_t* build_marker(sint32 u, slope_t::type slope, bool background)
-{
-	static const hex_corner_t::type front_path[4] = {
-		hex_corner_t::E, hex_corner_t::SE, hex_corner_t::SW, hex_corner_t::W
-	};
-	static const hex_corner_t::type back_path[4] = {
-		hex_corner_t::E, hex_corner_t::NE, hex_corner_t::NW, hex_corner_t::W
-	};
-	const hex_corner_t::type* path = background ? back_path : front_path;
-	return rasterise_outline(u, slope, path, 4);
 }
 
 
@@ -310,17 +171,6 @@ static PIXVAL shade_pixval(PIXVAL p, sint32 brightness)
 	if(  g > 31  ) { g = 31; }
 	if(  b > 31  ) { b = 31; }
 	return (PIXVAL)((r << 10) | (g << 5) | b);
-}
-
-
-static inline void decode_corner_heights(slope_t::type slope, uint8 ch[hex_corner_t::count])
-{
-	ch[hex_corner_t::E ] = (uint8)corner_e (slope);
-	ch[hex_corner_t::SE] = (uint8)corner_se(slope);
-	ch[hex_corner_t::SW] = (uint8)corner_sw(slope);
-	ch[hex_corner_t::W ] = (uint8)corner_w (slope);
-	ch[hex_corner_t::NW] = (uint8)corner_nw(slope);
-	ch[hex_corner_t::NE] = (uint8)corner_ne(slope);
 }
 
 
@@ -451,45 +301,12 @@ void init()
 	// `(0, 2u)`, inscribed-hex bbox `4u × 2u`).  Pinning u as the
 	// builder input makes the multiples explicit at the call sites
 	// and keeps any future scale change (e.g. art-larger-than-bbox
-	// trim, see TODO.md) on a clean integer grid.  Inheriting from
-	// a pakset template's actual w/h is not safe — pak64's Marker.pak
-	// ships 64×64, which gave a 64-tall hex on a 32-tall lattice
-	// slot and gapped adjacent tiles by `u` px.  See
-	// `tools/hex_proj_test/hex_proj_test.cc :: test_inscribed_hex_tiles_lattice`.
+	// trim, see TODO.md) on a clean integer grid.
 	const sint32 W = (sint32)gfx->get_base_tile_raster_width();
 	const sint32 u = W / 4;
 	if(  u < 1  ) {
 		dbg->warning("synth_overlay::init", "tile raster width %d too small; synth disabled", W);
 		return;
-	}
-
-	int generated = 0;
-	for(  int s = 0;  s < slope_t::max_slopes;  s++  ) {
-		uint8 ch[hex_corner_t::count];
-		decode_corner_heights((slope_t::type)s, ch);
-
-		// Skip slopes that violate the per-edge ≤ 1 height constraint —
-		// they cannot appear on valid terrain, and generating sprites
-		// for them wastes startup time and memory.  Callers check for
-		// NULL via IMG_EMPTY.
-		bool valid = true;
-		for(  int i = 0;  i < hex_corner_t::count;  i++  ) {
-			const int j = (i + 1) % hex_corner_t::count;
-			if(  ch[i] > ch[j] + 1 || ch[j] > ch[i] + 1  ) {
-				valid = false;
-				break;
-			}
-		}
-		if(  !valid  ) {
-			continue;
-		}
-		generated++;
-
-		for(  int half = 0;  half < 2;  half++  ) {
-			image_t* img = build_marker(u, (slope_t::type)s, half == 1);
-			img->register_image();
-			marker[half][s] = img;
-		}
 	}
 
 	// Cliff-face sprites are not slope-keyed (they take h1/h2 from
@@ -510,18 +327,8 @@ void init()
 	initialised = true;
 	const auto bbox = synth_hex_geometry(u, TILE_HEIGHT_STEP);
 	DBG_DEBUG("synth_overlay::init",
-	          "synthesised sprites for %d/%d slopes (u=%d, bbox %dx%d)",
-	          generated, slope_t::max_slopes, u, bbox.w, bbox.h);
-}
-
-
-image_id get_marker(slope_t::type slope, bool background)
-{
-	if(  !initialised  ||  slope < 0  ||  slope >= slope_t::max_slopes  ) {
-		return IMG_EMPTY;
-	}
-	const image_t* img = marker[background ? 1 : 0][slope];
-	return img != NULL ? img->get_id() : IMG_EMPTY;
+	          "synthesised back-wall sprites (u=%d, bbox %dx%d)",
+	          u, bbox.w, bbox.h);
 }
 
 
