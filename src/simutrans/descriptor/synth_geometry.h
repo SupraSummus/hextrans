@@ -57,9 +57,9 @@ inline synth_hex_geometry_t synth_hex_geometry(sint32 u, sint16 height_step)
 	g.w = 4 * u;
 	// Per-step screen lift comes from `hex_height_raster_scale_y` so the
 	// sprite bbox tracks any change to the display-side z scale without a
-	// duplicated /2 here.  height-3 corners (base-4 encoding) need 3*lift
-	// headroom; top_pad = 4*lift keeps a comfortable extra step of margin
-	// and matches the legacy 2*full_lift absolute pixel count.
+	// duplicated factor here.  height-3 corners (base-4 encoding) need
+	// 3*lift headroom; top_pad = 4*lift keeps a comfortable extra step of
+	// margin.
 	g.lift    = hex_height_raster_scale_y(height_step, g.w);
 	g.top_pad = 4 * g.lift;
 	g.h = 2 * u + g.top_pad;
