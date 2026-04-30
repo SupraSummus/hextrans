@@ -320,7 +320,7 @@ function test_building_buy_house_attraction()
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0,0,0)), null)
 	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
