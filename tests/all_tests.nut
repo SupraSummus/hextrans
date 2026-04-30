@@ -142,7 +142,7 @@ all_tests <- [
 	// test_powerline_build_below_powerbridge: HEX-PORT PENDING.
 	// test_powerline_build_powerbridge_above_powerline: HEX-PORT PENDING.
 	// test_powerline_build_transformer: HEX-PORT PENDING.
-	// test_powerline_build_over_transformer: PAK128-PENDING.
+	test_powerline_build_over_transformer,
 	// test_powerline_build_transformer_multiple: HEX-PORT PENDING.
 	// test_powerline_remove_powerbridge: HEX-PORT PENDING.
 	// test_powerline_ways: HEX-PORT PENDING.
