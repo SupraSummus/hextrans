@@ -84,10 +84,10 @@ all_tests <- [
 	test_dir_backward,
 	test_dir_to_slope,
 	test_dir_to_coord,
-	// test_factory_build_pp: HEX-PORT PENDING.
-	// test_factory_build_with_fields: HEX-PORT PENDING.
-	// test_factory_build_climate: HEX-PORT PENDING.
-	// test_factory_build_on_water_occupied: HEX-PORT PENDING.
+	test_factory_build_pp,
+	test_factory_build_with_fields,
+	test_factory_build_climate,
+	test_factory_build_on_water_occupied,
 	test_factory_link,
 	test_factory_desc,
 	test_good_is_interchangeable,
@@ -109,7 +109,7 @@ all_tests <- [
 	test_halt_build_flat_dock_near_water_fixed_rotation_invalid,
 	test_halt_build_flat_dock_outside_map,
 	test_halt_build_flat_dock_near_map_border_auto_rotation,
-	test_halt_build_flat_dock_near_map_border_fixed_rotation
+	test_halt_build_flat_dock_near_map_border_fixed_rotation,
 	test_halt_build_flat_dock_on_bridge,
 	test_halt_build_flat_dock_on_slope,
 	test_halt_build_flat_dock_near_cliff,
@@ -204,7 +204,7 @@ all_tests <- [
 	// test_way_bridge_planner: HEX-PORT PENDING.
 	test_way_road_build_single_tile,
 	// test_way_road_build_straight: HEX-PORT PENDING.
-	// test_way_road_build_bend: HEX-PORT PENDING.
+	test_way_road_build_bend,
 	// test_way_road_build_parallel: HEX-PORT PENDING.
 	// test_way_road_build_below_powerline: HEX-PORT PENDING.
 	// test_way_road_build_crossing: HEX-PORT PENDING.
