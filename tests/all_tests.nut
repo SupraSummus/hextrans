@@ -38,11 +38,11 @@ include("tests/test_wayobj")
 
 all_tests <- [
 	test_building_build_house_invalid_param,
-	// test_building_build_house_random: PAK128-PENDING.
+	test_building_build_house_random,
 	test_building_build_house_valid_desc,
 	test_building_build_house_invalid_desc,
-	// test_building_build_house_auto_rotation_attraction: PAK128-PENDING.
-	// test_building_build_house_auto_rotation_citybuilding: PAK128-PENDING.
+	test_building_build_house_auto_rotation_attraction,
+	test_building_build_house_auto_rotation_citybuilding,
 	// test_building_build_multi_tile_sloped: HEX-PORT PENDING.
 	test_building_buy_house_invalid_param,
 	test_building_buy_house_from_public_player,
@@ -53,11 +53,11 @@ all_tests <- [
 	// test_building_rotate_factory: PAK128-PENDING.
 	test_city_add_invalid,
 	test_city_add_cannot_afford,
-	// test_city_add_by_public_player: PAK128-PENDING.
-	// test_city_add_on_existing_townhall: PAK128-PENDING.
-	// test_city_add_near_map_border: PAK128-PENDING.
-	// test_city_change_size_invalid_params: PAK128-PENDING.
-	// test_city_change_size_to_minimum: PAK128-PENDING.
+	test_city_add_by_public_player,
+	test_city_add_on_existing_townhall,
+	test_city_add_near_map_border,
+	test_city_change_size_invalid_params,
+	test_city_change_size_to_minimum,
 	test_climate_invalid,
 	test_climate_flat,
 	// test_climate_cliff: HEX-PORT PENDING.
@@ -167,7 +167,7 @@ all_tests <- [
 	test_slope_set_and_restore,
 	test_slope_get_price,
 	test_slope_set_near_map_border,
-	// test_slope_restore_on_foundation: PAK128-PENDING.
+	test_slope_restore_on_foundation,
 	test_slope_restore_on_bridge,
 	test_slope_restore_on_label,
 	test_slope_max_height_diff,

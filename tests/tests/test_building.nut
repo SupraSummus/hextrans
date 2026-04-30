@@ -71,7 +71,6 @@ function test_building_build_house_invalid_param()
 }
 
 
-// test_building_build_house_random: PAK128-PENDING.
 function test_building_build_house_random()
 {
 	local pl        = player_x(0);
@@ -102,9 +101,7 @@ function test_building_build_house_random()
 		ASSERT_TRUE(tile_x(1, 1, 0).is_empty())
 	}
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -132,9 +129,7 @@ function test_building_build_house_valid_desc()
 		ASSERT_TRUE(tile_x(1, 1, 0).is_empty())
 	}
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -152,14 +147,11 @@ function test_building_build_house_invalid_desc()
 		ASSERT_EQUAL(tile_x(0,0,0).find_object(mo_building), null)
 	}
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
 
-// test_building_build_house_auto_rotation_attraction: PAK128-PENDING.
 function test_building_build_house_auto_rotation_attraction()
 {
 	local public_pl = player_x(1)
@@ -183,14 +175,12 @@ function test_building_build_house_auto_rotation_attraction()
 		ASSERT_TRUE(tile_x(1, 1, 0).is_empty())
 	}
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
 
-// test_building_build_house_auto_rotation_citybuilding: PAK128-PENDING.
+
 function test_building_build_house_auto_rotation_citybuilding()
 {
 	local public_pl = player_x(1)
@@ -208,8 +198,7 @@ function test_building_build_house_auto_rotation_citybuilding()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null); // remove house
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -240,9 +229,7 @@ function test_building_build_multi_tile_sloped()
 
 	ASSERT_EQUAL(command_x.grid_lower(public_pl, coord3d(4, 2, 1)), null)
 
-	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -306,9 +293,8 @@ function test_building_buy_house_from_public_player()
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0,0,0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8,8,0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -334,9 +320,8 @@ function test_building_buy_house_attraction()
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0,0,0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8,8,0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -385,8 +370,7 @@ function test_building_rotate_house()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	cleanup_city(public_pl, coord3d(8, 8, 0))
 	RESET_ALL_PLAYER_FUNDS();
 }
 
