@@ -14,12 +14,12 @@ function build_tree(pl, pos, desc, ignore_climate = false, random_age = false)
 }
 
 
-// test_trees_plant_single_invalid_pos: PAK128-PENDING.
+
 function test_trees_plant_single_invalid_pos()
 {
 	local pl = player_x(0)
 	local public_pl = player_x(1)
-	local tree_desc = tree_desc_x("Ahorn-1")
+	local tree_desc = tree_desc_x("tree020")
 
 	ASSERT_TRUE(tree_desc != null)
 
@@ -34,7 +34,7 @@ function test_trees_plant_single_invalid_pos()
 }
 
 
-// test_trees_plant_single_invalid_param: PAK128-PENDING.
+
 function test_trees_plant_single_invalid_param()
 {
 	local public_pl = player_x(1)
@@ -90,7 +90,7 @@ function test_trees_plant_single_invalid_param()
 }
 
 
-// test_trees_plant_single_null_param: PAK128-PENDING.
+
 function test_trees_plant_single_null_param()
 {
 	local public_pl = player_x(1)
@@ -106,7 +106,7 @@ function test_trees_plant_single_null_param()
 	RESET_ALL_PLAYER_FUNDS()
 }
 
-// test_trees_plant_single_empty_param: PAK128-PENDING.
+
 function test_trees_plant_single_empty_param()
 {
 	local public_pl = player_x(1)
@@ -123,7 +123,7 @@ function test_trees_plant_single_empty_param()
 }
 
 
-// test_trees_plant_single_invalid_desc: PAK128-PENDING.
+
 function test_trees_plant_single_invalid_desc()
 {
 	local public_pl = player_x(1)
@@ -140,12 +140,12 @@ function test_trees_plant_single_invalid_desc()
 }
 
 
-// test_trees_plant_single_when_disabled: PAK128-PENDING.
+
 function test_trees_plant_single_when_disabled()
 {
 	local pl = player_x(0)
 	local public_pl = player_x(1)
-	local tree_desc = tree_desc_x("Ahorn-1")
+	local tree_desc = tree_desc_x("tree020")
 
 	// build single tree, should fail because trees are disallowed
 	{
@@ -173,11 +173,11 @@ function test_trees_plant_single_when_disabled()
 }
 
 
-// test_trees_plant_single_random_age: PAK128-PENDING.
+
 function test_trees_plant_single_random_age()
 {
 	local public_pl = player_x(1)
-	local tree_desc = tree_desc_x("Ahorn-1")
+	local tree_desc = tree_desc_x("tree020")
 
 	// check planting with random age
 	{
@@ -199,11 +199,11 @@ function test_trees_plant_single_random_age()
 }
 
 
-// test_trees_plant_single_ignore_climate: PAK128-PENDING.
+
 function test_trees_plant_single_ignore_climate()
 {
 	local public_pl = player_x(1)
-	local tree_desc = tree_desc_x("Ahorn-1")
+	local tree_desc = tree_desc_x("tree020")
 
 	ASSERT_EQUAL(command_x(tool_set_climate).work(public_pl, coord3d(4, 3, 0), coord3d(4, 3, 0), "" + cl_arctic), null)
 
@@ -223,11 +223,11 @@ function test_trees_plant_single_ignore_climate()
 }
 
 
-// test_trees_plant_single_max_per_square: PAK128-PENDING.
+
 function test_trees_plant_single_max_per_square()
 {
 	local public_pl = player_x(1)
-	local tree_desc = tree_desc_x("Ahorn-1")
+	local tree_desc = tree_desc_x("tree020")
 
 	ASSERT_EQUAL(build_tree(public_pl, coord3d(4, 3, 0), tree_desc), null)
 	ASSERT_EQUAL(build_tree(public_pl, coord3d(4, 3, 0), tree_desc), null)
@@ -248,13 +248,13 @@ function test_trees_plant_single_max_per_square()
 }
 
 
-// test_trees_plant_single_occupied: PAK128-PENDING.
+
 function test_trees_plant_single_occupied()
 {
 	local pl = player_x(0)
 	local public_pl = player_x(1)
 	local road = way_desc_x.get_available_ways(wt_road, st_flat)[0]
-	local tree_desc = tree_desc_x("Ahorn-1")
+	local tree_desc = tree_desc_x("tree020")
 
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), road, true), null)
 

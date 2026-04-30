@@ -336,6 +336,7 @@ function test_halt_build_air()
 	local runway = way_desc_x.get_available_ways(wt_air, st_runway)[0]
 	local taxiway = way_desc_x.get_available_ways(wt_air, st_flat)[0]
 	local airhalt = building_desc_x("AirStop")
+	ASSERT_TRUE(airhalt != null)
 
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 5, 0), coord3d(5, 7, 0), runway, true), null)
 
@@ -919,7 +920,6 @@ function test_halt_build_station_extension()
 }
 
 
-// test_halt_upgrade_downgrade: PAK128-PENDING.
 function test_halt_upgrade_downgrade()
 {
 	local pl = player_x(0)
@@ -929,9 +929,19 @@ function test_halt_upgrade_downgrade()
 	local pax_halts  = building_desc_x.get_available_stations(building_desc_x.station, wt_road, good_desc_x.passenger)
 	pax_halts.sort(@(a, b) a.get_capacity() <=> b.get_capacity())
 
-	ASSERT_TRUE(pax_halts.len() >= 2)
+	// Pick two halts with strictly different capacity so the upgrade
+	// path tests a real level change.  pak64 had only 2 entries and
+	// they differed; pak128 has several at the same capacity, which
+	// would make the upgrade a no-op and trip "must have a higher level".
 	local small_halt = pax_halts[0]
-	local big_halt = pax_halts[1]
+	local big_halt = null
+	for (local i = 1; i < pax_halts.len(); i++) {
+		if (pax_halts[i].get_capacity() > small_halt.get_capacity()) {
+			big_halt = pax_halts[i]
+			break
+		}
+	}
+	ASSERT_TRUE(big_halt != null)
 	local pos = coord3d(3, 3, 0)
 
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 2, 0), coord3d(3, 4, 0), road_desc, true), null)

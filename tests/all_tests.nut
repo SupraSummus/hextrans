@@ -47,10 +47,10 @@ all_tests <- [
 	test_building_buy_house_invalid_param,
 	test_building_buy_house_from_public_player,
 	// test_building_buy_house_attraction: PAK128-PENDING.
-	// test_building_rotate_house: PAK128-PENDING.
+	test_building_rotate_house,
 	test_building_rotate_harbour,
 	// test_building_rotate_station: PAK128-PENDING.
-	// test_building_rotate_factory: PAK128-PENDING.
+	test_building_rotate_factory,
 	test_city_add_invalid,
 	test_city_add_cannot_afford,
 	test_city_add_by_public_player,
@@ -126,7 +126,7 @@ all_tests <- [
 	test_halt_build_on_depot,
 	test_halt_build_station_invalid_param,
 	// test_halt_build_station_extension: PAK128-PENDING.
-	// test_halt_upgrade_downgrade: PAK128-PENDING.
+	test_halt_upgrade_downgrade,
 	test_halt_make_public_single,
 	test_halt_make_public_multi_tile,
 	// test_halt_make_public_underground: HEX-PORT PENDING.
@@ -184,16 +184,16 @@ all_tests <- [
 	// test_transport_pax_valid_route: PAK128-PENDING.
 	// test_transport_mail_valid_route: PAK128-PENDING.
 	// test_transport_freight_valid_route: PAK128-PENDING.
-	// test_trees_plant_single_invalid_pos: PAK128-PENDING.
-	// test_trees_plant_single_invalid_param: PAK128-PENDING.
-	// test_trees_plant_single_null_param: PAK128-PENDING.
-	// test_trees_plant_single_empty_param: PAK128-PENDING.
-	// test_trees_plant_single_invalid_desc: PAK128-PENDING.
-	// test_trees_plant_single_when_disabled: PAK128-PENDING.
-	// test_trees_plant_single_random_age: PAK128-PENDING.
-	// test_trees_plant_single_ignore_climate: PAK128-PENDING.
-	// test_trees_plant_single_max_per_square: PAK128-PENDING.
-	// test_trees_plant_single_occupied: PAK128-PENDING.
+	test_trees_plant_single_invalid_pos,
+	test_trees_plant_single_invalid_param,
+	test_trees_plant_single_null_param,
+	test_trees_plant_single_empty_param,
+	test_trees_plant_single_invalid_desc,
+	test_trees_plant_single_when_disabled,
+	test_trees_plant_single_random_age,
+	test_trees_plant_single_ignore_climate,
+	test_trees_plant_single_max_per_square,
+	test_trees_plant_single_occupied,
 	// test_trees_plant_forest: HEX-PORT PENDING.
 	// test_way_bridge_build_ground: HEX-PORT PENDING.
 	// test_way_bridge_build_at_slope: HEX-PORT PENDING.
