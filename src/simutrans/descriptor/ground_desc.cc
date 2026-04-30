@@ -1011,11 +1011,13 @@ void ground_desc_t::init_ground_textures(karte_t *world)
  * private (static table "height_to_texture_climate" for lookup)
  */
 // Ground lookup.  LightTexture owns ground imagery; missing slots
-// trip loudly instead of falling back to legacy square lightmaps.
+// resolve to IMG_EMPTY so paksets that don't ship a hex-aware
+// LightTexture (e.g. stock pak64) still boot and render the slopes
+// they do cover.
 static image_id pick_ground_image(slope_t::type slope, sint16 climate_nr)
 {
 	if(  slope < 0  ||  slope >= totalslopes  ||  doubleslope_to_imgnr[slope] == 255  ) {
-		dbg->fatal("ground_desc_t::pick_ground_image", "LightTexture has no image for slope %d", slope);
+		return IMG_EMPTY;
 	}
 	return climate_image[climate_nr] + doubleslope_to_imgnr[slope];
 }
@@ -1062,7 +1064,7 @@ image_id ground_desc_t::get_water_tile(slope_t::type slope, int stage)
 {
 	require_normalized_ground_slope(slope, "ground_desc_t::get_water_tile");
 	if(  slope < 0  ||  slope >= totalslopes  ||  doubleslope_to_imgnr[slope] == 255  ) {
-		dbg->fatal("ground_desc_t::get_water_tile", "LightTexture has no water lightmap for slope %d", slope);
+		return IMG_EMPTY;
 	}
 	return water_image + stage + water_animation_stages*doubleslope_to_imgnr[slope];
 }
