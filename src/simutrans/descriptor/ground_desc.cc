@@ -426,7 +426,6 @@ static slist_tpl<image_t *> ground_image_list;
 static image_id climate_image[32], water_image;
 image_id alpha_image[totalslopes];
 image_id alpha_corners_image[totalslopes * 15];
-image_id alpha_water_image[totalslopes * 15];
 
 
 /*
@@ -501,7 +500,6 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	const ground_desc_t* const ground_light_map = hex_light_map;
 
 	// create rotations of the mixer
-	image_t *all_rotations_beach[totalslopes]; // water->sand->texture
 	image_t *all_rotations_slope[totalslopes]; // texture1->texture2
 
 	image_t *final_tile = NULL;
@@ -509,19 +507,23 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	bool full_climate = true;
 	double_grounds = true;
 	for(  int imgindex = 4;  imgindex < 15;  imgindex++  ) {
-		if(  transition_slope_texture->get_image_ptr(imgindex) == NULL   ||
-			(imgindex<=11  &&  transition_water_texture->get_image_ptr(imgindex) == NULL) ) {
+		if(  transition_slope_texture->get_image_ptr(imgindex) == NULL  ) {
 			full_climate = false;
 			break;
 		}
 	}
+	// `transition_water_texture` is now a 2-axis (slope, water_mask)
+	// table baked by `landscape/grounds/texture-shore/build_pakset.py`,
+	// no longer indexed against the legacy 12-image rotation slots —
+	// the readiness check above stays narrowed to the snowline alpha
+	// texture, and missing shore entries fall through to `IMG_EMPTY`
+	// in `get_beach_tile`.
 	// double slope needs full climates
 	assert(!double_grounds  ||  full_climate);
 
 	// calculate the matching slopes ...
 	doubleslope_to_imgnr[0] = 0;
 	for(  int slope = 1, slopeimgnr=1;  slope < totalslopes;  slope++  ) {
-		all_rotations_beach[slope] = NULL;
 		all_rotations_slope[slope] = NULL;
 		doubleslope_to_imgnr[slope] = 255;
 
@@ -546,82 +548,66 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		switch(  slope  ) {
 			case slope_t::north: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(0)->copy_rotate(180);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(0)->copy_rotate(180);
 				break;
 			}
 			case slope_t::east: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(0)->copy_rotate(90);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(0)->copy_rotate(90);
 				break;
 			}
 			case slope_t::south: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(0)->copy_rotate(0);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(0)->copy_rotate(0);
 				break;
 			}
 			case slope_t::west: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(0)->copy_rotate(270);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(0)->copy_rotate(270);
 				break;
 			}
 			case slope_t::northwest + slope_t::northeast + slope_t::southeast: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(1)->copy_rotate(0);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(1)->copy_rotate(0);
 				break;
 			}
 			case slope_t::northeast + slope_t::southeast + slope_t::southwest: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(1)->copy_rotate(270);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(1)->copy_rotate(270);
 				break;
 			}
 			case slope_t::southeast + slope_t::southwest + slope_t::northwest: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(1)->copy_rotate(180);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(1)->copy_rotate(180);
 				break;
 			}
 			case slope_t::southwest + slope_t::northwest + slope_t::northeast: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(1)->copy_rotate(90);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(1)->copy_rotate(90);
 				break;
 			}
 			case slope_t::northwest: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(2)->copy_rotate(90);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(2)->copy_rotate(90);
 				break;
 			}
 			case slope_t::northeast: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(2)->copy_rotate(0);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(2)->copy_rotate(0);
 				break;
 			}
 			case slope_t::southeast: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(2)->copy_rotate(270);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(2)->copy_rotate(270);
 				break;
 			}
 			case slope_t::southwest: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(2)->copy_rotate(180);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(2)->copy_rotate(180);
 				break;
 			}
 			case slope_t::southwest + slope_t::northeast: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(3)->copy_rotate(90);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(3)->copy_rotate(90);
 				break;
 			}
 			case slope_t::southeast + slope_t::northwest: {
 				all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(3)->copy_rotate(0);
-				all_rotations_beach[slope] = transition_water_texture->get_image_ptr(3)->copy_rotate(0);
 				break;
 			}
 			case slope_t::southwest + slope_t::northeast + slope_t::southeast + slope_t::northwest: {
 				if(  double_grounds  ) {
 					all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(14)->copy_rotate(0);
-					all_rotations_beach[slope] = transition_water_texture->get_image_ptr(11)->copy_rotate(0);
 				}
 				else {
 					all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(0)->copy_rotate(0);
-					all_rotations_beach[slope] = transition_water_texture->get_image_ptr(0)->copy_rotate(0);
 				}
 				break;
 			}
@@ -859,7 +845,6 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 							// which under hex resolves to a different
 							// slope value.
 							all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(14)->copy_rotate(0);
-							all_rotations_beach[slope] = transition_water_texture->get_image_ptr(11)->copy_rotate(0);
 							break;
 						}
 					}
@@ -868,7 +853,6 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 					all_rotations_slope[slope] = NULL;
 					if (slope == slope_t::all_up_two) {
 						all_rotations_slope[slope] = transition_slope_texture->get_image_ptr(0)->copy_rotate(0);
-						all_rotations_beach[slope] = transition_water_texture->get_image_ptr(0)->copy_rotate(0);
 					}
 				}
 				break;
@@ -931,7 +915,10 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		}
 	}
 
-	// alpha transitions for climates
+	// alpha transitions for climates (snowline only — water transitions
+	// read `transition_water_texture` directly via `get_image(slope,
+	// water_corners)`, no `(slope, corners) -> rotated 4-corner mask`
+	// projection).
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 		for(  int corners = 1;  corners < 16;  corners++  ) {
 			if(  doubleslope_to_imgnr[dslope] != 255  ) {
@@ -945,16 +932,9 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 				// create alpha image
 				final_tile = create_alpha_tile( ground_light_map->get_image_ptr( dslope ), dslope, all_rotations_slope[double_corners] );
 				alpha_corners_image[dslope * 15 + corners - 1] = final_tile->get_id();
-
-				double_corners = corners == 15 ? (slope_t::type)slope_t::all_up_two : slope_from_slope4(slope4_t(15-corners), 1);
-				if(  all_rotations_beach[double_corners]  ) {
-					final_tile = create_alpha_tile( ground_light_map->get_image_ptr( dslope ), dslope, all_rotations_beach[double_corners] );
-					alpha_water_image[dslope * 15 + corners - 1] = final_tile->get_id();
-				}
 			}
 			else {
 				alpha_corners_image[dslope * 15 + corners - 1] = IMG_EMPTY;
-				alpha_water_image[dslope * 15 + corners - 1] = IMG_EMPTY;
 			}
 		}
 	}
@@ -977,7 +957,6 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 			alpha_image[slope] = alpha_image[hex_slope];
 			for(  int corners = 0;  corners < 15;  corners++  ) {
 				alpha_corners_image[slope * 15 + corners] = alpha_corners_image[hex_slope * 15 + corners];
-				alpha_water_image[slope * 15 + corners] = alpha_water_image[hex_slope * 15 + corners];
 			}
 		}
 	}
@@ -986,7 +965,6 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	// free the helper bitmap
 	for(  int slope = 1;  slope < totalslopes;  slope++  ) {
 		delete all_rotations_slope[slope];
-		delete all_rotations_beach[slope];
 	}
 #endif
 
@@ -1087,12 +1065,16 @@ image_id ground_desc_t::get_snow_tile(slope_t::type slope)
 image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 {
 	require_normalized_ground_slope(slope, "ground_desc_t::get_beach_tile");
-	// Corner masks are still the legacy 15-entry tables.  The alpha
-	// images themselves are generated from LightTexture, so they
-	// match the on-slope water source shape; deep-water stages never
-	// call this path.
-	const uint8 corners_clamped = corners > 15 ? 15 : corners;
-	return alpha_water_image[slope * 15 + corners_clamped - 1];
+	// Pakset-owned via `landscape/grounds/texture-shore/`: one cell per
+	// `(slope, water_mask)` realisable on real terrain (water mask ⊆
+	// zero-height corners).  `corners` is the engine's 6-bit
+	// `water_corners` mask (E=1, SE=2, SW=4, W=8, NW=16, NE=32),
+	// fed straight into the descriptor's `(typ, stage)` lookup.
+	// Combinations the bake doesn't ship resolve to `IMG_EMPTY` and
+	// `draw_alpha` skips the overlay — these reach the lookup only
+	// for masks that include lifted corners, which can't happen on
+	// real terrain.
+	return transition_water_texture->get_image((uint16)slope, (uint16)corners);
 }
 
 
