@@ -215,7 +215,7 @@ all_tests <- [
 	// test_way_road_cityroad_downgrade_with_cityroad: HEX-PORT PENDING.
 	// test_way_road_cityroad_replace_by_normal_road: HEX-PORT PENDING.
 	// test_way_road_cityroad_replace_keep_existing: HEX-PORT PENDING.
-	// test_way_road_has_double_slopes: PAK128-PENDING.
+	test_way_road_has_double_slopes,
 	test_way_road_make_public,
 	// test_way_runway_build_rw_flat: HEX-PORT PENDING.
 	// test_way_runway_build_tw_flat: HEX-PORT PENDING.
@@ -226,7 +226,6 @@ all_tests <- [
 	// test_way_tram_build_across_road_bridge: HEX-PORT PENDING.
 	// test_way_tram_build_across_crossing: HEX-PORT PENDING.
 	// test_way_tram_build_in_tunel: HEX-PORT PENDING.
-	// test_way_tram_has_double_slopes: PAK128-PENDING.
 	// test_way_tunnel_build_straight: HEX-PORT PENDING.
 	// test_way_tunnel_build_up_down: HEX-PORT PENDING.
 	// test_way_tunnel_build_above_tunnel_slope: HEX-PORT PENDING.

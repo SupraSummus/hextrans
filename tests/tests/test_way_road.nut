@@ -1247,14 +1247,19 @@ function test_way_road_cityroad_replace_keep_existing()
 }
 
 
-// test_way_road_has_double_slopes: PAK128-PENDING.
 function test_way_road_has_double_slopes()
 {
 	local roads = way_desc_x.get_available_ways(wt_road, st_flat)
 
+	// Pak64 had all flat roads supporting double slopes; pak128
+	// ships a mix.  Other tests pick roads[0] explicitly because
+	// it supports double slopes, so the invariant we still need is
+	// "at least one available flat road supports double slopes".
+	local any_double = false
 	foreach (r in roads) {
-		ASSERT_TRUE(r.has_double_slopes())
+		if (r.has_double_slopes()) any_double = true
 	}
+	ASSERT_TRUE(any_double)
 }
 
 
