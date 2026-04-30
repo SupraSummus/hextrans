@@ -19,32 +19,38 @@ void ground_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& obj)
 
 	write_name_and_copyright(fp, node, obj);
 
-	// The engine indexes LightTexture sprites by raw slope_t value,
-	// so on-disk slot N must correspond to slope N. Hex slope_t is
-	// sparse (base-4 per corner, 4096 codes, ~140 populated for the
-	// hex lightmap); leave gaps as empty slots rather than breaking
-	// on the first one. Two passes: find the last populated slope so
-	// trailing gaps don't bloat the binary, then materialize.
-	int last_used = -1;
-	for (int slope = 0; slope < slope_t::max_slopes; slope++) {
-		char buf[40];
-		sprintf(buf, "image[%d][0]", slope);
-		if (*obj.get(buf)) {
-			last_used = slope;
+	// Both axes can be sparse — slope is keyed by raw slope_t (base-4
+	// per corner, 4096 codes, ~140 populated for the lightmap, up to
+	// ~2700 for ShoreTrans), phase by a 6-bit water-corner mask whose
+	// empty value (mask=0) is never baked.  The runtime indexes the
+	// emitted array directly, so trailing slope gaps are trimmed but
+	// any in-range hole — including a missing phase 0 on every row —
+	// is filled with "-" (the empty-image marker `image_writer_t`
+	// understands).
+	const int max_phases = 64; // widest second axis is the 6-bit ShoreTrans mask
+	auto last_phase = [&](int slope) -> int {
+		for (int phase = max_phases - 1; phase >= 0; phase--) {
+			char buf[40];
+			sprintf(buf, "image[%d][%d]", slope, phase);
+			if (*obj.get(buf)) return phase;
 		}
+		return -1;
+	};
+
+	int last_slope = -1;
+	for (int slope = 0; slope < slope_t::max_slopes; slope++) {
+		if (last_phase(slope) >= 0) last_slope = slope;
 	}
 
 	slist_tpl<slist_tpl<std::string> > keys;
-	for (int slope = 0; slope <= last_used; slope++) {
+	for (int slope = 0; slope <= last_slope; slope++) {
 		keys.append();
-		for (int phase = 0; ; phase++) {
+		const int last = last_phase(slope);
+		for (int phase = 0; phase <= last; phase++) {
 			char buf[40];
 			sprintf(buf, "image[%d][%d]", slope, phase);
 			std::string str = obj.get(buf);
-			if (str.empty()) {
-				break;
-			}
-			keys.at(slope).append(str);
+			keys.at(slope).append(str.empty() ? std::string("-") : str);
 		}
 	}
 	imagelist2d_writer_t::instance()->write_obj(fp, node, keys);
