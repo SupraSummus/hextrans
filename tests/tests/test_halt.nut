@@ -842,7 +842,6 @@ function test_halt_build_station_invalid_param()
 }
 
 
-// test_halt_build_station_extension: PAK128-PENDING.
 function test_halt_build_station_extension()
 {
 	local pl = player_x(0)
@@ -851,7 +850,15 @@ function test_halt_build_station_extension()
 	local wayremover = command_x(tool_remove_way)
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0] // road because it has double slopes available
 	local station_desc = building_desc_x.get_available_stations(building_desc_x.station, wt_road, {})[0]
-	local stext_desc = building_desc_x.get_available_stations(building_desc_x.station_extension, wt_rail, good_desc_x.passenger)[0]
+	// pak64 had a rail-typed station extension that handled
+	// passengers; pak128 doesn't ship one and the get_available_stations
+	// query returns an empty list there.  Use any station_extension —
+	// the test exercises generic extension placement rules (must be
+	// adjacent to a station, can sit on a raised tile, …) which don't
+	// depend on the extension's waytype.
+	local extensions = building_desc_x.get_available_stations(building_desc_x.station_extension, wt_all, {})
+	ASSERT_TRUE(extensions.len() > 0)
+	local stext_desc = extensions[0]
 	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
 
 	ASSERT_TRUE(station_desc != null)
