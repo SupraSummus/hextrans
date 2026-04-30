@@ -65,7 +65,7 @@ public:
 		image_list_t   const* const list = imgarray->get_list(typ);
 		if(list && list->get_count() > 0) {
 			image_t const* const image = imgarray->get_image(typ, stage);
-			return image;
+			return image != NULL && image->get_id() != IMG_EMPTY ? image : NULL;
 		}
 		return NULL;
 	}
