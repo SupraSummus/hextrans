@@ -194,20 +194,6 @@ is 2x2.
 
 Currently disabled awaiting pak128 rewrite:
 
-*Hardcoded pak64 names with no straightforward pak128 substitute.*
-`test_factory_link` / `test_factory_desc` (Raffinerie I/O is
-pakset-specific in detail; pak128 has the name but the inputs and
-outputs differ at the assertion level), `test_halt_build_air`
-(pak128's `AirStop` exists but isn't a `transport_building` type,
-so `command_x.build_station` rejects with "No building provided" —
-needs an actual transport-building air halt to be added to the
-pakset or a different pak128-ships-it air station identified),
-`test_halt_build_near_factory` / `_factories` (assert specific
-factory names + halt catchment radius matching pak64 layout),
-`test_good_speed_bonus` (assumes `Concrete` has speed_bonus=0;
-pak128 doesn't, and `get_speed_bonus` isn't exposed to scripting
-so we can't probe).
-
 *Pakset-feature gaps.*  All 7 active `test_groundobj_build_*` tests
 disabled because pak128 ships no groundobj objects at all.  All
 12 `test_halt_build_flat_dock_*` tests disabled because pak128's
@@ -219,29 +205,32 @@ sloped-dock variant pak128 ships.
 *Engine-API gaps.*  `test_building_rotate_station` needs
 `get_all_layouts()` exposed to script to filter for the 2-layout
 and 16-layout stations the test assertions distinguish.
-`test_building_buy_house_attraction` substitutes ABBYS_0 for
-pak64's STADIUM2 fine, but the extra test pushes the cumulative
-Squirrel opcode budget for `run_all_tests()` past the 10000-
-opcodes-per-call ceiling and trips the script-took-too-long guard
-in `test_depot_convoy_add_nonelectrified` later in the run.
-Restoring needs either an opcode-budget bump for the test
-scenario (`scenario.cc:152` calls `start` via `QUEUE` which gets
-10000 opcodes; `FORCEX` would give 100000) or breaking
+`test_good_speed_bonus` would benefit from `get_speed_bonus()`
+exposed similarly; it can be probed via `calc_revenue` at two
+speeds, but iterating `good_desc_x` from script needs the iterator
+glue (`_nexti` / `_get`) to actually return good instances rather
+than method names — current behaviour is the latter, so probing
+loops never find a good.
+`test_building_buy_house_attraction` can be migrated by name
+(ABBYS_0 substitutes for pak64's STADIUM2), but adding it pushes
+the cumulative Squirrel opcode budget for `run_all_tests()` past
+the 10000-opcode-per-call ceiling and trips the
+script-took-too-long guard in `test_depot_convoy_add_nonelectrified`
+later in the run.  Restoring needs either an opcode-budget bump for
+the test scenario (`scenario.cc:152` calls `start` via `QUEUE`
+which gets 10000 opcodes; `FORCEX` would give 100000) or breaking
 `run_all_tests` into per-test queued calls.
 
 *State-dependent / pak-economics-dependent.*
-`test_headquarters_build_flat` asserts that downgrading HQ-level-1
-to HQ-level-0 hits "Insufficient funds!"; pak128's HQ pricing is
-cheap enough that it doesn't.  Draining the player's cash makes
-the insufficient-funds branch deterministic but breaks a later
-"public_pl can place HQ at the freed slot" assertion — pak128
-leaves the previous HQ tile non-empty under that path.
-`test_transport_generate_pax_walked` / `_no_route` /
-`test_transport_pax_valid_route` / `_mail_valid_route` /
-`_freight_valid_route` fail because (4,2,0) isn't flat by the time
-they run — earlier terraform tests modify it.  Migration: these
-tests need explicit cleanup of preconditions or to use coords that
-prior tests don't touch.
+`test_headquarters_build_flat` asserts both "downgrading HQ-level-1
+to HQ-level-0 hits 'Insufficient funds!'" (pak128's HQ pricing is
+cheap enough that it doesn't) and "after pl moves HQ from pos1 to
+pos2, public_pl can build an HQ at pos1" (pak128 leaves a
+foundation behind so pos1 isn't empty).  Draining the player's
+cash addresses the first half but not the second; restoring needs
+explicit cleanup of the leftover at pos1 between the move and the
+public_pl placement, with care that the cleanup itself isn't what
+the test ends up exercising.
 
 Real hex-port engine bugs surfaced (kept in `tests/all_tests.nut`
 as HEX-PORT PENDING — hex regressions, not pak content):
