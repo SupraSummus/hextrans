@@ -17,9 +17,7 @@
 // Number of possible slope values under the 6-corner base-4 encoding.
 // 4^6 = 4096.  Was 81 under square 4-corner base-3.
 const int totalslopes = slope_t::max_slopes;
-static const int water_corner_masks = 1 << hex_corner_t::count;
 static const PIXVAL transparent_run = 0x8000u;
-static const PIXVAL alpha_pixel_mask = 0x7fffu;
 
 
 /****************************************************************************************************
@@ -119,82 +117,6 @@ static image_t* create_empty_alpha_tile(const image_t* image_lightmap)
 			for(  int i = 0;  i < runlen;  i++  ) {
 				*dest++ = 0;
 			}
-		} while(  (*dest++) != 0  );
-	}
-	assert(dest - image_dest->get_data() == (ptrdiff_t)image_dest->get_pic()->len);
-#endif
-	image_dest->register_image();
-	return image_dest;
-}
-
-
-static const PIXVAL* get_rle_row(const image_t* image, sint32 y)
-{
-	if(  image == NULL  ||  y < image->y  ||  y >= image->y + image->h  ) {
-		return NULL;
-	}
-
-	const PIXVAL* src = image->get_data();
-	for(  sint32 row = 0;  row < y - image->y;  row++  ) {
-		src++;
-		do {
-			src += (*src & ~transparent_run) + 1;
-		} while(  *src++ != 0  );
-	}
-	return src;
-}
-
-
-static void copy_rle_alpha_run(PIXVAL* dest, sint32 x, sint32 len, const image_t* image, const PIXVAL* row)
-{
-	PIXVAL* const end = dest + len;
-	while(  dest < end  ) {
-		*dest++ = 0;
-	}
-	if(  row == NULL  ) {
-		return;
-	}
-
-	dest = end - len;
-	sint32 run_x = image->x + *row++;
-	do {
-		const sint32 runlen = *row++ & ~transparent_run;
-		if(  x + len <= run_x  ) {
-			return;
-		}
-		if(  x < run_x + runlen  &&  x + len > run_x  ) {
-			const sint32 copy_from = max(x, run_x);
-			const sint32 copy_to = min(x + len, run_x + runlen);
-			for(  sint32 px = copy_from;  px < copy_to;  px++  ) {
-				dest[px - x] = row[px - run_x] & alpha_pixel_mask;
-			}
-		}
-		row += runlen;
-		run_x += runlen + *row;
-	} while(  *row++ != 0  );
-}
-
-
-static image_t* create_shaped_alpha_tile(const image_t* image_lightmap, const image_t* image_alphamap)
-{
-	if(  image_lightmap == NULL  ||  image_alphamap == NULL  ) {
-		return create_empty_alpha_tile(image_lightmap);
-	}
-
-	image_t *image_dest = image_lightmap->copy_rotate(0);
-#if COLOUR_DEPTH != 0
-	PIXVAL* dest = image_dest->get_data();
-
-	for(  int j = 0;  j < image_dest->get_pic()->h;  j++  ) {
-		const sint32 y = image_dest->get_pic()->y + j;
-		const PIXVAL* const alpha_row = get_rle_row(image_alphamap, y);
-		sint32 x = image_dest->get_pic()->x + *dest++;
-		do {
-			const sint16 runlen = *dest++ & ~transparent_run;
-			copy_rle_alpha_run(dest, x, runlen, image_alphamap, alpha_row);
-			dest += runlen;
-			x += runlen;
-			x += *dest;
 		} while(  (*dest++) != 0  );
 	}
 	assert(dest - image_dest->get_data() == (ptrdiff_t)image_dest->get_pic()->len);
@@ -529,7 +451,6 @@ static slist_tpl<image_t *> ground_image_list;
 static image_id climate_image[32], water_image;
 image_id alpha_image[totalslopes];
 image_id alpha_corners_image[totalslopes * 15];
-image_id alpha_water_image[totalslopes * water_corner_masks];
 
 
 /*
@@ -1040,19 +961,39 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		}
 	}
 
-	// alpha transitions for shores.  ShoreTrans is keyed by raw
-	// `(slope, 6-bit water_mask)`, but the renderer walks source and
-	// alpha RLE streams in lockstep.  Re-encode each mask through the
-	// matching LightTexture shape instead of drawing the raw pakset mask.
+	// Shore alpha (`get_beach_tile`) reads `transition_water_texture`
+	// directly — the pakset's `texture-shore/render.py` shares
+	// `LightTexture`'s silhouette via `hex_synth.silhouette_mask`, so
+	// each populated `(slope, water_mask)` cell already has an RLE
+	// footprint identical to the matching `LightTexture[slope]` cell
+	// and `draw_alpha` walks both streams in lockstep without a
+	// runtime normalisation cache.  Tripwire the invariant once at
+	// startup so future pakset drift fails loudly instead of
+	// reintroducing the alpha-renderer overread that motivated the
+	// retired cache.
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
-		alpha_water_image[dslope * water_corner_masks] = IMG_EMPTY;
-		for(  int water_mask = 1;  water_mask < water_corner_masks;  water_mask++  ) {
-			if(  doubleslope_to_imgnr[dslope] != 255  ) {
-				final_tile = create_shaped_alpha_tile( ground_light_map->get_image_ptr( dslope ), transition_water_texture->get_image_ptr((uint16)dslope, (uint16)water_mask) );
-				alpha_water_image[dslope * water_corner_masks + water_mask] = final_tile->get_id();
+		const image_t* const lightmap = ground_light_map->get_image_ptr( dslope );
+		if(  lightmap == NULL  ) {
+			continue;
+		}
+		for(  int water_mask = 1;  water_mask < (1 << hex_corner_t::count);  water_mask++  ) {
+			const image_t* const alphamap = transition_water_texture->get_image_ptr((uint16)dslope, (uint16)water_mask);
+			if(  alphamap == NULL  ) {
+				continue;
 			}
-			else {
-				alpha_water_image[dslope * water_corner_masks + water_mask] = IMG_EMPTY;
+			if(  alphamap->w != lightmap->w  ||  alphamap->h != lightmap->h
+			  ||  alphamap->x != lightmap->x  ||  alphamap->y != lightmap->y
+			  ||  alphamap->len != lightmap->len  ) {
+				dbg->fatal("ground_desc_t::init_ground_textures",
+					"ShoreTrans[%d][%d] shape (x=%d y=%d w=%d h=%d len=%lu) "
+					"differs from LightTexture[%d] (x=%d y=%d w=%d h=%d len=%lu); "
+					"pakset shore baker must share LightTexture's silhouette.",
+					dslope, water_mask,
+					alphamap->x, alphamap->y, alphamap->w, alphamap->h,
+					(unsigned long)alphamap->len,
+					dslope,
+					lightmap->x, lightmap->y, lightmap->w, lightmap->h,
+					(unsigned long)lightmap->len);
 			}
 		}
 	}
@@ -1075,9 +1016,6 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 			alpha_image[slope] = alpha_image[hex_slope];
 			for(  int corners = 0;  corners < 15;  corners++  ) {
 				alpha_corners_image[slope * 15 + corners] = alpha_corners_image[hex_slope * 15 + corners];
-			}
-			for(  int water_mask = 0;  water_mask < water_corner_masks;  water_mask++  ) {
-				alpha_water_image[slope * water_corner_masks + water_mask] = alpha_water_image[hex_slope * water_corner_masks + water_mask];
 			}
 		}
 	}
@@ -1186,11 +1124,15 @@ image_id ground_desc_t::get_snow_tile(slope_t::type slope)
 image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 {
 	require_normalized_ground_slope(slope, "ground_desc_t::get_beach_tile");
-	// `corners` is the engine's 6-bit `water_corners` mask
-	// (E=1, SE=2, SW=4, W=8, NW=16, NE=32).  Startup normalizes the
-	// pakset ShoreTrans mask into the generated water tile's RLE shape;
-	// never return the raw pakset image here.
-	return corners < water_corner_masks ? alpha_water_image[slope * water_corner_masks + corners] : IMG_EMPTY;
+	// Pakset-owned via `landscape/grounds/texture-shore/`: one cell per
+	// realisable `(slope, water_mask)`, baked against the LightTexture
+	// silhouette so the alpha walk is in lockstep with the source water
+	// tile.  `corners` is the 6-bit `water_corners` mask (E=1, SE=2,
+	// SW=4, W=8, NW=16, NE=32); cells the bake doesn't ship resolve to
+	// `IMG_EMPTY` and `draw_alpha` skips the overlay.  Init-time
+	// tripwire in `init_ground_textures` guards the silhouette
+	// invariant against future pakset drift.
+	return transition_water_texture->get_image((uint16)slope, (uint16)corners);
 }
 
 
