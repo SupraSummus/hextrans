@@ -175,85 +175,85 @@ is generally "after rewriting the test against pak128 content (build
 roads / buildings explicitly rather than relying on pak64 city
 auto-generation)".
 
-Currently disabled awaiting pak128 rewrite (clusters):
+Reusable infrastructure landed during the migration:
+`cleanup_city(pl, pos)` and `count_roads_near(pos)` helpers in
+`tests/test_helpers.nut` replace the pak64-specific
+`tool_remove_way((7,9)→(9,9))` cleanup pattern that was hardcoded
+across many tests.  `interesting_slopes()` in the same file was
+fixed (stale BASE-3 corner constants from before the hex port
+widened `slope_t` to BASE-4 — the old `NE=243` decoded as a
+non-normalised slope under base-4 and fataled at display).  An
+engine-side bug in `stadt_t::~stadt_t()` was fixed too: the
+destructor's per-tile pop_back of a multi-tile building only
+cleared `set_stadt(NULL)` on the popped tile, so the
+`hausbauer_t::remove` call that follows would re-enter
+`remove_gebaeude_from_stadt` for the still-stadt-pointing siblings
+and trip `assert(buildings.remove(...))`.  Pak64's townhall picked
+a 1x1 footprint here so the bug never fired; pak128's `01_CITY`
+is 2x2.
 
-*City auto-layout drift.*  Tests that build a city via
-`tool_add_city` and then assert specific tiles for road / building
-positions or specific citizen counts.  pak128's city layout differs
-from pak64's: `test_building_build_house_random` (cleanup road at
-(7,9)→(9,9) doesn't exist), `test_building_buy_house_attraction`,
-`test_building_build_house_auto_rotation_attraction` /
-`_citybuilding`, all five `test_city_add_*` /
-`test_city_change_size_*`, `test_slope_restore_on_foundation`.
-Restore by either building the asserted roads / buildings
-explicitly in the test rather than depending on city
-auto-generation, or by switching the assertions to "some road
-adjacent to the townhall exists" patterns.
+Currently disabled awaiting pak128 rewrite:
 
-*Hardcoded pak64 building / factory / good names.*
-`test_building_rotate_house` (`4_SCHLOSS2`),
-`test_building_rotate_station` (`SandStationMHz`, `GCGTrainStop`),
-`test_building_rotate_factory` (`TANKE` — pak128 has `TANKE1` /
-`TANKE2`), `test_factory_link` /
-`test_powerline_build_over_transformer` (`Kohlegrube`,
-`Kohlekraftwerk` — pak128 names them differently),
-`test_factory_desc` (`Raffinerie` inputs/outputs differ),
-`test_good_speed_bonus` (assumes `Concrete` has speed bonus 0),
-`test_halt_build_air` (`AirStop` — pak128 has `AirStop_AirportBlg`),
-`test_halt_build_near_factory` / `_factories` (`Kohlegrube`),
-`test_halt_build_station_extension` (no rail-station-extension
-that handles passengers in pak128),
-`test_halt_upgrade_downgrade` (station level relations differ),
-`test_headquarters_build_flat` (HQ economics differ),
-all 12 `test_halt_build_flat_dock_*` (pak128 ship stations require
-slope, pak64's `LakeShipStop` was a flat dock).  All 7 active
-`test_groundobj_build_*` tests disabled because pak128 ships no
-groundobj objects.  All 10 `test_trees_plant_single_*` disabled
-because pak128 has no `Ahorn-1` tree.  Migrate by querying
-`get_available_*` / `get_building_list` to find a pak128 equivalent
-rather than hardcoding the name.
+*Hardcoded pak64 names with no straightforward pak128 substitute.*
+`test_factory_link` / `test_factory_desc` (Raffinerie I/O is
+pakset-specific in detail; pak128 has the name but the inputs and
+outputs differ at the assertion level), `test_halt_build_air`
+(pak128's `AirStop` exists but isn't a `transport_building` type,
+so `command_x.build_station` rejects with "No building provided" —
+needs an actual transport-building air halt to be added to the
+pakset or a different pak128-ships-it air station identified),
+`test_halt_build_near_factory` / `_factories` (assert specific
+factory names + halt catchment radius matching pak64 layout),
+`test_good_speed_bonus` (assumes `Concrete` has speed_bonus=0;
+pak128 doesn't, and `get_speed_bonus` isn't exposed to scripting
+so we can't probe).
 
-*Test-runner dependencies on prior state.*  Several tests fail not
-on their own assertions but because earlier tests left modified
-terrain / buildings around (test isolation caveat per
-`AGENTS.md`).  `test_transport_generate_pax_walked /
-_no_route / _pax_valid_route / _mail_valid_route /
-_freight_valid_route` and `test_way_road_has_double_slopes`,
-`test_way_tram_has_double_slopes` need either explicit cleanup or
-re-evaluation of which way attributes pak128 ships.
+*Pakset-feature gaps.*  All 7 active `test_groundobj_build_*` tests
+disabled because pak128 ships no groundobj objects at all.  All
+12 `test_halt_build_flat_dock_*` tests disabled because pak128's
+`ShipStop` requires a slope, while pak64's `LakeShipStop` was the
+flat-water variant the tests target.  Restore when the pakset adds
+the missing assets, or migrate the dock tests to exercise the
+sloped-dock variant pak128 ships.
 
-*Engine-level:* the C++ assert at
-`stadt_t::remove_gebaeude_from_stadt` (`simcity.cc:632`) fires
-intermittently when removing a townhall via `tool_remover`.
-`buildings.remove(remove_gb)` returns false meaning some tile of
-the multi-tile townhall was never registered to the city's
-`buildings` list.  Reproduces in
-`test_building_build_house_auto_rotation_citybuilding`,
-`test_city_add_on_existing_townhall`,
-`test_slope_restore_on_foundation` (varies by which earlier tests
-modified terrain near the city coord).  Doesn't reproduce in
-`test_building_buy_house_from_public_player` despite same pattern,
-so it's terrain-state-dependent.  Needs deeper investigation —
-likely a hex-port bug in `gebaeude_t::get_tile_list` or
-`add_gebaeude_to_stadt` against pak128's specific townhall
-footprint.
+*Engine-API gaps.*  `test_building_rotate_station` needs
+`get_all_layouts()` exposed to script to filter for the 2-layout
+and 16-layout stations the test assertions distinguish.
+`test_building_buy_house_attraction` substitutes ABBYS_0 for
+pak64's STADIUM2 fine, but the extra test pushes the cumulative
+Squirrel opcode budget for `run_all_tests()` past the 10000-
+opcodes-per-call ceiling and trips the script-took-too-long guard
+in `test_depot_convoy_add_nonelectrified` later in the run.
+Restoring needs either an opcode-budget bump for the test
+scenario (`scenario.cc:152` calls `start` via `QUEUE` which gets
+10000 opcodes; `FORCEX` would give 100000) or breaking
+`run_all_tests` into per-test queued calls.
 
-Real engine bugs surfaced (kept in `tests/all_tests.nut` as
-HEX-PORT PENDING when they're hex regressions, not pak content):
+*State-dependent / pak-economics-dependent.*
+`test_headquarters_build_flat` asserts that downgrading HQ-level-1
+to HQ-level-0 hits "Insufficient funds!"; pak128's HQ pricing is
+cheap enough that it doesn't.  Draining the player's cash makes
+the insufficient-funds branch deterministic but breaks a later
+"public_pl can place HQ at the freed slot" assertion — pak128
+leaves the previous HQ tile non-empty under that path.
+`test_transport_generate_pax_walked` / `_no_route` /
+`test_transport_pax_valid_route` / `_mail_valid_route` /
+`_freight_valid_route` fail because (4,2,0) isn't flat by the time
+they run — earlier terraform tests modify it.  Migration: these
+tests need explicit cleanup of preconditions or to use coords that
+prior tests don't touch.
+
+Real hex-port engine bugs surfaced (kept in `tests/all_tests.nut`
+as HEX-PORT PENDING — hex regressions, not pak content):
 `test_depot_build_sloped` and
-`test_terraform_raise_lower_land_below_way` both fatal on
-`HexLightTexture has no image for slope <N>` — the hex pakset bake
-covers only normalised single-height slopes, but these tests
-exercise corners at +2/+3 deltas via terrain raising.  Either widen
-the bake or normalise display-time lookups (cross-references the
-"Pakset hex border lookups not wired" / "Pakset slope sprite range
-gap" entries below).  The `interesting_slopes()` helper in
-`tests/test_helpers.nut` was carrying stale BASE-3 corner constants
-(`E=1, SE=3, SW=9, ...`) from before the hex port widened
-`slope_t` to BASE-4 (`E=1, SE=4, SW=16, W=64, NW=256, NE=1024`);
-fixed in this branch — the old constants made every test calling
-`interesting_slopes()` set non-normalised slopes that fataled at
-display.
+`test_terraform_raise_lower_land_below_way` fatal on
+`HexLightTexture has no image for slope <N>` (243, 2560 in the
+two tests).  The hex pakset bake covers only normalised
+single-height slopes; these tests exercise corners at +2/+3 deltas
+via terrain raising.  Either widen the bake or normalise
+display-time lookups (cross-references the "Pakset hex border
+lookups not wired" / "Pakset slope sprite range gap" entries
+below).
 
 ## Vertex propagation: recursion → worklist
 
