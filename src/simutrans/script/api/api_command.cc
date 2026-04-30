@@ -425,8 +425,6 @@ call_tool_work set_slope(player_t* pl, koord3d start, my_slope_t slope)
 	static char buf[8];
 	sprintf(buf, "%d", (int)(slope_t::type)slope);
 	static tool_setslope_t tool;
-	// we do not want our slopes translated to double-height (even for single-height paksets), they are already in the double-height system
-	tool.old_slope_compatibility_mode = false;
 	tool.set_default_param(buf);
 	return call_tool_work(&tool, pl, start);
 }
@@ -438,7 +436,7 @@ call_tool_work restore_slope(player_t* pl, koord3d start)
 
 const char* can_set_slope(player_t* pl, koord3d pos, my_slope_t slope)
 {
-	return tool_setslope_t::tool_set_slope_work(pl, pos, slope, false /* compatibility */, true /* check */);
+	return tool_setslope_t::tool_set_slope_work(pl, pos, slope, true /* check */);
 }
 
 sint64 set_slope_get_price(my_slope_t slope)

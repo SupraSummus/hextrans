@@ -492,27 +492,6 @@ void set_defaults_general_tool(tool_t* tool, const char* param_str)
 }
 
 
-static const char* normalize_general_tool_default_param(uint16 toolnr, const char* param_str)
-{
-	if(  param_str == NULL  ||  toolnr != TOOL_SETSLOPE  ) {
-		return param_str;
-	}
-
-	static char normalized[8];
-	const sint16 legacy_slope = atoi(param_str);
-
-	// Normalize legacy sentinels at toolbar load time so emitted UI
-	// commands carry modern all-up/all-down values.  Concrete legacy
-	// slope-table values stay in compatibility mode and are converted
-	// exactly once by tool_setslope_t::tool_set_slope_work().
-	switch(  legacy_slope  ) {
-		case LEGACY_ALL_UP_SLOPE:   sprintf(normalized, "%d", ALL_UP_SLOPE);   return normalized;
-		case LEGACY_ALL_DOWN_SLOPE: sprintf(normalized, "%d", ALL_DOWN_SLOPE); return normalized;
-		default: return param_str;
-	}
-}
-
-
 /**
  * Checks whether a tool is available in the current timeline.
  *
@@ -901,7 +880,6 @@ bool tool_t::read_menu(const std::string& menuconf_path)
 			if (char const* const c = strstart(toolname, "general_tool[")) {
 				uint8 toolnr = atoi(c);
 				if (toolnr < GENERAL_TOOL_COUNT) {
-					param_str = normalize_general_tool_default_param(toolnr, param_str);
 					if (create_tool) {
 						// compatibility mode: tool_cityroad is used for tool_wegebau with defaultparam 'cityroad'
 						if (toolnr == TOOL_BUILD_WAY && param_str && strcmp(param_str, "city_road") == 0) {
