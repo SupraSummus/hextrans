@@ -545,11 +545,16 @@ Climate transitions use
 `climate_at_clamped` (const members; height uses `canonical_vertex`
 then tile clamp like legacy neighbours) in both `recalc_transitions` and
 `display_boden`; the six-bit mask lives on `planquadrat_t` (save
-124.5: extra byte in `grund_t` for bits 4–5).  Pakset corner alpha
-tables are still 15-wide per slope, so `get_alpha_tile` /
-`get_beach_tile` clamp masks to 15.  Deep water still pairs with the
-pakset `Water` animation block as below; on-slope water and snow now
-use LightTexture-derived shapes.
+124.5: extra byte in `grund_t` for bits 4–5).  `get_beach_tile`
+now reads `transition_water_texture->get_image(slope, water_corners)`
+directly off the pakset's `(slope, water_mask)`-keyed `ShoreTrans`
+block — no clamp.  `get_alpha_tile` (snowline / climate alpha) is
+still on the legacy 15-wide-per-slope `SlopeTrans` table and clamps
+the 6-bit overlay-corners mask to 15; same fix shape as shore
+(per-`(slope, corners)` pakset bake) applies there but lives on
+the `transition_slope_texture` side.  Deep water still pairs with
+the pakset `Water` animation block as below; on-slope water and
+snow now use LightTexture-derived shapes.
 `rotate_transitions` still applies a 60° bit-rotate as a stand-in for
 90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
 
@@ -558,16 +563,6 @@ local (e.g. `wegbauer.cc`, `tunnelbauer.cc` — grep for the pattern).
 That silently truncates slopes ≥ 256 the way `grund_t::display_boden`
 used to before the grid-border fix; audit when those code paths are
 next touched for hex correctness.
-
-`get_beach_tile` still returns pakset-shaped alpha because its source
-(`get_water_tile` / `sea->get_image(0, stage)`) is also still on the
-pakset path — water animation stages aren't synthesised yet, and
-pairing a pakset-shaped water source with a hex-shaped synth alpha
-overflows the lockstep walk in `display_img_alpha_wc`.  The two
-move together: when `synth_overlay` grows a per-stage water family
-(see the water-tiles paragraph below), wire it into both
-`get_water_tile` and `get_beach_tile` in the same change so the
-shapes stay matched.
 
 On-slope water tiles now use the same required `LightTexture`
 ground-lightmap path as climate ground.  Deep water still comes from
