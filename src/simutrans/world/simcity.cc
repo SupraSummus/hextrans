@@ -957,8 +957,26 @@ stadt_t::~stadt_t()
 					}
 				}
 				else {
-					gb->set_stadt( NULL );
-					hausbauer_t::remove(welt->get_public_player(),gb);
+					// add_gebaeude_to_stadt put one entry per tile of a
+					// multi-tile building into `buildings`; pop_back only
+					// took out the head.  Walk the tiles, drop the still-
+					// listed siblings here, and null every tile's stadt
+					// so the hausbauer_t::remove cascade short-circuits
+					// remove_gebaeude_from_stadt — its recalc_city_size()
+					// is wasted work on a city about to vanish, and its
+					// per-tile buildings.remove() would re-find an
+					// already-popped entry and assert.
+					static vector_tpl<grund_t*> gb_tiles;
+					gb->get_tile_list(gb_tiles);
+					for (grund_t* gr : gb_tiles) {
+						if (gebaeude_t* part = gr->find<gebaeude_t>()) {
+							if (part != gb) {
+								buildings.remove(part);
+							}
+							part->set_stadt(NULL);
+						}
+					}
+					hausbauer_t::remove(welt->get_public_player(), gb);
 				}
 			}
 			// avoid the bookkeeping if world gets destroyed

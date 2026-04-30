@@ -57,7 +57,8 @@ all_tests <- [
 	test_city_add_on_existing_townhall,
 	test_city_add_near_map_border,
 	test_city_change_size_invalid_params,
-	test_city_change_size_to_minimum
+	test_city_change_size_to_minimum,
+	test_city_remove_with_multitile_townhall,
 	test_climate_invalid,
 	test_climate_flat,
 	test_climate_cliff,
