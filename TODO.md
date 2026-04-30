@@ -23,28 +23,26 @@ entry here when its test is re-enabled.
 exercises `tool_set_climate` (including a partial water fill), then
 walks the plateau back down via `setslope all_down_slope`.  The
 cleanup setslope returns "Tile not empty." on the second tile of the
-top row.  `test_factory_build_pp` / `_with_fields` / `_climate` /
-`_on_water_occupied` all build factories at `coord3d(3, 4, 0)` after
-the climate-flat / climate-invalid tests run, and get "No suitable
-ground!" — the test passes in isolation but cascades after earlier
-terrain-mutation tests run.  Both clusters share the same root
-cause: the test bodies bake in 4-corner / 8-neighbour terrain
+top row.  The test bodies bake in 4-corner / 8-neighbour terrain
 propagation, so a `setslope` or a multi-tile setclimate that under
 square model affected exactly the named tiles now under hex 6-edge
 propagation reaches one tile further (or stops one short).  The
 invariants survive (build-after-flatten, climate-set-on-cliff)
 but the specific tile choices and the assertions about which
 neighbours are mutated do not.  Restore alongside a hex-aware
-rewrite of the propagation patterns these tests probe.
+rewrite of the propagation patterns this test probes.
 
-**`ASSERT_WAY_PATTERN` family.**  `ASSERT_WAY_PATTERN` matches
-built ways against 4-bit-ribi shape matrices on square-axis layouts.
-`ribi_t` is now 6 bits; the remaining blocker is the Squirrel-side
-helper learning 6-bit ribi and gaining hex-axis shape matrices.
-Affected: `test_way_bridge_build_{ground, above_way, at_slope,
-at_slope_stacked, above_runway}`,
+**`ASSERT_WAY_PATTERN` family.**  `ASSERT_WAY_PATTERN` takes an
+array-of-arrays of 6-bit ribi integers (`-1` = don't care, `0` = no
+way).  Each disabled test still needs its patterns rewritten and its
+actual hex-pathfinder route reasoned out — the original patterns
+assume 4-bit square-axis paths, and at least for `wt_road` the
+builder routes around the NE-SW axis (no sprite support there yet)
+into a 2-step path through `(q+1, r)`-style intermediate tiles.
+Affected: `test_way_bridge_build_{ground, above_way,
+at_slope, at_slope_stacked, above_runway}`,
 `test_way_road_build_straight / _parallel / _below_powerline /
-_crossing / _upgrade_crossing / _bend / _upgrade_downgrade /
+_crossing / _upgrade_crossing / _upgrade_downgrade /
 _upgrade_downgrade_across_bridge / _cityroad_{build,
 upgrade_with_cityroad, downgrade_with_cityroad,
 replace_by_normal_road, replace_keep_existing}`,

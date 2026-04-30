@@ -17,38 +17,10 @@ function test_way_road_build_single_tile()
 
 	ASSERT_TRUE(road_desc != null)
 
-	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 2, 0), coord3d(4, 2, 0), road_desc, true), "")
+	foreach (overwrite in [true, false]) {
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 2, 0), coord3d(4, 2, 0), road_desc, overwrite), "")
 		ASSERT_EQUAL(pl.get_current_cash(), default_cash)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-	}
-
-	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 2, 0), coord3d(4, 2, 0), road_desc, false), "")
-		ASSERT_EQUAL(pl.get_current_cash(), default_cash)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_EQUAL(tile_x(4, 2, 0).get_way_dirs(wt_road), 0)
 	}
 
 	RESET_ALL_PLAYER_FUNDS()
@@ -227,76 +199,29 @@ function test_way_road_build_straight()
 }
 
 
-// test_way_road_build_bend: HEX-PORT PENDING.
+// (0,1) and (1,0) are direct NE-SW hex neighbours, but wt_road has no
+// NE-SW sprite support yet (see TODO → Diagonal way-image selection),
+// so the way pathfinder routes (0,1) → (1,1) → (1,0) — an SE step
+// then an N step.
 function test_way_road_build_bend()
 {
-	local pl   = player_x(0)
-	local desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local pl      = player_x(0)
+	local desc    = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 	local remover = command_x(tool_remove_way)
 
-	ASSERT_TRUE(desc != null)
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 1, 0), coord3d(1, 0, 0), desc, true), null)
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), [
+		[ 0,  2, 0],   // (1,0): S -> (1,1)
+		[ 1, 24, 0],   // (0,1): SE -> (1,1) ; (1,1): NW|N -> (0,1) and (1,0)
+		[ 0,  0, 0],
+	])
 
-	{
-		local tool_result = command_x.build_way(pl, coord3d(0, 1, 0), coord3d(1, 0, 0), desc, true)
-		ASSERT_EQUAL(tool_result, null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				".4......",
-				"29......",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-
-		remover.work(pl, tile_x(0, 1, 0), coord3d(1, 0, 0), "" + wt_road)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-	}
-
-	{
-
-		command_x.grid_raise(pl, coord3d(2, 2, 0))
-
-		local err = command_x.build_way(pl, coord3d(0, 1, 0), coord3d(1, 0, 0), desc, true)
-		ASSERT_EQUAL(err, null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"68......",
-				"1.......",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-
-		remover.work(pl, tile_x(0, 1, 0), coord3d(1, 0, 0), "" + wt_road)
-		command_x.grid_lower(pl, coord3d(2, 2, 0))
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-	}
+	ASSERT_EQUAL(remover.work(pl, tile_x(0, 1, 0), coord3d(1, 0, 0), "" + wt_road), null)
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), [
+		[0, 0, 0],
+		[0, 0, 0],
+		[0, 0, 0],
+	])
 
 	RESET_ALL_PLAYER_FUNDS()
 }

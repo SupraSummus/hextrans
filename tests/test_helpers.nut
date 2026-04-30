@@ -70,64 +70,41 @@ function RESET_ALL_PLAYER_FUNDS()
 }
 
 
-function char_to_dir(ch)
-{
-	switch (ch) {
-	case '.': return dir.none // '.' == dontcare
-	case '0': return dir.none
-	case '1': return dir.north
-	case '2': return dir.east
-	case '3': return dir.northeast
-	case '4': return dir.south
-	case '5': return dir.northsouth
-	case '6': return dir.southeast
-	case '7': return dir.northsoutheast
-	case '8': return dir.west
-	case '9': return dir.northwest
-	case 'A': return dir.eastwest
-	case 'B': return dir.northeastwest
-	case 'C': return dir.southwest
-	case 'D': return dir.northsouthwest
-	case 'E': return dir.southeastwest
-	case 'F': return dir.all
-	}
-
-	ASSERT_TRUE(false) // should not reach here
-}
-
-
+// Patterns are arrays of arrays of 6-bit ribi values (see ribi_t in
+// src/simutrans/dataobj/ribi.h: SE=1, S=2, SW=4, NW=8, N=16, NE=32).
+// A cell value of -1 means "don't care" — skip the assertion entirely.
+// 0 means "no way here" and is asserted normally.
 function ASSERT_WAY_PATTERN(waytype, lefttop, pattern)
 {
 	local z = lefttop.z
 
 	for (local y = 0; y < pattern.len(); ++y) {
-		for (local x = 0; x < pattern[y].len(); ++x) {
+		local row = pattern[y]
+		for (local x = 0; x < row.len(); ++x) {
+			local expected_dir = row[x]
+			if (expected_dir < 0) continue
 			local tile = square_x(lefttop.x + x, lefttop.y + y).get_tile_at_height(z)
-			local expected_dir = char_to_dir(pattern[y][x])
+			if (tile == null) continue
 
-			if (tile != null) {
-				local actual_dir = 0
-				if (waytype != wt_power) {
-					actual_dir = tile.get_way_dirs(waytype)
-				}
-				else {
-					// powerlines connect to other powerlines automatically.
-					local powerline = tile.find_object(mo_powerline)
-					actual_dir = 0
-
-					if (powerline) {
-						for (local i = 0; i < 4; ++i) {
-							local offset = dir.to_coord(1<<i)
-							local nb = square_x(lefttop.x + x + offset.x, lefttop.y + y + offset.y)
-							if (nb && nb.is_valid() && nb.get_tile_at_height(z) && nb.get_tile_at_height(z).find_object(mo_powerline)) {
-								actual_dir = actual_dir | (1<<i)
-							}
+			local actual_dir
+			if (waytype != wt_power) {
+				actual_dir = tile.get_way_dirs(waytype)
+			}
+			else {
+				// powerlines connect to other powerlines automatically.
+				actual_dir = 0
+				if (tile.find_object(mo_powerline)) {
+					for (local i = 0; i < 4; ++i) {
+						local offset = dir.to_coord(1<<i)
+						local nb = square_x(lefttop.x + x + offset.x, lefttop.y + y + offset.y)
+						if (nb && nb.is_valid() && nb.get_tile_at_height(z) && nb.get_tile_at_height(z).find_object(mo_powerline)) {
+							actual_dir = actual_dir | (1<<i)
 						}
 					}
 				}
-
-				ASSERT_EQUAL(actual_dir, expected_dir)
 			}
+
+			ASSERT_EQUAL(actual_dir, expected_dir)
 		}
 	}
 }
@@ -143,14 +120,14 @@ function ASSERT_WAY_PATTERN_MASKED(waytype, lefttop, pattern)
 	local z = lefttop.z
 
 	for (local y = 0; y < pattern.len(); ++y) {
-		for (local x = 0; x < pattern[y].len(); ++x) {
+		local row = pattern[y]
+		for (local x = 0; x < row.len(); ++x) {
+			local expected_dir = row[x]
+			if (expected_dir < 0) continue
 			local tile = square_x(lefttop.x + x, lefttop.y + y).get_tile_at_height(z)
-			local expected_dir = char_to_dir(pattern[y][x])
+			if (tile == null) continue
 
-			if (tile != null) {
-				local actual_dir = tile.get_way_dirs_masked(waytype)
-				ASSERT_EQUAL(actual_dir, expected_dir)
-			}
+			ASSERT_EQUAL(tile.get_way_dirs_masked(waytype), expected_dir)
 		}
 	}
 }

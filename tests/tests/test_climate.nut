@@ -66,7 +66,7 @@ function test_climate_flat()
 		}
 	}
 
-	ASSERT_EQUAL(command_x.change_climate_at(pl, pos, cl_mediterran), null)
+	ASSERT_EQUAL(setclimate.work(pl, coord3d(0, 0, 0), coord3d(15, 15, 0), "" + cl_mediterran), null)
 
 	RESET_ALL_PLAYER_FUNDS()
 }
