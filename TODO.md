@@ -545,18 +545,28 @@ Climate transitions use
 `climate_at_clamped` (const members; height uses `canonical_vertex`
 then tile clamp like legacy neighbours) in both `recalc_transitions` and
 `display_boden`; the six-bit mask lives on `planquadrat_t` (save
-124.5: extra byte in `grund_t` for bits 4–5).  `get_beach_tile`
-now reads `transition_water_texture->get_image(slope, water_corners)`
-directly off the pakset's `(slope, water_mask)`-keyed `ShoreTrans`
-block — no clamp.  `get_alpha_tile` (snowline / climate alpha) is
-still on the legacy 15-wide-per-slope `SlopeTrans` table and clamps
-the 6-bit overlay-corners mask to 15; same fix shape as shore
-(per-`(slope, corners)` pakset bake) applies there but lives on
-the `transition_slope_texture` side.  Deep water still pairs with
-the pakset `Water` animation block as below; on-slope water and
-snow now use LightTexture-derived shapes.
+124.5: extra byte in `grund_t` for bits 4–5).  Shore alpha is keyed by
+the pakset's `(slope, water_mask)` `ShoreTrans` block with the real
+6-bit `water_corners` mask — no clamp — then normalized into the
+generated water tile's LightTexture-shaped RLE cache before rendering.
+`get_alpha_tile` (snowline / climate alpha) is still on the legacy
+15-wide-per-slope `SlopeTrans` table and clamps the 6-bit
+overlay-corners mask to 15; same fix shape as shore (per-`(slope,
+corners)` pakset bake) applies there but lives on the
+`transition_slope_texture` side.  Deep water still pairs with the
+pakset `Water` animation block as below; on-slope water and snow now
+use LightTexture-derived shapes.
 `rotate_transitions` still applies a 60° bit-rotate as a stand-in for
 90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
+
+After the pak128 shore generator can emit `ShoreTrans[slope][water_mask]`
+with an RLE footprint identical to `LightTexture[slope]`, remove the
+engine-side shore-alpha normalization cache in `ground_desc.cc`.  At
+that point `get_beach_tile` can return the raw pakset `ShoreTrans`
+image again, guarded by a debug/tripwire shape check so future pakset
+drift fails loudly instead of reintroducing alpha-renderer overreads.
+Keep `water_mask == 0` empty; no shore overlay is needed for the
+all-dry mask.
 
 Some builder paths still assign `get_grund_hang()` into a `uint8`
 local (e.g. `wegbauer.cc`, `tunnelbauer.cc` — grep for the pattern).

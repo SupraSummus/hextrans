@@ -4039,8 +4039,8 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 					return false;
 				}
 			}
+			const koord end = bd_next->get_pos().get_2d();
 			bridge_builder_t::build_bridge(NULL, bd->get_pos(), bd_next->get_pos(), zv, bridge_height, bridge, welt->get_city_road());
-			koord end = bd_next->get_pos().get_2d();
 			build_road( end+zv, NULL, false);
 			// try to build a house near the bridge end
 			uint32 old_count = buildings.get_count();
