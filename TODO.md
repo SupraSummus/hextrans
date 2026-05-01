@@ -235,19 +235,11 @@ terrain is self-consistent across shared vertices — the three owners
 of any shared vertex all resolve to the same slot and get the same
 noise value by construction.
 
-The two NW-corner-only writers (`hausbauer.cc:457` and
-`simtool.cc:1600/1597`) are now hex-aware via the
-`(koord, hex_corner_t::NW)` overload — building removal and the
-setslope tool's grid-correction step write the right vertex.
-Remaining writers that still need the same treatment: the heightfield-load path
-in `karte_t::init_tiles` (replicates the last square-grid row into the
-doubled slot layout — needs a hex-aware importer or a clean rejection);
-`karte_t::rotate90`'s heightmap-rotation loop (90° is not a valid hex
-symmetry; the whole rotation path needs a refusal or a real hex
-rotation, tied to the viewport port).  `perlin_hoehe`'s own rotation
-code is still the legacy 90° square formula — it produces a
-deterministic but geometrically wrong map when rotation != 0; fix in
-the same pass as `rotate90`.
+`karte_t::rotate90`'s heightmap-rotation loop is still the legacy
+90° square formula — 90° is not a hex symmetry, so the result is
+deterministic but geometrically wrong.  `perlin_hoehe`'s own
+rotation code shares the bug.  Both land together with a real hex
+rotation (or a `dbg->fatal` refusal), tied to the viewport port.
 
 The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
 `surface.h` is `dbg->fatal` — every residual call is a crash so the
@@ -255,31 +247,7 @@ port can't accidentally regress new sites onto the old E-slot of
 tile `(x-1, y-1)`.  Gameplay code should not call the fatal
 `lookup_hgt` / `lookup_hgt_nocheck` `(x,y)` / `(koord)` overloads;
 use `(tile, hex_corner_t)`, `min_hgt` / `max_hgt`, or
-`grund_t::get_hoehe` as appropriate.  Clusters still on unfinished
-ports:
-
-*"Tile reference height" readers — semantic drift bubble (partial)* —
-the shim's old "what is this tile's reference height" pattern picked
-a single slot on tile `(x-1, y-1)`, which was geometrically wrong
-under hex but bubble-consistent with the NW-corner-only writers
-(now ported) that wrote it.  Five sites already ported with hex
-semantics chosen per-call-site rather than via one global decision:
-`wasser.cc:68` (`min_hgt`, water surface), `wegbauer.cc:599`
-(`min_hgt`, "any corner below water"), `simtool.cc:2080-2085`
-(`min_hgt`, climate water filter), `simplay.cc:225` (`min_hgt`,
-floating-message anchor), `minimap.cc:735` (`get_hoehe + corner_sw`,
-SW corner colour pick).  The raise/lower drag loop and the
-elevated-way-over-water check in `simtool.cc` now read the active
-cursor corner via `grund_t::get_hoehe` or use `max_hgt` /
-`min_hgt` where the intent is "any corner above/below" relative to
-water or tunnel depth; `wegbauer.cc` and `tunnelbauer.cc` use
-`max_hgt` for the same "dry land above z" predicate, and
-`enlarge_map_frame` uses `min_hgt` for the preview tile colour.
-
-*Explicit out-of-scope* — `simworld.cc:4673` heightfield load (1
-site, blocked on import decision as noted above).
-
-Each cluster above has an independent trigger; retire separately.
+`grund_t::get_hoehe` as appropriate.
 
 The natural-height channel (`natural_grid_hgts`) is not yet persisted
 in saves.  On load it is seeded from `grid_hgts` as a best effort, so
@@ -289,16 +257,6 @@ overlays looking like natural ground to a post-load
 unchanged across save/load, only the natural-vs-artificial
 distinction at already-overlaid vertices is lost — and a save-format
 bump will fix it.  Tied to the wider save-format cluster.
-
-The set-slope tool's NW-only write (`simtool.cc:1622/1625`) leaves
-`grid_hgts` disagreeing with `gr->get_grund_hang()` at the other 5
-vertices of an artificially-sloped tile.  No current reader derives a
-slope from the visible channel and expects it to round-trip through
-the per-tile slope (`get_natural_height_slope_from_grid` covers the
-two consumers — `recalc_natural_slope` and `hausbauer.cc:403`'s
-foundation-removal probe).  If a future reader does, audit it;
-the cleaner long-term fix is to have set-slope write all 6 vertices
-on the visible channel.
 
 `karte_t::calc_humidity_map_region` branches on `ribi_t::northwest`
 / `southeast` / `north` for wind direction, leaving NE, SW and
