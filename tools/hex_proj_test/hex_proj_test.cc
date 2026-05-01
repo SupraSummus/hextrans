@@ -10,8 +10,8 @@
 //   3. Inverse round-trip: hex_round_to_axial(fractional(forward(q,r)))
 //      recovers (q, r) for every (q, r) in a representative range.
 //   4. Inverse is stable under sub-pixel noise around hex centres.
-//   5. Slope_t corner heights, the hex projection lattice and synth
-//      overlay geometry agree at shared rendered slope edges.
+//   5. Inscribed-hex vertex layout (`w × w/2`) tiles the lattice with
+//      no shared-corner gap larger than 1 px; `w × w` does not.
 //   6. Render-loop iteration (hex_render_x_start + hex_render_x_step
 //      with q=x/3, r=(y-q)/2) is a bijection between (x, y) lattice
 //      points and the (q, r) tiles in a y-bounded rectangle — every
@@ -29,7 +29,6 @@
 #include "simutrans/display/hex_proj.h"
 #include "simutrans/dataobj/koord.h"
 #include "simutrans/dataobj/ribi.h"
-#include "simutrans/descriptor/synth_geometry.h"
 
 
 // Use a representative raster width.  Must be a multiple of 4 so the
@@ -423,13 +422,9 @@ static void test_slope_project_to_square_clamping()
 }
 
 
-// ---- 7. Hex tile inscription / synth vector geometry -----------------------
+// ---- 7. Hex tile inscription -----------------------------------------------
 
-// Inscribed-hex vertex positions for a tile bbox of size `w × h`,
-// matching the formula in `descriptor/synth_overlay.cc`
-// for a flat slope.  If that formula drifts, this copy stops
-// representing reality — keep the two in sync.
-//
+// Inscribed-hex vertex positions for a tile bbox of size `w × h`.
 // Order matches `hex_corner_t::type` (E, SE, SW, W, NW, NE).
 static void inscribed_hex_vertices(sint32 w, sint32 h, sint32 vx[6], sint32 vy[6])
 {
@@ -478,94 +473,13 @@ static sint32 max_shared_corner_gap(sint32 w, sint32 h)
 }
 
 
-// Half-open edge rule used by `synth_overlay::fill_polygon`: the flat
-// hex bottom SE–SW is horizontal (no crossings), and centre→SE /
-// centre→SW both use y_hi == bot_y so half-open contributes zero hits
-// on that row.
-static int synth_halfopen_edge_hits(sint32 ya, sint32 yb, sint32 y)
-{
-	if (ya == yb) {
-		return 0;
-	}
-	const sint32 y_lo = ya < yb ? ya : yb;
-	const sint32 y_hi = ya < yb ? yb : ya;
-	return (y >= y_lo && y < y_hi) ? 1 : 0;
-}
-
-static void test_synth_flat_bottom_rim_has_no_halfopen_edge_hits()
-{
-	constexpr sint32 W = 64;
-	const synth_overlay::synth_hex_geometry_t geom =
-		synth_overlay::synth_hex_geometry(W / 4, 16);
-	const sint32 cy = geom.mid_y;
-	const sint32 vy_se = geom.vy(slope_t::flat, hex_corner_t::SE);
-	const sint32 vy_sw = geom.vy(slope_t::flat, hex_corner_t::SW);
-	const sint32 y_bot = vy_se;
-	assert(vy_sw == y_bot);
-
-	const int ho = synth_halfopen_edge_hits(cy, vy_se, y_bot)
-	             + synth_halfopen_edge_hits(cy, vy_sw, y_bot);
-	if (ho != 0) {
-		std::fprintf(stderr,
-			"synth bottom rim: expected 0 half-open edge hits on bot row, got %d (y_bot=%d cy=%d)\n",
-			ho, (int)y_bot, (int)cy);
-		std::abort();
-	}
-}
-
-// Monotone vertex safety: inclusive y on slanted edges can yield an odd
-// number of crossings on one scanline (pair-fill drops a span).
-// Half-open parity must stay even on every row of each wedge — sample
-// raised_E (one corner up), which stresses centre vs rim geometry.
-static void test_synth_raised_E_wedges_have_even_halfopen_hits()
-{
-	constexpr sint32 W = 64;
-	const synth_overlay::synth_hex_geometry_t geom =
-		synth_overlay::synth_hex_geometry(W / 4, 16);
-	const slope_t::type slope = slope_t::raised_E;
-	sint32 vy[6];
-	for (int i = 0; i < 6; i++) {
-		vy[i] = geom.vy(slope, (hex_corner_t::type)i);
-	}
-	sint32 sum_h = 0;
-	for (int i = 0; i < 6; i++) {
-		sum_h += synth_overlay::hex_corner_height(slope, (hex_corner_t::type)i);
-	}
-	const sint32 cz = (sum_h * geom.lift) / 6;
-	const sint32 cy = geom.mid_y - cz;
-
-	for (int f = 0; f < 6; f++) {
-		const int a = f;
-		const int b = (f + 1) % 6;
-		sint32 y_min = cy, y_max = cy;
-		if (vy[a] < y_min) y_min = vy[a];
-		if (vy[a] > y_max) y_max = vy[a];
-		if (vy[b] < y_min) y_min = vy[b];
-		if (vy[b] > y_max) y_max = vy[b];
-		if (y_min < 0) y_min = 0;
-		if (y_max >= geom.h) y_max = geom.h - 1;
-		for (sint32 y = y_min; y <= y_max; y++) {
-			const int h = synth_halfopen_edge_hits(cy, vy[a], y)
-			            + synth_halfopen_edge_hits(vy[a], vy[b], y)
-			            + synth_halfopen_edge_hits(vy[b], cy, y);
-			if ((h & 1) != 0) {
-				std::fprintf(stderr,
-					"synth raised_E wedge f=%d: odd half-open hit count %d at y=%d\n",
-					f, h, (int)y);
-				std::abort();
-			}
-		}
-	}
-}
-
-
 static void test_inscribed_hex_tiles_lattice()
 {
 	// `w × w/2` is the only inscription that tiles the lattice (the
 	// `w-1, h-1` close still leaves a 1-pixel half-open slip).
-	// Inscribing in `w × w` — what synth_overlay used to do when it
-	// inherited `tmpl->h` from pak64's 64×64 marker — gaps by W/4 px
-	// per edge, the visible black cracks the user reported.
+	// Inscribing in `w × w` gaps by W/4 px per edge — the visible
+	// black cracks an early port revision shipped before this test
+	// pinned the contract.
 	const sint32 W = 64;
 	if (max_shared_corner_gap(W, W / 2) > 1) {
 		std::fprintf(stderr, "lattice tiling: w=%d h=%d should tile, doesn't\n", W, W / 2);
@@ -574,46 +488,6 @@ static void test_inscribed_hex_tiles_lattice()
 	if (max_shared_corner_gap(W, W) <= 1) {
 		std::fprintf(stderr, "lattice tiling: w=%d h=%d should NOT tile, does — invariant broken\n", W, W);
 		std::abort();
-	}
-}
-
-static void test_synth_slope_bbox_contains_lifted_vertices()
-{
-	// Graphics-behaviour contract for synth_overlay's vector sprites:
-	// every lifted slope vertex must fit in the generated image bbox, and
-	// the added headroom must not move the flat footprint's screen anchor.
-	// The old `W x W/2` bbox clipped raised N-side vertices at local y=0;
-	// endpoint-continuity tests stayed green because the clipped vector
-	// vertices still agreed mathematically before rasterisation.
-	const sint32 W = 64;
-	const sint32 old_img_y = hex_visible_centre_y(W) - W / 4;
-	const synth_overlay::synth_hex_geometry_t geom =
-		synth_overlay::synth_hex_geometry(W / 4, 16);
-	const sint32 img_y = geom.image_y();
-	sint32 flat_x[6], flat_y[6];
-	inscribed_hex_vertices(W, W / 2, flat_x, flat_y);
-
-	for (slope_t::type slope = 0; slope < slope_t::max_slopes; slope++) {
-		for (int c = 0; c < 6; c++) {
-			const sint32 vx = geom.vx[c];
-			const sint32 vy = geom.vy(slope, (hex_corner_t::type)c);
-			if (vx < 0 || vx >= W || vy < 0 || vy >= geom.h) {
-				std::fprintf(stderr,
-					"synth slope bbox: slope=%d corner=%d vertex=(%d,%d) outside %dx%d\n",
-					(int)slope, c, vx, vy, W, geom.h);
-				std::abort();
-			}
-		}
-	}
-
-	for (int c = 0; c < 6; c++) {
-		const sint32 vy = geom.vy(slope_t::flat, (hex_corner_t::type)c);
-		if (img_y + vy != old_img_y + flat_y[c]) {
-			std::fprintf(stderr,
-				"synth slope anchor: flat corner=%d screen_y=%d, want %d\n",
-				c, img_y + vy, old_img_y + flat_y[c]);
-			std::abort();
-		}
 	}
 }
 
@@ -771,10 +645,7 @@ int main()
 	test_slope_project_to_square_identity_on_canonicals();
 	test_slope_project_to_square_hex_edges();
 	test_slope_project_to_square_clamping();
-	test_synth_flat_bottom_rim_has_no_halfopen_edge_hits();
-	test_synth_raised_E_wedges_have_even_halfopen_hits();
 	test_inscribed_hex_tiles_lattice();
-	test_synth_slope_bbox_contains_lifted_vertices();
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();
 	test_vertex_neighbours_closure();

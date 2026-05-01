@@ -619,9 +619,15 @@ bbox, slope corners, ribi edges, sprite tables, minimap).  Phase A
 with `tools/hex_proj_test/` as its standalone invariant suite.  The
 remaining renderer work splits into:
 
-**Phase B — per-tile detail.**  Base ground sprites now require
-pakset-provided `LightTexture` lightmaps indexed by raw
-`slope_t`; the old `synth_overlay` ground/alpha hooks are gone.
+**Phase B — per-tile detail.**  Base ground sprites, grid borders,
+markers and cliff back walls all read directly from pakset-provided
+descriptors (`LightTexture`, `Borders`, `Marker`, `Slopes` /
+`Basement`) indexed by raw `slope_t` or `(wall, index)`; the old
+engine-side `synth_overlay` family is gone, the legacy 1D 22-cell
+`Slopes` / `Basement` packing is gone, and the upstream Fabio Gonella
+rock-photo art for cliff faces is preserved under
+`hextrans-pak128/landscape/grounds/back_wall/src/` for future texture
+supervision.
 Climate transitions use
 `vertex_owners` plus `surface_t::vertex_corner_height` /
 `climate_at_clamped` (const members; height uses `canonical_vertex`
@@ -661,38 +667,47 @@ ground-lightmap path as climate ground.  Deep water still comes from
 the pakset `Water` animation block.  6-edge way / wall / ribi-keyed
 sprite tables remain 4-edge with `rotate60` stubs.
 
-**Cliff (back-wall) rendering — residual gaps.**  Pakset cliff sprites
-are authored in legacy z and projected from a square silhouette; under
-hex they under-shoot vertically and only cover 2 of the 3 walls (NW, N
-— wall 2 is hex-only).  Fixing means either dropping the pakset path
-for walls and going synth-only, or porting the pakset sprites to hex z
-+ adding a wall-2 family.
+**Back-wall and bridge / tunnel hide-test residuals.**  The hide-test
+loop in `calc_back_image` is still the square 3-corner sweep with
+`testdir` including the hex-invalid `(-1,-1)`; it samples W, NW, NE
+and ignores E + wall 2.  The `> 11` magic check in
+`brueckenboden_t::calc_image_internal` and `tunnelboden_t` was "is
+wall 1 non-trivial" under the old base-11 2-digit encoding; under
+the 3-digit encoding (`w0 + 11*w1 + 121*w2`) the threshold no longer
+maps cleanly, so bridge / tunnel "draw as obj" logic can misfire on
+hex-only edge slopes.  Both retire together with the hex-aware
+brueckenboden / tunnelboden rewrite.  `grund_t::get_back_image(leftback)`
+exposes only walls 0 and 1 (the two callers in brueckenboden /
+tunnelboden); replace with a `back_imageid`-direct accessor or widen
+the API when those bridge / tunnel sites get ported.
 
-The hide-test loop in `calc_back_image` is still the square 3-corner
-sweep with `testdir` including the hex-invalid `(-1,-1)`; it samples
-W, NW, NE and ignores E + wall 2.  The `> 11` magic check in
-`brueckenboden_t::calc_image_internal` and `tunnelboden_t` was
-"is wall 1 non-trivial" under the old base-11 2-digit encoding;
-under the 3-digit encoding (`w0 + 11*w1 + 121*w2`) the threshold no
-longer maps cleanly, so bridge / tunnel "draw as obj" logic can
-misfire on hex-only edge slopes.  Both retire together with the
-hex-aware brueckenboden / tunnelboden rewrite.
-
-`grund_t::get_back_image(leftback)` exposes only walls 0 and 1 (the
-two callers in brueckenboden / tunnelboden); replace with a
-`back_imageid`-direct accessor or widen the API when those bridge /
-tunnel sites get ported.
+Cliff back-wall middle-slope indices 9 / 10 are baked as single-step
+half-cliffs (one corner at 0, one at 1) — placeholder for the legacy
+double-height notch shape that the pakset renderer at
+`hextrans-pak128/landscape/grounds/back_wall/render.py` doesn't yet
+model; revisit if stacked terraforming reads wrong.
 
 Fence sprites (`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
 `ground_desc_t::fences`) still use `tile_raster_scale_y` for the
 `corner_nw` offset and have only 3 pakset combos for walls 0+1; the 4
-new wall-2-involving combos return IMG_EMPTY at draw time.  Synthesise
-alongside cliffs and move the offset to hex z when fences come back
-into scope.
+new wall-2-involving combos return IMG_EMPTY at draw time.  Move the
+offset to hex z and ship hex-aware combos when fences come back into
+scope.
 
-Middle-slope indices 9 / 10 are drawn as single-step half-cliffs (one
-corner at 0, one at 1) — placeholder for the legacy double-height
-notch shape; revisit if stacked terraforming reads wrong.
+`grund.cc::display_border` is square-grid logic (`pos.y/x ==
+welt->size().y/x - 1` edge detection, `lookup_hgt[2+diff]`
+corner-delta arithmetic that can run OOB under base-4 slope
+encoding, reads into the legacy 1D `Slopes` 22-cell packing).  The
+new pak128 cliff bake repurposed `Slopes` / `Basement` to a 2D
+`Image[<wall>][<index>]` layout, so the legacy reads silently miss
+on hex paksets; legacy paksets like pak64 still ship the 1D layout
+but the OOB risk applies under base-4 slope encoding.  Body is a
+no-op early-return + one-time `dbg->warning` -- not a fatal, since
+the function is purely visual (no save-state effect, no
+propagation) and a fatal regresses pak64 + hex-engine boot for what
+is otherwise a benign missing visual.  Reactivation needs either a
+hex-aware `MapEdgeCliff` family or a rewrite of this function onto
+the new (wall, index) layout.
 
 **Phase C — flow-on.**  Minimap (`gui/minimap.cc`, square pixels
 per tile), per-step vehicle interpolation offsets
@@ -778,13 +793,14 @@ gated as unreachable) — orthogonal to the projection port.
 
 ## Hex depth-clip plane spec for sprite Back/Front split
 
-`descriptor/synth_geometry.h` pins camera + light + lift for the hex
-ground synth.  Sprite back/front layer projection (the bridge / way
-draw split currently authored in pak128 square convention) has no
-matching hex spec on the engine side.  Define one — analogous to the
-camera spec in `synth_geometry.h` — naming where each layer's depth
-plane sits under the hex projection.  `SupraSummus/hextrans-pak128`'s
-3D asset pipeline can't emit hex sheet entries until this lands.
+Sprite back/front layer projection (the bridge / way draw split
+currently authored in pak128 square convention) has no matching hex
+spec on the engine side.  Define one — naming where each layer's
+depth plane sits under the hex projection — anchored against the same
+hex camera the pakset bakers use in
+`hextrans-pak128/tools/3d/hex_synth.py::HexGeom`.
+`SupraSummus/hextrans-pak128`'s 3D asset pipeline can't emit hex
+sheet entries until this lands.
 
 ## Shore-water tile composition still square
 
