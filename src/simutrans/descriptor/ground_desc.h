@@ -9,7 +9,6 @@
 
 #include "obj_base_desc.h"
 #include "image_array.h"
-#include "synth_overlay.h"
 #include "../simtypes.h"
 #include "../dataobj/ribi.h"
 
@@ -38,8 +37,8 @@ public:
 
 	// only these textures need external access
 	static const ground_desc_t *shore; // nicer shore graphics, optional
-	static const ground_desc_t *fundament;
-	static const ground_desc_t *slopes;
+	static const ground_desc_t *fundament;  // man-made fundament cliff faces, keyed (wall, index)
+	static const ground_desc_t *slopes;     // natural cliff faces, keyed (wall, index)
 	static const ground_desc_t *fences;
 	static const ground_desc_t *marker;
 	static const ground_desc_t *borders;
@@ -110,62 +109,33 @@ public:
 
 	/// Cliff-face sprite for back-wall @p wall (0 = NW edge,
 	/// 1 = N edge, 2 = NE edge) with per-wall image @p index (0..10)
-	/// and the pakset's `fundament` (artificial=true) vs `slopes`
-	/// (artificial=false) split — the same encoding the legacy
-	/// `grund_t::get_back_image(leftback)` returned, hoisted to a
-	/// static so `synth_overlay` can take precedence the same way
-	/// `get_marker_image` does.  Legacy pakset
-	/// stacks the 2 square-era walls in one sprite list with wall 1
-	/// offset by `back_wall_image_count` (= legacy `WALL_IMAGE_COUNT` =
-	/// 11); applied here so callers pass the per-wall index unmodified.
-	/// Wall 2 (NE neighbour) is hex-only — pakset has no sprites for
-	/// it, so the pakset path returns IMG_EMPTY there and the synth
-	/// fallback kicks in.
+	/// under the encoding produced by `get_back_image_from_diff` in
+	/// `grund.cc`: index 0 = no cliff, 1..8 = `(h1, h2)` for
+	/// `h1, h2 ∈ {0, 1, 2}` with `index = h1 + 3*h2`, 9..10 = the
+	/// middle slopes of double-height stacks.  @p artificial picks
+	/// the fundament (man-made platform) palette; false picks the
+	/// natural-cliff palette.  Pakset-owned: hex paksets ship the
+	/// cliff faces in the legacy `Slopes` / `Basement` descriptors,
+	/// rebaked under the hex `Image[<wall>][<index>]` layout (the
+	/// upstream pak128 1D layout is gone — `display_border` was the
+	/// last consumer and is itself square-grid logic, tripwire'd
+	/// pending hex port).
 	static image_id get_back_wall_image(uint16 index, bool artificial, uint8 wall)
 	{
-		const uint16 pakset_offset = (uint16)(wall * synth_overlay::back_wall_image_count);
-		// pakset's `fundament` / `slopes` only carry wall 0 + wall 1 sprites
-		const image_id pakset_id = (wall < 2)
-			? (artificial ? fundament : slopes)->get_image(index + pakset_offset)
-			: IMG_EMPTY;
-		const image_id synth_id = synth_overlay::get_back_wall(wall, (uint8)index, artificial);
-
-		if(  synth_overlay::prefer_back_wall_over_pakset  ) {
-			return synth_id != IMG_EMPTY ? synth_id : pakset_id;
-		}
-		return pakset_id != IMG_EMPTY ? pakset_id : synth_id;
+		return (artificial ? fundament : slopes)->get_image(wall, index);
 	}
 
-	/// Multi-step extension cliff segment for back-wall @p wall.  Draws a
-	/// uniform vertical face one or two height-steps tall (chosen by
-	/// @p two_step), used by `grund_t::display_boden` to stack cliff
-	/// segments below the final cliff face when a neighbour is more than
-	/// two steps higher.  The pakset paths use legacy hard-coded indices
-	/// (`WALL_IMAGE_COUNT*2 + (two_step?1:0) + 2*wall`, falling back to
-	/// `4 + 4*(two_step?1:0) + WALL_IMAGE_COUNT*wall` for older pakset
-	/// layouts); both lists only cover wall 0 + 1 so wall 2 always lands
-	/// on the synth fallback.  The synth fallback reuses the uniform
-	/// single- and double-height back-wall sprites (indices 4 and 8 of
-	/// `back_wall`), which are already shaped as full-height rectangular
-	/// cliffs by `build_back_wall`.
+	/// Multi-step extension cliff segment for back-wall @p wall.
+	/// Draws a uniform vertical face one or two height-steps tall
+	/// (chosen by @p two_step), used by `grund_t::display_boden` to
+	/// stack cliff segments below the final cliff face when a
+	/// neighbour is more than two steps higher.  Reuses the per-step
+	/// back-wall atlas: index 4 = `(h1=1, h2=1)` is the single-step
+	/// uniform cliff, index 8 = `(h1=2, h2=2)` is the double-step
+	/// uniform cliff.
 	static image_id get_back_wall_extension_image(uint8 wall, bool two_step, bool artificial)
 	{
-		const ground_desc_t *sl_draw = artificial ? fundament : slopes;
-		image_id pakset_id = IMG_EMPTY;
-		if(  wall < 2  ) {
-			const uint16 idx_primary = (uint16)(synth_overlay::back_wall_image_count * 2 + (two_step ? 1 : 0) + 2 * wall);
-			pakset_id = sl_draw->get_image(idx_primary);
-			if(  pakset_id == IMG_EMPTY  ) {
-				const uint16 idx_fallback = (uint16)(4 + (two_step ? 4 : 0) + synth_overlay::back_wall_image_count * wall);
-				pakset_id = sl_draw->get_image(idx_fallback);
-			}
-		}
-		const image_id synth_id = synth_overlay::get_back_wall(wall, two_step ? 8 : 4, artificial);
-
-		if(  synth_overlay::prefer_back_wall_over_pakset  ) {
-			return synth_id != IMG_EMPTY ? synth_id : pakset_id;
-		}
-		return pakset_id != IMG_EMPTY ? pakset_id : synth_id;
+		return get_back_wall_image(two_step ? 8 : 4, artificial, wall);
 	}
 
 	static image_id get_border_image(slope_t::type slope_in)

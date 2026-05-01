@@ -11,7 +11,6 @@
 #include "../simconst.h"
 #include "spezial_obj_tpl.h"
 #include "ground_desc.h"
-#include "synth_overlay.h"
 #include "../dataobj/environment.h"
 
 // Number of possible slope values under the 6-corner base-4 encoding.
@@ -260,7 +259,7 @@ const ground_desc_t *ground_desc_t::outside = NULL;
 static special_obj_tpl<ground_desc_t> const grounds[] = {
 	{ &ground_desc_t::shore,     "Shore"          },
 	{ &boden_texture,            "ClimateTexture" },
-	{ &hex_light_map,            "LightTexture" },
+	{ &hex_light_map,            "LightTexture"   },
 	{ &transition_water_texture, "ShoreTrans"     },
 	{ &transition_slope_texture, "SlopeTrans"     },
 	{ &ground_desc_t::fundament, "Basement"       },
@@ -512,13 +511,6 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 			doubleslope_to_imgnr[slope] = doubleslope_to_imgnr[hex_slope];
 		}
 	}
-
-	// Algorithmic overlay sprites — hex-shaped cursor markers and
-	// placeholder cliff faces, synthesised in code rather than read
-	// from the pakset.  Registered above `image_offset` so they're
-	// freed alongside the runtime ground textures on the next world
-	// (re)load.  Grid borders are pakset-owned via `Borders`.
-	synth_overlay::init();
 
 	//dbg->message("ground_desc_t::calc_water_level()", "Last image nr %u", final_tile->get_pic()->imageid);
 	DBG_DEBUG("ground_desc_t::init_ground_textures()", "Init ground textures successful");

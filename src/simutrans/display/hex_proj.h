@@ -61,13 +61,7 @@ inline sint16 hex_visible_centre_y(sint16 W) { return 3 * W / 4; }
 
 /// Screen-y lift for terrain z/corner-height units.  Matches the legacy
 /// square `tile_raster_scale_y` so base-elevation, per-corner relief and
-/// object z-offsets share one projection.  An earlier port revision
-/// halved this to keep the synthetic ground's `W × W/2` bbox under the
-/// base-4 height-3 corner range; that bbox motivation lapsed once
-/// pakset-owned `HexLightTexture` replaced the synthetic ground path
-/// (commit b5c25a07c), and the surviving synth users (markers, borders,
-/// cliffs) absorb the extra headroom through `synth_geometry.h`'s
-/// `top_pad = 4 * lift`.
+/// object z-offsets share one projection.
 inline sint32 hex_height_raster_scale_y(sint32 height_steps, sint16 W)
 {
 	return tile_raster_scale_y(height_steps, W);

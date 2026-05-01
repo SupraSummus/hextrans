@@ -786,9 +786,7 @@ static const back_wall_geometry_t back_wall_geometry[grund_t::BACK_WALL_COUNT] =
 };
 
 
-// Slope corner height by hex-corner index.  Mirrors
-// `synth_overlay::hex_corner_height` (synth_geometry.h) but kept local
-// here so the rendering side does not need to pull in synth headers.
+// Slope corner height by hex-corner index.
 static inline uint8 corner_height(slope_t::type s, hex_corner_t::type c)
 {
 	switch (c) {
@@ -1310,60 +1308,28 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 }
 
 
-void grund_t::display_border( sint16 xpos, sint16 ypos, const sint16 raster_tile_width CLIP_NUM_DEF)
+void grund_t::display_border( sint16, sint16, const sint16 CLIP_NUM_DEF_NOUSE)
 {
-	if(  pos.z < welt->get_groundwater()  ) {
-		// we do not display below water (yet)
-		return;
-	}
-
-	const sint16 hgt_step = tile_raster_scale_y( TILE_HEIGHT_STEP, raster_tile_width);
-	static sint8 lookup_hgt[5] = { 6, 3, 0, 1, 2 };
-
-	if(  pos.y-welt->get_size().y+1 == 0  ) {
-		// move slopes to front of tile
-		sint16 x = xpos - raster_tile_width/2;
-		sint16 y = ypos + raster_tile_width/4 + (pos.z - welt->min_height) * hgt_step;
-		// left side border
-		sint16 diff = corner_sw(slope)-corner_se(slope);
-		image_id slope_img = ground_desc_t::slopes->get_image( lookup_hgt[ 2+diff ]+11 );
-		diff = -min(corner_sw(slope),corner_se(slope));
-		sint16 zz = pos.z - welt->min_height;
-		if(  diff < zz && ((zz-diff)&1)==1  ) {
-			gfx->draw_normal( ground_desc_t::slopes->get_image(15), x, y, 0, true, false CLIP_NUM_PAR );
-			y -= hgt_step;
-			diff++;
-		}
-		// ok, now we have the height; since the slopes may end with a fence they are drawn in reverse order
-		while(  diff < zz  ) {
-			gfx->draw_normal( ground_desc_t::slopes->get_image(19), x, y, 0, true, false CLIP_NUM_PAR );
-			y -= hgt_step*2;
-			diff+=2;
-		}
-		gfx->draw_normal( slope_img, x, y, 0, true, false CLIP_NUM_PAR );
-	}
-
-	if(  pos.x-welt->get_size().x+1 == 0  ) {
-		// move slopes to front of tile
-		sint16 x = xpos + raster_tile_width/2;
-		sint16 y = ypos + raster_tile_width/4 + (pos.z - welt->min_height) * hgt_step;
-		// right side border
-		sint16 diff = corner_se(slope)-corner_ne(slope);
-		image_id slope_img = ground_desc_t::slopes->get_image( lookup_hgt[ 2+diff ] );
-		diff = -min(corner_se(slope),corner_ne(slope));
-		sint16 zz = pos.z - welt->min_height;
-		if(  diff < zz && ((zz-diff)&1)==1  ) {
-			gfx->draw_normal( ground_desc_t::slopes->get_image(4), x, y, 0, true, false CLIP_NUM_PAR );
-			y -= hgt_step;
-			diff++;
-		}
-		// ok, now we have the height; since the slopes may end with a fence they are drawn in reverse order
-		while(  diff < zz  ) {
-			gfx->draw_normal( ground_desc_t::slopes->get_image(8), x, y, 0, true, false CLIP_NUM_PAR );
-			y -= hgt_step*2;
-			diff+=2;
-		}
-		gfx->draw_normal( slope_img, x, y, 0, true, false CLIP_NUM_PAR );
+	// Square-grid logic: `pos.y == size.y - 1` / `pos.x == size.x - 1` edge
+	// detection, `lookup_hgt[2+diff]` indexing into the legacy 22-cell
+	// `Slopes` 1D layout.  Doesn't translate to hex (6 world edges, not 4;
+	// `corner_sw - corner_se` under base-4 slope encoding can return values
+	// outside the 5-element `lookup_hgt`).  The new pak128 hex bake also
+	// repurposed `Slopes` / `Basement` to a 2D `Image[<wall>][<index>]`
+	// layout, so the legacy 1D reads silently miss on hex paksets.
+	//
+	// Disabled until a hex-aware map-edge cliff renderer lands.  No-op
+	// rather than fatal: the function is purely visual (no save-state
+	// effect, no propagation), and on legacy paksets like pak64 the
+	// previous body would still produce intelligible output -- a fatal
+	// would needlessly crash pak64 + hex-engine.  Visual regression on
+	// every pakset: map edges render no cliff sprite.
+	static bool warned = false;
+	if(  !warned  ) {
+		dbg->warning("grund_t::display_border",
+			"map-edge cliff rendering disabled pending hex port "
+			"(env_t::draw_earth_border = true, but body is a no-op).");
+		warned = true;
 	}
 }
 
