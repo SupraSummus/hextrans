@@ -216,8 +216,16 @@ const char *check_tile( const grund_t *gr, const player_t *player, waytype_t wt,
 		}
 
 		if(  w->get_waytype() != wt  ) {
-			// now check for perpendicular and crossing
-			if(  (ribi_t::doubles(ribi) ^ ribi_t::doubles(check_ribi) ) == ribi_t::all  &&  crossing_logic_t::get_crossing(wt, w->get_waytype(), 0, 0, welt->get_timeline_year_month()  )  ) {
+			// Bridge starts on a foreign way: the bridge axis must differ
+			// from the way's axis so the ramp lands as a crossing, not a
+			// merge.  Square-era code wrote this as
+			// `(doubles(ribi) ^ doubles(check_ribi)) == ribi_t::all` —
+			// "two axes cover the whole 4-bit ribi space" — which on hex
+			// (3 axes, 6 bits) can never be true and silently rejects
+			// every legitimate foreign-way bridge start.
+			const ribi_t::ribi a_way    = ribi_t::straight_axis(ribi);
+			const ribi_t::ribi a_bridge = ribi_t::straight_axis(check_ribi);
+			if(  a_way != ribi_t::none  &&  a_bridge != ribi_t::none  &&  a_way != a_bridge  &&  crossing_logic_t::get_crossing(wt, w->get_waytype(), 0, 0, welt->get_timeline_year_month()  )  ) {
 				return NULL;
 			}
 			return "A bridge must start on a way!";
@@ -545,16 +553,19 @@ const char* bridge_builder_t::can_build_bridge(const player_t* pl, koord3d start
 	minivec_tpl<sint8>heights;
 
 	koord delta = end_pos.get_2d() - start_pos.get_2d();
-	if (delta.x && delta.y) {
-		// no diagonal bridges
-		return "";
-	}
-	else if (delta.x+delta.y == 0) {
-		// no bridge
-		return "";
-	}
-	delta = delta / abs(delta.x + delta.y); // normalised step difference
+	// `ribi_type(koord)` returns the matching axis ribi for any of
+	// the 3 hex axes (N-S, NW-SE, NE-SW) and `none` for off-axis or
+	// zero displacement.  The square-era preamble had three separate
+	// bugs here: (1) `delta.x && delta.y` rejected every NE-SW axis
+	// bridge because `(n, -n)` has both components nonzero; (2) the
+	// `delta.x + delta.y == 0` "no bridge" guard fired on those same
+	// NE-SW deltas; (3) the normaliser `delta / abs(delta.x +
+	// delta.y)` divided by zero in that case.
 	ribi_t::ribi bridge_ribi = ribi_type(delta);
+	if (bridge_ribi == ribi_t::none) {
+		// either start == end, or delta is off-axis: no bridge
+		return "";
+	}
 
 	grund_t* start = welt->lookup(start_pos);
 	if (const char* error_msg = check_start_tile(pl, start, ribi_t::reverse_single(bridge_ribi), desc)) {
@@ -720,9 +731,12 @@ bool bridge_builder_t::is_start_of_bridge( const grund_t *gr )
 			// ramp => true
 			return true;
 		}
-		// now check for end of rampless bridges
+		// now check for end of rampless bridges: any neighbour we
+		// connect to that is itself not a bridge tile makes us the
+		// bridge's start.  Six hex edges, not four square cardinals —
+		// the legacy `i<4` loop skipped bits 4 (N) and 5 (NE).
 		ribi_t::ribi ribi = gr->get_weg_ribi_unmasked( gr->get_leitung() ? powerline_wt : gr->get_weg_nr(0)->get_waytype() );
-		for(  int i=0;  i<4;  i++  ) {
+		for(  int i=0;  i<6;  i++  ) {
 			if(  ribi_t::nesw[i] & ribi  ) {
 				grund_t *to = welt->lookup( gr->get_pos()+koord(ribi_t::nesw[i]) );
 				if(  to  &&  !to->ist_bruecke()  ) {
@@ -781,7 +795,19 @@ void bridge_builder_t::build_bridge(player_t *player, const koord3d start, const
 		welt->max_height = pos.z;
 	}
 
+	// Pillar cadence: count steps along the bridge.  The legacy formula
+	// `(pos.x*zv.x + pos.y*zv.y) % pillar == 0` projects the world
+	// position onto `zv`, which under square cardinals (`zv⋅zv == 1`)
+	// advanced by 1 per step but on the hex NE-SW axis (`zv = (1,-1)`,
+	// `zv⋅zv == 2`) advances by 2 per step — so `pillar == 2` placed a
+	// pillar on every NE-SW bridge tile instead of every other one.
+	// A step counter is axis-agnostic and matches the pakset author's
+	// "every Nth tile" intent on all 3 hex axes.  Loses the cross-bridge
+	// world-grid phase alignment the dot product implicitly provided;
+	// not a feature anything depends on.
+	uint32 pillar_step = 0;
 	while(  pos.get_2d() != end.get_2d()  ) {
+		pillar_step++;
 		brueckenboden_t *bruecke = new brueckenboden_t( pos, slope_t::flat, slope_t::flat );
 		welt->access(pos.get_2d())->boden_hinzufuegen(bruecke);
 		if(  desc->get_waytype() != powerline_wt  ) {
@@ -801,11 +827,8 @@ void bridge_builder_t::build_bridge(player_t *player, const koord3d start, const
 		bruecke->obj_add(br);
 		bruecke->calc_image();
 		br->finish_rd();
-//DBG_MESSAGE("bool bridge_builder_t::build_bridge()","at (%i,%i)",pos.x,pos.y);
 		if(desc->get_pillar()>0) {
-			// make a new pillar here
-			if(desc->get_pillar()==1  ||  (pos.x*zv.x+pos.y*zv.y)%desc->get_pillar()==0) {
-//DBG_MESSAGE("bool bridge_builder_t::build_bridge()","h1=%i, h2=%i",pos.z,gr->get_pos().z);
+			if(desc->get_pillar()==1  ||  pillar_step % desc->get_pillar() == 0) {
 				while(height-->0) {
 					if( TILE_HEIGHT_STEP*height <= 127) {
 						// eventual more than one part needed, if it is too high ...
@@ -1041,6 +1064,12 @@ const char* bridge_builder_t::renovate(player_t* player, koord3d pos_start, wayt
 
 	part_list.append_list(end_list);
 	const way_desc_t* way_desc = way_builder_t::weg_search(desc->get_waytype(), desc->get_topspeed(), welt->get_timeline_year_month(), type_flat);
+	// Step counter for pillar cadence; see build_bridge for the
+	// rationale on why the legacy `pos⋅zv` formula was wrong on the
+	// hex NE-SW axis.  part_list is ordered along the bridge axis
+	// (lower-half end → upper-half end, ramps appended last).  We
+	// increment only on mid-tiles below, since ramps don't get pillars.
+	uint32 pillar_step = 0;
 	for(grund_t *&gr : part_list) {
 		bruecke_t *br = gr->find<bruecke_t>();
 		const bridge_desc_t *br_desc = br->get_desc();
@@ -1074,11 +1103,8 @@ const char* bridge_builder_t::renovate(player_t* player, koord3d pos_start, wayt
 		sint16 height = gr->get_hoehe() - gr_bottom->get_pos().z;
 		ribi_t::ribi ribi = gr->get_weg_ribi_unmasked(wegtyp);
 		if (desc->get_pillar() > 0 && !gr->ist_karten_boden()) {
-			koord zv((ribi_t::ribi)(ribi & ribi_t::upper_half));
-			// make a new pillar here
-			koord3d pos = gr->get_pos();
-			if (desc->get_pillar() == 1  ||  (pos.x * zv.x + pos.y * zv.y) % desc->get_pillar() == 0) {
-				//DBG_MESSAGE("bool bridge_builder_t::renovate()","h1=%i, h2=%i",pos.z,gr->get_pos().z);
+			pillar_step++;
+			if (desc->get_pillar() == 1  ||  pillar_step % desc->get_pillar() == 0) {
 				while (height-- > 0) {
 					if (TILE_HEIGHT_STEP * height <= 127) {
 						// eventual more than one part needed, if it is too high ...

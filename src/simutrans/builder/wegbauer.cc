@@ -83,6 +83,32 @@ const way_desc_t *way_builder_t::leitung_desc = NULL;
 static stringhashtable_tpl <const way_desc_t *> desc_table;
 
 
+// Edges the A* loop in `intern_calc_route{,_elevated}` is allowed to
+// step into from this node: slope-allowed minus the back direction,
+// or `straight_dir` when build_straight is pinned.  Three hex-port
+// carve-outs (rationale and retirement triggers in TODO.md →
+// "is_way_ns / is_way_ew" cluster): flat / all_up tiles return all 6
+// edges; root nodes return slope_dir directly because hex
+// `backward(all) == all` collapses the legacy `~backward(straight_dir)`
+// mask to 0.
+static ribi_t::ribi compute_test_dir(slope_t::type sl, ribi_t::ribi straight_dir, bool is_root, bool build_straight_pinned)
+{
+	if (build_straight_pinned) {
+		return straight_dir;
+	}
+	ribi_t::ribi slope_dir;
+	if (sl == slope_t::flat || slope_t::is_all_up(sl)) {
+		slope_dir = ribi_t::all;
+	}
+	else {
+		slope_dir = ribi_t::none;
+		if (slope_t::is_way_ns(sl)) slope_dir |= ribi_t::north | ribi_t::south;
+		if (slope_t::is_way_ew(sl)) slope_dir |= ribi_t::southeast | ribi_t::northwest;
+	}
+	return is_root ? slope_dir : (ribi_t::ribi)(slope_dir & ~ribi_t::backward(straight_dir));
+}
+
+
 static void set_default(way_desc_t const*& def, waytype_t const wtyp, systemtype_t const system_type = type_flat, sint32 const speed_limit = 1)
 {
 	def = way_builder_t::weg_search(wtyp, speed_limit, 0, system_type);
@@ -1485,19 +1511,11 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 		// only one direction allowed ...
 		const ribi_t::ribi straight_dir = tmp->parent!=NULL ? ribi_type(gr->get_pos() - tmp->parent->gr->get_pos()) : (ribi_t::ribi)ribi_t::all;
 
-		// test directions
-		// .. use only those that are allowed by current slope
-		// .. do not go backward
-		ribi_t::ribi slope_dir = ribi_t::none;
-		if(  slope_t::is_way_ns(gr->get_weg_hang())  ) slope_dir |= ribi_t::north | ribi_t::south;
-		if(  slope_t::is_way_ew(gr->get_weg_hang())  ) slope_dir |= ribi_t::southeast | ribi_t::northwest;
-		const ribi_t::ribi test_dir = (tmp->count & build_straight)==0  ?  slope_dir  & ~ribi_t::backward(straight_dir)
-		                                                                :  straight_dir;
+		const ribi_t::ribi test_dir = compute_test_dir(gr->get_weg_hang(), straight_dir, tmp->parent == NULL, (tmp->count & build_straight) != 0);
 
-		// testing all four possible directions
-		for(ribi_t::ribi r=1; (r&16)==0; r<<=1) {
-			if((r & test_dir)==0) {
-				// not allowed to go this direction
+		for (uint8 i = 0; i < 6; i++) {
+			const ribi_t::ribi r = ribi_t::nesw[i];
+			if ((r & test_dir) == 0) {
 				continue;
 			}
 
@@ -1980,19 +1998,11 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 			// only one direction allowed ...
 			const ribi_t::ribi straight_dir = tmp->parent!=NULL ? ribi_type(gr->get_pos() - tmp->parent->gr->get_pos()) : (ribi_t::ribi)ribi_t::all;
 
-			// test directions
-			// .. use only those that are allowed by current slope
-			// .. do not go backward
-			ribi_t::ribi slope_dir = ribi_t::none;
-			if(  slope_t::is_way_ns(gr->get_weg_hang())  ) slope_dir |= ribi_t::north | ribi_t::south;
-			if(  slope_t::is_way_ew(gr->get_weg_hang())  ) slope_dir |= ribi_t::southeast | ribi_t::northwest;
-			const ribi_t::ribi test_dir = (tmp->count & build_straight)==0  ?  slope_dir  & ~ribi_t::backward(straight_dir)
-		                                                                :  straight_dir;
+			const ribi_t::ribi test_dir = compute_test_dir(gr->get_weg_hang(), straight_dir, tmp->parent == NULL, (tmp->count & build_straight) != 0);
 
-			// testing all four possible directions
-			for(ribi_t::ribi r=1; (r&16)==0; r<<=1) {
-				if((r & test_dir)==0) {
-					// not allowed to go this direction
+			for (uint8 i = 0; i < 6; i++) {
+				const ribi_t::ribi r = ribi_t::nesw[i];
+				if ((r & test_dir) == 0) {
 					continue;
 				}
 
@@ -2023,19 +2033,11 @@ DBG_DEBUG("insert to close","(%i,%i,%i)  f=%i",gr->get_pos().x,gr->get_pos().y,g
 			// only one direction allowed ...
 			const ribi_t::ribi straight_dir = tmp->parent!=NULL ? ribi_type(gu->get_pos() - tmp->parent->gr->get_pos()) : (ribi_t::ribi)ribi_t::all;
 
-			// test directions
-			// .. use only those that are allowed by current slope
-			// .. do not go backward
-			ribi_t::ribi slope_dir = ribi_t::none;
-			if(  slope_t::is_way_ns(gu->get_weg_hang())  ) slope_dir |= ribi_t::north | ribi_t::south;
-			if(  slope_t::is_way_ew(gu->get_weg_hang())  ) slope_dir |= ribi_t::southeast | ribi_t::northwest;
-			const ribi_t::ribi test_dir = (tmp->count & build_straight)==0  ?  slope_dir  & ~ribi_t::backward(straight_dir)
-		                                                                :  straight_dir;
+			const ribi_t::ribi test_dir = compute_test_dir(gu->get_weg_hang(), straight_dir, tmp->parent == NULL, (tmp->count & build_straight) != 0);
 
-			// testing all four possible directions
-			for(ribi_t::ribi r=1; (r&16)==0; r<<=1) {
-				if((r & test_dir)==0) {
-					// not allowed to go this direction
+			for (uint8 i = 0; i < 6; i++) {
+				const ribi_t::ribi r = ribi_t::nesw[i];
+				if ((r & test_dir) == 0) {
 					continue;
 				}
 
