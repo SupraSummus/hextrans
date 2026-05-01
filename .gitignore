@@ -31,6 +31,7 @@ build
 /doxygen
 .vs/
 revision.h
+revision.h.txt
 .idea
 *.d
 *.res

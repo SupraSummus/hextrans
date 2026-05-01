@@ -385,8 +385,14 @@ void weg_t::set_images(image_type typ, uint8 ribi, bool snow, bool switch_nw)
 			set_foreground_image( desc->get_slope_image_id( (slope_t::type)ribi, snow, true ) );
 			break;
 		case image_switch:
-			set_image( desc->get_switch_image_id(ribi, snow, switch_nw) );
-			set_foreground_image( desc->get_switch_image_id(ribi, snow, switch_nw, true) );
+			// Switched / un-switched 3-way junctions used to pick from
+			// an extended 5-entry sprite table; under hex that table
+			// doesn't span the 20 hex 3-way patterns and was retired.
+			// `switch_nw` is a vestigial flag from `schiene_t::reserve`
+			// that no longer affects rendering.
+			(void)switch_nw;
+			set_image( desc->get_image_id( ribi, snow ) );
+			set_foreground_image( desc->get_image_id( ribi, snow, true ) );
 			break;
 	}
 }
