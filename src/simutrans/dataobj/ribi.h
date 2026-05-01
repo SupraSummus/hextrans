@@ -49,17 +49,21 @@ public:
 		northwest = raised_NW,
 		northeast = raised_NE,
 
-		// 2-corner "edge" slopes named by their LOW edge.  Only north
-		// and south correspond to actual hex edges; east and west
-		// under flat-top hex are 2-corner diagonals (the 2 east /
-		// 2 west corners) kept for backward compatibility with square
-		// callers that reference them.  Hex-only edges (NE, SE, SW, NW)
-		// have no named constant yet — use `raised_X + raised_Y` on
-		// the two adjacent corners.
-		north = raised_SE + raised_SW, ///< low edge N (S corners raised)
-		south = raised_NE + raised_NW, ///< low edge S (N corners raised)
-		east  = raised_NW + raised_SW, ///< 2 west corners raised (legacy square)
-		west  = raised_NE + raised_SE, ///< 2 east corners raised (legacy square)
+		// 2-corner "edge" slopes named by their LOW edge.  ::north and
+		// ::south are the legacy bare names for the N and S hex edges;
+		// the 4 hex-only edges (NE, SE, SW, NW) carry the `_edge` suffix
+		// to disambiguate from the single-corner aliases above.  ::east
+		// and ::west are 2-corner diagonals (the 2 west / 2 east corners
+		// raised) — NOT real hex edges, kept buildable so square-era
+		// docks and harbours still place during the port.
+		north   = raised_SE + raised_SW, ///< low edge N  (S corners raised)
+		south   = raised_NE + raised_NW, ///< low edge S  (N corners raised)
+		ne_edge = raised_SW + raised_W,  ///< low edge NE
+		se_edge = raised_W  + raised_NW, ///< low edge SE
+		sw_edge = raised_NE + raised_E,  ///< low edge SW
+		nw_edge = raised_E  + raised_SE, ///< low edge NW
+		east    = raised_NW + raised_SW, ///< 2 west corners raised (legacy square)
+		west    = raised_NE + raised_SE, ///< 2 east corners raised (legacy square)
 
 		all_up_one   = raised_E + raised_SE + raised_SW + raised_W + raised_NW + raised_NE, ///< all corners 1 high (= 1365)
 		all_up_two   = all_up_one * 2, ///< all corners 2 high (= 2730)
@@ -183,14 +187,14 @@ public:
 	/// still place during the port.
 	static bool is_single(type x) {
 		switch (x) {
-			case raised_E  + raised_SE: case 2 * (raised_E  + raised_SE):
-			case raised_SE + raised_SW: case 2 * (raised_SE + raised_SW):
-			case raised_SW + raised_W:  case 2 * (raised_SW + raised_W):
-			case raised_W  + raised_NW: case 2 * (raised_W  + raised_NW):
-			case raised_NW + raised_NE: case 2 * (raised_NW + raised_NE):
-			case raised_NE + raised_E:  case 2 * (raised_NE + raised_E):
-			case east: case 2 * east:
-			case west: case 2 * west:
+			case north:   case 2 * north:
+			case south:   case 2 * south:
+			case ne_edge: case 2 * ne_edge:
+			case se_edge: case 2 * se_edge:
+			case sw_edge: case 2 * sw_edge:
+			case nw_edge: case 2 * nw_edge:
+			case east:    case 2 * east:
+			case west:    case 2 * west:
 				return true;
 			default:
 				return false;
@@ -200,20 +204,31 @@ public:
 	/// Way allowed on this slope: flat, any edge slope, or all-up.
 	static bool is_way(type x) { return x == flat || is_single(x) || is_all_up(x); }
 
-	/// Does this slope's edge lie along the N-S axis?  True for the 2
-	/// hex N/S edges (= ::north and ::south) at single or double
-	/// height, plus all-up (way in any axis).  Legacy 2-axis split;
-	/// hex has 3 axes — the NE-SW and NW-SE edge slopes aren't covered
-	/// by either predicate yet.
+	/// Three hex axes (N-S, NE-SW, NW-SE).  Each predicate is true on
+	/// flat / all_up (axis-agnostic) and on the matching edge slopes
+	/// at single or double height.  The NW-SE predicate also matches
+	/// the legacy ::east and ::west 2-corner diagonals — not real hex
+	/// edges, but they project onto the NW-SE axis under the current
+	/// iso viewport.  Retire the legacy inclusion once east/west drop
+	/// out of way-buildable status.
 	static bool is_way_ns(type x) {
-		return x == north || x == 2 * north || x == south || x == 2 * south || is_all_up(x);
+		return x == flat || is_all_up(x)
+		    || x == north || x == 2 * north
+		    || x == south || x == 2 * south;
 	}
 
-	/// Does this slope's edge lie along the E-W axis?  True for the 2
-	/// legacy ::east and ::west constants (which under flat-top hex
-	/// are 2-corner diagonals, not real edges) plus all-up.
-	static bool is_way_ew(type x) {
-		return x == east || x == 2 * east || x == west || x == 2 * west || is_all_up(x);
+	static bool is_way_ne_sw(type x) {
+		return x == flat || is_all_up(x)
+		    || x == ne_edge || x == 2 * ne_edge
+		    || x == sw_edge || x == 2 * sw_edge;
+	}
+
+	static bool is_way_nw_se(type x) {
+		return x == flat || is_all_up(x)
+		    || x == nw_edge || x == 2 * nw_edge
+		    || x == se_edge || x == 2 * se_edge
+		    || x == east    || x == 2 * east
+		    || x == west    || x == 2 * west;
 	}
 };
 

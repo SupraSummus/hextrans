@@ -524,10 +524,14 @@ class slope {
 	static southwest = 16      ///< SW corner raised
 	static northwest = 256     ///< NW corner raised
 	static northeast = 1024    ///< NE corner raised
-	static north = 4 + 16      ///< North slope: low edge N, S corners raised = 20
-	static south = 256 + 1024  ///< South slope: low edge S, N corners raised = 1280
-	static east  = 256 + 16    ///< East slope: 2 west corners raised = 272
-	static west  = 1024 + 4    ///< West slope: 2 east corners raised = 1028
+	static north   = 4 + 16      ///< North slope:    low edge N,  S corners raised = 20
+	static south   = 256 + 1024  ///< South slope:    low edge S,  N corners raised = 1280
+	static ne_edge = 16 + 64     ///< NE-edge slope:  low edge NE, SW + W corners raised = 80
+	static se_edge = 64 + 256    ///< SE-edge slope:  low edge SE, W + NW corners raised = 320
+	static sw_edge = 1024 + 1    ///< SW-edge slope:  low edge SW, NE + E corners raised = 1025
+	static nw_edge = 1 + 4       ///< NW-edge slope:  low edge NW, E + SE corners raised = 5
+	static east    = 256 + 16    ///< East slope (legacy diagonal): 2 west corners raised = 272
+	static west    = 1024 + 4    ///< West slope (legacy diagonal): 2 east corners raised = 1028
 	// `raised` here is the single-height "all corners 1" value, used
 	// by scripts as the iteration bound over "interesting" single-
 	// height slopes — NOT the same as C++ `slope_t::raised`, which is

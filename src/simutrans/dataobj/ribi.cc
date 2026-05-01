@@ -66,26 +66,24 @@ ribi_t::dir ribi_t::get_dir(ribi x)
 }
 
 
-// Slope → direction of travel that goes UP this slope.  Only the 4
-// legacy square-named 2-corner slopes have a clean 4-bit-era answer;
-// the 6-corner hex slopes need new naming.  For the square-era slopes
-// we preserve the convention "going north walks up slope_t::south".
+// Slope → direction of travel that goes UP this slope.  Convention
+// "going X walks up slope named after low-edge opposite(X)": e.g.
+// going north walks up slope_t::south (N corners raised).  The 4
+// hex-only edge slopes (ne_edge etc.) follow the same rule.
+// ::east and ::west are legacy 2-corner diagonals projected onto the
+// closest hex edge until they retire from way-buildable status.
 ribi_t::ribi ribi_type(slope_t::type hang)
 {
 	switch (hang) {
-		case slope_t::north:     case 2 * slope_t::north:   return ribi_t::south;
-		case slope_t::south:     case 2 * slope_t::south:   return ribi_t::north;
-		// east/west under flat-top hex are 2-corner diagonals, not
-		// real edges; map them to the diagonal hex edge that is
-		// closest in spirit.  slope_t::east has the two W corners
-		// raised (NW + SW), so travel UP it heads NW-ish; pick the
-		// NW hex edge.  slope_t::west has the two E corners raised;
-		// pick the SE hex edge.  Good enough for square-era callers
-		// during the transition; real hex slope→ribi lookup comes
-		// with the slope-edge table.
-		case slope_t::east:      case 2 * slope_t::east:    return ribi_t::northwest;
-		case slope_t::west:      case 2 * slope_t::west:    return ribi_t::southeast;
-		default:                                            return ribi_t::none;
+		case slope_t::north:   case 2 * slope_t::north:   return ribi_t::south;
+		case slope_t::south:   case 2 * slope_t::south:   return ribi_t::north;
+		case slope_t::ne_edge: case 2 * slope_t::ne_edge: return ribi_t::southwest;
+		case slope_t::sw_edge: case 2 * slope_t::sw_edge: return ribi_t::northeast;
+		case slope_t::se_edge: case 2 * slope_t::se_edge: return ribi_t::northwest;
+		case slope_t::nw_edge: case 2 * slope_t::nw_edge: return ribi_t::southeast;
+		case slope_t::east:    case 2 * slope_t::east:    return ribi_t::northwest;
+		case slope_t::west:    case 2 * slope_t::west:    return ribi_t::southeast;
+		default:                                          return ribi_t::none;
 	}
 }
 
@@ -164,39 +162,39 @@ sint16 get_sloping_upwards(const slope_t::type slope, const ribi_t::ribi from)
 
 slope_t::type slope_type(koord dir)
 {
-	if(dir.x == 0) {
-		if(dir.y < 0) {            // north direction -> south slope
-			return slope_t::south;
-		}
-		if(dir.y > 0) {
-			return slope_t::north; // south direction -> north slope
-		}
+	// Direction → slope walking which UP goes in that direction
+	// (corners on the destination side raised).  Three hex axes:
+	// N-S (dx==0), NW-SE (dy==0), NE-SW (dx+dy==0).  The NW-SE
+	// axis returns the legacy 2-corner ::east / ::west diagonals
+	// during the transition; the NE-SW axis returns the proper
+	// hex-edge slopes.
+	if (dir.x == 0) {
+		if (dir.y < 0) return slope_t::south; // toward N
+		if (dir.y > 0) return slope_t::north; // toward S
 	}
-	if(dir.y == 0) {
-		if(dir.x < 0) {
-			return slope_t::east;  // west direction -> east slope (legacy square diagonal)
-		}
-		if(dir.x > 0) {
-			return slope_t::west;  // east direction -> west slope (legacy square diagonal)
-		}
+	if (dir.y == 0) {
+		if (dir.x < 0) return slope_t::east;  // toward NW (legacy square diagonal)
+		if (dir.x > 0) return slope_t::west;  // toward SE (legacy square diagonal)
 	}
-	// Hex-only diagonals (SE = (1,1), SW = (-1, 1) minus axial, ...):
-	// no slope_t alias yet — return flat.  Callers that feed hex
-	// diagonals in will get flat and misbehave; tracked in TODO.md
-	// under the slope-edge work.
+	if (dir.x + dir.y == 0) {
+		if (dir.x > 0) return slope_t::sw_edge; // toward NE
+		if (dir.x < 0) return slope_t::ne_edge; // toward SW
+	}
 	return slope_t::flat;
 }
 
 
 slope_t::type slope_type(ribi_t::ribi r)
 {
-	// Single hex-edge direction → slope whose low edge is that
-	// direction.  Only the 4 legacy square-era directions have slope
-	// aliases today; NE/NW/SE/SW hex edges return flat until the
-	// hex-slope edge-name constants land.
+	// Single hex-edge direction → slope whose low edge is opposite
+	// that direction (i.e. the destination corners are raised).
 	switch (r) {
-		case ribi_t::north: return slope_t::south;
-		case ribi_t::south: return slope_t::north;
-		default:            return slope_t::flat;
+		case ribi_t::north:     return slope_t::south;
+		case ribi_t::south:     return slope_t::north;
+		case ribi_t::northeast: return slope_t::sw_edge;
+		case ribi_t::southwest: return slope_t::ne_edge;
+		case ribi_t::northwest: return slope_t::se_edge;
+		case ribi_t::southeast: return slope_t::nw_edge;
+		default:                return slope_t::flat;
 	}
 }

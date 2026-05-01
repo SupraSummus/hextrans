@@ -10,21 +10,26 @@
 function test_slope_to_dir()
 {
 	// slope.to_dir(sl) returns the ribi that walks UP the slope — see
-	// ribi_type(slope_t::type) in ribi.cc.  Only the 4 legacy square-
-	// named slopes (N, S edges and E, W 2-corner diagonals) have ribi
-	// aliases today, each at single and double height.  Every other
-	// slope — flat, the 6 single-corner raises, the 4 hex-only edge
-	// slopes — maps to dir.none until the slope-edge table lands (see
-	// TODO.md → slope-edge constants).
+	// ribi_type(slope_t::type) in ribi.cc.  All 6 hex edge slopes plus
+	// the 2 legacy square diagonals (slope.east / slope.west) carry a
+	// ribi mapping, each at single and double height.  Flat, the 6
+	// single-corner raises, and any other multi-corner slope map to
+	// dir.none.
+	local single = {}
+	single[slope.north]   <- dir.south
+	single[slope.south]   <- dir.north
+	single[slope.ne_edge] <- dir.southwest
+	single[slope.se_edge] <- dir.northwest
+	single[slope.sw_edge] <- dir.northeast
+	single[slope.nw_edge] <- dir.southeast
+	single[slope.east]    <- dir.northwest  // W corners raised → uphill = NW hex edge (legacy)
+	single[slope.west]    <- dir.southeast  // E corners raised → uphill = SE hex edge (legacy)
+
 	local expected = {}
-	expected[slope.north]     <- dir.south
-	expected[slope.south]     <- dir.north
-	expected[slope.east]      <- dir.northwest  // W corners raised → uphill = NW hex edge
-	expected[slope.west]      <- dir.southeast  // E corners raised → uphill = SE hex edge
-	expected[2 * slope.north] <- dir.south
-	expected[2 * slope.south] <- dir.north
-	expected[2 * slope.east]  <- dir.northwest
-	expected[2 * slope.west]  <- dir.southeast
+	foreach (sl, d in single) {
+		expected[sl]     <- d
+		expected[2 * sl] <- d
+	}
 
 	foreach (sl, d in expected) {
 		ASSERT_EQUAL(slope.to_dir(sl), d)
