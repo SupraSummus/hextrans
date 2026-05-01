@@ -49,12 +49,57 @@ shims; the codebase compiles, honest paths run, dishonest paths
 abort loudly.
 
 Sites that genuinely cannot port yet take a narrow named escape
-hatch — `legacy_grid_hgt` / `legacy_set_grid_hgt_nocheck` preserve
-the old slot semantics for clusters with documented retirement
-triggers in `TODO.md` (e.g. "after the save-format bump", "after
-`recalc_natural_slope` ports"). One escape-hatch name per cluster,
-not per call site; the cluster description lives in `TODO.md`, not
-duplicated across synonymous wrappers.
+hatch — `legacy_*` wrappers that preserve the old slot semantics
+for clusters with documented retirement triggers in `TODO.md` (e.g.
+"after the save-format bump", "after `recalc_natural_slope`
+ports"). One escape-hatch name per cluster, not per call site; the
+cluster description lives in `TODO.md`, not duplicated across
+synonymous wrappers.
+
+## Diff against the upstream `simutrans` branch
+
+The pre-port upstream is checked out as the local `simutrans` branch
+(read-only reference; not for development). It shares no merge base
+with the hex-port history — compare, don't merge. Picking up upstream
+fixes is a separate merge job; this technique is for evaluating
+divergence on code we are about to touch.
+
+```sh
+git show refs/heads/simutrans:src/simutrans/<file> | sed -n 'A,Bp'
+git grep -n '<symbol>' refs/heads/simutrans -- 'src/simutrans/<dir>/*'
+```
+
+(`git fetch --unshallow origin` first if `git log` is short.)
+
+The comparison's main value is sharpening claims — when the port
+has left a "dead under hex" read or a "this branch only made sense
+under square geometry" comment, reading upstream pins down what the
+code actually fed and makes "geometric residue vs. real logic"
+visible. Use it to confirm a retirement is honest, or to notice
+that upstream had a non-geometric reason (save-format
+compatibility, an AI heuristic, collision avoidance) that survives
+into hex.
+
+Lower diff lowers merge-conflict surface when an upstream sync
+eventually happens — a real but soft pressure, not a mandate to
+preserve upstream verbatim. Tier the choices:
+
+*Mechanical / incidental divergence.* Stay close. `ribi_t::east` →
+`ribi_t::southeast` is the same axial vector under the current
+viewport; a future merge sees a localised rename, not restructured
+logic.
+
+*Semantic divergence.* Diverge cleanly. `rotate90` is geometrically
+wrong under flat-top hex; keeping the name would mislead.
+`rotate60` is correct even though the diff grows.
+
+*Abstraction wins.* Best when available: pick a name / signature
+that's neutral across both grid models. `rotate_one_step` instead
+of either `rotate90` or `rotate60` works in upstream *and* in hex;
+the rotation amount becomes an implementation detail. Hex-correct,
+upstream-mergeable, organically sorts the layering, and a candidate
+for upstreaming back. Reach for this tier when a rename is already
+on the table; don't force it where it would be contrived.
 
 ## Direction naming convention (pin this — silent-failure landmine)
 

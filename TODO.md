@@ -252,14 +252,11 @@ the same pass as `rotate90`.
 The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
 `surface.h` is `dbg->fatal` — every residual call is a crash so the
 port can't accidentally regress new sites onto the old E-slot of
-tile `(x-1, y-1)`.  Two narrow escape hatches survive in
-`surface.h` for known-bubble-consistent uses (`legacy_grid_hgt` and
-`legacy_set_grid_hgt_nocheck`); their callers are listed below by
-retirement trigger.  Gameplay code should not call the fatal
+tile `(x-1, y-1)`.  Gameplay code should not call the fatal
 `lookup_hgt` / `lookup_hgt_nocheck` `(x,y)` / `(koord)` overloads;
 use `(tile, hex_corner_t)`, `min_hgt` / `max_hgt`, or
-`grund_t::get_hoehe` as appropriate.  Clusters still on the legacy
-hatches or unfinished ports:
+`grund_t::get_hoehe` as appropriate.  Clusters still on unfinished
+ports:
 
 *"Tile reference height" readers — semantic drift bubble (partial)* —
 the shim's old "what is this tile's reference height" pattern picked
@@ -278,14 +275,6 @@ cursor corner via `grund_t::get_hoehe` or use `max_hgt` /
 water or tunnel depth; `wegbauer.cc` and `tunnelbauer.cc` use
 `max_hgt` for the same "dry land above z" predicate, and
 `enlarge_map_frame` uses `min_hgt` for the preview tile colour.
-
-*Save-side wasser remnant* — `grund.cc:177` still calls `legacy_grid_hgt(k)`
-to initialise `z` before the save path.  For dry tiles this value is
-immediately overwritten by `z = pos.z`; for wasser tiles the loaded `z` is
-ignored because the hex-aware restore block writes `z_w` unconditionally.
-The read is therefore dead in both cases.  Retire by replacing the open
-with `sint8 z = pos.z` and removing the wasser-specific branch — requires
-checking that no version-gated load path still reads the old saved value.
 
 *Explicit out-of-scope* — `simworld.cc:4673` heightfield load (1
 site, blocked on import decision as noted above).
@@ -429,14 +418,11 @@ need sprite representations — every rename site needs re-audit.
 Grep: `HEX-PORT.*east\|HEX-PORT.*west\|\b(southeast|northwest)\b`
 inside rendering-cluster files.
 
-**`is_straight_ns` 2-of-3-axis residuals.**  Two callers of the
-2-axis predicate remain: `simtool.cc:6736` picks a `koord(0,1)` vs
-`koord(1,0)` offset, and `leitung2.cc:298` picks one of two powerline
-diagonal sprites.  Same 2-of-3 shape — NE-SW lands on the wrong
-branch.  `simtool` likely takes `ribi_t::straight_axis` directly;
-`leitung2` is bound to the "Powerline 3rd hex axis" sprite cluster
-above and waits on that.  When both fall, `is_straight_ns` and this
-entry retire together.
+**`is_straight_ns` last caller.**  `leitung2.cc:298` picks one of two
+powerline diagonal sprites with the 2-axis predicate; NE-SW lands on
+the wrong branch.  Bound to the "Powerline 3rd hex axis" sprite
+cluster above; retires together with that cluster (along with
+`is_straight_ns` itself).
 
 **`koord_random` / `clip_min` / `clip_max` rhombus caveat.**  These
 are rectangular in axial `(q, r)` — rhombus-shaped in world space
@@ -535,21 +521,6 @@ the corner indices for the NE / SW shared edge under hex (which two
 corners of tile A correspond to which corners of tile B across the
 NE/SW edge); pure mechanical extension once those indices are pinned.
 Tied to the wider hex-aware terraform / vertex-sharing cluster.
-
-`way_builder_t::intern_calc_straight_route` (`wegbauer.cc:1672`) picks
-its step direction with a 2-axis if/else: `abs(pos.x - ziel.x) >=
-abs(pos.y - ziel.y)` chooses NW or SE, otherwise N or S.  No NE-SW
-branch — the third hex axis (delta `(n, -n)`) is invisible to the
-straight-route builder.  Player-driven track laying along NE-SW with
-Ctrl held, AI calls into `calc_straight_route`, and the
-`tool_build_cityroad` path all silently misroute or fall back to
-something else.  Land alongside a 3-axis "which axis does delta lie
-on" helper — the same helper `can_build_bridge`'s preamble already
-wants (currently using `ribi_type(delta) == ribi_t::none` as the
-"off-axis" test).  Less-trafficked than the A* path that 023efce9a
-fixed: not a blocker for the basic build-way drag tool, but every
-bridge / tunnel / runway tool that calls `calc_straight_route`
-inherits the gap.
 
 `schiene_t::reserve` (`obj/way/schiene.cc:91`) computes
 `set_switched(dir == ribi_t::northeast || dir == ribi_t::southwest)`.

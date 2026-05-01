@@ -204,7 +204,7 @@ all_tests <- [
 	// test_way_bridge_planner: HEX-PORT PENDING.
 	test_way_road_build_single_tile,
 	// test_way_road_build_straight: HEX-PORT PENDING.
-	test_way_road_build_bend,
+	test_way_road_build_ne_sw,
 	// test_way_road_build_parallel: HEX-PORT PENDING.
 	// test_way_road_build_below_powerline: HEX-PORT PENDING.
 	// test_way_road_build_crossing: HEX-PORT PENDING.

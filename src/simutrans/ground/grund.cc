@@ -174,15 +174,8 @@ void grund_t::rdwr(loadsave_t *file)
 {
 	koord k = pos.get_2d();
 
-	// For dry tiles z is immediately overwritten to pos.z; for wasser tiles
-	// the loaded z is ignored by the hex-aware restore block (all corners → z_w).
-	// The legacy_grid_hgt read here is therefore dead for both cases; it survives
-	// only until the wasser save path is simplified (retire with TODO cluster).
-	sint8 z = welt->legacy_grid_hgt( k );
+	sint8 z = pos.z;
 	sint8 z_w = welt->get_water_hgt( k );
-	if(  !(get_typ() == grund_t::boden  ||  get_typ() == grund_t::wasser) || pos.z > z_w || z > z_w  ) {
-		z = pos.z;
-	}
 
 	planquadrat_t *plan = welt->access( k );
 	const uint8 corners_save = plan->get_climate_corners();

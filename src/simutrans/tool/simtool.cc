@@ -6722,19 +6722,14 @@ const char *tool_stop_mover_t::do_work( player_t *player, const koord3d &last_po
 				else {
 					// all connected tiles for start pos
 					uint8 ribi = welt->lookup(last_pos)->get_weg_ribi_unmasked(wt);
-					koord delta = ribi_t::is_straight_ns(ribi) ? koord(0,1) : koord(1,0);
-					// HEX-PORT: the old platform walk tested `ribi & 12`
-					// (= S|W in the 4-bit layout, "forward half") and
-					// `ribi & 3` (N|E, "backward half").  Under hex the
-					// same numeric masks pick SW|NW and SE|S — wrong.
-					// The correct hex check is "the ribi bit matching
-					// the forward delta" — delta is either (0,1)=S or
-					// (1,0)=SE, so `ribi_type(delta)` gives the
-					// forward-bit and its backward gives the reverse.
-					// Platforms along the NE-SW and other hex axes
-					// aren't handled by this 2-axis logic.
-					const ribi_t::ribi fwd = ribi_type(delta);
+					// straight_axis folds the ribi onto its 3-axis hex
+					// representative (north / northwest / northeast) for
+					// any axis-aligned platform; bends or empty ribis
+					// fall back to the NW-SE axis to match upstream.
+					const ribi_t::ribi axis = ribi_t::straight_axis(ribi);
+					const ribi_t::ribi fwd = ribi_t::backward(axis != ribi_t::none ? axis : (ribi_t::ribi)ribi_t::northwest);
 					const ribi_t::ribi rev = ribi_t::backward(fwd);
+					const koord delta = koord::step(fwd);
 					koord3d start_pos=last_pos;
 					while(ribi & fwd) {
 						koord3d test_pos = start_pos+delta;
