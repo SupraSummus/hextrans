@@ -104,6 +104,14 @@ public:
 
 	bool is_clip_below() const { return clip_below; }
 
+	/// Pakset imagelist is sized to `ribi_t::all + 1` slots, indexed
+	/// by the full 6-bit hex ribi.  Missing slots return IMG_EMPTY
+	/// and render blank.  3-way junctions used to dispatch through
+	/// a separate `get_switch_image_id` against an extended 5-entry
+	/// table; under hex that table doesn't span the 20 three-way
+	/// patterns, so junctions now reuse the same per-ribi slot as
+	/// every other connectivity until hex switch art lands
+	/// (TODO.md → "ribi_t — audit surfaces").
 	image_id get_image_id(ribi_t::ribi ribi, uint8 season, bool front = false) const
 	{
 		if (front  &&  !front_images) {
@@ -111,36 +119,6 @@ public:
 		}
 		const uint16 n = image_list_base_index(season, front);
 		return get_child<image_list_t>(n)->get_image_id(ribi);
-	}
-
-	image_id get_switch_image_id(ribi_t::ribi ribi, uint8 season, bool nw, bool front = false) const
-	{
-		if (front  &&  !front_images) {
-			return IMG_EMPTY;
-		}
-		const uint16 n = image_list_base_index(season, front);
-		image_list_t const* const imglist = get_child<image_list_t>(n);
-		// only do this if extended switches are there.
-		// HEX-PORT: ribi_to_extra is a 4-bit-ribi → switch-sprite-index
-		// table; only the 4 "3-way junction" combos under the old
-		// 4-bit layout map to the 5 extended switch images (N+E+S=0,
-		// N+E+W=1, N+S+W=2, E+S+W=3, all=4).  Under hex ribi can be
-		// 0..63 and 3-way hex junctions span many more bit patterns —
-		// not yet wired to the sprite table.  Bound-check to the
-		// 4-bit entries that do exist; everything else falls back to
-		// the standard (non-extended) sprite.
-		if(  imglist->get_count()>16  &&  ribi < 16  ) {
-			static uint8 ribi_to_extra[16] = {
-				255, 255, 255, 255, 255, 255, 255, 0,
-				255, 255, 255, 1, 255, 2, 3, 4
-			};
-			const uint8 extra = ribi_to_extra[ribi];
-			if (extra != 255) {
-				return imglist->get_image_id( extra+16+(nw*5) );
-			}
-		}
-		// else return standard values
-		return imglist->get_image_id( ribi );
 	}
 
 	image_id get_slope_image_id(slope_t::type slope, uint8 season, bool front = false) const
@@ -201,15 +179,15 @@ public:
 		||     get_child<image_list_t>(image_list_base_index(false, true) + 1)->get_count() > 4;
 	}
 
-	bool has_diagonal_image() const {
-		return get_child<image_list_t>(4)->get_image_id(0) != IMG_EMPTY
-		||     get_child<image_list_t>(image_list_base_index(false, true)+2)->get_image_id(0) != IMG_EMPTY;
-	}
+	/// Diagonal (smooth out-of-axis bend) sprites — gone under hex,
+	/// every direction lies on an axis.  The imagelist node is still
+	/// emitted empty by `way_writer` to preserve the `+2` offset in
+	/// `image_list_base_index`.
+	bool has_diagonal_image() const { return false; }
 
-	bool has_switch_image() const {
-		return get_child<image_list_t>(2)->get_count() > 16
-		||     get_child<image_list_t>(image_list_base_index(false, true))->get_count() > 16;
-	}
+	/// Switched / un-switched 3-way junction sprites — gone under hex,
+	/// see `get_image_id` and TODO.md → "ribi_t — audit surfaces".
+	bool has_switch_image() const { return false; }
 
 	/* true, if this tile is to be drawn as a normal thing */
 	bool is_draw_as_obj() const { return draw_as_obj; }

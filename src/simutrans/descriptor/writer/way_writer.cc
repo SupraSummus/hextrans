@@ -22,13 +22,27 @@ using std::string;
  */
 void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 {
-	static const char* const ribi_codes[26] = {
-		"-", "n",  "e",  "ne",  "s",  "ns",  "se",  "nse",
-		"w", "nw", "ew", "new", "sw", "nsw", "sew", "nsew",
-		"nse1", "new1", "nsw1", "sew1", "nsew1", // different crossings: northwest/southeast is straight
-		"nse2", "new2", "nsw2", "sew2", "nsew2",
+	// Hex-ribi flat imagelist: one slot per hex ribi value, indexed
+	// directly by the 6-bit ribi.  Bit positions match
+	// `ribi_t::_ribi`: SE=1, S=2, SW=4, NW=8, N=16, NE=32.  Each
+	// slot's .dat key joins the bit names low-to-high with `_` —
+	// e.g. ribi=18 → bits {S, N} → `s_n`.  Slot 0 (no connection)
+	// is keyed as `-`.  `_` is mandatory because `,` and `-`
+	// inside `[…]` trigger
+	// `tabfile_t::find_parameter_expansion`'s parameter-list mode.
+	static const char* const hex_dir_name[6] = {
+		"se", "s", "sw", "nw", "n", "ne"
 	};
-	int ribi;
+	auto hex_ribi_code = [&](uint8 r) -> std::string {
+		if (r == 0) return "-";
+		std::string s;
+		for (uint8 b = 0; b < 6; b++) {
+			if (!(r & (1 << b))) continue;
+			if (!s.empty()) s += '_';
+			s += hex_dir_name[b];
+		}
+		return s;
+	};
 
 	static const char *slope_heights[2] = { "", "2" };
 	static const char *slope_names[4] = { "n", "w", "e", "s" };
@@ -79,143 +93,66 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 	node.write_uint8 (outfp, clip_below);
 
 
+	// Try `<key>[<season>]` first; for season 0, fall back to bare
+	// `<key>` so paksets without a season axis still work.
+	auto get_keyed = [&](const std::string& key, int season) -> std::string {
+		const std::string suffixed = key + "[" + std::to_string(season) + "]";
+		std::string s = obj.get(suffixed.c_str());
+		if (s.empty() && season == 0) s = obj.get(key.c_str());
+		return s;
+	};
+
+	// `image[-]` (slot 0) is mandatory; winter is signalled by a
+	// non-empty `image[-][1]`.
+	if (get_keyed("image[-]", 0).empty()) {
+		dbg->fatal("way_writer_t::write_obj", "image with label image[-] missing");
+	}
+	number_of_seasons = get_keyed("image[-]", 1).empty() ? 0 : 1;
+
+	node.write_sint8(outfp, number_of_seasons);
+	write_name_and_copyright(outfp, node, obj);
+
 	slist_tpl<std::string> keys;
-	char buf[40];
-	sprintf(buf, "image[%s][0]", ribi_codes[0]);
-
-	std::string str = obj.get(buf);
-
-	if (str.empty()) { // no winter images
-		node.write_sint8(outfp, number_of_seasons);
-		write_name_and_copyright(outfp, node, obj);
-
-		sprintf(buf, "image[%s]", ribi_codes[0]);
-		string str = obj.get(buf);
-		if (str.empty()) {
-			dbg->fatal("way_writer_t::write_obj", "image with label %s missing", buf);
-		}
-
-		for(size_t backtofront = 0; backtofront<lengthof(image_type); backtofront++) {
-			// way images defined without seasons
-			char buf[40];
-			sprintf(buf, "%simage[new2]", image_type[backtofront]);
-			// test for switch images
-			const uint8 ribinr = *(obj.get(buf))==0 ? 16 : 26;
-			for (ribi = 0; ribi < ribinr; ribi++) {
-				char buf[40];
-
-				sprintf(buf, "%simage[%s]", image_type[backtofront], ribi_codes[ribi]);
-				string str = obj.get(buf);
-				keys.append(str);
+	for (size_t backtofront = 0; backtofront < lengthof(image_type); backtofront++) {
+		const std::string prefix = image_type[backtofront];
+		for (uint8 season = 0; season <= number_of_seasons; season++) {
+			// Flat per-ribi sprites — one slot per hex ribi value.
+			for (uint8 r = 0; r < ribi_t::all + 1; r++) {
+				keys.append(get_keyed(prefix + "image[" + hex_ribi_code(r) + "]", season));
 			}
 			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
-
 			keys.clear();
 
-			for (uint32 h = 0; h<lengthof(slope_heights); ++h) {
-				for (uint32 d = 0; d<lengthof(slope_names); ++d) {
-					char buf[40];
-					sprintf( buf, "%simageup%s[%s]", image_type[backtofront], slope_heights[h], slope_names[d]);
-
-					std::string str = obj.get(buf);
-					if (str.empty()) {
-						sprintf(buf, "%simageup%s[%d]", image_type[backtofront], slope_heights[h], (d+1)*3);
-						str = obj.get(buf);
+			// Slope-up sprites.  Keyed by the 4 cardinal
+			// upstream-square slope names × {single, double height};
+			// only 4 of 6 hex edge slopes have art.  See TODO.md →
+			// "Way slope-up sprites — still 4 of 6 hex edges".
+			for (uint32 h = 0; h < lengthof(slope_heights); ++h) {
+				for (uint32 d = 0; d < lengthof(slope_names); ++d) {
+					const std::string base = prefix + "imageup" + slope_heights[h];
+					std::string s = get_keyed(base + "[" + slope_names[d] + "]", season);
+					if (s.empty()) {
+						s = get_keyed(base + "[" + std::to_string((d+1)*3) + "]", season);
 					}
-
-					if (!str.empty()) {
-						keys.append(str);
-					}
+					if (!s.empty()) keys.append(s);
 				}
 			}
-
-			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
-
-			keys.clear();
-			for (ribi = 3; ribi <= 12; ribi += 3) {
-				char buf[40];
-
-				sprintf(buf, "%sdiagonal[%s]", image_type[backtofront], ribi_codes[ribi]);
-				string str = obj.get(buf);
-				keys.append(str);
-			}
 			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
 			keys.clear();
 
+			// Diagonal sprites — upstream's `_diagonal` smooth-bend
+			// variant.  Hex has no out-of-axis diagonal direction
+			// (every direction lies on an axis), so this block is
+			// always empty under hex; the imagelist node is still
+			// emitted because `way_desc::image_list_base_index`
+			// keeps a `+2` offset for it.
+			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
 
-			if(backtofront == 0) {
+			if (season == 0 && backtofront == 0) {
 				slist_tpl<string> cursorkeys;
-
 				cursorkeys.append(string(obj.get("cursor")));
 				cursorkeys.append(string(obj.get("icon")));
-
 				cursorskin_writer_t::instance()->write_obj(outfp, node, obj, cursorkeys);
-			}
-		}
-	}
-	else { // with winter images
-		sprintf(buf, "image[%s][%d]", ribi_codes[0], number_of_seasons+1);
-		if (!strempty(obj.get(buf))) {
-			number_of_seasons++;
-		}
-
-		node.write_sint8(outfp, number_of_seasons);
-		write_name_and_copyright(outfp, node, obj);
-
-		// has switch images for both directions?
-		const uint8 ribinr = *(obj.get("image[new2][0]"))==0 ? 16 : 26;
-
-		for(size_t backtofront = 0; backtofront<lengthof(image_type); backtofront++) {
-			for (uint8 season = 0; season <= number_of_seasons ; season++) {
-				for (ribi = 0; ribi < ribinr; ribi++) {
-					char buf[40];
-
-					sprintf(buf, "%simage[%s][%d]", image_type[backtofront], ribi_codes[ribi], season);
-					std::string str = obj.get(buf);
-					keys.append(str);
-				}
-				imagelist_writer_t::instance()->write_obj(outfp, node, keys);
-
-				keys.clear();
-
-				for (uint32 h = 0; h<lengthof(slope_heights); ++h) {
-					for (uint32 d = 0; d<lengthof(slope_names); ++d) {
-						char buf[40];
-						sprintf(buf, "%simageup%s[%s][%d]", image_type[backtofront], slope_heights[h], slope_names[d], season);
-						std::string str = obj.get(buf);
-
-						if (str.empty()) {
-							sprintf( buf, "%simageup%s[%d][%d]", image_type[backtofront], slope_heights[h], (d+1)*3, season);
-							str = obj.get(buf);
-						}
-
-						if (!str.empty()) {
-							keys.append(str);
-						}
-					}
-				}
-
-				imagelist_writer_t::instance()->write_obj(outfp, node, keys);
-
-				keys.clear();
-				for (ribi = 3; ribi <= 12; ribi += 3) {
-					char buf[40];
-
-					sprintf(buf, "%sdiagonal[%s][%d]", image_type[backtofront], ribi_codes[ribi], season);
-					string str = obj.get(buf);
-					keys.append(str);
-				}
-				imagelist_writer_t::instance()->write_obj(outfp, node, keys);
-
-				keys.clear();
-				if(season == 0  &&  backtofront == 0) {
-					slist_tpl<string> cursorkeys;
-
-					cursorkeys.append(string(obj.get("cursor")));
-					cursorkeys.append(string(obj.get("icon")));
-
-					cursorskin_writer_t::instance()->write_obj(outfp, node, obj, cursorkeys);
-				}
 			}
 		}
 	}

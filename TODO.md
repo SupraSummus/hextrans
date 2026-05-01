@@ -204,20 +204,54 @@ calculations, collision-avoidance predicates, and image-select branches
 at these sites may now compute wrong values on high-delta terrain.  Audit
 each site when the path it guards is next touched for hex correctness.
 
-## Other pakset-writer square-slope assumptions
+## Way slope-up sprites — still 4 of 6 hex edges
 
-`ground_writer.cc` was widened to scan `slope_t::max_slopes` so
-sparse hex slope indices round-trip into `.pak`.  Sibling writers
-still bake the square shape: `way_writer.cc` enumerates only the
-4 cardinal up-slope names (`{n, w, e, s}` × `{single, double}`)
-in `slope_names[]`, and `way_obj_writer.cc` iterates
-`slope = 3, 6, 9, 12` for `frontimageup` / `backimageup`.  Hex
-slope-up has 6 edges; these need widening when the first hex way
-or way-obj asset wants per-edge climb sprites.  Square paksets
-(pak64 in CI) keep working as-is, so leaving them — but expect
-hex up-slope `Image` keys to be silently dropped the moment a hex
-.dat tries to declare them, and the unused-key warning will be
-the only signal.
+`way_writer.cc` enumerates only the 4 cardinal up-slope names
+(`{n, w, e, s}` × `{single, double}`) in `slope_names[]`, and
+`get_slope_image_id` in `way_desc.h` only matches
+`slope_t::{north, west, east, south}`.  Those constants alias 4 of
+6 hex edge slopes; the two third-axis edges (raised E+SE and raised
+NE+E pairs, see `koord.cc` neighbour case table) have no slot.
+Land alongside the first hex sloped way asset.  `way_obj_writer.cc`
+iterates `slope = 3, 6, 9, 12` for `frontimageup` / `backimageup`
+under the same square-era pattern and needs the same widening.
+`ground_writer.cc` was already widened to scan `slope_t::max_slopes`
+so sparse hex slope indices round-trip into `.pak`.
+
+## Way .dat migration to hex ribi keys
+
+`way_writer.cc`'s flat-image table is now 64 slots indexed by full
+6-bit hex ribi (keys `Image[se]`, `Image[se_nw]`, …; `_` separator
+because `tabfile_t::find_parameter_expansion` treats `,` and `-`
+inside `[…]` as parameter-list mode).  The legacy 4-bit `Image[N]`
+/ `Image[NSE]` / `Image[NSE1]` keys are gone.  Only
+`rail_060_tracks` is migrated on the pakset side as a worked
+example — every other way .dat (rail_080..rail_400, roads, trams,
+runways, kanals, narrowgauge, monorail, maglev, plus catenary /
+elevated variants) compiles cleanly but draws blank for every
+connectivity except `Image[-]`.  Migrate per family, repointing
+existing pak cells onto the matching hex direction by onscreen
+heading (pak `N` = upper-right = hex NE; pak `E` = lower-right =
+hex SE; pak `S` = lower-left = hex SW; pak `W` = upper-left = hex
+NW).  Extended switch sprites (3-way junction art) are gone with
+the same change: `way_desc::has_switch_image` is hardcoded to
+`false`, `image_switch` in `weg_t::set_images` now routes through
+`get_image_id`, and the upstream 5-entry `ribi_to_extra` table is
+deleted.  `schiene_t::reserve` still toggles a `HAS_SWITCHED` flag
+that no longer affects rendering — vestigial, retire alongside
+the hex-aware vehicle-direction work in "ribi_t — audit
+surfaces".
+
+The on-disk `way_desc` save version did not bump.  Pre-built paks
+(pak64 from `tools/get_pak.sh` in CI; any cached pak128 build) load
+without fatal but their 16-entry imagelist is now indexed by 6-bit
+hex ribi: `ribi >= 16` returns IMG_EMPTY, and `ribi 0..15` returns
+the upstream sprite at that slot drawn for a different hex direction
+than the index now means.  Rendering is wrong but graceful;
+gameplay-only scenario tests should still pass because they don't
+assert on visuals.  Bump the version field once the migration is
+worth a hard cutover, or rebuild the CI pak from source against the
+new makeobj when one becomes available.
 
 `LightTexture` is now registered as the required ground-lightmap
 descriptor.  Ground texture generation treats that block as sparse raw
@@ -435,11 +469,13 @@ direction lies on an axis, so there is no out-of-axis diagonal
 to detect.  Engine-side bookkeeping, the placement-preview
 diagonal branches in `simtool.cc`, and the unused
 `way_obj_desc_t::*_diagonal_image_id` accessors are deleted.
-`way_desc_t::get_diagonal_image_id` / `has_diagonal_image` stay
-because `leitung2.cc` still uses them with old square-era combo
-casts to pick powerline crossing sprites — they retire with the
-"Powerline 3rd hex axis" cluster when the renderer phase B
-sprite port reaches a hex-aware way-image mapping.
+`way_writer` now emits the diagonal imagelist node always-empty
+(the `+2` offset in `image_list_base_index` keeps it for layout
+compatibility) and `way_desc_t::has_diagonal_image` is hardcoded
+to `false`; `get_diagonal_image_id` consequently returns
+IMG_EMPTY for every input.  `leitung2.cc`'s old square-era combo
+casts into this lookup are now dead code waiting to be deleted
+in the "Powerline 3rd hex axis" cluster.
 
 **Old-east→hex-SE, old-west→hex-NW rename convention.**  ~30+ sites
 in rendering, signs, and leaf files mechanically renamed
