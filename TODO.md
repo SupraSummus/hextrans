@@ -509,6 +509,39 @@ Additional follow-ups that did NOT land in the structural commit:
 slope level (not the ribi level) and still split on the 2 legacy
 axes.  Collapse to a 3-axis predicate family once the slope-edge
 constants for the 4 hex-only edge slopes (NE, SE, SW, NW) land.
+The way pathfinder's `compute_test_dir` helper in `wegbauer.cc`
+special-cases `slope_t::flat` (and `is_all_up`) to `ribi_t::all` to
+work around `is_way_ns(flat) == is_way_ew(flat) == false`, where
+upstream square's `flags[flat] = way_ns | way_ew` made flat tiles
+fall through naturally.  When `is_way_ne_sw` lands and the
+`is_way_*` family becomes hex-correct (returning `true` for `flat`
+on every axis, plus `true` for the matching edge slope), the
+flat / all_up branch in `compute_test_dir` becomes dead code and
+can be deleted.
+
+The same `compute_test_dir` helper also carves out a root-node
+branch.  Square upstream's `backward(ribi_t::all) == 0` was a
+lookup-table quirk (the table also gave `backward(none) == all`),
+so `~backward(straight_dir)` was a no-op mask when `straight_dir`
+was `ribi_t::all` (the root-node sentinel).  Our hex `backward` is
+the clean "flip each set bit" so `backward(all) == all` and the
+mask collapses to 0 — root nodes need explicit handling.  No clean
+retirement: returning `none`/`all` for the all-bits special cases
+would re-introduce a lookup-table quirk.  The helper-level
+explicit branch is the right shape; documented here so a reader
+chasing `~ribi_t::backward` sites doesn't try to "fix" it.
+
+`slope_type(koord)` in `ribi.cc` returns `slope_t::flat` for any
+direction with both components nonzero — i.e. for the NE-SW hex axis
+(`(1,-1)` / `(-1,1)`).  Two callers in `brueckenbauer.cc::build_bridge`
+(`build_ramp(... slope_type(zv) * (bridge_height - start.z) ...)` for
+the start ramp at line 763 and the symmetric `slope_type(-zv)` for the
+end ramp at line 839) silently produce flat ramps for NE-SW bridges,
+so a player-built NE-SW bridge has no actual ramp slope where the
+bridge meets the ground.  Same root as the predicate cluster above —
+no slope_t alias for the four hex-only edges yet.  Land the alias and
+the bridge ramps come along for free; no separate fix needed at the
+caller side.
 
 Save-file format: `weg_t`'s in-memory ribi is now two full bytes
 (was a packed 4-bit bitfield that silently truncated hex bits 4-5),
@@ -524,6 +557,48 @@ any pre-port saved game survives a round-trip.  See also the
 `dir_invalid` for NE/SE/SW/NW.  Tied to sprite port.  See also the
 vehicle-direction compound-displacement note above — 18 distinct
 visual states under hex, 8 slots in the current dir enum.
+
+`way_builder_t::check_terraforming` (`wegbauer.cc:1004-1010` and the
+symmetric write block at 1064-1078) handles the 4 cardinal step
+directions (N, SE, S, NW) explicitly with per-corner height arithmetic.
+NE and SW (the third hex axis) fall through the if-chain un-handled —
+the in-code `HEX-PORT` comment names this — and `*new_from_slope` /
+`*new_to_slope` are left at their default values, so a way-builder
+terraform step on the NE-SW axis is a silent no-op.  The fix needs
+the corner indices for the NE / SW shared edge under hex (which two
+corners of tile A correspond to which corners of tile B across the
+NE/SW edge); pure mechanical extension once those indices are pinned.
+Tied to the wider hex-aware terraform / vertex-sharing cluster.
+
+`way_builder_t::intern_calc_straight_route` (`wegbauer.cc:1672`) picks
+its step direction with a 2-axis if/else: `abs(pos.x - ziel.x) >=
+abs(pos.y - ziel.y)` chooses NW or SE, otherwise N or S.  No NE-SW
+branch — the third hex axis (delta `(n, -n)`) is invisible to the
+straight-route builder.  Player-driven track laying along NE-SW with
+Ctrl held, AI calls into `calc_straight_route`, and the
+`tool_build_cityroad` path all silently misroute or fall back to
+something else.  Land alongside a 3-axis "which axis does delta lie
+on" helper — the same helper `can_build_bridge`'s preamble already
+wants (currently using `ribi_type(delta) == ribi_t::none` as the
+"off-axis" test).  Less-trafficked than the A* path that 023efce9a
+fixed: not a blocker for the basic build-way drag tool, but every
+bridge / tunnel / runway tool that calls `calc_straight_route`
+inherits the gap.
+
+`schiene_t::reserve` (`obj/way/schiene.cc:91`) computes
+`set_switched(dir == ribi_t::northeast || dir == ribi_t::southwest)`.
+The square upstream this was ported from used the old
+2-bit `northeast` / `southwest` *bend* constants (N|E and S|W); the
+hex rename made those single-bit values, but `reserve` is gated on
+`is_bend(dir)` which only fires for 2-bit ribis, so the equality
+test can never match and `set_switched` is always false — every
+3-way rail switch shows the unswitched sprite regardless of which
+leg the convoy takes.  Visual-only, but tied to the
+"Vehicle direction enum — compound 2-step displacements" cluster
+above: `dir` arrives via `ribi_type(prev_pos, next_pos)` whose
+2-step compound semantics are the same surface the rest of that
+cluster waits on.  Lands together with the hex-aware vehicle
+direction model.
 
 ## Renderer port
 
