@@ -579,6 +579,18 @@ either by an engine-side mask derivation that always returns an
 edge-union (e.g. expand each isolated corner by adding one
 neighbour bit) or by baking the snow-only cells separately from
 the climate-keyed table.
+`simgraph16_draw_base_img_alpha` silently skips when either image
+is `IMG_EMPTY`, matching the rezoomed sister and the contract
+`f9b0a072` relied on.  Drift between the `(slope, water_corners)`
+combos `grund.cc::display` emits and the set `texture-shore/`
+ships is therefore invisible — the overlay just disappears.  The
+"lifted corners can't appear on real terrain" premise was hit in
+practice (the ASAN SEGV that prompted the guard); enumerate the
+combos `display_boden` actually produces vs. those the bake covers
+before trusting the init-time silhouette tripwire as sufficient
+coverage, or move the realisability check to a tripwire in
+`grund.cc` where "we expected an overlay" is a checkable
+condition.
 Deep water still pairs with the pakset `Water` animation block as
 below; on-slope water and snow now use LightTexture-derived shapes.
 `rotate_transitions` still applies a 60° bit-rotate as a stand-in for
