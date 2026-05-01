@@ -1741,18 +1741,22 @@ void way_builder_t::intern_calc_straight_route(const koord3d start, const koord3
 	route.clear();
 	route.append(start);
 	terraform_index.clear();
-	bool check_terraform = start.x==ziel.x  ||  start.y==ziel.y;
+	bool check_terraform = ribi_type(ziel.get_2d() - start.get_2d()) != ribi_t::none;
 
 	while(pos.get_2d()!=ziel.get_2d()  &&  ok) {
 
 		bool do_terraform = false;
-		// shortest way
-		ribi_t::ribi diff;
-		if(abs(pos.x-ziel.x)>=abs(pos.y-ziel.y)) {
-			diff = (pos.x>ziel.x) ? ribi_t::northwest : ribi_t::southeast;
-		}
-		else {
-			diff = (pos.y>ziel.y) ? ribi_t::north : ribi_t::south;
+		// shortest way: pure-axis displacements step along one of the 3
+		// hex axes (N-S, NW-SE, NE-SW) directly via ribi_type; off-axis
+		// falls back to the upstream "dominant cardinal" heuristic.
+		ribi_t::ribi diff = ribi_type(ziel.get_2d() - pos.get_2d());
+		if (diff == ribi_t::none) {
+			if(abs(pos.x-ziel.x)>=abs(pos.y-ziel.y)) {
+				diff = (pos.x>ziel.x) ? ribi_t::northwest : ribi_t::southeast;
+			}
+			else {
+				diff = (pos.y>ziel.y) ? ribi_t::north : ribi_t::south;
+			}
 		}
 		if(bautyp&tunnel_flag) {
 			// create fake tunnel grounds if needed
@@ -1845,7 +1849,7 @@ void way_builder_t::intern_calc_straight_route(const koord3d start, const koord3
 					pos = bd_nach->get_pos() - koordup;
 				}
 			}
-			check_terraform = pos.x==ziel.x  ||  pos.y==ziel.y;
+			check_terraform = ribi_type(ziel.get_2d() - pos.get_2d()) != ribi_t::none;
 		}
 
 		route.append(pos);

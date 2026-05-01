@@ -348,25 +348,6 @@ public:
 	void set_grid_hgt_nocheck(sint16 x, sint16 y, sint8 hgt);
 	void set_grid_hgt_nocheck(koord k, sint8 hgt);
 
-	// HEX-PORT: narrow escape hatch for callers the fatal shim above
-	// would catch but that genuinely cannot port yet.  One cluster
-	// uses it today — the rdwr round-trippers (`grund.cc`,
-	// `simplan.cc`), which are bubble-consistent by construction and
-	// retire with the save-format bump.  Slot semantics are identical
-	// to the old shim (E canonical corner of tile `(x-1, y-1)`); the
-	// slot is geometrically wrong under hex but consistent between
-	// paired reader/writer sites.  Do not add new callers — see
-	// TODO.md.
-	inline sint8 legacy_grid_hgt(koord k) const {
-		return is_within_grid_limits(k.x, k.y)
-			? grid_hgts[(k.x + k.y*(uint32)(cached_grid_size.x+1)) * 2u]
-			: groundwater;
-	}
-
-	inline void legacy_set_grid_hgt_nocheck(koord k, sint8 hgt) {
-		grid_hgts[(k.x + k.y*(uint32)(cached_grid_size.x+1)) * 2u] = hgt;
-	}
-
 	// HEX-PORT: hex-aware per-vertex reader/writer.  Reads/writes the
 	// height at world vertex `(tile, corner)` via its canonical slot
 	// — see `documentation/hex-vertex-storage.md`.  The three owners

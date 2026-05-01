@@ -199,11 +199,13 @@ function test_way_road_build_straight()
 }
 
 
-// (0,1) and (1,0) are direct NE-SW hex neighbours, but wt_road has no
-// NE-SW sprite support yet (see TODO → Diagonal way-image selection),
-// so the way pathfinder routes (0,1) → (1,1) → (1,0) — an SE step
-// then an N step.
-function test_way_road_build_bend()
+// (0,1) and (1,0) are direct NE-SW hex neighbours.  The straight-route
+// builder steps along all 3 hex axes, so this builds a single NE edge
+// rather than detouring through (1,1).  No pakset has NE-SW sprites
+// yet (see TODO → Way .dat migration to hex ribi keys), so the road
+// renders blank until that lands; connectivity bits round-trip
+// correctly regardless.
+function test_way_road_build_ne_sw()
 {
 	local pl      = player_x(0)
 	local desc    = way_desc_x.get_available_ways(wt_road, st_flat)[0]
@@ -211,8 +213,8 @@ function test_way_road_build_bend()
 
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 1, 0), coord3d(1, 0, 0), desc, true), null)
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), [
-		[ 0,  2, 0],   // (1,0): S -> (1,1)
-		[ 1, 24, 0],   // (0,1): SE -> (1,1) ; (1,1): NW|N -> (0,1) and (1,0)
+		[ 0,  4, 0],   // (1,0): SW -> (0,1)
+		[32,  0, 0],   // (0,1): NE -> (1,0)
 		[ 0,  0, 0],
 	])
 
