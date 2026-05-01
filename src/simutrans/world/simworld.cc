@@ -1819,26 +1819,16 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	set_random_mode( MAP_CREATE_RANDOM );
 
 	if(  new_world  &&  !settings.heightfield.empty()  ) {
-		// init from file
-		// HEX-PORT: writes land on E canonical slots (doubled
-		// index).  SE slots stay at their memset groundwater
-		// default; a hex-aware importer is out of scope here.
-		const sint32 row_slots = (sint32)(cached_grid_size.x + 1) * 2;
-		for(int y=0; y<cached_grid_size.y; y++) {
-			for(int x=0; x<cached_grid_size.x; x++) {
-				grid_hgts[(x + y*(cached_grid_size.x+1)) * 2] = h_field[x+(y*(sint32)cached_grid_size.x)]+1;
-			}
-			grid_hgts[(cached_grid_size.x + y*(cached_grid_size.x+1)) * 2] = grid_hgts[(cached_grid_size.x-1 + y*(cached_grid_size.x+1)) * 2];
-		}
-		// lower border — replicate the last in-map row one step
-		// south.  Copies the full doubled row (E + SE slots).
-		memcpy( grid_hgts + row_slots*(sint32)cached_grid_size.y,
-				grid_hgts + row_slots*(sint32)(cached_grid_size.y-1),
-				row_slots );
-		// Heightfield import is a fresh map — seed natural channel
-		// from the just-imported visible heights.
-		reset_natural_to_visible();
-		ls.set_progress(2);
+		// HEX-PORT: heightfield import is a square-grid concept —
+		// each (x, y) carries one height, but a hex tile owns 6
+		// vertices.  The legacy write loop dropped each value into
+		// the E canonical slot and left SE at groundwater, producing
+		// a half-empty map.  Tripwire over silent shim until a real
+		// hex importer (or a defensible mapping) lands.  See TODO.md.
+		(void)h_field;
+		dbg->fatal("karte_t::enlarge_map",
+			"heightfield import is not hex-aware; setting `heightfield` "
+			"is unsupported.  See TODO.md → 'Per-vertex height storage'.");
 	}
 	else {
 		if(  sets->get_rotation()==0  &&  sets->get_origin_x()==0  &&  sets->get_origin_y()==0) {

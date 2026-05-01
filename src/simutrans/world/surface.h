@@ -359,9 +359,9 @@ public:
 	// `recalc_natural_slope` can read pristine ground heights even
 	// after a player applies an artificial overlay (set-slope tool).
 	// Map gen, terraformer, water creation, rdwr load — all natural
-	// writers — use this default form.  The two artificial overlay
-	// sites (set-slope NW write) call `set_grid_hgt_visible_only`
-	// instead.
+	// writers — use this default form.  Artificial overlay sites
+	// (the set-slope tool's 6-corner grid-height correction) call
+	// `set_grid_hgt_visible_only` instead.
 	inline sint8 lookup_hgt_nocheck(koord tile, hex_corner_t::type c) const {
 		return grid_hgts[vertex_slot_index(canonical_vertex({tile, c}), cached_grid_size.x)];
 	}
@@ -383,16 +383,16 @@ public:
 	// Artificial-overlay writer: touches only the visible channel,
 	// leaving the natural channel as the pre-overlay baseline so
 	// `recalc_natural_slope` can still recover it.  Only the
-	// set-slope tool's NW writes call this.
+	// set-slope tool's 6-corner grid-height correction calls this.
 	inline void set_grid_hgt_visible_only(koord tile, hex_corner_t::type c, sint8 hgt) {
 		grid_hgts[vertex_slot_index(canonical_vertex({tile, c}), cached_grid_size.x)] = hgt;
 	}
 
-	// Copy `grid_hgts` over `natural_grid_hgts` wholesale — used by
-	// raw-indexing writers that don't go through the per-vertex API
-	// (today: heightfield import).  The per-vertex writer above
-	// already keeps the channels in sync, so most callers don't need
-	// this.
+	// Copy `grid_hgts` over `natural_grid_hgts` wholesale — seeds the
+	// natural channel from visible after raw-indexing writes that
+	// don't go through the per-vertex API.  The per-vertex writer
+	// above already keeps the channels in sync, so most callers don't
+	// need this; the live caller is the legacy < 102.2 save-load path.
 	void reset_natural_to_visible();
 
 public:

@@ -1600,21 +1600,21 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 						gr->calc_image();
 					}
 				}
-				// correct the grid height
-				if(  gr1->is_water()  ) {
-					// HEX-PORT: clamp the tile's NW corner to no higher
-					// than the water level.  min_hgt is the lowest hex
-					// corner — the natural "tile reference" for a water
-					// tile, which is flat at water_hgt so the min is
-					// always water_hgt.  Visible-only: set-slope is an
-					// artificial overlay; the natural channel keeps the
-					// pre-tool baseline so a later restore can recover it.
-					sint8 grid_hgt = min( water_hgt, welt->min_hgt( k ) );
-					welt->set_grid_hgt_visible_only(k, hex_corner_t::NW, grid_hgt );
-				}
-				else {
-					welt->set_grid_hgt_visible_only(k, hex_corner_t::NW, gr1->get_hoehe()+ corner_nw(gr1->get_grund_hang()) );
-				}
+				// correct the grid height — write all 6 hex corners on
+				// the visible channel so derived slopes round-trip
+				// through `gr1->get_grund_hang()`.  Artificial overlay:
+				// the natural channel keeps the pre-tool baseline so
+				// `recalc_natural_slope` can recover it.  Water tiles
+				// are flat at the clamped grid_hgt (min_hgt is always
+				// water_hgt for a flat water tile).
+				const slope_t::type grid_slope = gr1->is_water() ? (slope_t::type)slope_t::flat : gr1->get_grund_hang();
+				const sint8 grid_base = gr1->is_water() ? min(water_hgt, welt->min_hgt(k)) : gr1->get_hoehe();
+				welt->set_grid_hgt_visible_only(k, hex_corner_t::E,  grid_base + corner_e (grid_slope));
+				welt->set_grid_hgt_visible_only(k, hex_corner_t::SE, grid_base + corner_se(grid_slope));
+				welt->set_grid_hgt_visible_only(k, hex_corner_t::SW, grid_base + corner_sw(grid_slope));
+				welt->set_grid_hgt_visible_only(k, hex_corner_t::W,  grid_base + corner_w (grid_slope));
+				welt->set_grid_hgt_visible_only(k, hex_corner_t::NW, grid_base + corner_nw(grid_slope));
+				welt->set_grid_hgt_visible_only(k, hex_corner_t::NE, grid_base + corner_ne(grid_slope));
 				minimap_t::get_instance()->calc_map_pixel(k);
 
 				welt->calc_climate( k, true );
