@@ -289,4 +289,80 @@ inline sint32 hex_render_x_start_clipped(sint16 y, sint32 lt_x,
 }
 
 
+/**
+ * Hex way axes (3 total).
+ *
+ * Each axis pairs two opposite hex edges; a way running through that
+ * pair lies along the axis.  Per AGENTS.md → "Direction naming
+ * convention" the 6 hex edges are N, NE, SE, S, SW, NW:
+ *
+ *     NS    : N edge ↔ S edge
+ *     NE_SW : NE edge ↔ SW edge
+ *     NW_SE : NW edge ↔ SE edge
+ *
+ * Used by the depth-clip plane spec below.
+ */
+struct hex_way_axis_t {
+	enum type : uint8 {
+		NS    = 0,
+		NE_SW = 1,
+		NW_SE = 2,
+		count = 3
+	};
+};
+
+
+/**
+ * Depth-clip plane spec for the hex sprite Back/Front layer split.
+ *
+ * Pakset bridges and other multi-layer way assets are sliced into a
+ * Back layer (drawn before vehicles) and a Front layer (drawn after
+ * vehicles).  Under the legacy square dimetric pak128 convention
+ * "the east-facing (+x) side of an NS bridge is `FrontImage`" (see
+ * `hextrans-pak128/CLAUDE.md` → Engine facts); the hex equivalent
+ * needs a per-axis spec because the depth split rotates with the
+ * way.
+ *
+ * The plane is the **vertical world plane containing the way axis
+ * line through the tile centre**.  Pixels of way / bridge geometry
+ * with `n_A · p > 0` go to Front; the rest (including the deck on
+ * the axis) go to Back, matching the "Back drawn with the way"
+ * convention.  Other tile-centred objects (signs, lights, …) are
+ * not bound by this spec — they have their own draw-order contracts.
+ *
+ * Front-side rule.  Front is the south half (smaller world-y) of
+ * the axis line.  N-S has its endpoints on the south/north edges so
+ * the rule degenerates; tie-break with +x = Front, matching pak128's
+ * existing NS bridge convention.  In world coords (bakers' basis:
+ * +x east, +y north, hex tile centred at origin, corners at radius
+ * 0.5):
+ *
+ *     N-S    Front-side normal n = ( 1,         0    )
+ *     NE-SW                      = ( 1, -sqrt(3) ) / 2
+ *     NW-SE                      = (-1, -sqrt(3) ) / 2
+ *
+ * Equivalent integer axial form (bakers' axial basis: column step
+ * `(0.75, -sqrt(3)/4)`, row step `(0, -sqrt(3)/2)` in world).  A
+ * neighbour at axial offset `(dq, dr)` is on Front iff `n_q*dq +
+ * n_r*dr > 0`:
+ *
+ *     N-S    axial co-vector = (1, 0)
+ *     NE-SW                  = (1, 1)
+ *     NW-SE                  = (0, 1)
+ *
+ * Caveat under the no-yaw hex camera (yaw = 0, pitch only — see
+ * `hextrans-pak128/tools/3d/render.py::world_to_screen_hex`): for
+ * the N-S axis the Front and Back halves project to disjoint
+ * screen-x ranges at the same screen-z, so the split has no visible
+ * draw-order effect for pure N-S geometry.  For NE-SW and NW-SE the
+ * axis tilts off the camera-forward direction and the split bisects
+ * screen-y, so it's a real depth split.  N-S still needs the symbol
+ * for .dat-key disambiguation and for sub-tile classification of
+ * geometry that straddles the axis.
+ *
+ * Pak-side mirror: `hextrans-pak128/tools/3d/hex_synth.py`
+ * (`HEX_DEPTH_CLIP_NORMAL`, `front_back_split`).
+ */
+
+
 #endif
