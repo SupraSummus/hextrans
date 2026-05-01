@@ -3392,7 +3392,7 @@ static void simgraph16_draw_base_img_alpha(const image_id n, const image_id alph
 		// same size => use standard routine
 		simgraph16_draw_rezoomed_img_alpha( n, alpha_n, alpha_flags, xp, yp, player_nr, color_index, daynight, dirty  CLIP_NUM_PAR );
 	}
-	else if(  n < anz_images  ) {
+	else if(  n < anz_images  &&  alpha_n < anz_images  ) {
 		// now test if visible and clipping needed
 		scr_coord_val x = images[n].base_x + xp;
 		scr_coord_val y = images[n].base_y + yp;
