@@ -215,11 +215,10 @@ static double smoothed_noise(const int x, const int y)
 {
 	// Cache covers x in [-1, map_w-2], y in [-1, map_h-2]; smoothed_noise
 	// reads neighbours at (x±1, y±1) so the all-9-in-cache window is
-	// [0, map_w-3] x [0, map_h-3].  Hex vertex sampling overshoots both
-	// ends — q=-1 / r=-1 borders push integer index to -1, and the
-	// sqrt(3) y-scale plus the freq=32 perlin step pushes integer_Y up
-	// to ~1.3*(H+W/2), past the cache.  Fall through to the int_noise
-	// branch for those.
+	// [0, map_w-3] x [0, map_h-3].  The caller (init_perlin_map's
+	// args) sizes the cache to the hex sampling extents — the only
+	// remaining fall-throughs are the q=-1 / r=-1 border vertices
+	// whose integer index dips to -2, which is graceful.
 	if(map  &&  x >= 0  &&  x <= map_w - 3  &&  y >= 0  &&  y <= map_h - 3) {
 		const double corners =
 			map_noise(x-1, y-1)+map_noise(x+1, y-1)+map_noise(x-1, y+1)+map_noise(x+1, y+1);

@@ -1588,10 +1588,10 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 				// if not much nearby water then turn into a beach
 				if(  neighbour_water < (3*total_ground)/4  ) {
 					set_water_hgt_nocheck( k, gr->get_hoehe() - 1 );
-					raise_grid_to( ix, iy, gr->get_hoehe() );
-					raise_grid_to( ix + 1, iy, gr->get_hoehe() );
-					raise_grid_to( ix, iy + 1, gr->get_hoehe() );
-					raise_grid_to( ix + 1, iy + 1 , gr->get_hoehe() );
+					const sint8 h = gr->get_hoehe();
+					for (uint8 c = 0; c < hex_corner_t::count; c++) {
+						raise_vertex_to(ix, iy, (hex_corner_t::type)c, h);
+					}
 					access_nocheck(k)->correct_water();
 					access_nocheck(k)->set_climate( desert_climate );
 				}
@@ -1843,7 +1843,16 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	else {
 		if(  sets->get_rotation()==0  &&  sets->get_origin_x()==0  &&  sets->get_origin_y()==0) {
 			// otherwise negative offsets may occur, so we cache only non-rotated maps
-			init_perlin_map(new_size.x,new_size.y);
+			// HEX-PORT: world-space hex vertex positions reach p.x up
+			// to 1.5*W and p.y up to sqrt(3)*(H + W/2).  At max
+			// freq=32 the perlin integer index is half that, plus
+			// interpolated_noise reads +1 and smoothed_noise reads
+			// ±1.  Size the cache to the actual hex-axis extents
+			// rather than the legacy (W+2)×(H+2) square-tile range.
+			constexpr double HEX_SQRT3_HALF = 0.86602540378443864;
+			const sint32 cache_w = 3 + (sint32)(0.75 * new_size.x);
+			const sint32 cache_h = 3 + (sint32)(HEX_SQRT3_HALF * (new_size.y + 0.5 * new_size.x));
+			init_perlin_map(cache_w, cache_h);
 		}
 		if (  old_size.x > 0  &&  old_size.y > 0  ) {
 			// HEX-PORT: iterate canonical tiles in the new region
@@ -1870,43 +1879,41 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 		exit_perlin_map();
 	}
 
-	/** @note First we'll copy the border heights to the adjacent tile.
-	 * The best way I could find is raising the first new grid point to
-	 * the same height the adjacent old grid point was and lowering to the
-	 * same height again. This doesn't preserve the old area 100%, but it respects it
-	 * somehow.
+	/** @note Anchor the boundary between the old region and the freshly
+	 * generated new region: for each old tile that abuts the new region,
+	 * clamp every world vertex on its outward-facing corners to that
+	 * tile's actual corner height.  The raise+lower idiom forces the
+	 * value with full ±1 propagation into the new region's vertex graph.
 	 *
-	 * This does not work for water tiles as for them get_hoehe will return the
-	 * z-coordinate of the water surface, not the height of the underwater
-	 * landscape.
+	 * Skipped for water tiles because `get_hoehe(corner)` returns the
+	 * water surface, not the underwater terrain.
 	 */
 
-	sint32 i;
-	grund_t *gr;
-	sint8 h;
-
 	if (!new_world) {
-		for(i=0; i<old_size.x; i++) {
-			gr = lookup_kartenboden_nocheck(i, old_size.y-1);
-			if (!gr->is_water()) {
-				h = gr->get_hoehe(slope4_t::corner_SW);
-				raise_grid_to(i, old_size.y+1, h);
-				lower_grid_to(i, old_size.y+1, h );
-			}
+		// raise+lower at the same h forces the vertex to exactly h
+		// with full ±1 propagation into the new region.  Adjacent old
+		// tiles share their boundary world vertices; clamping each
+		// tile's outward corners is redundant but idempotent.
+		auto clamp_corner = [&](grund_t *gr, sint16 q, sint16 r, hex_corner_t::type c) {
+			const sint8 h = gr->get_hoehe(c);
+			raise_vertex_to(q, r, c, h);
+			lower_vertex_to(q, r, c, h);
+		};
+		// South boundary corners: SW, SE.
+		for (sint32 i = 0; i < old_size.x; i++) {
+			grund_t *gr = lookup_kartenboden_nocheck(i, old_size.y - 1);
+			if (gr->is_water()) continue;
+			clamp_corner(gr, i, old_size.y - 1, hex_corner_t::SW);
+			clamp_corner(gr, i, old_size.y - 1, hex_corner_t::SE);
 		}
-		for(i=0; i<old_size.y; i++) {
-			gr = lookup_kartenboden_nocheck(old_size.x-1, i);
-			if (!gr->is_water()) {
-				h = gr->get_hoehe(slope4_t::corner_NE);
-				raise_grid_to(old_size.x+1, i, h);
-				lower_grid_to(old_size.y+1, i, h);
-			}
-		}
-		gr = lookup_kartenboden_nocheck(old_size.x-1, old_size.y -1);
-		if (!gr->is_water()) {
-			h = gr->get_hoehe(slope4_t::corner_SE);
-			raise_grid_to(old_size.x+1, old_size.y+1, h);
-			lower_grid_to(old_size.x+1, old_size.y+1, h);
+		// East boundary corners: NE, E, SE.  The SE-corner old tile
+		// is already covered by both loops.
+		for (sint32 i = 0; i < old_size.y; i++) {
+			grund_t *gr = lookup_kartenboden_nocheck(old_size.x - 1, i);
+			if (gr->is_water()) continue;
+			clamp_corner(gr, old_size.x - 1, i, hex_corner_t::NE);
+			clamp_corner(gr, old_size.x - 1, i, hex_corner_t::E);
+			clamp_corner(gr, old_size.x - 1, i, hex_corner_t::SE);
 		}
 	}
 
