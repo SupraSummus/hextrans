@@ -198,20 +198,19 @@ function test_dir_backward()
 
 function test_dir_to_slope()
 {
-	// dir.to_slope maps a single hex edge to the slope whose low
-	// edge is that direction.  Under hex only the 2 legacy N/S hex
-	// edges have slope aliases today — the other 4 (NE, SE, SW, NW)
-	// return flat until the hex-only slope-edge constants land
-	// (tracked under "slope-edge constants" in TODO.md).
+	// dir.to_slope maps a single hex edge to the slope whose low edge
+	// is that direction (i.e. walking that direction climbs the
+	// slope).  All 6 hex edges have aliases; multi-bit ribis return
+	// flat.
 	ASSERT_EQUAL(dir.to_slope(dir.none),  slope.flat)
 
 	ASSERT_EQUAL(dir.to_slope(dir.north), slope.south)
 	ASSERT_EQUAL(dir.to_slope(dir.south), slope.north)
 
-	ASSERT_EQUAL(dir.to_slope(dir.southeast), slope.flat)
-	ASSERT_EQUAL(dir.to_slope(dir.northwest), slope.flat)
-	ASSERT_EQUAL(dir.to_slope(dir.northeast), slope.flat)
-	ASSERT_EQUAL(dir.to_slope(dir.southwest), slope.flat)
+	ASSERT_EQUAL(dir.to_slope(dir.northeast), slope.sw_edge)
+	ASSERT_EQUAL(dir.to_slope(dir.southwest), slope.ne_edge)
+	ASSERT_EQUAL(dir.to_slope(dir.northwest), slope.se_edge)
+	ASSERT_EQUAL(dir.to_slope(dir.southeast), slope.nw_edge)
 
 	// Multi-bit ribis are not a slope direction.
 	ASSERT_EQUAL(dir.to_slope(dir.northsouth),           slope.flat)

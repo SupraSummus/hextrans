@@ -66,7 +66,8 @@ no longer match).  `test_way_bridge_planner` iterates
 `bridge_planner_x.find_end` accepts — the body is hex-ready, but
 the working_slopes whitelist (`[ slope.north ]`) reflects what the
 hex bridge planner actually accepts and may need the 4 hex-only
-edge slopes (NE, SE, SW, NW) once those land.
+edge slopes (`slope_t::{ne,se,sw,nw}_edge`) once the squirrel side
+gets matching aliases.
 
 **Powerline 3rd hex axis.**  `test_powerline_connect / _build_below_powerbridge /
 _build_powerbridge_above_powerline / _build_transformer_multiple /
@@ -427,31 +428,38 @@ onto 4 square sprite slots and drops information.
 
 Additional follow-ups that did NOT land in the structural commit:
 
-`slope_t::is_way_ns` / `is_way_ew` still live in `ribi.h` at the
-slope level (not the ribi level) and still split on the 2 legacy
-axes.  Collapse to a 3-axis predicate family once the slope-edge
-constants for the 4 hex-only edge slopes (NE, SE, SW, NW) land.
-The way pathfinder's `compute_test_dir` helper in `wegbauer.cc`
-special-cases `slope_t::flat` (and `is_all_up`) to `ribi_t::all` to
-work around `is_way_ns(flat) == is_way_ew(flat) == false`, where
-upstream square's `flags[flat] = way_ns | way_ew` made flat tiles
-fall through naturally.  When `is_way_ne_sw` lands and the
-`is_way_*` family becomes hex-correct (returning `true` for `flat`
-on every axis, plus `true` for the matching edge slope), the
-flat / all_up branch in `compute_test_dir` becomes dead code and
-can be deleted.
+`slope_t::is_way_nw_se` includes the legacy 2-corner diagonals
+`slope_t::east` (NW+SW raised) and `slope_t::west` (NE+SE raised)
+under the NW-SE axis, even though they are not real hex edges.  Pure
+transitional shim so wegbauer keeps allowing ways on those slopes
+during the port; they project onto the NW-SE axis under the iso
+viewport but a way crossing them dips at the W or E corner mid-tile.
+Drop the inclusion (and ideally `slope_t::east`/`west` themselves)
+once dock/harbour placement and any surviving square-era setslope
+paths stop relying on them.
 
-`slope_type(koord)` in `ribi.cc` returns `slope_t::flat` for any
-direction with both components nonzero — i.e. for the NE-SW hex axis
-(`(1,-1)` / `(-1,1)`).  Two callers in `brueckenbauer.cc::build_bridge`
-(`build_ramp(... slope_type(zv) * (bridge_height - start.z) ...)` for
-the start ramp at line 763 and the symmetric `slope_type(-zv)` for the
-end ramp at line 839) silently produce flat ramps for NE-SW bridges,
-so a player-built NE-SW bridge has no actual ramp slope where the
-bridge meets the ground.  Same root as the predicate cluster above —
-no slope_t alias for the four hex-only edges yet.  Land the alias and
-the bridge ramps come along for free; no separate fix needed at the
-caller side.
+Slope-edge naming asymmetry: the 6 hex-edge slope constants split
+into 2 bare names (`slope_t::north`, `::south`) and 4 suffixed
+(`::ne_edge`, `::se_edge`, `::sw_edge`, `::nw_edge`).  The suffix
+disambiguates from the `southeast = raised_SE` etc. single-corner
+aliases above and from squirrel's `slope.northeast = 1024` (single
+corner on the script side).  Cosmetic; collapse the asymmetry by
+either retiring the C++ single-corner aliases (no in-tree use
+beyond the enum declaration itself) or by suffixing all 6 edges
+(`n_edge`/`s_edge` etc.).  Either move ripples through ~50 call
+sites of `::north` / `::south`.
+
+`tests/test_helpers.nut::interesting_slopes()` claims base-3 hex
+encoding (`E=1, SE=3, SW=9, W=27, NW=81, NE=243`) but the slope
+encoding moved to base-4 (`raised_E=1, raised_SE=4, raised_SW=16,
+raised_W=64, raised_NW=256, raised_NE=1024`).  Every value the
+function returns is a stale base-3 number that decodes into a
+weird multi-corner slope under the current scheme — `SW + NW = 90`
+is commented "= slope.east/west" but `slope.east = 272`.  Tests
+iterating `interesting_slopes()` (test_slope, test_dir, others)
+exercise garbage values and pass for the wrong reason.  Fixing the
+function will likely cascade across those tests and surface
+slope-handling bugs that the bogus iteration currently masks.
 
 Save-file format: `weg_t`'s in-memory ribi is now two full bytes
 (was a packed 4-bit bitfield that silently truncated hex bits 4-5),

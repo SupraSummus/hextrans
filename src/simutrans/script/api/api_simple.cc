@@ -318,14 +318,18 @@ void export_simple(HSQUIRRELVM vm)
 	/** @name Named slopes. */
 	//@{
 	static const slope flat;
-	static const slope north;      ///< North slope
-	static const slope west;       ///< West slope
-	static const slope east;       ///< East slope
-	static const slope south;      ///< South slope
-	static const slope northwest;  ///< NW corner
-	static const slope northeast;  ///< NE corner
-	static const slope southeast;  ///< SE corner
-	static const slope southwest;  ///< SW corner
+	static const slope north;      ///< N edge slope (low N edge, S corners raised)
+	static const slope south;      ///< S edge slope
+	static const slope ne_edge;    ///< NE edge slope
+	static const slope se_edge;    ///< SE edge slope
+	static const slope sw_edge;    ///< SW edge slope
+	static const slope nw_edge;    ///< NW edge slope
+	static const slope east;       ///< 2-W-corner diagonal (legacy square)
+	static const slope west;       ///< 2-E-corner diagonal (legacy square)
+	static const slope northwest;  ///< NW corner raised (single-corner)
+	static const slope northeast;  ///< NE corner raised (single-corner)
+	static const slope southeast;  ///< SE corner raised (single-corner)
+	static const slope southwest;  ///< SW corner raised (single-corner)
 	static const slope raised;     ///< special meaning: used as slope of bridgeheads
 	static const slope all_up_slope   = 4097; ///< used for terraforming tools
 	static const slope all_down_slope = 4098; ///< used for terraforming tools

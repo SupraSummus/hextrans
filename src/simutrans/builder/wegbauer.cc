@@ -85,26 +85,19 @@ static stringhashtable_tpl <const way_desc_t *> desc_table;
 
 // Edges the A* loop in `intern_calc_route{,_elevated}` is allowed to
 // step into from this node: slope-allowed minus the back direction,
-// or `straight_dir` when build_straight is pinned.  Three hex-port
-// carve-outs (rationale and retirement triggers in TODO.md →
-// "is_way_ns / is_way_ew" cluster): flat / all_up tiles return all 6
-// edges; root nodes return slope_dir directly because hex
-// `backward(all) == all` collapses the legacy `~backward(straight_dir)`
-// mask to 0.
+// or `straight_dir` when build_straight is pinned.  Root nodes return
+// slope_dir directly because hex `backward(all) == all` collapses the
+// legacy `~backward(straight_dir)` mask to 0.  The is_way_* predicates
+// already handle flat / all_up uniformly across the 3 hex axes.
 static ribi_t::ribi compute_test_dir(slope_t::type sl, ribi_t::ribi straight_dir, bool is_root, bool build_straight_pinned)
 {
 	if (build_straight_pinned) {
 		return straight_dir;
 	}
-	ribi_t::ribi slope_dir;
-	if (sl == slope_t::flat || slope_t::is_all_up(sl)) {
-		slope_dir = ribi_t::all;
-	}
-	else {
-		slope_dir = ribi_t::none;
-		if (slope_t::is_way_ns(sl)) slope_dir |= ribi_t::north | ribi_t::south;
-		if (slope_t::is_way_ew(sl)) slope_dir |= ribi_t::southeast | ribi_t::northwest;
-	}
+	ribi_t::ribi slope_dir = ribi_t::none;
+	if (slope_t::is_way_ns(sl))    slope_dir |= ribi_t::north     | ribi_t::south;
+	if (slope_t::is_way_ne_sw(sl)) slope_dir |= ribi_t::northeast | ribi_t::southwest;
+	if (slope_t::is_way_nw_se(sl)) slope_dir |= ribi_t::northwest | ribi_t::southeast;
 	return is_root ? slope_dir : (ribi_t::ribi)(slope_dir & ~ribi_t::backward(straight_dir));
 }
 

@@ -88,23 +88,19 @@ koord::koord(ribi_t::ribi r) : x(0), y(0)
 koord::koord(slope_t::type slope) : x(0), y(0)
 {
 	switch (slope) {
-		// 6 hex edge slopes (slope.north / .south are aliases for
-		// raised_SE+raised_SW / raised_NW+raised_NE respectively).
-		case slope_t::raised_E  + slope_t::raised_SE:
-		case 2 * (slope_t::raised_E  + slope_t::raised_SE): x =  1;          break; // uphill SE (neighbours[0])
-		case slope_t::north:     case 2 * slope_t::north:   y =  1;          break; // uphill S  (neighbours[1])
-		case slope_t::raised_SW + slope_t::raised_W:
-		case 2 * (slope_t::raised_SW + slope_t::raised_W):  x = -1; y =  1;  break; // uphill SW (neighbours[2])
-		case slope_t::raised_W  + slope_t::raised_NW:
-		case 2 * (slope_t::raised_W  + slope_t::raised_NW): x = -1;          break; // uphill NW (neighbours[3])
-		case slope_t::south:     case 2 * slope_t::south:   y = -1;          break; // uphill N  (neighbours[4])
-		case slope_t::raised_NE + slope_t::raised_E:
-		case 2 * (slope_t::raised_NE + slope_t::raised_E):  x =  1; y = -1;  break; // uphill NE (neighbours[5])
+		// 6 hex edge slopes named by their LOW edge.  The 2 legacy
+		// square-diagonal slopes (::east, ::west) are NOT real hex
+		// edges; they project onto the closest hex direction (W ≈ NW,
+		// E ≈ SE) for square callers during the transition.
+		case slope_t::nw_edge: case 2 * slope_t::nw_edge: x =  1;          break; // uphill SE (neighbours[0])
+		case slope_t::north:   case 2 * slope_t::north:   y =  1;          break; // uphill S  (neighbours[1])
+		case slope_t::ne_edge: case 2 * slope_t::ne_edge: x = -1; y =  1;  break; // uphill SW (neighbours[2])
+		case slope_t::se_edge: case 2 * slope_t::se_edge: x = -1;          break; // uphill NW (neighbours[3])
+		case slope_t::south:   case 2 * slope_t::south:   y = -1;          break; // uphill N  (neighbours[4])
+		case slope_t::sw_edge: case 2 * slope_t::sw_edge: x =  1; y = -1;  break; // uphill NE (neighbours[5])
 
-		// Legacy square-diagonal slopes (NW+SW and NE+SE): kept for
-		// square callers; approximate uphill on the hex grid.
-		case slope_t::east:      case 2 * slope_t::east:  x = -1; break; // uphill hex-NW ≈ W
-		case slope_t::west:      case 2 * slope_t::west:  x =  1; break; // uphill hex-SE ≈ E
+		case slope_t::east:    case 2 * slope_t::east:    x = -1;          break; // uphill hex-NW ≈ W (legacy)
+		case slope_t::west:    case 2 * slope_t::west:    x =  1;          break; // uphill hex-SE ≈ E (legacy)
 		default: break;
 	}
 }
