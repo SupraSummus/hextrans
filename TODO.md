@@ -253,24 +253,9 @@ assert on visuals.  Bump the version field once the migration is
 worth a hard cutover, or rebuild the CI pak from source against the
 new makeobj when one becomes available.
 
-`LightTexture` is now registered as the required ground-lightmap
-descriptor.  Ground texture generation treats that block as sparse raw
-slope slots instead of asking `synth_overlay` for generated
-colour-lightmaps, and missing display-time slopes fatal instead of
-falling back to the synth path.  Ground display also trips on
-non-normalised `pos.z`/`grund_hang` pairs instead of silently reusing a
-normalised lightmap at the wrong height.  The remaining ground-art
-caveat is elevated construction code that may still copy or restore
-legacy slope values outside the ordinary setter path; audit those paths
-when the associated builders next get hex-port attention.
-
-## Pakset slope sprite range gap
-
-Pakset art covers a sparse set of raw base-4 slopes.  The
-`LightTexture` path skips missing slots during runtime ground
-texture generation and display lookups normalise to existing hex slots
-before fataling on genuinely missing art.  Border lookup uses the same
-normalised raw slope key into the pakset `Borders` block.
+Elevated construction code may still copy or restore legacy slope
+values outside the ordinary setter path; audit those paths when the
+associated builders next get hex-port attention.
 
 ## Per-vertex height storage — remaining writer-side ports
 
@@ -555,18 +540,6 @@ on every axis, plus `true` for the matching edge slope), the
 flat / all_up branch in `compute_test_dir` becomes dead code and
 can be deleted.
 
-The same `compute_test_dir` helper also carves out a root-node
-branch.  Square upstream's `backward(ribi_t::all) == 0` was a
-lookup-table quirk (the table also gave `backward(none) == all`),
-so `~backward(straight_dir)` was a no-op mask when `straight_dir`
-was `ribi_t::all` (the root-node sentinel).  Our hex `backward` is
-the clean "flip each set bit" so `backward(all) == all` and the
-mask collapses to 0 — root nodes need explicit handling.  No clean
-retirement: returning `none`/`all` for the all-bits special cases
-would re-introduce a lookup-table quirk.  The helper-level
-explicit branch is the right shape; documented here so a reader
-chasing `~ribi_t::backward` sites doesn't try to "fix" it.
-
 `slope_type(koord)` in `ribi.cc` returns `slope_t::flat` for any
 direction with both components nonzero — i.e. for the NE-SW hex axis
 (`(1,-1)` / `(-1,1)`).  Two callers in `brueckenbauer.cc::build_bridge`
@@ -802,6 +775,27 @@ first, so the transform code becomes pure dead weight.
 **Out of scope.**  Real hex pakset art (see "Square-art-as-placeholder"
 above for the placeholder roadmap).  Map rotation (currently fatal,
 gated as unreachable) — orthogonal to the projection port.
+
+## Hex depth-clip plane spec for sprite Back/Front split
+
+`descriptor/synth_geometry.h` pins camera + light + lift for the hex
+ground synth.  Sprite back/front layer projection (the bridge / way
+draw split currently authored in pak128 square convention) has no
+matching hex spec on the engine side.  Define one — analogous to the
+camera spec in `synth_geometry.h` — naming where each layer's depth
+plane sits under the hex projection.  `SupraSummus/hextrans-pak128`'s
+3D asset pipeline can't emit hex sheet entries until this lands.
+
+## Shore-water tile composition still square
+
+`descriptor/ground_desc.cc::create_texture_from_tile`, reached via
+`get_water_tile(slope, stage)`, splats `water_ani[0][stage]` with
+hardcoded `±ref_w/2, ±ref_w/4` replication offsets to build a tileable
+texture multiplied with the climate water texture.  Those offsets
+tile a square silhouette; under hex the replication grid is wrong and
+every shore tile drawn through this path produces wrong pixels.  Port
+the replication geometry to hex alongside the rest of the wasser
+display path.
 
 ## Save format version bump
 
