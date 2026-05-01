@@ -151,22 +151,6 @@ Now that the NW-corner-only writers are ported, restoration
 needs a hex-aware test scaffold that raises the right vertices
 directly rather than 4 corners of a 2x2 square.
 
-## Vertex propagation: recursion → worklist
-
-`surface_t::raise_vertex_to` / `lower_vertex_to` walk the 3-neighbour hex
-vertex graph by direct recursion.  Two consequences worth a follow-up
-pass.  First, depth is `O(min(map extent, |h - bound|))` along the
-graph — fine for normal terraforming but unbounded in principle for a
-world-gen call that targets a vertex far from the world edges.  Second,
-the bounds termination check (`h <= min_allowed_height` / `h >= max_allowed_height`)
-runs *after* the slot write, so a caller that passes an out-of-range `h`
-leaks the bad value into `grid_hgts` even though propagation correctly
-stops.  An iterative worklist (queue of `(canonical_vertex, h)` pairs,
-clamp at dequeue, dedup against the current slot value) fixes both at
-once and reads more naturally — the recursion's "set then maybe stop"
-ordering is a hangover from when the function was a 1:1 port of the
-square `raise_grid_to` body.
-
 ## Lower_to water-tile NW-only gate
 
 `terraformer_t::lower_to` short-circuits water tiles unless the NW corner
@@ -178,22 +162,6 @@ the answer probably wants to be "did `min_corner` drop" or "did any
 corner that touches a neighbour-with-higher-water drop".  Real semantic
 choice, not a mechanical refactor; lands together with the wider
 hex-aware water-table propagation pass when that gets scheduled.
-
-## World-gen raise_grid_to / lower_grid_to callers
-
-`simworld.cc:1591–1594` (beach generation) and `1893–1909` (map
-expansion) still call `raise_grid_to` / `lower_grid_to`, which are now
-thin adapters that forward to `raise_vertex_to(x-1, y-1, E, h)`.  That
-writes only the E canonical vertex at each grid point, leaving the SE
-canonical vertices unset and producing partially-initialised terrain
-during world creation.  The map-expansion block also has a suspicious
-`raise_grid_to(old_size.x+1, i, h)` / `lower_grid_to(old_size.y+1, i, h)`
-pair on the east edge; port that with the rest of the block instead of
-preserving the mismatched legacy coordinates.  Retire by porting each
-site to call `raise_vertex_to` / `lower_vertex_to` directly on the full
-set of hex vertices that the operation logically covers.  Once the last
-caller is gone, `raise_grid_to`, `lower_grid_to` and their declarations
-in `surface.h` can be deleted.
 
 ## max_diff callers assume max-corner ≤ 2
 
@@ -266,17 +234,6 @@ positions and writes both canonical slots, so freshly generated
 terrain is self-consistent across shared vertices — the three owners
 of any shared vertex all resolve to the same slot and get the same
 noise value by construction.
-
-`init_perlin_map` in `simrandom.cc` still sizes its `int_noise` cache
-to `(W+2) × (H+2)`, the old square-tile coordinate range.  Hex vertex
-sampling scales x by 1.5 and y by `sqrt(3) * (r + q/2)`, so at the max
-freq=32 perlin step the integer index reaches ~`0.75*W` on x and
-~`1.3*(H + W/2)` on y — well past `H-1` on the south-east half of the
-map.  `smoothed_noise` falls through to the uncached `int_noise` branch
-for those queries, so the result is correct but the cache is doing far
-less work than it could.  Resize once perlin sampling settles — pass
-the actual integer-index extents in, or compute them from `(W, H)` plus
-the hex scale factors at the call site.
 
 The two NW-corner-only writers (`hausbauer.cc:457` and
 `simtool.cc:1600/1597`) are now hex-aware via the
@@ -387,9 +344,9 @@ Not in flight, flagged so it doesn't get closed off by side-effect.
 It touches every `plan[q + r*W]` indexing site, every map-iteration
 loop, the save format (or leaves corner cells empty for round-trip
 compatibility), the world-create / `enlarge_map_frame` UI which
-currently asks for `(W, H)`, and the `init_perlin_map` cache-sizing
-follow-up under "Per-vertex height storage" — that cache wants the
-world-coord extent of whatever shape we pick.  The
+currently asks for `(W, H)`, and the `init_perlin_map` cache —
+sized today against rhombus-in-world-space extents and would want
+recomputing for whatever shape we pick.  The
 `koord_random` / `clip_min` / `clip_max` "rhombus in world space"
 caveat under "ribi_t — audit surfaces" is the same question viewed
 from a different direction.  Pick a direction before any of those

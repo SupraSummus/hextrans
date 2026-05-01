@@ -12,6 +12,7 @@
 #include "../descriptor/ground_desc.h"
 #include "../ground/grund.h"
 #include "../player/simplay.h"
+#include "../tpl/vector_tpl.h"
 
 // Test the active-ASAN macro, not __has_include: libgcc-dev ships
 // <sanitizer/common_interface_defs.h> on every Linux toolchain, so a
@@ -424,73 +425,85 @@ int surface_t::grid_lower(const player_t *player, koord k, hex_corner_t::type co
 }
 
 
-// raise height in the hgt-array
-// Hex vertex adjacency (flat-top, canonical E/SE corners only):
-//   (q,r,E)  neighbors: (q,r,SE)  (q,r-1,SE)  (q+1,r-1,SE)
+namespace {
+	struct vertex_height_t {
+		hex_vertex_t v;
+		sint8 h;
+	};
+}
+
+
+// Iterative LIFO walk of the 3-neighbour hex vertex graph, replacing
+// the direct recursion the square `raise_grid_to` body was originally
+// ported from.  Bounds + slot dedup are applied at dequeue, so an
+// out-of-range `h` cannot leak into `grid_hgts` even if a caller
+// passes one (the recursion variant wrote `h` first and bailed
+// after).  Hex vertex adjacency (flat-top, canonical E/SE corners
+// only): (q,r,E) neighbours (q,r,SE) (q,r-1,SE) (q+1,r-1,SE).
 void surface_t::raise_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 h)
 {
-	const hex_vertex_t cv = canonical_vertex({koord(q, r), c});
-	// canonical tiles: x ∈ [-1, W-1], y ∈ [-1, H]
-	if ((uint16)(cv.tile.x + 1) > (uint16)cached_grid_size.x ||
-	    (uint16)(cv.tile.y + 1) > (uint16)(cached_grid_size.y + 1)) {
-		return;
-	}
-	const uint32 slot = vertex_slot_index(cv, cached_grid_size.x);
-	if (grid_hgts[slot] >= h) {
-		return;
-	}
-	// Map-gen / lake-creation natural writer — both channels move together.
-	grid_hgts[slot] = h;
-	natural_grid_hgts[slot] = h;
-	if (h <= get_min_allowed_height()) {
-		return;
-	}
-	const sint8 h1 = h - 1;
-	hex_vertex_t nb[3];
-	vertex_neighbours(cv, nb);
-	for (int i = 0; i < 3; i++) {
-		raise_vertex_to(nb[i].tile.x, nb[i].tile.y, nb[i].corner, h1);
+	const sint8 h_min = get_min_allowed_height();
+	vector_tpl<vertex_height_t> worklist(16);
+	worklist.append({canonical_vertex({koord(q, r), c}), h});
+
+	while (!worklist.empty()) {
+		const vertex_height_t job = worklist.pop_back();
+		const hex_vertex_t cv = job.v; // already canonical
+		const sint8 hh = job.h;
+
+		// Out-of-range guard, before any slot mutation.
+		if (hh < h_min) continue;
+		// Canonical tiles span x ∈ [-1, W-1], y ∈ [-1, H].
+		if ((uint16)(cv.tile.x + 1) > (uint16)cached_grid_size.x ||
+		    (uint16)(cv.tile.y + 1) > (uint16)(cached_grid_size.y + 1)) {
+			continue;
+		}
+		const uint32 slot = vertex_slot_index(cv, cached_grid_size.x);
+		if (grid_hgts[slot] >= hh) continue;
+		// Map-gen / lake-creation natural writer — both channels move together.
+		grid_hgts[slot] = hh;
+		natural_grid_hgts[slot] = hh;
+		if (hh <= h_min) continue; // neighbour h would be out of range
+
+		const sint8 hh1 = hh - 1;
+		hex_vertex_t nb[3];
+		vertex_neighbours(cv, nb);
+		for (int i = 0; i < 3; i++) {
+			worklist.append({nb[i], hh1});
+		}
 	}
 }
 
 
 void surface_t::lower_vertex_to(sint16 q, sint16 r, hex_corner_t::type c, sint8 h)
 {
-	const hex_vertex_t cv = canonical_vertex({koord(q, r), c});
-	if ((uint16)(cv.tile.x + 1) > (uint16)cached_grid_size.x ||
-	    (uint16)(cv.tile.y + 1) > (uint16)(cached_grid_size.y + 1)) {
-		return;
-	}
-	const uint32 slot = vertex_slot_index(cv, cached_grid_size.x);
-	if (grid_hgts[slot] <= h) {
-		return;
-	}
-	// Natural writer — both channels move together.
-	grid_hgts[slot] = h;
-	natural_grid_hgts[slot] = h;
-	if (h >= get_max_allowed_height()) {
-		return;
-	}
-	const sint8 h1 = h + 1;
-	hex_vertex_t nb[3];
-	vertex_neighbours(cv, nb);
-	for (int i = 0; i < 3; i++) {
-		lower_vertex_to(nb[i].tile.x, nb[i].tile.y, nb[i].corner, h1);
-	}
-}
+	const sint8 h_max = get_max_allowed_height();
+	vector_tpl<vertex_height_t> worklist(16);
+	worklist.append({canonical_vertex({koord(q, r), c}), h});
 
+	while (!worklist.empty()) {
+		const vertex_height_t job = worklist.pop_back();
+		const hex_vertex_t cv = job.v;
+		const sint8 hh = job.h;
 
-void surface_t::raise_grid_to(sint16 x, sint16 y, sint8 h)
-{
-	// Legacy adapter: (x,y) in old square-grid coords maps to the E
-	// canonical vertex of tile (x-1, y-1).
-	raise_vertex_to(x - 1, y - 1, hex_corner_t::E, h);
-}
+		if (hh > h_max) continue;
+		if ((uint16)(cv.tile.x + 1) > (uint16)cached_grid_size.x ||
+		    (uint16)(cv.tile.y + 1) > (uint16)(cached_grid_size.y + 1)) {
+			continue;
+		}
+		const uint32 slot = vertex_slot_index(cv, cached_grid_size.x);
+		if (grid_hgts[slot] <= hh) continue;
+		grid_hgts[slot] = hh;
+		natural_grid_hgts[slot] = hh;
+		if (hh >= h_max) continue;
 
-
-void surface_t::lower_grid_to(sint16 x, sint16 y, sint8 h)
-{
-	lower_vertex_to(x - 1, y - 1, hex_corner_t::E, h);
+		const sint8 hh1 = hh + 1;
+		hex_vertex_t nb[3];
+		vertex_neighbours(cv, nb);
+		for (int i = 0; i < 3; i++) {
+			worklist.append({nb[i], hh1});
+		}
+	}
 }
 
 
