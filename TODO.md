@@ -689,16 +689,21 @@ first, so the transform code becomes pure dead weight.
 above for the placeholder roadmap).  Map rotation (currently fatal,
 gated as unreachable) — orthogonal to the projection port.
 
-## Hex depth-clip plane spec for sprite Back/Front split
+## Depth-clip plane spec sits unused
 
-Sprite back/front layer projection (the bridge / way draw split
-currently authored in pak128 square convention) has no matching hex
-spec on the engine side.  Define one — naming where each layer's
-depth plane sits under the hex projection — anchored against the same
-hex camera the pakset bakers use in
-`hextrans-pak128/tools/3d/hex_synth.py::HexGeom`.
-`SupraSummus/hextrans-pak128`'s 3D asset pipeline can't emit hex
-sheet entries until this lands.
+`hex_way_axis_t` + the "Depth-clip plane spec" docstring in
+`display/hex_proj.h` define the per-axis vertical plane that splits
+multi-layer way assets into Back / Front layers under hex projection;
+pak-side mirror is in `hextrans-pak128/tools/3d/hex_synth.py`
+(`HEX_DEPTH_CLIP_NORMAL`, `front_back_split`).  Neither side has a
+caller — `rail_060_tracks` is single-layer, `rail_060_bridge` hasn't
+attempted hex output, and there's no engine .dat reader for hex
+bridge `BackImage[<axis>]` keys yet.  Wire into a real consumer
+(first multi-layer hex bake or the .dat reader) when one appears,
+otherwise the spec drifts silently.  Re-evaluate the south-is-Front
+rule and the +x tie-break for N-S at that point — the rule was
+sketched against pak128's NS bridge convention only, not stress-
+tested against NE-SW / NW-SE bakes that don't exist yet.
 
 ## Shore-water tile composition still square
 
