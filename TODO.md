@@ -543,18 +543,26 @@ Climate transitions use
 `climate_at_clamped` (const members; height uses `canonical_vertex`
 then tile clamp like legacy neighbours) in both `recalc_transitions` and
 `display_boden`; the six-bit mask lives on `planquadrat_t` (save
-124.5: extra byte in `grund_t` for bits 4–5).  Shore alpha reads
-the pakset's `(slope, water_mask)` `ShoreTrans` block directly — the
-shore baker shares `LightTexture`'s silhouette via
-`hex_synth.silhouette_mask` so source and alpha RLE walks stay in
-lockstep, and `init_ground_textures` tripwires the invariant once at
-startup.  `get_alpha_tile` (snowline / climate alpha) is still on the
-legacy 15-wide-per-slope `SlopeTrans` table and clamps the 6-bit
-overlay-corners mask to 15; same fix shape as shore (per-`(slope,
-corners)` pakset bake sharing the lightmap silhouette) applies there
-but lives on the `transition_slope_texture` side.  Deep water still
-pairs with the pakset `Water` animation block as below; on-slope
-water and snow now use LightTexture-derived shapes.
+124.5: extra byte in `grund_t` for bits 4–5).  Shore alpha and
+slope alpha (snowline / climate-corner mixing) both read pakset
+`(slope, mask)` blocks directly — `ShoreTrans` and `SlopeTrans`
+share `LightTexture`'s silhouette via `hex_synth.silhouette_mask`
+so source and alpha RLE walks stay in lockstep, and
+`init_ground_textures` tripwires both invariants once at startup.
+The snowline path — `get_alpha_tile(slope)` derives mask =
+`high_corners_of(slope)`, which is an isolated-bit mask on slopes
+with non-edge-union elevated corners (single-corner-up,
+opposite-corners-up, alternating-corners-up — ~41 of 141 valid
+slopes).  `SlopeTrans`'s bake omits isolated-bit masks (they aren't
+realisable for the climate-mixing path), so on those slopes the
+lookup returns `IMG_EMPTY` and the snowline overlay is skipped —
+visible regression vs. the legacy 15-cell square pakset.  Resolve
+either by an engine-side mask derivation that always returns an
+edge-union (e.g. expand each isolated corner by adding one
+neighbour bit) or by baking the snow-only cells separately from
+the climate-keyed table.
+Deep water still pairs with the pakset `Water` animation block as
+below; on-slope water and snow now use LightTexture-derived shapes.
 `rotate_transitions` still applies a 60° bit-rotate as a stand-in for
 90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
 
