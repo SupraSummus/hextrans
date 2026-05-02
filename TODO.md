@@ -61,13 +61,14 @@ the square-perpendicular setup.
 `tool_remove_way` over a bridge span whose footprint shifted under
 hex (the "2 tiles on top of each other" sub-test builds a bridge from
 (3, 3) to (3, 5) and tries to remove (3, 2)→(3, 6); the span endpoints
-no longer match).  `test_way_bridge_planner` iterates
-`interesting_slopes()` and asserts which counter-slopes
-`bridge_planner_x.find_end` accepts — the body is hex-ready, but
-the working_slopes whitelist (`[ slope.north ]`) reflects what the
-hex bridge planner actually accepts and may need the 4 hex-only
-edge slopes (`slope_t::{ne,se,sw,nw}_edge`) once the squirrel side
-gets matching aliases.
+no longer match).  `test_way_bridge_planner`'s first block (iterate
+`interesting_slopes()` against `bridge_planner_x.find_end` from a
+slope.south start) passes against the current `working_slopes = [
+slope.north ]` whitelist — that part is hex-ready.  The second
+"min length" block fails on `set_slope(pl, coord3d(2, 1, 0),
+slope.south)` returning `""` (out-of-range or `max_diff > 1` gate
+in `tool_set_slope_work`) before the actual bridge-length assertions
+run; root-cause first.
 
 **Powerline 3rd hex axis.**  `test_powerline_connect / _build_below_powerbridge /
 _build_powerbridge_above_powerline / _build_transformer_multiple /
@@ -448,18 +449,6 @@ either retiring the C++ single-corner aliases (no in-tree use
 beyond the enum declaration itself) or by suffixing all 6 edges
 (`n_edge`/`s_edge` etc.).  Either move ripples through ~50 call
 sites of `::north` / `::south`.
-
-`tests/test_helpers.nut::interesting_slopes()` claims base-3 hex
-encoding (`E=1, SE=3, SW=9, W=27, NW=81, NE=243`) but the slope
-encoding moved to base-4 (`raised_E=1, raised_SE=4, raised_SW=16,
-raised_W=64, raised_NW=256, raised_NE=1024`).  Every value the
-function returns is a stale base-3 number that decodes into a
-weird multi-corner slope under the current scheme — `SW + NW = 90`
-is commented "= slope.east/west" but `slope.east = 272`.  Tests
-iterating `interesting_slopes()` (test_slope, test_dir, others)
-exercise garbage values and pass for the wrong reason.  Fixing the
-function will likely cascade across those tests and surface
-slope-handling bugs that the bogus iteration currently masks.
 
 Save-file format: `weg_t`'s in-memory ribi is now two full bytes
 (was a packed 4-bit bitfield that silently truncated hex bits 4-5),
