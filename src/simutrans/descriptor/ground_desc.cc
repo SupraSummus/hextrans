@@ -451,6 +451,9 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	// startup so future pakset drift fails loudly instead of
 	// reintroducing the alpha-renderer overread that motivated the
 	// retired cache.
+	uint32 shore_alpha_count = 0;
+	uint64 shore_alpha_data_bytes = 0;
+	uint64 shore_alpha_pixel_bytes = 0;
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 		const image_t* const lightmap = ground_light_map->get_image_ptr( dslope );
 		if(  lightmap == NULL  ) {
@@ -459,6 +462,9 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		for(  int corner_mask = 1;  corner_mask < (1 << hex_corner_t::count);  corner_mask++  ) {
 			const image_t* const shore_alpha = transition_water_texture->get_image_ptr((uint16)dslope, (uint16)corner_mask);
 			if(  shore_alpha != NULL  ) {
+				shore_alpha_count++;
+				shore_alpha_data_bytes += (uint64)shore_alpha->len * sizeof(PIXVAL);
+				shore_alpha_pixel_bytes += (uint64)shore_alpha->w * shore_alpha->h;
 				if(  shore_alpha->w != lightmap->w  ||  shore_alpha->h != lightmap->h
 				  ||  shore_alpha->x != lightmap->x  ||  shore_alpha->y != lightmap->y
 				  ||  shore_alpha->len != lightmap->len  ) {
@@ -493,6 +499,12 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 			}
 		}
 	}
+	dbg->message("ground_desc_t::init_ground_textures",
+		"ShoreTrans bitmask sizing: %u images, RLE bytes=%llu, naive 1bpp bytes=%llu, ratio=%.2fx",
+		shore_alpha_count,
+		(unsigned long long)shore_alpha_data_bytes,
+		(unsigned long long)((shore_alpha_pixel_bytes + 7) / 8),
+		shore_alpha_pixel_bytes ? (double)shore_alpha_data_bytes / (double)((shore_alpha_pixel_bytes + 7) / 8) : 0.0);
 
 	for(  int slope = 1;  slope < totalslopes;  slope++  ) {
 		if(  doubleslope_to_imgnr[slope] != 255  ) {
