@@ -17,19 +17,19 @@ function test_terraform_raise_lower_land()
 	local err = command_x.grid_raise(player_x(0), coord(3, 2))
 	ASSERT_EQUAL(err, "Zu nah am Kartenrand") // TODO Fix error message?
 
+	// Raise + lower at one vertex never round-trips: raise's "≥ H − 1"
+	// propagation pushes the 3 hex-vertex-neighbours up, but lower's
+	// "≤ H + 1" propagation never pulls them back (same as upstream
+	// square).  Pull the cone back to ground explicitly.  V = NW of
+	// (3, 2) is canonical (2, 2) E; vertex_neighbours puts its 3
+	// neighbours at the SE corners of (2, 2), (2, 1), (3, 1).
 	ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(3, 2, 100)), null)
 	ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(3, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(3, 2, 0)), null)
-
 	ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 2, 1)), null)
-
-	// clean up
-	ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(3, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(3, 2, 0)), null)
+	ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 2, 0)), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(player_x(0), coord3d(2, 2, 0), hex_corner.SE), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(player_x(0), coord3d(2, 1, 0), hex_corner.SE), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(player_x(0), coord3d(3, 1, 0), hex_corner.SE), null)
 
 	RESET_ALL_PLAYER_FUNDS()
 }

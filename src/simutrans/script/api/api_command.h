@@ -8,6 +8,7 @@
 
 
 #include "../api_param.h"
+#include "../../dataobj/koord.h"
 #include "../../dataobj/koord3d.h"
 #include "../../utils/plainstring.h"
 
@@ -64,15 +65,19 @@ namespace script_api {
 		// if true, calls to tools that were not immediately executed will not suspend the vm
 		// but rather return null (as if the tool was successfully executed)
 		bool no_block;
+		// hex corner the tool should pick (raise/lower terraforming).
+		// Other tools ignore this — set_cursor_corner is a virtual no-op
+		// on tool_t.
+		hex_corner_t::type cursor_corner;
 	public:
 		call_tool_base_t(tool_t* t, player_t* pl)
-		: tool(t), tool_id(0), default_param(NULL), flags(0), player(pl), error(NULL), no_block(false)  { }
+		: tool(t), tool_id(0), default_param(NULL), flags(0), player(pl), error(NULL), no_block(false), cursor_corner(hex_corner_t::NW)  { }
 
 		call_tool_base_t(uint16 id, const char* dp, uint8 f, player_t* pl)
-		: tool(NULL), tool_id(id), default_param(dp), flags(f), player(pl), error(NULL), no_block(false) { }
+		: tool(NULL), tool_id(id), default_param(dp), flags(f), player(pl), error(NULL), no_block(false), cursor_corner(hex_corner_t::NW) { }
 
 		call_tool_base_t(const char* err)
-		: tool(NULL), tool_id(0), default_param(NULL), flags(0), player(NULL), error(err), no_block(false)  { }
+		: tool(NULL), tool_id(0), default_param(NULL), flags(0), player(NULL), error(err), no_block(false), cursor_corner(hex_corner_t::NW)  { }
 
 		tool_t * create_tool();
 	};
@@ -127,6 +132,12 @@ namespace script_api {
 		call_tool_work set_no_block(bool nb)
 		{
 			no_block = nb;
+			return *this;
+		}
+
+		call_tool_work set_cursor_corner(hex_corner_t::type c)
+		{
+			cursor_corner = c;
 			return *this;
 		}
 	};

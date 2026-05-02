@@ -201,7 +201,7 @@ all_tests <- [
 	// test_way_bridge_build_at_slope_stacked: HEX-PORT PENDING.
 	// test_way_bridge_build_above_way: HEX-PORT PENDING.
 	// test_way_bridge_build_above_runway: HEX-PORT PENDING.
-	// test_way_bridge_planner: HEX-PORT PENDING.
+	test_way_bridge_planner,
 	test_way_road_build_single_tile,
 	// test_way_road_build_straight: HEX-PORT PENDING.
 	test_way_road_build_ne_sw,
@@ -233,8 +233,8 @@ all_tests <- [
 	// test_way_tunnel_build_above_tunnel_slope: HEX-PORT PENDING.
 	// test_way_tunnel_build_across_tunnel_slope: HEX-PORT PENDING.
 	// test_way_tunnel_make_public: HEX-PORT PENDING.
-	// test_wayobj_build_straight: HEX-PORT PENDING.
-	// test_wayobj_build_disconnected: HEX-PORT PENDING.
+	test_wayobj_build_straight,
+	test_wayobj_build_disconnected,
 	test_wayobj_upgrade_downgrade,
 	test_wayobj_upgrade_change_owner,
 	test_wayobj_electrify_depot,

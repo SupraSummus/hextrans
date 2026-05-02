@@ -208,6 +208,8 @@ SQInteger param<call_tool_work>::push(HSQUIRRELVM vm, call_tool_work v)
 	// set correct flags
 	tool->flags &= (tool_t::WFL_SHIFT | tool_t:: WFL_CTRL);
 	tool->flags |= tool_t::WFL_SCRIPT;
+	// hex corner picked by the caller; no-op on tools that don't care
+	tool->set_cursor_corner(v.cursor_corner);
 	// get player parameter
 	player_t *player = get_my_player(vm);
 	if (player == NULL) {
@@ -468,7 +470,7 @@ call_tool_work change_climate_at(player_t* pl, koord3d start, int climate)
 }
 
 
-call_tool_work lower_raise(player_t* pl, koord3d pos, bool lower)
+call_tool_work lower_raise(player_t* pl, koord3d pos, sint8 corner, bool lower)
 {
 	// need to transform coordinate to grid coordinates
 	switch(coordinate_transform_t::get_rotation()) {
@@ -477,7 +479,11 @@ call_tool_work lower_raise(player_t* pl, koord3d pos, bool lower)
 		case 3: pos += koord(0,1); break;
 		default:;
 	}
-	return call_tool_work((lower ? TOOL_LOWER_LAND : TOOL_RAISE_LAND) | GENERAL_TOOL, NULL, 0, pl, pos);
+	if (corner < 0  ||  corner >= (sint8)hex_corner_t::count) {
+		return call_tool_work("Invalid hex corner");
+	}
+	return call_tool_work((lower ? TOOL_LOWER_LAND : TOOL_RAISE_LAND) | GENERAL_TOOL, NULL, 0, pl, pos)
+		.set_cursor_corner((hex_corner_t::type)corner);
 }
 
 void export_commands(HSQUIRRELVM vm)
@@ -651,17 +657,33 @@ void export_commands(HSQUIRRELVM vm)
 	STATIC register_method(vm, change_climate_at, "change_climate_at", false, true);
 
 	/**
-	 * Lower grid point
+	 * Lower grid point at the NW corner of @p pos.
 	 * @param pl player to pay for the work
-	 * @param pos coordinate of tile, grid point in nw corner will be lowered
+	 * @param pos coordinate of tile, grid point at the nw corner will be lowered
 	 */
-	STATIC register_method_fv(vm, lower_raise, "grid_lower", freevariable<bool>(true), false, true);
+	STATIC register_method_fv(vm, lower_raise, "grid_lower", freevariable<sint8, bool>((sint8)hex_corner_t::NW, true), false, true);
 	/**
-	 * Raise grid point
+	 * Raise grid point at the NW corner of @p pos.
 	 * @param pl player to pay for the work
-	 * @param pos coordinate of tile, grid point in nw corner will be lowered
+	 * @param pos coordinate of tile, grid point at the nw corner will be raised
 	 */
-	STATIC register_method_fv(vm, lower_raise, "grid_raise", freevariable<bool>(false), false, true);
+	STATIC register_method_fv(vm, lower_raise, "grid_raise", freevariable<sint8, bool>((sint8)hex_corner_t::NW, false), false, true);
+	/**
+	 * Lower grid point at @p corner of @p pos.  Lets scripts target any of the
+	 * 6 hex corners of a tile, not only the default NW corner.
+	 * @param pl player to pay for the work
+	 * @param pos coordinate of tile
+	 * @param corner one of @ref hex_corner_t (0=E, 1=SE, 2=SW, 3=W, 4=NW, 5=NE)
+	 */
+	STATIC register_method_fv(vm, lower_raise, "grid_lower_at_corner", freevariable<bool>(true), false, true);
+	/**
+	 * Raise grid point at @p corner of @p pos.  Lets scripts target any of the
+	 * 6 hex corners of a tile, not only the default NW corner.
+	 * @param pl player to pay for the work
+	 * @param pos coordinate of tile
+	 * @param corner one of @ref hex_corner_t (0=E, 1=SE, 2=SW, 3=W, 4=NW, 5=NE)
+	 */
+	STATIC register_method_fv(vm, lower_raise, "grid_raise_at_corner", freevariable<bool>(false), false, true);
 
 	end_class(vm);
 }

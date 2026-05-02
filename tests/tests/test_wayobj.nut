@@ -9,7 +9,6 @@
 //
 
 
-// test_wayobj_build_straight: HEX-PORT PENDING.
 function test_wayobj_build_straight()
 {
 	local pl = player_x(0)
@@ -72,7 +71,6 @@ function test_wayobj_build_straight()
 }
 
 
-// test_wayobj_build_disconnected: HEX-PORT PENDING.
 function test_wayobj_build_disconnected()
 {
 	local pl = player_x(0)

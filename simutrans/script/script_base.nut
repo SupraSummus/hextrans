@@ -515,6 +515,19 @@ class dir {
 	static nsew = [1, 2, 4, 8, 16, 32]
 }
 
+class hex_corner {
+	// Flat-top hex tiles have 6 corners at 0°, 60°, 120°, 180°, 240°,
+	// 300°.  Indices match `hex_corner_t::type` in
+	// src/simutrans/dataobj/koord.h.  Used by `command_x.grid_raise_at_corner`
+	// / `grid_lower_at_corner` to target a specific corner of a tile.
+	static E  = 0
+	static SE = 1
+	static SW = 2
+	static W  = 3
+	static NW = 4
+	static NE = 5
+}
+
 class slope {
 	// Base-4 6-corner encoding, matches slope_t::type in
 	// src/simutrans/dataobj/ribi.h.  Digit positions follow
