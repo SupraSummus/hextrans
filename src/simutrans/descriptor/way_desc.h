@@ -121,6 +121,11 @@ public:
 		return get_child<image_list_t>(n)->get_image_id(ribi);
 	}
 
+	/// Slope-up sprite lookup.  Pakset imagelist holds 12 slots, one
+	/// per way-buildable hex slope: 6 narrow (2-corner) edge slopes
+	/// 0..5 in clockwise order from north, then their 6 wide (4-corner)
+	/// variants 6..11 in the same order.  Anything else (flat,
+	/// all_up sentinels, non-buildable values) returns IMG_EMPTY.
 	image_id get_slope_image_id(slope_t::type slope, uint8 season, bool front = false) const
 	{
 		if (front  &&  !front_images) {
@@ -129,40 +134,22 @@ public:
 		const uint16 n = image_list_base_index(season, front) + 1;
 		uint16 nr;
 		switch(slope) {
-			case slope_t::north:
-				nr = 0;
-				break;
-			case slope_t::west:
-				nr = 1;
-				break;
-			case slope_t::east:
-				nr = 2;
-				break;
-			case slope_t::south:
-				nr = 3;
-				break;
-			case slope_t::north*2:
-				nr = 4;
-				break;
-			case slope_t::west*2:
-				nr = 5;
-				break;
-			case slope_t::east*2:
-				nr = 6;
-				break;
-			case slope_t::south*2:
-				nr = 7;
-				break;
+			case slope_t::north:      nr = 0;  break;
+			case slope_t::ne_edge:    nr = 1;  break;
+			case slope_t::se_edge:    nr = 2;  break;
+			case slope_t::south:      nr = 3;  break;
+			case slope_t::sw_edge:    nr = 4;  break;
+			case slope_t::nw_edge:    nr = 5;  break;
+			case slope_t::north_wide: nr = 6;  break;
+			case slope_t::ne_wide:    nr = 7;  break;
+			case slope_t::se_wide:    nr = 8;  break;
+			case slope_t::south_wide: nr = 9;  break;
+			case slope_t::sw_wide:    nr = 10; break;
+			case slope_t::nw_wide:    nr = 11; break;
 			default:
 				return IMG_EMPTY;
 		}
-		image_id slope_img = get_child<image_list_t>(n)->get_image_id(nr);
-		if(  nr > 3  &&  slope_img == IMG_EMPTY  &&  get_child<image_list_t>(n)->get_count()<=4  ) {
-			// hack for old ways without double height images to use single slope images for both
-			nr -= 4;
-			slope_img = get_child<image_list_t>(n)->get_image_id(nr);
-		}
-		return slope_img;
+		return get_child<image_list_t>(n)->get_image_id(nr);
 	}
 
 	image_id get_diagonal_image_id(ribi_t::ribi ribi, uint8 season, bool front = false) const
@@ -174,10 +161,9 @@ public:
 		return get_child<image_list_t>(n)->get_image_id(ribi / 3 - 1);
 	}
 
-	bool has_double_slopes() const {
-		return get_child<image_list_t>(3)->get_count() > 4
-		||     get_child<image_list_t>(image_list_base_index(false, true) + 1)->get_count() > 4;
-	}
+	/// Double-height way slopes are no longer way-buildable; stub
+	/// returns false for any caller that still asks.
+	bool has_double_slopes() const { return false; }
 
 	/// Diagonal (smooth out-of-axis bend) sprites — gone under hex,
 	/// every direction lies on an axis.  The imagelist node is still

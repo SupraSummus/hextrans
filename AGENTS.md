@@ -290,3 +290,11 @@ reaches back a handful of commits and `git blame` on older lines
 returns "(grafted)". Run `git fetch --unshallow origin` when the
 question actually needs history (tracing upstream intent, bisecting
 across the port commit); default to staying shallow.
+
+The repo is checked out locally at `/home/user/hextrans` (and the
+pakset at `/home/user/hextrans-pak128`). Edit and inspect through
+the local working tree — `Read`, `Edit`, `git grep`, `cmake --build`
+— not the GitHub API. The MCP `mcp__github__*` tools are for
+genuine GitHub operations (PRs, issues, CI status, cross-repo
+search); using them for local file reads or edits costs round-trips
+and skips the file-tooling that's already wired up.

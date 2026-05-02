@@ -389,8 +389,11 @@ function test_depot_build_sloped()
 			if (sl == slope.flat) continue
 			ASSERT_EQUAL(setslope(pl, pos, sl), null)
 
+			// `slope.to_dir` returns a direction for any sloped shape
+			// (including single-corner raises and the legacy east/west
+			// diagonals); `slope.is_way` adds the way-buildability gate.
 			local d = slope.to_dir(sl)
-			if (d != dir.none) { // only consider slopes we can build roads on
+			if (slope.is_way(sl) && d != dir.none) {
 				RESET_ALL_PLAYER_FUNDS()
 
 				local c = dir.to_coord(dir.backward(d))
@@ -474,10 +477,12 @@ function test_depot_build_on_bridge_end()
 		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.flat), null)
 	}
 
-	// east-west direction
+	// NW-SE direction (formerly "east-west" under square geometry; the
+	// (3,3)→(5,3) vector is 2 × SE-neighbour step, so the bridge sits
+	// on the hex NW-SE axis with low edges facing each other)
 	{
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.east), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(5, 3, 0), slope.west), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.se_edge), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(5, 3, 0), slope.nw_edge), null)
 
 		ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 3, 0), rail_bridge), null)
 		ASSERT_EQUAL(command_x.build_depot(pl, coord3d(3, 3, 0), get_depot_by_wt(wt_rail)), null)

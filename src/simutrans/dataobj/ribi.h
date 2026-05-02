@@ -52,16 +52,31 @@ public:
 		// 2-corner "edge" slopes named by their LOW edge.  ::north and
 		// ::south are the legacy bare names for the N and S hex edges;
 		// the 4 hex-only edges (NE, SE, SW, NW) carry the `_edge` suffix
-		// to disambiguate from the single-corner aliases above.  ::east
-		// and ::west are 2-corner diagonals (the 2 west / 2 east corners
-		// raised) — NOT real hex edges, kept buildable so square-era
-		// docks and harbours still place during the port.
+		// to disambiguate from the single-corner aliases above.  Track
+		// running on the matching axis climbs 0→1 along its length.
 		north   = raised_SE + raised_SW, ///< low edge N  (S corners raised)
 		south   = raised_NE + raised_NW, ///< low edge S  (N corners raised)
 		ne_edge = raised_SW + raised_W,  ///< low edge NE
 		se_edge = raised_W  + raised_NW, ///< low edge SE
 		sw_edge = raised_NE + raised_E,  ///< low edge SW
 		nw_edge = raised_E  + raised_SE, ///< low edge NW
+
+		// 4-corner "wide" axis slopes — narrow edge slope plus the 2
+		// perpendicular side corners (the corners on the axis that
+		// crosses the slope's axis at 90°).  Track on the same axis
+		// sees the same 0→1 climb as the narrow variant; only the
+		// off-axis ground shape differs.
+		north_wide = north   + raised_E  + raised_W,  ///< low edge N, wide  (NS axis perpendicular = E, W)
+		south_wide = south   + raised_E  + raised_W,  ///< low edge S, wide
+		ne_wide    = ne_edge + raised_SE + raised_NW, ///< low edge NE, wide (NE-SW axis perpendicular = SE, NW)
+		sw_wide    = sw_edge + raised_SE + raised_NW, ///< low edge SW, wide
+		nw_wide    = nw_edge + raised_SW + raised_NE, ///< low edge NW, wide (NW-SE axis perpendicular = SW, NE)
+		se_wide    = se_edge + raised_SW + raised_NE, ///< low edge SE, wide
+
+		// Legacy 2-corner square diagonals.  NOT hex edges and NOT
+		// way-buildable; kept as named values only because the
+		// legacy_slope4 conversion helper at the bottom still needs to
+		// map old square-era table indices to *some* slope value.
 		east    = raised_NW + raised_SW, ///< 2 west corners raised (legacy square)
 		west    = raised_NE + raised_SE, ///< 2 east corners raised (legacy square)
 
@@ -112,12 +127,16 @@ public:
 		    || corner_w(x) >= 2 || corner_nw(x) >= 2 || corner_ne(x) >= 2;
 	}
 
-	/// Compute the slope opposite to @p x (flip each corner d_max↔0).
-	/// Returns flat if @p x does not allow ways on it.
+	/// Compute the slope on the same axis but with the high and low
+	/// edges swapped (180° hex rotation).  Returns flat if @p x is not
+	/// a way-buildable edge slope.  Narrow → narrow, wide → wide; the
+	/// pre-hex "corner-complement" formula is gone — under the 12-slope
+	/// set it would have flipped narrow ↔ wide on the opposite axis,
+	/// which no caller wants.
 	static type opposite(type x)
 	{
 		if (!is_single(x)) return flat;
-		return (type)(max_diff(x) * all_up_one - x);
+		return rotate60(rotate60(rotate60(x)));
 	}
 
 	/// Rotate by 60° clockwise (cyclically shift base-4 digits by 1
@@ -180,21 +199,19 @@ public:
 	}
 
 	/// Edge slopes that host a way along one direction: 6 genuine hex
-	/// edges (2 adjacent corners raised) plus 2 legacy square-diagonal
-	/// slopes (east = NW+SW, west = NE+SE) — each at single and double
-	/// height.  east and west don't correspond to real hex edges but
-	/// are kept buildable so square-era buildings (docks, harbours)
-	/// still place during the port.
+	/// edges (2 adjacent corners raised) and 6 corresponding "wide"
+	/// variants (4 corners raised — same low edge but the 2
+	/// perpendicular side corners are also lifted).  All 12 are
+	/// single-height; double-height edges and square-era diagonals
+	/// (east, west) are no longer way-buildable.
 	static bool is_single(type x) {
 		switch (x) {
-			case north:   case 2 * north:
-			case south:   case 2 * south:
-			case ne_edge: case 2 * ne_edge:
-			case se_edge: case 2 * se_edge:
-			case sw_edge: case 2 * sw_edge:
-			case nw_edge: case 2 * nw_edge:
-			case east:    case 2 * east:
-			case west:    case 2 * west:
+			case north:      case south:
+			case ne_edge:    case se_edge:
+			case sw_edge:    case nw_edge:
+			case north_wide: case south_wide:
+			case ne_wide:    case se_wide:
+			case sw_wide:    case nw_wide:
 				return true;
 			default:
 				return false;
@@ -205,30 +222,24 @@ public:
 	static bool is_way(type x) { return x == flat || is_single(x) || is_all_up(x); }
 
 	/// Three hex axes (N-S, NE-SW, NW-SE).  Each predicate is true on
-	/// flat / all_up (axis-agnostic) and on the matching edge slopes
-	/// at single or double height.  The NW-SE predicate also matches
-	/// the legacy ::east and ::west 2-corner diagonals — not real hex
-	/// edges, but they project onto the NW-SE axis under the current
-	/// iso viewport.  Retire the legacy inclusion once east/west drop
-	/// out of way-buildable status.
+	/// flat / all_up (axis-agnostic) and on the matching axis edge
+	/// slopes — both 2-corner narrow and 4-corner wide variants.
 	static bool is_way_ns(type x) {
 		return x == flat || is_all_up(x)
-		    || x == north || x == 2 * north
-		    || x == south || x == 2 * south;
+		    || x == north || x == south
+		    || x == north_wide || x == south_wide;
 	}
 
 	static bool is_way_ne_sw(type x) {
 		return x == flat || is_all_up(x)
-		    || x == ne_edge || x == 2 * ne_edge
-		    || x == sw_edge || x == 2 * sw_edge;
+		    || x == ne_edge || x == sw_edge
+		    || x == ne_wide || x == sw_wide;
 	}
 
 	static bool is_way_nw_se(type x) {
 		return x == flat || is_all_up(x)
-		    || x == nw_edge || x == 2 * nw_edge
-		    || x == se_edge || x == 2 * se_edge
-		    || x == east    || x == 2 * east
-		    || x == west    || x == 2 * west;
+		    || x == nw_edge || x == se_edge
+		    || x == nw_wide || x == se_wide;
 	}
 };
 

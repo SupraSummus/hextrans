@@ -590,7 +590,7 @@ function test_way_bridge_planner()
 	local end_pos = coord3d(12, 6, 0)
 	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
 
-	local working_slopes = [ slope.north ] // maybe also slope.south in the future
+	local working_slopes = [ slope.north, slope.north_wide ]
 
 	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
 

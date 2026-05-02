@@ -396,7 +396,7 @@ function test_building_rotate_harbour()
 	local harbour = harbours[0]
 
 	ASSERT_EQUAL(setclimate.work(pl, coord3d(4, 2, 0), coord3d(5, 2, 0), "" + cl_water), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.east), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.se_edge), null)  // low SE → ramps into water at the SE neighbour (4,2)
 	ASSERT_EQUAL(command_x(tool_build_station).work(pl, coord3d(3, 2, 0), harbour.get_name()), null)
 
 	{

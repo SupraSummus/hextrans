@@ -1174,16 +1174,6 @@ function test_way_road_cityroad_replace_keep_existing()
 }
 
 
-function test_way_road_has_double_slopes()
-{
-	local roads = way_desc_x.get_available_ways(wt_road, st_flat)
-
-	foreach (r in roads) {
-		ASSERT_TRUE(r.has_double_slopes())
-	}
-}
-
-
 function test_way_road_make_public()
 {
 	local pl = player_x(0)

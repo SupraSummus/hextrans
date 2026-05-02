@@ -543,8 +543,19 @@ class slope {
 	static se_edge = 64 + 256    ///< SE-edge slope:  low edge SE, W + NW corners raised = 320
 	static sw_edge = 1024 + 1    ///< SW-edge slope:  low edge SW, NE + E corners raised = 1025
 	static nw_edge = 1 + 4       ///< NW-edge slope:  low edge NW, E + SE corners raised = 5
-	static east    = 256 + 16    ///< East slope (legacy diagonal): 2 west corners raised = 272
-	static west    = 1024 + 4    ///< West slope (legacy diagonal): 2 east corners raised = 1028
+	// 4-corner "wide" axis slopes — narrow edge plus the 2 perpendicular
+	// side corners (perpendicular to the slope's axis).  Way-buildable
+	// like the narrow variants.  Squirrel class statics can't see each
+	// other through bare names so the values are inlined; matches the
+	// C++ form `narrow + perpendicular_pair` in src/.../ribi.h.
+	static north_wide = 4 + 16 + 1 + 64       ///< low edge N, wide  = 85   (NS axis perpendicular = E, W)
+	static south_wide = 256 + 1024 + 1 + 64   ///< low edge S, wide  = 1345
+	static ne_wide    = 16 + 64 + 4 + 256     ///< low edge NE, wide = 340  (NE-SW axis perpendicular = SE, NW)
+	static sw_wide    = 1024 + 1 + 4 + 256    ///< low edge SW, wide = 1285
+	static nw_wide    = 1 + 4 + 16 + 1024     ///< low edge NW, wide = 1045 (NW-SE axis perpendicular = SW, NE)
+	static se_wide    = 64 + 256 + 16 + 1024  ///< low edge SE, wide = 1360
+	static east    = 256 + 16    ///< East slope (legacy square diagonal, no longer way-buildable): 2 west corners raised = 272
+	static west    = 1024 + 4    ///< West slope (legacy square diagonal, no longer way-buildable): 2 east corners raised = 1028
 	// `raised` here is the single-height "all corners 1" value, used
 	// by scripts as the iteration bound over "interesting" single-
 	// height slopes — NOT the same as C++ `slope_t::raised`, which is

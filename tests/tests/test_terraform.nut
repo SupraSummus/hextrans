@@ -385,14 +385,17 @@ function test_terraform_raise_lower_land_below_way()
 		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.all_down_slope), null)
 		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.all_down_slope), null)
 
+		// First all_up_slope on a flat way tile makes the way the slope
+		// hinge — single-height edge slope.  A second all_up_slope would
+		// progress to 2× that edge, but 2× edges are no longer
+		// way-buildable (has_double_slopes() == false), so the
+		// terraformer rejects.  One all_down_slope undoes the lift.
 		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.all_up_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.all_up_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.all_down_slope), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.all_up_slope), "Tile not empty.")
 		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.all_down_slope), null)
 
 		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.all_up_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.all_up_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.all_down_slope), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.all_up_slope), "Tile not empty.")
 		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.all_down_slope), null)
 	}
 
