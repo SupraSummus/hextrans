@@ -372,17 +372,20 @@ void weg_t::count_sign()
 }
 
 
-void weg_t::set_images(image_type typ, uint8 ribi, bool snow, bool switch_nw)
+void weg_t::set_slope_images(slope_t::type slope, bool snow)
+{
+	set_image( desc->get_slope_image_id( slope, snow ) );
+	set_foreground_image( desc->get_slope_image_id( slope, snow, true ) );
+}
+
+
+void weg_t::set_images(image_type typ, ribi_t::ribi ribi, bool snow, bool switch_nw)
 {
 	switch(typ) {
 		case image_flat:
 		default:
 			set_image( desc->get_image_id( ribi, snow ) );
 			set_foreground_image( desc->get_image_id( ribi, snow, true ) );
-			break;
-		case image_slope:
-			set_image( desc->get_slope_image_id( (slope_t::type)ribi, snow ) );
-			set_foreground_image( desc->get_slope_image_id( (slope_t::type)ribi, snow, true ) );
 			break;
 		case image_switch:
 			// Switched / un-switched 3-way junctions used to pick from
@@ -432,7 +435,7 @@ bool weg_t::check_season(const bool calc_only_season_change)
 
 	slope_t::type hang = gr->get_weg_hang();
 	if(  hang != slope_t::flat  ) {
-		set_images( image_slope, hang, snow );
+		set_slope_images( hang, snow );
 		return true;
 	}
 
@@ -522,7 +525,7 @@ void weg_t::calc_image()
 		slope_t::type hang = from->get_weg_hang();
 		if(hang != slope_t::flat) {
 			// on slope
-			set_images(image_slope, hang, snow);
+			set_slope_images(hang, snow);
 		}
 		else if (ribi_t::is_threeway(ribi)) {
 			set_images(image_switch, ribi, snow, has_switched());

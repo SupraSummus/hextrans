@@ -142,7 +142,6 @@ public:
 
 	enum image_type {
 		image_flat,
-		image_slope,
 		image_switch
 	};
 
@@ -151,7 +150,8 @@ public:
 	 * switch images are set in schiene_t::reserve
 	 * needed by tunnel mouths
 	 */
-	void set_images(image_type typ, uint8 ribi, bool snow, bool switch_nw = false);
+	void set_images(image_type typ, ribi_t::ribi ribi, bool snow, bool switch_nw = false);
+	void set_slope_images(slope_t::type slope, bool snow);
 
 	/**
 	 * Called whenever the season or snowline height changes
