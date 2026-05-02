@@ -463,14 +463,9 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 			const image_t* const shore_alpha = transition_water_texture->get_image_ptr((uint16)dslope, (uint16)corner_mask);
 			if(  shore_alpha != NULL  ) {
 				shore_alpha_count++;
-				shore_alpha_data_bytes += (uint64)shore_alpha->len * sizeof(PIXVAL);
-				shore_alpha_pixel_bytes += (uint64)shore_alpha->w * shore_alpha->h;
-				const bool len_ok = shore_alpha->is_bitmask
-					? shore_alpha->len == (size_t)((shore_alpha->w + 15) / 16) * shore_alpha->h
-					: shore_alpha->len == lightmap->len;
 				if(  shore_alpha->w != lightmap->w  ||  shore_alpha->h != lightmap->h
 				  ||  shore_alpha->x != lightmap->x  ||  shore_alpha->y != lightmap->y
-				  ||  !len_ok  ) {
+				  ||  shore_alpha->len != lightmap->len  ) {
 					dbg->fatal("ground_desc_t::init_ground_textures",
 						"ShoreTrans[%d][%d] shape (x=%d y=%d w=%d h=%d len=%lu) "
 						"differs from LightTexture[%d] (x=%d y=%d w=%d h=%d len=%lu); "
@@ -482,6 +477,14 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 						lightmap->x, lightmap->y, lightmap->w, lightmap->h,
 						(unsigned long)lightmap->len);
 				}
+				// Compress the alphamap in place: the renderer only
+				// reads the red channel, so 1 bit per pixel is enough
+				// and saves ~11x RAM vs the RLE master.  Tripwire
+				// validated the silhouette match against LightTexture
+				// above, which is what the bitmask draw path relies on.
+				shore_alpha_data_bytes += (uint64)shore_alpha->len * sizeof(PIXVAL);
+				shore_alpha_pixel_bytes += (uint64)shore_alpha->w * shore_alpha->h;
+				gfx->convert_to_bitmask(const_cast<image_t*>(shore_alpha));
 			}
 			const image_t* const slope_alpha = transition_slope_texture->get_image_ptr((uint16)dslope, (uint16)corner_mask);
 			if(  slope_alpha != NULL  ) {

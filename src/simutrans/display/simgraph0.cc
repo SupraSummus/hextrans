@@ -30,6 +30,7 @@ static void            simgraph0_on_window_resized          (scr_size new_window
 static bool            simgraph0_load_font                  (const char *fname, bool reload);
 static image_id        simgraph0_get_image_count            ();
 static image_id        simgraph0_register_image             (const image_t *image_in);
+static void            simgraph0_convert_to_bitmask         (image_t *image_in);
 static void            simgraph0_free_all_images_above      (image_id above );
 static scr_rect        simgraph0_get_base_image_offset      (image_id image);
 static scr_rect        simgraph0_get_image_offset           (image_id image);
@@ -138,6 +139,7 @@ simgraph_t g_simgraph0 = {
 	/*.load_font                   =*/ simgraph0_load_font,
 	/*.get_image_count             =*/ simgraph0_get_image_count,
 	/*.register_image              =*/ simgraph0_register_image,
+	/*.convert_to_bitmask          =*/ simgraph0_convert_to_bitmask,
 	/*.free_all_images_above       =*/ simgraph0_free_all_images_above,
 	/*.get_base_image_offset       =*/ simgraph0_get_base_image_offset,
 	/*.get_image_offset            =*/ simgraph0_get_image_offset,
@@ -293,6 +295,11 @@ static void simgraph0_set_player_color_scheme(const int, const uint8, const uint
 static image_id simgraph0_register_image(const image_t *image)
 {
 	return 1;
+}
+
+
+static void simgraph0_convert_to_bitmask(image_t *)
+{
 }
 
 

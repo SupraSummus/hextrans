@@ -510,6 +510,7 @@ static void            simgraph16_on_window_resized          (scr_size new_windo
 static bool            simgraph16_load_font                  (const char *fname, bool reload);
 static image_id        simgraph16_get_image_count            ();
 static image_id        simgraph16_register_image             (const image_t *image_in);
+static void            simgraph16_convert_to_bitmask         (image_t *image_in);
 static void            simgraph16_free_all_images_above      (image_id above );
 static scr_rect        simgraph16_get_base_image_offset      (image_id image);
 static scr_rect        simgraph16_get_image_offset           (image_id image);
@@ -611,6 +612,7 @@ simgraph_t g_simgraph16 = {
 	/*.load_font                   =*/ simgraph16_load_font,
 	/*.get_image_count             =*/ simgraph16_get_image_count,
 	/*.register_image              =*/ simgraph16_register_image,
+	/*.convert_to_bitmask          =*/ simgraph16_convert_to_bitmask,
 	/*.free_all_images_above       =*/ simgraph16_free_all_images_above,
 	/*.get_base_image_offset       =*/ simgraph16_get_base_image_offset,
 	/*.get_image_offset            =*/ simgraph16_get_image_offset,
@@ -2101,6 +2103,83 @@ static image_id simgraph16_register_image(const image_t *image_in)
 	image->base_data = image_in->data;
 
 	return id;
+}
+
+
+static void simgraph16_convert_to_bitmask(image_t *image_in)
+{
+	if(  image_in == NULL  ||  image_in->is_bitmask  ||  image_in->h == 0  ||  image_in->len == 0  ) {
+		return;
+	}
+
+	const sint16 w = image_in->w;
+	const sint16 h = image_in->h;
+	const int stride = (w + 15) / 16;
+	const size_t new_len = (size_t)stride * h;
+
+	// Walk the existing RLE and build the packed-bit alphamap into a
+	// scratch buffer first; we cannot write into image_in->data while
+	// we're still reading it.
+	PIXVAL *bits = MALLOCN(PIXVAL, new_len);
+	for(  size_t i = 0;  i < new_len;  i++  ) {
+		bits[i] = 0;
+	}
+
+	const PIXVAL *sp = image_in->data;
+	for(  sint16 y = 0;  y < h;  y++  ) {
+		sint16 x = 0;
+		uint16 clear_run = *sp++;
+		do {
+			x += clear_run;
+			uint16 color_run = (*sp++) & ~TRANSPARENT_RUN;
+			for(  uint16 i = 0;  i < color_run;  i++  ) {
+				const PIXVAL p = *sp++;
+				// Pakset RLE encodes pixels as 15-bit RGB555 or 0x8000+
+				// for special colors.  Treat pixels with the red
+				// channel half-bright or more as "set" — matches the
+				// existing alphamap thresholding in `alpha()`
+				// (alpha_value > 30 ⇒ opaque copy).
+				if(  p < 0x8000  &&  (p & 0x7c00) >= 0x4000  ) {
+					const sint16 col = x + i;
+					bits[(size_t)y * stride + (col >> 4)] |= (PIXVAL)(1u << (col & 15));
+				}
+			}
+			x += color_run;
+		} while(  (clear_run = *sp++) != 0  );
+	}
+
+	// Replace image_in's RLE with the bitmask.  alloc() frees the
+	// original data buffer, so any aliased imd::base_data pointer is
+	// dangling until we rewrite it below.
+	image_in->alloc(new_len);
+	for(  size_t i = 0;  i < new_len;  i++  ) {
+		image_in->data[i] = bits[i];
+	}
+	free(bits);
+	image_in->is_bitmask = 1;
+
+	// Re-sync the renderer's per-image cache: drop zoom/recolor
+	// derivatives, point base_data at the new bitmask, flip flags so
+	// the next draw goes through the bitmask path.
+	const image_id id = image_in->imageid;
+	if(  id != IMG_EMPTY  &&  id < anz_images  ) {
+		struct imd *im = &images[id];
+		if(  im->zoom_data != NULL  ) {
+			free( im->zoom_data );
+			im->zoom_data = NULL;
+		}
+		for(  uint8 i = 0;  i < MAX_PLAYER_COUNT;  i++  ) {
+			if(  im->data[i] != NULL  ) {
+				free( im->data[i] );
+				im->data[i] = NULL;
+			}
+		}
+		im->base_data = image_in->data;
+		im->len = (uint32)new_len;
+		im->recode_flags |= FLAG_BITMASK | FLAG_REZOOM;
+		im->recode_flags &= ~(FLAG_HAS_PLAYER_COLOR | FLAG_HAS_TRANSPARENT_COLOR);
+		im->player_flags = 0xFFFF;
+	}
 }
 
 
