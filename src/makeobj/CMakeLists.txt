@@ -37,6 +37,7 @@ target_sources(makeobj PRIVATE
 	../simutrans/descriptor/writer/good_writer.cc
 	../simutrans/descriptor/writer/groundobj_writer.cc
 	../simutrans/descriptor/writer/ground_writer.cc
+	../simutrans/descriptor/writer/hex_keys.cc
 	../simutrans/descriptor/writer/image_writer.cc
 	../simutrans/descriptor/writer/imagelist2d_writer.cc
 	../simutrans/descriptor/writer/imagelist_writer.cc

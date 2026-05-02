@@ -302,7 +302,7 @@ from a different direction.  Pick a direction before any of those
 adjacent items gets done in a way that bakes in rhombus
 assumptions.
 
-## Sim direction model
+## Engine → pakset descriptor boundary
 
 The simulation should speak full 6-way hex directions everywhere
 (the 6-bit `ribi_t`), without narrowing for the benefit of legacy
@@ -323,6 +323,59 @@ as the audit-surface entries below get cleaned up, not a committed
 design — the seam may move once we see what stays clean.  The
 principle (sim is fully hex) is firm; the location of the projection
 layer is not.
+
+Three writers prototype the new convention — `way` (64-slot ribi
+protocol, `Image[se]` / `Image[se_nw]` / … keys; slope-up subset is
+still 4-cardinal, see "Way slope-up sprites" above), `bridge` (3
+hex-axis segments + 6 hex-edge starts/ramps, hex-aware enum, tripwire
+on pre-port saves; commit `1e21a2a`), and `tunnel` (6 hex-edge
+portals via `hex_keys::edge_names`, low-edge naming matching bridge
+— inverting the upstream high-edge convention so legacy paks render
+permuted, same "loads without fatal but renders wrong" breakage as
+the way ribi key change; broad-portal `l/r/m` neighbours orthogonal
+to direction).  Shared key vocabulary lives in
+`descriptor/writer/hex_keys.h` (`axis_names[3]`, `edge_names[6]`);
+subsequent writers consume the constants on port rather than
+reinvent.
+
+Four direction-keyed writers still embed their own square-era
+tables.  Each is gated on its first hex pakset asset — mechanical
+key renames without matching art are an invisible no-op, so
+migrations land per-family with the asset that uses them.
+
+**`way_obj_writer.cc`** still iterates the 4-bit ribi space
+(`ribi_codes[26]` covers `0..15` plus 5 crossing variants); the
+matching `way_obj_desc.h:56-60` `ribi_to_extra[16]` table is gated on
+`ribi < 16`.  Widens to the 64-slot ribi-as-key protocol that
+`way_writer` uses; no name vocabulary needed.  The 4-cardinal
+slope-up loop (`slope = 3, 6, 9, 12` for `frontimageup` /
+`backimageup`) is the same square-era pattern called out in "Way
+slope-up sprites" above; both retire alongside the first hex wayobj
+asset.
+
+**`crossing_writer.cc`** writes `openimage[ns]` / `openimage[ew]` in
+a 2-axis loop.  Hex has 3 axes, so the keying widens to
+`hex_keys::axis_names`; the harder question is gameplay — a
+road-rail crossing on the NE-SW axis needs art that doesn't exist in
+pak128 today.  Engine port and pakset port land together; flag for
+design conversation before mechanical work.
+
+**`roadsign_writer.cc`** has three hardcoded direction tables
+(2/4/8 entries); the underlying 2-axis FSM is a gameplay design
+choice covered separately in "Sign / traffic-light 2-axis FSM"
+above.  Key vocabulary updates fall out of that work, not this
+cluster.
+
+**`vehicle_writer.cc:179-181`** has `dir_codes[8]` for sprite-facing
+direction; tied to the `ribi_t::_dir` widening tracked in "Vehicle
+direction enum — compound 2-step displacements" below.  Holds with
+the viewport / sprite port.
+
+Cross-descriptor save-format situation is the wider "Save format
+version bump" cluster below — bridge has a tripwire refusing pre-port
+saves, others still load square keys into hex slots silently.  Bump
+once the structural changes settle so the tripwires can land
+together.
 
 ## ribi_t — audit surfaces
 

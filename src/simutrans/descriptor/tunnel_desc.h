@@ -30,11 +30,13 @@ class tunnel_desc_t : public obj_desc_transport_infrastructure_t {
 	friend class tunnel_builder_t; // to convert the old tunnels to new ones
 
 private:
-	/// Map a slope to the tunnel-entrance sprite index, or -1 if this
-	/// slope can't host a tunnel entrance.  Under the 6-corner base-3
-	/// slope encoding there are 729 possible values and only a handful
-	/// (the 4 square-named edge slopes at single or double height)
-	/// actually host tunnel art; computed rather than tabled.
+	/// Map a slope to the tunnel-entrance sprite index (0..5 keyed by
+	/// `hex_keys::edge_names`), or -1 if this slope can't host a
+	/// tunnel entrance.  Under the 6-corner base-3 slope encoding
+	/// there are 729 possible values and only the 6 hex edge slopes
+	/// (single or double height) plus the 2 legacy 2-corner diagonals
+	/// host tunnel art; computed rather than tabled.  See
+	/// tunnel_desc.cc for the low-edge naming convention.
 	static int slope_index(slope_t::type slope);
 
 	/* number of seasons (0 = none, 1 = no snow/snow
@@ -53,7 +55,7 @@ public:
 	const image_t *get_background(slope_t::type slope, uint8 season, uint8 type ) const
 	{
 		const uint8 n = season && number_of_seasons == 1 ? 5 : 2;
-		return get_child<image_list_t>(n)->get_image(slope_index(slope) + 4 * type);
+		return get_child<image_list_t>(n)->get_image(slope_index(slope) + 6 * type);
 	}
 
 	image_id get_background_id(slope_t::type slope, uint8 season, uint8 type ) const
@@ -65,7 +67,7 @@ public:
 	const image_t *get_foreground(slope_t::type slope, uint8 season, uint8 type ) const
 	{
 		const uint8 n = season && number_of_seasons == 1 ? 6 : 3;
-		return get_child<image_list_t>(n)->get_image(slope_index(slope) + 4 * type);
+		return get_child<image_list_t>(n)->get_image(slope_index(slope) + 6 * type);
 	}
 
 	image_id get_foreground_id(slope_t::type slope, uint8 season, uint8 type) const

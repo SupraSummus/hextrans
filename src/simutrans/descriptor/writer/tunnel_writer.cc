@@ -13,6 +13,7 @@
 #include "imagelist_writer.h"
 #include "skin_writer.h"
 #include "get_waytype.h"
+#include "hex_keys.h"
 #include "tunnel_writer.h"
 
 using std::string;
@@ -32,14 +33,16 @@ void tunnel_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& obj)
 	uint16 retire_date  = obj.get_int("retire_year", DEFAULT_RETIRE_YEAR) * 12;
 	retire_date += obj.get_int("retire_month", 1) - 1;
 
-	// predefined string for directions
-	static const char* const indices[] = { "n", "s", "e", "w" };
+	// 6 hex edges from `hex_keys::edge_names` for portal direction;
+	// broad-portal `add[]` (left / right / middle neighbour) is
+	// orthogonal.  Order must stay in sync with
+	// `tunnel_desc_t::slope_index`.
 	static const char* const add[] = { "", "l", "r", "m" };
 	char buf[40];
 
 	// Check for seasons
 	sint8 number_of_seasons = 0;
-	sprintf(buf, "%simage[%s][1]", "front", indices[0]);
+	sprintf(buf, "%simage[%s][1]", "front", hex_keys::edge_names[0]);
 	string str = obj.get(buf);
 	if(  str.size() != 0  ) {
 		// Snow images are present.
@@ -48,11 +51,11 @@ void tunnel_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& obj)
 
 	// Check for broad portals
 	uint8 number_portals = 1;
-	sprintf(buf, "%simage[%s%s][0]", "front", indices[0], add[1]);
+	sprintf(buf, "%simage[%s%s][0]", "front", hex_keys::edge_names[0], add[1]);
 	str = obj.get(buf);
 	if (str.empty()) {
 		// Test short version
-		sprintf(buf, "%simage[%s%s]", "front", indices[0], add[1]);
+		sprintf(buf, "%simage[%s%s]", "front", hex_keys::edge_names[0], add[1]);
 		str = obj.get(buf);
 	}
 	if(  str.size() != 0  ) {
@@ -84,12 +87,12 @@ void tunnel_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& obj)
 	for(  uint8 season = 0;  season <= number_of_seasons;  season++  ) {
 		for(  uint8 pos = 0;  pos < 2;  pos++  ) {
 			for(  uint8 j = 0;  j < number_portals;  j++  ) {
-				for(  uint8 i = 0;  i < 4;  i++  ) {
-					sprintf(buf, "%simage[%s%s][%d]", pos ? "back" : "front", indices[i], add[j], season);
+				for(  uint8 i = 0;  i < 6;  i++  ) {
+					sprintf(buf, "%simage[%s%s][%d]", pos ? "back" : "front", hex_keys::edge_names[i], add[j], season);
 					string str = obj.get(buf);
 					if (str.empty() && season == 0) {
 						// Test also the short version.
-						sprintf(buf, "%simage[%s%s]", pos ? "back" : "front", indices[i], add[j]);
+						sprintf(buf, "%simage[%s%s]", pos ? "back" : "front", hex_keys::edge_names[i], add[j]);
 						str = obj.get(buf);
 					}
 					(pos ? &backkeys : &frontkeys)->append(str);
