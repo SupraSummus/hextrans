@@ -465,9 +465,12 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 				shore_alpha_count++;
 				shore_alpha_data_bytes += (uint64)shore_alpha->len * sizeof(PIXVAL);
 				shore_alpha_pixel_bytes += (uint64)shore_alpha->w * shore_alpha->h;
+				const bool len_ok = shore_alpha->is_bitmask
+					? shore_alpha->len == (size_t)((shore_alpha->w + 15) / 16) * shore_alpha->h
+					: shore_alpha->len == lightmap->len;
 				if(  shore_alpha->w != lightmap->w  ||  shore_alpha->h != lightmap->h
 				  ||  shore_alpha->x != lightmap->x  ||  shore_alpha->y != lightmap->y
-				  ||  shore_alpha->len != lightmap->len  ) {
+				  ||  !len_ok  ) {
 					dbg->fatal("ground_desc_t::init_ground_textures",
 						"ShoreTrans[%d][%d] shape (x=%d y=%d w=%d h=%d len=%lu) "
 						"differs from LightTexture[%d] (x=%d y=%d w=%d h=%d len=%lu); "
