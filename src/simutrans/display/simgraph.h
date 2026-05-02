@@ -170,14 +170,13 @@ struct simgraph_t
 	/// @returns the image id (should be stored to img->imgid)
 	image_id (*register_image)(const image_t *img);
 
-	/// Re-encode an alphamap as a 1-bit-per-pixel bitmask of its red
-	/// channel and free the RLE master.  Caller passes the mutable
-	/// `image_t` (its `data`/`len`/`is_bitmask` are rewritten in
-	/// place); the renderer also drops cached zoom/recolor copies for
-	/// the matching `image_id` and flips the imd to the bitmask draw
-	/// path.  Used by `ground_desc.cc` to compress ShoreTrans at load
-	/// time without a pak-format change.
-	void (*convert_to_bitmask)(image_t *img);
+	/// Re-encode an already-registered binary alphamap as a renderer-
+	/// private 1-bit-per-pixel mask of its red channel.  The source
+	/// `image_t` remains unchanged; the renderer drops cached zoom/
+	/// recolor copies for the matching `image_id` and flips the imd
+	/// to the bitmask draw path.  Used by `ground_desc.cc` to compress
+	/// ShoreTrans at load time without a pak-format change.
+	void (*convert_to_bitmask)(const image_t *img);
 
 	// delete all images above a certain number ...
 	void (*free_all_images_above)(image_id above);

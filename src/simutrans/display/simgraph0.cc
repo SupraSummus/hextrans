@@ -30,7 +30,7 @@ static void            simgraph0_on_window_resized          (scr_size new_window
 static bool            simgraph0_load_font                  (const char *fname, bool reload);
 static image_id        simgraph0_get_image_count            ();
 static image_id        simgraph0_register_image             (const image_t *image_in);
-static void            simgraph0_convert_to_bitmask         (image_t *image_in);
+static void            simgraph0_convert_to_bitmask         (const image_t *image_in);
 static void            simgraph0_free_all_images_above      (image_id above );
 static scr_rect        simgraph0_get_base_image_offset      (image_id image);
 static scr_rect        simgraph0_get_image_offset           (image_id image);
@@ -298,7 +298,7 @@ static image_id simgraph0_register_image(const image_t *image)
 }
 
 
-static void simgraph0_convert_to_bitmask(image_t *)
+static void simgraph0_convert_to_bitmask(const image_t *)
 {
 }
 

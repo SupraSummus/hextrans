@@ -63,6 +63,7 @@ image_t* image_t::copy_image(const image_t& other)
 	img->h   = other.h;
 	img->imageid  = IMG_EMPTY;
 	img->zoomable = other.zoomable;
+	img->is_bitmask = other.is_bitmask;
 	memcpy(img->data, other.data, other.len * sizeof(PIXVAL));
 	return img;
 }

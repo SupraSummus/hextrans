@@ -353,6 +353,7 @@ struct imd {
 #define FLAG_ZOOMABLE (4)
 #define FLAG_REZOOM (8)
 #define FLAG_BITMASK (16) // packed-bit alphamap, never RLE-encoded
+#define FLAG_OWNS_BASE_DATA (32)
 //#define FLAG_POSITION_CHANGED (16)
 
 #define TRANSPARENT_RUN (0x8000u)
@@ -510,7 +511,7 @@ static void            simgraph16_on_window_resized          (scr_size new_windo
 static bool            simgraph16_load_font                  (const char *fname, bool reload);
 static image_id        simgraph16_get_image_count            ();
 static image_id        simgraph16_register_image             (const image_t *image_in);
-static void            simgraph16_convert_to_bitmask         (image_t *image_in);
+static void            simgraph16_convert_to_bitmask         (const image_t *image_in);
 static void            simgraph16_free_all_images_above      (image_id above );
 static scr_rect        simgraph16_get_base_image_offset      (image_id image);
 static scr_rect        simgraph16_get_image_offset           (image_id image);
@@ -2106,9 +2107,18 @@ static image_id simgraph16_register_image(const image_t *image_in)
 }
 
 
-static void simgraph16_convert_to_bitmask(image_t *image_in)
+static void simgraph16_convert_to_bitmask(const image_t *image_in)
 {
-	if(  image_in == NULL  ||  image_in->is_bitmask  ||  image_in->h == 0  ||  image_in->len == 0  ) {
+	if(  image_in == NULL  ||  image_in->h == 0  ||  image_in->len == 0  ) {
+		return;
+	}
+
+	const image_id id = image_in->imageid;
+	if(  id == IMG_EMPTY  ||  id >= anz_images  ) {
+		return;
+	}
+	struct imd *im = &images[id];
+	if(  im->recode_flags & FLAG_BITMASK  ) {
 		return;
 	}
 
@@ -2117,9 +2127,9 @@ static void simgraph16_convert_to_bitmask(image_t *image_in)
 	const int stride = (w + 15) / 16;
 	const size_t new_len = (size_t)stride * h;
 
-	// Walk the existing RLE and build the packed-bit alphamap into a
-	// scratch buffer first; we cannot write into image_in->data while
-	// we're still reading it.
+	// Walk the existing RLE and build a renderer-private packed-bit
+	// alphamap.  The descriptor remains RLE so any deduplicated aliases
+	// outside the renderer keep their original representation.
 	PIXVAL *bits = MALLOCN(PIXVAL, new_len);
 	for(  size_t i = 0;  i < new_len;  i++  ) {
 		bits[i] = 0;
@@ -2134,12 +2144,14 @@ static void simgraph16_convert_to_bitmask(image_t *image_in)
 			uint16 color_run = (*sp++) & ~TRANSPARENT_RUN;
 			for(  uint16 i = 0;  i < color_run;  i++  ) {
 				const PIXVAL p = *sp++;
-				// Pakset RLE encodes pixels as 15-bit RGB555 or 0x8000+
-				// for special colors.  Treat pixels with the red
-				// channel half-bright or more as "set" — matches the
-				// existing alphamap thresholding in `alpha()`
-				// (alpha_value > 30 ⇒ opaque copy).
-				if(  p < 0x8000  &&  (p & 0x7c00) >= 0x4000  ) {
+				const PIXVAL red = p & 0x7c00;
+				if(  p >= 0x8000  ||  (red != 0  &&  red != 0x7c00)  ) {
+					free(bits);
+					dbg->fatal("simgraph16_convert_to_bitmask",
+						"Image %i is not a binary red-channel alphamap at (%i,%i): pixel=0x%04x",
+						id, x + i, y, p);
+				}
+				if(  red == 0x7c00  ) {
 					const sint16 col = x + i;
 					bits[(size_t)y * stride + (col >> 4)] |= (PIXVAL)(1u << (col & 15));
 				}
@@ -2148,38 +2160,27 @@ static void simgraph16_convert_to_bitmask(image_t *image_in)
 		} while(  (clear_run = *sp++) != 0  );
 	}
 
-	// Replace image_in's RLE with the bitmask.  alloc() frees the
-	// original data buffer, so any aliased imd::base_data pointer is
-	// dangling until we rewrite it below.
-	image_in->alloc(new_len);
-	for(  size_t i = 0;  i < new_len;  i++  ) {
-		image_in->data[i] = bits[i];
-	}
-	free(bits);
-	image_in->is_bitmask = 1;
-
 	// Re-sync the renderer's per-image cache: drop zoom/recolor
-	// derivatives, point base_data at the new bitmask, flip flags so
-	// the next draw goes through the bitmask path.
-	const image_id id = image_in->imageid;
-	if(  id != IMG_EMPTY  &&  id < anz_images  ) {
-		struct imd *im = &images[id];
-		if(  im->zoom_data != NULL  ) {
-			free( im->zoom_data );
-			im->zoom_data = NULL;
-		}
-		for(  uint8 i = 0;  i < MAX_PLAYER_COUNT;  i++  ) {
-			if(  im->data[i] != NULL  ) {
-				free( im->data[i] );
-				im->data[i] = NULL;
-			}
-		}
-		im->base_data = image_in->data;
-		im->len = (uint32)new_len;
-		im->recode_flags |= FLAG_BITMASK | FLAG_REZOOM;
-		im->recode_flags &= ~(FLAG_HAS_PLAYER_COLOR | FLAG_HAS_TRANSPARENT_COLOR);
-		im->player_flags = 0xFFFF;
+	// derivatives, point base_data at the private bitmask, flip flags
+	// so the next draw goes through the bitmask path.
+	if(  im->zoom_data != NULL  ) {
+		free( im->zoom_data );
+		im->zoom_data = NULL;
 	}
+	for(  uint8 i = 0;  i < MAX_PLAYER_COUNT;  i++  ) {
+		if(  im->data[i] != NULL  ) {
+			free( im->data[i] );
+			im->data[i] = NULL;
+		}
+	}
+	if(  im->recode_flags & FLAG_OWNS_BASE_DATA  ) {
+		free( im->base_data );
+	}
+	im->base_data = bits;
+	im->len = (uint32)new_len;
+	im->recode_flags |= FLAG_BITMASK | FLAG_REZOOM | FLAG_OWNS_BASE_DATA;
+	im->recode_flags &= ~(FLAG_HAS_PLAYER_COLOR | FLAG_HAS_TRANSPARENT_COLOR);
+	im->player_flags = 0xFFFF;
 }
 
 
@@ -2191,6 +2192,9 @@ static void simgraph16_free_all_images_above( image_id above )
 		anz_images--;
 		if(  images[anz_images].zoom_data != NULL  ) {
 			free( images[anz_images].zoom_data );
+		}
+		if(  images[anz_images].recode_flags & FLAG_OWNS_BASE_DATA  ) {
+			free( images[anz_images].base_data );
 		}
 		for(  uint8 i = 0;  i < MAX_PLAYER_COUNT;  i++  ) {
 			if(  images[anz_images].data[i] != NULL  ) {
@@ -3277,7 +3281,7 @@ static void alpha_bitmask_recode(PIXVAL *dest, const PIXVAL *src, const PIXVAL *
 	}
 }
 
-static void display_img_alpha_bitmask_wc(scr_coord_val h, const scr_coord_val xp, const scr_coord_val yp, const PIXVAL *sp, const PIXVAL *bits, const int bits_stride, int colour, alpha_bitmask_proc p  CLIP_NUM_DEF )
+static void display_img_alpha_bitmask_wc(scr_coord_val h, const scr_coord_val xp, const scr_coord_val yp, const PIXVAL *sp, const PIXVAL *bits, const int bits_stride, const int bits_width, const int bit_col_offset, int colour, alpha_bitmask_proc p  CLIP_NUM_DEF )
 {
 	if(  h > 0  ) {
 		PIXVAL *tp = textur + yp * disp_width;
@@ -3295,8 +3299,21 @@ static void display_img_alpha_bitmask_wc(scr_coord_val h, const scr_coord_val xp
 				if(  xpos + runlen > CR.clip_rect.x  &&  xpos < CR.clip_rect.xx  ) {
 					const int left = (xpos >= CR.clip_rect.x ? 0 : CR.clip_rect.x - xpos);
 					const int len  = (CR.clip_rect.xx - xpos >= runlen ? runlen : CR.clip_rect.xx - xpos);
-					const int bit_col = (xpos - xp) + left;
-					p( tp + xpos + left, sp + left, bits, bit_col, (PIXVAL)colour, (PIXVAL)(len - left) );
+					int draw_left = left;
+					int draw_len = len - left;
+					int bit_col = (xpos - xp) + draw_left + bit_col_offset;
+					if(  bit_col < 0  ) {
+						const int clipped = -bit_col;
+						draw_left += clipped;
+						draw_len -= clipped;
+						bit_col = 0;
+					}
+					if(  bit_col + draw_len > bits_width  ) {
+						draw_len = bits_width - bit_col;
+					}
+					if(  draw_len > 0  ) {
+						p( tp + xpos + draw_left, sp + draw_left, bits, bit_col, (PIXVAL)colour, (PIXVAL)draw_len );
+					}
 				}
 
 				sp += runlen;
@@ -3307,6 +3324,20 @@ static void display_img_alpha_bitmask_wc(scr_coord_val h, const scr_coord_val xp
 			bits += bits_stride;
 		} while(  --h  );
 	}
+}
+
+
+static PIXVAL *skip_rle_rows(PIXVAL *sp, scr_coord_val rows)
+{
+	while(  rows--  ) {
+		do {
+			sp++;
+			sp += (*sp) & (~TRANSPARENT_RUN);
+			sp++;
+		} while(  *sp  );
+		sp++;
+	}
+	return sp;
 }
 
 
@@ -3441,6 +3472,10 @@ static void simgraph16_draw_rezoomed_img_alpha(const image_id n, const image_id 
 		const bool alpha_is_bitmask = (images[alpha_n].recode_flags & FLAG_BITMASK) != 0;
 		// alphamap image uses base data as we don't want to recode
 		PIXVAL *alphamap = images[alpha_n].zoom_data != NULL ? images[alpha_n].zoom_data : images[alpha_n].base_data;
+		const scr_coord_val alpha_x = xp + images[alpha_n].x;
+		const scr_coord_val alpha_y = yp + images[alpha_n].y;
+		const scr_coord_val alpha_h = images[alpha_n].h;
+		const scr_coord_val alpha_w = images[alpha_n].w;
 		const int bits_stride = (images[alpha_n].w + 15) / 16;
 		// now, since zooming may have change this image
 		xp += images[n].x;
@@ -3487,11 +3522,29 @@ static void simgraph16_draw_rezoomed_img_alpha(const image_id n, const image_id 
 				if(  !alpha_is_bitmask  ) {
 					alphamap++;
 				}
-				else {
-					alphamap += bits_stride;
-				}
 			}
 			// now sp is the new start of an image with height h (same for alphamap)
+		}
+
+		if(  alpha_is_bitmask  ) {
+			scr_coord_val alpha_row = yp - alpha_y;
+			if(  alpha_row < 0  ) {
+				scr_coord_val source_skip = -alpha_row;
+				if(  source_skip >= h  ) {
+					return;
+				}
+				h -= source_skip;
+				yp += source_skip;
+				sp = skip_rle_rows(sp, source_skip);
+				alpha_row = 0;
+			}
+			if(  alpha_row >= alpha_h  ) {
+				return;
+			}
+			if(  h > alpha_h - alpha_row  ) {
+				h = alpha_h - alpha_row;
+			}
+			alphamap += alpha_row * bits_stride;
 		}
 
 		// new block for new variables
@@ -3506,7 +3559,7 @@ static void simgraph16_draw_rezoomed_img_alpha(const image_id n, const image_id 
 				simgraph16_mark_rect_dirty_wc( xp, yp, xp + w - 1, yp + h - 1 );
 			}
 			if(  alpha_is_bitmask  ) {
-				display_img_alpha_bitmask_wc( h, xp, yp, sp, alphamap, bits_stride, color, alpha_bitmask  CLIP_NUM_PAR );
+				display_img_alpha_bitmask_wc( h, xp, yp, sp, alphamap, bits_stride, alpha_w, xp - alpha_x, color, alpha_bitmask  CLIP_NUM_PAR );
 			}
 			else {
 				display_img_alpha_wc( h, xp, yp, sp, alphamap, get_alpha_mask(alpha_flags), color, alpha  CLIP_NUM_PAR );
@@ -3608,6 +3661,10 @@ static void simgraph16_draw_base_img_alpha(const image_id n, const image_id alph
 		PIXVAL *sp = images[n].base_data;
 		const bool alpha_is_bitmask = (images[alpha_n].recode_flags & FLAG_BITMASK) != 0;
 		PIXVAL *alphamap = images[alpha_n].base_data;
+		const scr_coord_val alpha_x = xp + images[alpha_n].base_x;
+		const scr_coord_val alpha_y = yp + images[alpha_n].base_y;
+		const scr_coord_val alpha_h = images[alpha_n].base_h;
+		const scr_coord_val alpha_w = images[alpha_n].base_w;
 		const int bits_stride = (images[alpha_n].base_w + 15) / 16;
 
 		// must the height be reduced?
@@ -3637,12 +3694,30 @@ static void simgraph16_draw_base_img_alpha(const image_id n, const image_id alph
 					} while(  *alphamap  );
 					alphamap++;
 				}
-				else {
-					alphamap += bits_stride;
-				}
 				sp++;
 			}
 			// now sp is the new start of an image with height h
+		}
+
+		if(  alpha_is_bitmask  ) {
+			scr_coord_val alpha_row = y - alpha_y;
+			if(  alpha_row < 0  ) {
+				scr_coord_val source_skip = -alpha_row;
+				if(  source_skip >= h  ) {
+					return;
+				}
+				h -= source_skip;
+				y += source_skip;
+				sp = skip_rle_rows(sp, source_skip);
+				alpha_row = 0;
+			}
+			if(  alpha_row >= alpha_h  ) {
+				return;
+			}
+			if(  h > alpha_h - alpha_row  ) {
+				h = alpha_h - alpha_row;
+			}
+			alphamap = images[alpha_n].base_data + alpha_row * bits_stride;
 		}
 
 		// new block for new variables
@@ -3665,7 +3740,7 @@ static void simgraph16_draw_base_img_alpha(const image_id n, const image_id alph
 				simgraph16_mark_rect_dirty_wc( x, y, x + w - 1, y + h - 1 );
 			}
 			if(  alpha_is_bitmask  ) {
-				display_img_alpha_bitmask_wc( h, x, y, sp, alphamap, bits_stride, color, alpha_bitmask_recode  CLIP_NUM_PAR );
+				display_img_alpha_bitmask_wc( h, x, y, sp, alphamap, bits_stride, alpha_w, x - alpha_x, color, alpha_bitmask_recode  CLIP_NUM_PAR );
 			}
 			else {
 				display_img_alpha_wc( h, x, y, sp, alphamap, get_alpha_mask(alpha_flags), color, alpha_recode  CLIP_NUM_PAR );

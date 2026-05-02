@@ -477,14 +477,13 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 						lightmap->x, lightmap->y, lightmap->w, lightmap->h,
 						(unsigned long)lightmap->len);
 				}
-				// Compress the alphamap in place: the renderer only
-				// reads the red channel, so 1 bit per pixel is enough
-				// and saves ~11x RAM vs the RLE master.  Tripwire
-				// validated the silhouette match against LightTexture
-				// above, which is what the bitmask draw path relies on.
+				// Ask the renderer to keep a private 1bpp copy of the
+				// binary red-channel alphamap.  Tripwire validated the
+				// silhouette match against LightTexture above, which is
+				// what the bitmask draw path relies on.
 				shore_alpha_data_bytes += (uint64)shore_alpha->len * sizeof(PIXVAL);
 				shore_alpha_pixel_bytes += (uint64)shore_alpha->w * shore_alpha->h;
-				gfx->convert_to_bitmask(const_cast<image_t*>(shore_alpha));
+				gfx->convert_to_bitmask(shore_alpha);
 			}
 			const image_t* const slope_alpha = transition_slope_texture->get_image_ptr((uint16)dslope, (uint16)corner_mask);
 			if(  slope_alpha != NULL  ) {
