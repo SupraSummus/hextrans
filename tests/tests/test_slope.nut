@@ -10,26 +10,30 @@
 function test_slope_to_dir()
 {
 	// slope.to_dir(sl) returns the ribi that walks UP the slope — see
-	// ribi_type(slope_t::type) in ribi.cc.  All 6 hex edge slopes plus
-	// the 2 legacy square diagonals (slope.east / slope.west) carry a
-	// ribi mapping, each at single and double height.  Flat, the 6
-	// single-corner raises, and any other multi-corner slope map to
-	// dir.none.
-	local single = {}
-	single[slope.north]   <- dir.south
-	single[slope.south]   <- dir.north
-	single[slope.ne_edge] <- dir.southwest
-	single[slope.se_edge] <- dir.northwest
-	single[slope.sw_edge] <- dir.northeast
-	single[slope.nw_edge] <- dir.southeast
-	single[slope.east]    <- dir.northwest  // W corners raised → uphill = NW hex edge (legacy)
-	single[slope.west]    <- dir.southeast  // E corners raised → uphill = SE hex edge (legacy)
+	// ribi_type(slope_t::type) in ribi.cc.  Each of the 6 hex axis edges
+	// carries a ribi mapping shared by its narrow (2-corner), wide
+	// (4-corner) and double-height (2×narrow) variants.  The 2 legacy
+	// square diagonals (slope.east / slope.west) keep their projection
+	// onto the closest hex direction.  Flat, the 6 single-corner
+	// raises, and any other multi-corner slope map to dir.none.
+	local edges = {}
+	edges[slope.north]   <- { dir = dir.south,     wide = slope.north_wide }
+	edges[slope.south]   <- { dir = dir.north,     wide = slope.south_wide }
+	edges[slope.ne_edge] <- { dir = dir.southwest, wide = slope.ne_wide }
+	edges[slope.se_edge] <- { dir = dir.northwest, wide = slope.se_wide }
+	edges[slope.sw_edge] <- { dir = dir.northeast, wide = slope.sw_wide }
+	edges[slope.nw_edge] <- { dir = dir.southeast, wide = slope.nw_wide }
 
 	local expected = {}
-	foreach (sl, d in single) {
-		expected[sl]     <- d
-		expected[2 * sl] <- d
+	foreach (sl, e in edges) {
+		expected[sl]      <- e.dir
+		expected[e.wide]  <- e.dir
+		expected[2 * sl]  <- e.dir
 	}
+	expected[slope.east]     <- dir.northwest  // W corners raised → uphill = NW hex edge (legacy)
+	expected[slope.west]     <- dir.southeast  // E corners raised → uphill = SE hex edge (legacy)
+	expected[2 * slope.east] <- dir.northwest
+	expected[2 * slope.west] <- dir.southeast
 
 	foreach (sl, d in expected) {
 		ASSERT_EQUAL(slope.to_dir(sl), d)

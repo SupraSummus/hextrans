@@ -114,6 +114,11 @@ my_ribi_t slope_to_ribi(my_slope_t slope)
 	return ribi_type((slope_t::type)slope);
 }
 
+bool slope_is_way(my_slope_t slope)
+{
+	return slope_t::is_way((slope_t::type)slope);
+}
+
 
 template<int idx> SQInteger coord_to_ribi(HSQUIRRELVM vm)
 {
@@ -342,6 +347,14 @@ void export_simple(HSQUIRRELVM vm)
 	 * @param s slope
 	 */
 	STATIC register_method(vm, &slope_to_ribi, "to_dir", false, true);
+	/**
+	 * Returns true iff a way (rail/road/etc) can be laid on this slope:
+	 * flat, any of the 12 hex axis edges (narrow + wide), or the
+	 * all-up bridgehead sentinels.  Mirrors `slope_t::is_way` in
+	 * `dataobj/ribi.h`.
+	 * @param s slope
+	 */
+	STATIC register_method(vm, &slope_is_way, "is_way", false, true);
 	end_class(vm);
 
 #ifdef SQAPI_DOC

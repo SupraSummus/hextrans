@@ -577,8 +577,10 @@ function test_powerline_remove_powerbridge()
 	local pl = player_x(0)
 	local power_bridge = bridge_desc_x.get_available_bridges(wt_power)[0]
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(2, 3, 0), slope.east), null)
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 3, 0), slope.west), null)
+	// (2,3)→(4,3) is 2 × SE-neighbour step → hex NW-SE axis;
+	// matching ramps face each other.
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(2, 3, 0), slope.se_edge), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 3, 0), slope.nw_edge), null)
 	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(2, 3, 0), coord3d(4, 3, 0), power_bridge), null)
 
 	// try removing the bridge from its centre

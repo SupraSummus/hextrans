@@ -40,6 +40,18 @@ across_tunnel_slope}`, `test_way_tunnel_make_public`, and the two
 Several crossing cases additionally need a hex-axis pair to replace
 the square-perpendicular setup.
 
+**`slope.east` / `slope.west` removal.**  Square-era `slope.east`
+and `slope.west` are no longer way-buildable.  Four call sites
+(`test_building_rotate_harbour`, `test_depot_build_on_bridge_end`'s
+"east-west direction" block, `test_halt_build_on_bridge_end`'s
+matching block, `test_powerline_remove_powerbridge`) migrated to
+`slope.se_edge` / `slope.nw_edge`, the hex axis they were already
+projecting onto.  `test_scenario_rules_allow_forbid_way_tool_cube`
+also uses `2*slope.east` for its "skip forbidden cube via 2× slope"
+assertion; left untouched because the function is already
+HEX-PORT PENDING and needs a holistic rewrite (`ASSERT_WAY_PATTERN`
+square ribi values throughout, plus 2× way slopes are gone).
+
 **Powerline 3rd hex axis.**  `test_powerline_connect /
 _build_transformer_multiple / _ways` each expect crossings /
 powerlines on the 2 square-era axes (N-S and old E-W).  Under hex
@@ -140,19 +152,61 @@ calculations, collision-avoidance predicates, and image-select branches
 at these sites may now compute wrong values on high-delta terrain.  Audit
 each site when the path it guards is next touched for hex correctness.
 
-## Way slope-up sprites — still 4 of 6 hex edges
+## `tool_set_slope_work` doesn't gate on `is_way`
 
-`way_writer.cc` enumerates only the 4 cardinal up-slope names
-(`{n, w, e, s}` × `{single, double}`) in `slope_names[]`, and
-`get_slope_image_id` in `way_desc.h` only matches
-`slope_t::{north, west, east, south}`.  Those constants alias 4 of
-6 hex edge slopes; the two third-axis edges (raised E+SE and raised
-NE+E pairs, see `koord.cc` neighbour case table) have no slot.
-Land alongside the first hex sloped way asset.  `way_obj_writer.cc`
-iterates `slope = 3, 6, 9, 12` for `frontimageup` / `backimageup`
-under the same square-era pattern and needs the same widening.
-`ground_writer.cc` was already widened to scan `slope_t::max_slopes`
-so sparse hex slope indices round-trip into `.pak`.
+The way-slope tightening (12 axis edges, no 2×, no east/west) is
+enforced by `slope_t::is_way` at way-build time and by
+`way_desc::has_double_slopes()` returning false on the all_up/down
+progression in `tool_set_slope_work`.  Direct `setslope(tile,
+2*slope.south)` under an existing way still succeeds — the
+terraformer's only way-direction check at `simtool.cc:1316` is the
+`backward(ribi_type) == ribis` opposite-axis check, which 2×
+satisfies.  Result: a way ends up sitting on a non-way-buildable
+slope, reachable from script as `command_x.set_slope(pl, pos,
+2*slope.south)`.  Either add an `is_way(new_slope)` gate when the
+tile carries a way, or accept that ground slopes are unrestricted
+and document the asymmetry.  Test
+`test_terraform_raise_lower_land_below_way` exercises this path
+already and currently passes — it sets 2*slope.south directly,
+then walks back via two all_down steps.
+
+## Bridge `has_double_start` / `has_double_ramp` half-retired
+
+`bridge_desc_t::has_double_start()` and `has_double_ramp()` probe the
+`*_Start2` / `*_Ramp2` enum slots, and are still called by
+`brueckenbauer.cc:364` (allow 2× start slope iff the desc has the
+art) and `:580` (`max_ramp = 1 + has_double_ramp()`, controls how
+tall a ramp may rise on a flat tile).  The way-side rejects 2× via
+`is_way`, but bridge starts on a 2× slope are still reachable
+through the `tool_set_slope_work` gap above.  Pick one: delete the
+2× start path entirely (drop the probes, the enum slots, and the
+two builder branches) or document the asymmetry as deliberate.
+Currently halfway: `bridge_desc::get_start` no longer routes 2×
+slopes to `*_Start2` art (returns `(img_t)-1`) while the builder
+still claims 2× starts are legal when the desc says so.
+
+## `slope_t::is_single` rename
+
+The predicate name historically meant "single-edge slope" (a 2-corner
+edge slope, the only kind that hosted ways).  After the wide-edge
+addition it covers narrow + wide hex axis slopes — 12 values, half
+of which are 4-corner.  Name now reads as a small lie; rename to
+`is_way_edge` (or similar) when the next slope refactor touches the
+callers (`tunnelbauer.cc:362`, `wegbauer.cc:1128/1155`, the internal
+`opposite()` and `is_way()` callers in `ribi.h`).
+
+## Way-object slope-up sprites — still 4 of 6 hex edges
+
+`way_obj_writer.cc` iterates `slope = 3, 6, 9, 12` for
+`frontimageup` / `backimageup` under the square-era pattern: 4 of
+6 hex edges, missing the two third-axis edges (raised E+SE and
+raised NE+E pairs, see `koord.cc` neighbour case table).  Needs
+the same widening that `way_writer.cc` got — 12 slots covering
+all 6 hex edges × {narrow, wide}, indexed by
+`way_obj_desc::get_slope_image_id`.  Land alongside the first hex
+sloped way-object asset.  `ground_writer.cc` was already widened
+to scan `slope_t::max_slopes` so sparse hex slope indices
+round-trip into `.pak`.
 
 ## Way .dat migration to hex ribi keys
 
@@ -192,6 +246,15 @@ new makeobj when one becomes available.
 Elevated construction code may still copy or restore legacy slope
 values outside the ordinary setter path; audit those paths when the
 associated builders next get hex-port attention.
+
+The same migration story applies to slope-up keys.  `way_writer.cc`
+now expects 12 keys (`ImageUp[n]`, `ImageUp[ne]`, ..., `ImageUp[nw]`,
+plus `_wide` variants) routed by `way_desc_t::get_slope_image_id`.
+The legacy `ImageUp[3/6/9/12]` and `imageup2[*]` keys are gone.
+Only `rail_060_tracks` is migrated; every other way .dat that
+declared slope sprites under the old keys now silently drops them
+on rebake (slope rendering falls through to IMG_EMPTY).  Migrate
+per family alongside the flat-image migration above.
 
 ## Per-vertex height storage — remaining writer-side ports
 

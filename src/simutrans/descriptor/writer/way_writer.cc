@@ -44,8 +44,17 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 		return s;
 	};
 
-	static const char *slope_heights[2] = { "", "2" };
-	static const char *slope_names[4] = { "n", "w", "e", "s" };
+	// Slope-up image slot order.  6 narrow (2-corner) hex edge slopes
+	// clockwise from north, then their 6 wide (4-corner) variants in
+	// the same order.  Order matches way_desc_t::get_slope_image_id;
+	// double-height edges and square diagonals are no longer
+	// way-buildable.  `_` separates suffix because `,` and `-` inside
+	// `[…]` trigger tabfile_t::find_parameter_expansion's parameter-
+	// list mode.
+	static const char* const slope_keys[12] = {
+		"n", "ne", "se", "s", "sw", "nw",
+		"n_wide", "ne_wide", "se_wide", "s_wide", "sw_wide", "nw_wide"
+	};
 	static const char* const image_type[] = { "", "front" };
 
 	const sint64 price       = obj.get_int64("cost",        100);
@@ -123,19 +132,11 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
 			keys.clear();
 
-			// Slope-up sprites.  Keyed by the 4 cardinal
-			// upstream-square slope names × {single, double height};
-			// only 4 of 6 hex edge slopes have art.  See TODO.md →
-			// "Way slope-up sprites — still 4 of 6 hex edges".
-			for (uint32 h = 0; h < lengthof(slope_heights); ++h) {
-				for (uint32 d = 0; d < lengthof(slope_names); ++d) {
-					const std::string base = prefix + "imageup" + slope_heights[h];
-					std::string s = get_keyed(base + "[" + slope_names[d] + "]", season);
-					if (s.empty()) {
-						s = get_keyed(base + "[" + std::to_string((d+1)*3) + "]", season);
-					}
-					if (!s.empty()) keys.append(s);
-				}
+			// Slope-up sprites — 12 fixed slots, indexed by slope value
+			// in way_desc_t::get_slope_image_id.  Empty entries become
+			// IMG_EMPTY so indices stay aligned.
+			for (uint32 i = 0; i < lengthof(slope_keys); ++i) {
+				keys.append(get_keyed(prefix + "imageup[" + slope_keys[i] + "]", season));
 			}
 			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
 			keys.clear();

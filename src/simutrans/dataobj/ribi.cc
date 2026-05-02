@@ -68,22 +68,27 @@ ribi_t::dir ribi_t::get_dir(ribi x)
 
 // Slope → direction of travel that goes UP this slope.  Convention
 // "going X walks up slope named after low-edge opposite(X)": e.g.
-// going north walks up slope_t::south (N corners raised).  The 4
-// hex-only edge slopes (ne_edge etc.) follow the same rule.
-// ::east and ::west are legacy 2-corner diagonals projected onto the
-// closest hex edge until they retire from way-buildable status.
+// going north walks up slope_t::south (N corners raised).  Three
+// kinds of slope share each direction: 2-corner narrow edge, 4-corner
+// wide variant, and the legacy 2× double-height narrow.  Track on
+// any of them climbs the same 0→1 path along the axis (or 0→2 for
+// the double-height variant); off-axis ground shape varies.  Wide
+// edges are way-buildable, double-height ones are no longer (kept
+// here because terrain may still carry 2× slopes under bridges or
+// pre-port saves).  Legacy square diagonals (::east / ::west) project
+// onto the closest hex direction.
 ribi_t::ribi ribi_type(slope_t::type hang)
 {
 	switch (hang) {
-		case slope_t::north:   case 2 * slope_t::north:   return ribi_t::south;
-		case slope_t::south:   case 2 * slope_t::south:   return ribi_t::north;
-		case slope_t::ne_edge: case 2 * slope_t::ne_edge: return ribi_t::southwest;
-		case slope_t::sw_edge: case 2 * slope_t::sw_edge: return ribi_t::northeast;
-		case slope_t::se_edge: case 2 * slope_t::se_edge: return ribi_t::northwest;
-		case slope_t::nw_edge: case 2 * slope_t::nw_edge: return ribi_t::southeast;
-		case slope_t::east:    case 2 * slope_t::east:    return ribi_t::northwest;
-		case slope_t::west:    case 2 * slope_t::west:    return ribi_t::southeast;
-		default:                                          return ribi_t::none;
+		case slope_t::north:   case slope_t::north_wide: case 2 * slope_t::north:   return ribi_t::south;
+		case slope_t::south:   case slope_t::south_wide: case 2 * slope_t::south:   return ribi_t::north;
+		case slope_t::ne_edge: case slope_t::ne_wide:    case 2 * slope_t::ne_edge: return ribi_t::southwest;
+		case slope_t::sw_edge: case slope_t::sw_wide:    case 2 * slope_t::sw_edge: return ribi_t::northeast;
+		case slope_t::se_edge: case slope_t::se_wide:    case 2 * slope_t::se_edge: return ribi_t::northwest;
+		case slope_t::nw_edge: case slope_t::nw_wide:    case 2 * slope_t::nw_edge: return ribi_t::southeast;
+		case slope_t::east:    case 2 * slope_t::east:                              return ribi_t::northwest;
+		case slope_t::west:    case 2 * slope_t::west:                              return ribi_t::southeast;
+		default:                                                                    return ribi_t::none;
 	}
 }
 
