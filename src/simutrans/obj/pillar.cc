@@ -49,19 +49,37 @@ void pillar_t::calc_image()
 	if(  grund_t *gr = welt->lookup(get_pos())  ) {
 		slope_t::type slope = gr->get_grund_hang();
 		if(  desc->has_pillar_asymmetric()  ) {
-			if(  dir == bridge_desc_t::NS_Pillar  ) {
-				height += ( (corner_sw(slope) + corner_se(slope) ) * TILE_HEIGHT_STEP )/2;
-			}
-			else {
-				height += ( ( corner_se(slope) + corner_ne(slope) ) * TILE_HEIGHT_STEP ) / 2;
+			// Asymmetric pillars hide on the half of the slope where
+			// the pillar's reference corner pair sits high — the
+			// neighbouring tile's pillar covers that face.  Each axis
+			// uses the two corners shared with its viewer-facing tile
+			// half (south for NS bridges, viewer-facing-NW for the
+			// NW-SE axis under the current iso viewport, etc.; see
+			// `display/hex_proj.h` Front-side rule).
+			switch (dir) {
+				case bridge_desc_t::NS_Pillar:
+				case bridge_desc_t::NS_Pillar2:
+					height += ((corner_sw(slope) + corner_se(slope)) * TILE_HEIGHT_STEP) / 2;
+					break;
+				case bridge_desc_t::NE_SW_Pillar:
+				case bridge_desc_t::NE_SW_Pillar2:
+					height += ((corner_e(slope)  + corner_se(slope)) * TILE_HEIGHT_STEP) / 2;
+					break;
+				case bridge_desc_t::NW_SE_Pillar:
+				case bridge_desc_t::NW_SE_Pillar2:
+					height += ((corner_se(slope) + corner_ne(slope)) * TILE_HEIGHT_STEP) / 2;
+					break;
+				default: break;
 			}
 			if(  height > 0  ) {
 				hide = true;
 			}
 		}
 		else {
-			// on slope use mean height ...
-			height += ( ( corner_se(slope) + corner_ne(slope) + corner_sw(slope) + corner_se(slope) ) * TILE_HEIGHT_STEP ) / 4;
+			// on slope use mean height across the 6 hex corners
+			height += ( ( corner_e(slope)  + corner_se(slope) + corner_sw(slope)
+			            + corner_w(slope)  + corner_nw(slope) + corner_ne(slope)
+			          ) * TILE_HEIGHT_STEP ) / 6;
 		}
 	}
 	image = hide ? IMG_EMPTY : desc->get_background( (bridge_desc_t::img_t)dir, get_pos().z-height/TILE_HEIGHT_STEP >= welt->get_snowline()  ||  welt->get_climate( get_pos().get_2d() ) == arctic_climate );
@@ -117,10 +135,12 @@ void pillar_t::rdwr(loadsave_t *file)
 		asymmetric = desc && desc->has_pillar_asymmetric();
 
 		if(  file->is_version_less(112, 7) && env_t::pak_height_conversion_factor==2  ) {
-			switch(dir) {
-				case bridge_desc_t::OW_Pillar:  dir = bridge_desc_t::OW_Pillar2;  break;
-				case bridge_desc_t::NS_Pillar:  dir = bridge_desc_t::NS_Pillar2;  break;
-			}
+			// Pre-port (square) pillar img enum is incompatible with
+			// hex layout; refuse the save (see bruecke_t::rdwr).
+			dbg->fatal("pillar_t::rdwr",
+			    "Pre-hex-port save (version<112,7, pak_height_conversion=2)"
+			    " holds a square-era pillar img value; save format"
+			    " conversion not implemented");
 		}
 	}
 }
@@ -139,11 +159,7 @@ void pillar_t::rotate90()
 	// we cannot decide this here, since welt->lookup(get_pos())->get_grund_hang() cannot be called
 	// since we are in the middle of the rotation process
 
-	// the rotated image parameter is just one in front/back
-	switch(dir) {
-		case bridge_desc_t::NS_Pillar:  dir=bridge_desc_t::OW_Pillar  ; break;
-		case bridge_desc_t::OW_Pillar:  dir=bridge_desc_t::NS_Pillar  ; break;
-		case bridge_desc_t::NS_Pillar2: dir=bridge_desc_t::OW_Pillar2 ; break;
-		case bridge_desc_t::OW_Pillar2: dir=bridge_desc_t::NS_Pillar2 ; break;
-	}
+	// 90° is not a hex symmetry (see bruecke_t::rotate90); leave
+	// `dir` unchanged.  Replace with a real 60° axis rotation when
+	// the viewport / rotation port lands.
 }

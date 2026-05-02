@@ -43,11 +43,26 @@ private:
 
 public:
 	/*
-	 * Numbering of all image pieces
+	 * Numbering of all image pieces.  Hex layout: 3 way axes (NS,
+	 * NE-SW, NW-SE) for segments and pillars, 6 hex edges
+	 * (N, S, NE, SE, SW, NW) for starts and ramps.  Each tile has a
+	 * single-height (`...`) and a double-height (`...2`) variant; the
+	 * latter is optional.  Order inside each height block matches the
+	 * order of `bridge_writer.cc::names[]` so the writer can iterate the
+	 * keys and the engine reads them at the same enum positions.
 	 */
 	enum img_t {
-		NS_Segment,  OW_Segment,  N_Start,  S_Start,  O_Start,  W_Start,  N_Ramp,  S_Ramp,  O_Ramp,  W_Ramp,  NS_Pillar,  OW_Pillar,
-		NS_Segment2, OW_Segment2, N_Start2, S_Start2, O_Start2, W_Start2, N_Ramp2, S_Ramp2, O_Ramp2, W_Ramp2, NS_Pillar2, OW_Pillar2
+		NS_Segment, NE_SW_Segment, NW_SE_Segment,
+		N_Start, S_Start, NE_Start, SE_Start, SW_Start, NW_Start,
+		N_Ramp,  S_Ramp,  NE_Ramp,  SE_Ramp,  SW_Ramp,  NW_Ramp,
+		NS_Pillar, NE_SW_Pillar, NW_SE_Pillar,
+
+		NS_Segment2, NE_SW_Segment2, NW_SE_Segment2,
+		N_Start2, S_Start2, NE_Start2, SE_Start2, SW_Start2, NW_Start2,
+		N_Ramp2,  S_Ramp2,  NE_Ramp2,  SE_Ramp2,  SW_Ramp2,  NW_Ramp2,
+		NS_Pillar2, NE_SW_Pillar2, NW_SE_Pillar2,
+
+		img_t_count
 	};
 
 	/*

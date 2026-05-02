@@ -22,23 +22,29 @@ static void write_bridge_images(FILE* outfp, obj_node_t& node, tabfileobj_t& obj
 	slist_tpl<std::string> backkeys;
 	slist_tpl<std::string> frontkeys;
 
+	// Hex layout: 3 way axes for segments / pillars (NS, NE-SW,
+	// NW-SE) and 6 hex edges for starts / ramps (N, S, NE, SE, SW,
+	// NW).  Order must stay in sync with `bridge_desc_t::img_t` —
+	// the imagelist is read by enum index, not by name.  Axis names
+	// use `_` as separator because `tabfile_t::find_parameter_expansion`
+	// treats `,` and `-` inside `[…]` as parameter-list mode.
 	static const char* const names[] = {
 		"image",
-		"ns", "ew", NULL,
+		"ns", "ne_sw", "nw_se", NULL,
 		"start",
-		"n", "s", "e", "w", NULL,
+		"n", "s", "ne", "se", "sw", "nw", NULL,
 		"ramp",
-		"n", "s", "e", "w", NULL,
+		"n", "s", "ne", "se", "sw", "nw", NULL,
 		"pillar",
-		"s", "w", NULL,
+		"ns", "ne_sw", "nw_se", NULL,
 		"image2",
-		"ns", "ew", NULL,
+		"ns", "ne_sw", "nw_se", NULL,
 		"start2",
-		"n", "s", "e", "w", NULL,
+		"n", "s", "ne", "se", "sw", "nw", NULL,
 		"ramp2",
-		"n", "s", "e", "w", NULL,
+		"n", "s", "ne", "se", "sw", "nw", NULL,
 		"pillar2",
-		"s", "w", NULL,
+		"ns", "ne_sw", "nw_se", NULL,
 		NULL
 	};
 
