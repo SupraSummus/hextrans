@@ -36,24 +36,25 @@ bruecke_t::bruecke_t(koord3d pos, player_t *player, const bridge_desc_t *desc, b
  obj_no_info_t(pos)
 {
 	this->desc = desc;
-	assert(img >= bridge_desc_t::NS_Segment && img <= bridge_desc_t::OW_Pillar2);
+	assert(img >= bridge_desc_t::NS_Segment && img < bridge_desc_t::img_t_count);
 	this->img = img;
 	set_owner( player );
 	player_t::book_construction_costs( get_owner(), -desc->get_price(), get_pos().get_2d(), desc->get_waytype());
 }
 
 
-// single height segments
-static bridge_desc_t::img_t single_img[24]= {
-	bridge_desc_t::NS_Segment, bridge_desc_t::OW_Segment,
-	bridge_desc_t::N_Start, bridge_desc_t::S_Start, bridge_desc_t::O_Start, bridge_desc_t::W_Start,
-	bridge_desc_t::N_Ramp, bridge_desc_t::S_Ramp, bridge_desc_t::O_Ramp, bridge_desc_t::W_Ramp,
-	bridge_desc_t::NS_Pillar, bridge_desc_t::OW_Pillar,
-	bridge_desc_t::NS_Segment, bridge_desc_t::OW_Segment,
-	bridge_desc_t::N_Start, bridge_desc_t::S_Start, bridge_desc_t::O_Start, bridge_desc_t::W_Start,
-	bridge_desc_t::N_Ramp, bridge_desc_t::S_Ramp, bridge_desc_t::O_Ramp, bridge_desc_t::W_Ramp,
-	bridge_desc_t::NS_Pillar, bridge_desc_t::OW_Pillar
-};
+// Single-height fallback for any img_t.  The enum lays out the
+// 18 single-height variants first and the 18 `*_2` variants
+// immediately after, so subtracting `NS_Segment2` from a double
+// index gives the matching single-height entry; ids already in
+// the single block pass through unchanged.  Used by `calc_image`
+// / `get_front_image` when a desc lacks the double-height set.
+static bridge_desc_t::img_t single_height_of(bridge_desc_t::img_t img)
+{
+	return img < bridge_desc_t::NS_Segment2
+	    ? img
+	    : (bridge_desc_t::img_t)(img - bridge_desc_t::NS_Segment2);
+}
 
 void bruecke_t::calc_image()
 {
@@ -71,7 +72,7 @@ void bruecke_t::calc_image()
 			// handle cases where old bridges don't have correct images
 			image_id display_image=desc->get_background( img, is_snow );
 			if(  display_image==IMG_EMPTY && desc->get_foreground( img, is_snow )==IMG_EMPTY  ) {
-				display_image=desc->get_background( single_img[img], is_snow );
+				display_image=desc->get_background( single_height_of(img), is_snow );
 			}
 			weg0->set_image( display_image );
 
@@ -111,7 +112,7 @@ image_id bruecke_t::get_front_image() const
 	// handle cases where old bridges don't have correct images
 	image_id display_image=desc->get_foreground( img, is_snow );
 	if(  display_image==IMG_EMPTY && desc->get_background( img, is_snow )==IMG_EMPTY  ) {
-		display_image=desc->get_foreground( single_img[img], is_snow );
+		display_image=desc->get_foreground( single_height_of(img), is_snow );
 	}
 	return display_image;
 }
@@ -147,23 +148,19 @@ void bruecke_t::rdwr(loadsave_t *file)
 		free(const_cast<char *>(s));
 
 		if(  file->is_version_less(112, 7)  &&  env_t::pak_height_conversion_factor==2  ) {
-			switch(img) {
-				case bridge_desc_t::OW_Segment: img = bridge_desc_t::OW_Segment2; break;
-				case bridge_desc_t::NS_Segment: img = bridge_desc_t::NS_Segment2; break;
-				case bridge_desc_t::O_Start:    img = bridge_desc_t::O_Start2;    break;
-				case bridge_desc_t::W_Start:    img = bridge_desc_t::W_Start2;    break;
-				case bridge_desc_t::S_Start:    img = bridge_desc_t::S_Start2;    break;
-				case bridge_desc_t::N_Start:    img = bridge_desc_t::N_Start2;    break;
-				case bridge_desc_t::O_Ramp:     img = bridge_desc_t::O_Ramp2;     break;
-				case bridge_desc_t::W_Ramp:     img = bridge_desc_t::W_Ramp2;     break;
-				case bridge_desc_t::S_Ramp:     img = bridge_desc_t::S_Ramp2;     break;
-				case bridge_desc_t::N_Ramp:     img = bridge_desc_t::N_Ramp2;     break;
-				case bridge_desc_t::OW_Pillar:  img = bridge_desc_t::OW_Pillar2;  break;
-				case bridge_desc_t::NS_Pillar:  img = bridge_desc_t::NS_Pillar2;  break;
-				default: break;
-			}
+			// Pre-port (square) saves stored img enum values that do not
+			// map cleanly into the hex layout: legacy O_Start / W_Start
+			// (old-east / old-west) are now SE_Start / NW_Start, the
+			// hex-only NE/SW directions had no slot, and the double-
+			// height variants live at different ordinals.  Pre-port
+			// saves are out of scope (see TODO.md "Save format version
+			// bump"); refuse them rather than silently renumber.
+			dbg->fatal("bruecke_t::rdwr",
+			    "Pre-hex-port save (version<112,7, pak_height_conversion=2)"
+			    " holds a square-era bridge img value at (%s); save format"
+			    " conversion not implemented", get_pos().get_str());
 		}
-		assert(img >= bridge_desc_t::NS_Segment && img <= bridge_desc_t::OW_Pillar2);
+		assert(img >= bridge_desc_t::NS_Segment && img < bridge_desc_t::img_t_count);
 
 	}
 }
@@ -244,25 +241,17 @@ void bruecke_t::cleanup( player_t *player2 )
 }
 
 
-// rotated segment names
-static bridge_desc_t::img_t rotate90_img[24]= {
-	bridge_desc_t::OW_Segment, bridge_desc_t::NS_Segment,
-	bridge_desc_t::O_Start, bridge_desc_t::W_Start, bridge_desc_t::S_Start, bridge_desc_t::N_Start,
-	bridge_desc_t::O_Ramp, bridge_desc_t::W_Ramp, bridge_desc_t::S_Ramp, bridge_desc_t::N_Ramp,
-	bridge_desc_t::OW_Pillar, bridge_desc_t::NS_Pillar,
-	bridge_desc_t::OW_Segment2, bridge_desc_t::NS_Segment2,
-	bridge_desc_t::O_Start2, bridge_desc_t::W_Start2, bridge_desc_t::S_Start2, bridge_desc_t::N_Start2,
-	bridge_desc_t::O_Ramp2, bridge_desc_t::W_Ramp2, bridge_desc_t::S_Ramp2, bridge_desc_t::N_Ramp2,
-	bridge_desc_t::OW_Pillar2, bridge_desc_t::NS_Pillar2
-};
-
-
 void bruecke_t::rotate90()
 {
 	set_yoff(0);
 	obj_t::rotate90();
-	// the rotated image parameter is just one in front/back
-	img = rotate90_img[img];
+	// 90° is not a hex symmetry — a hex map rotation step is 60° and
+	// `karte_t::rotate90` itself is gated unreachable (see TODO.md
+	// "Rotation cascade").  Leave `img` unchanged: it stays a valid
+	// img_t value, and any in-tree caller that reaches here lands a
+	// `dbg->fatal` further up the cascade before the wrong image
+	// renders.  Replace with a real 60° img-rotation table when the
+	// viewport / rotation port lands.
 }
 
 

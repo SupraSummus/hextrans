@@ -437,7 +437,9 @@ during the port; they project onto the NW-SE axis under the iso
 viewport but a way crossing them dips at the W or E corner mid-tile.
 Drop the inclusion (and ideally `slope_t::east`/`west` themselves)
 once dock/harbour placement and any surviving square-era setslope
-paths stop relying on them.
+paths stop relying on them.  `bridge_desc_t::get_start` /
+`get_ramp` route the same two slopes onto SE_Start / NW_Start (and
+matching ramps); both routings retire together.
 
 Slope-edge naming asymmetry: the 6 hex-edge slope constants split
 into 2 bare names (`slope_t::north`, `::south`) and 4 suffixed
@@ -686,21 +688,23 @@ first, so the transform code becomes pure dead weight.
 above for the placeholder roadmap).  Map rotation (currently fatal,
 gated as unreachable) — orthogonal to the projection port.
 
-## Depth-clip plane spec sits unused
+## Depth-clip plane spec sits partially used
 
 `hex_way_axis_t` + the "Depth-clip plane spec" docstring in
 `display/hex_proj.h` define the per-axis vertical plane that splits
 multi-layer way assets into Back / Front layers under hex projection;
 pak-side mirror is in `hextrans-pak128/tools/3d/hex_synth.py`
-(`HEX_DEPTH_CLIP_NORMAL`, `front_back_split`).  Neither side has a
-caller — `rail_060_tracks` is single-layer, `rail_060_bridge` hasn't
-attempted hex output, and there's no engine .dat reader for hex
-bridge `BackImage[<axis>]` keys yet.  Wire into a real consumer
-(first multi-layer hex bake or the .dat reader) when one appears,
-otherwise the spec drifts silently.  Re-evaluate the south-is-Front
-rule and the +x tie-break for N-S at that point — the rule was
-sketched against pak128's NS bridge convention only, not stress-
-tested against NE-SW / NW-SE bakes that don't exist yet.
+(`HEX_DEPTH_CLIP_NORMAL`, `front_back_split`).  The bridge .dat
+contract (`bridge_writer.cc::names`, `bridge_desc_t::img_t`) now
+keys segments and pillars by the 3 axes (`ns`, `ne_sw`, `nw_se`)
+and starts / ramps by the 6 hex edges, so the consumer side
+exists.  Coverage is still partial: `rail_060_bridge_hex` only
+ships 2 of 3 axes (NS and NW-SE) and no ramp / start cells, so
+the NE-SW depth-clip rule is not yet exercised by a real bake.
+Re-evaluate the south-is-Front rule and the +x tie-break for N-S
+when the third-axis bake lands — the rule was sketched against
+pak128's NS bridge convention only, not stress-tested against
+NE-SW / NW-SE bakes that don't exist yet.
 
 ## Shore-water tile composition still square
 
