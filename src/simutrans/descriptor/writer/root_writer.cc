@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "../../dataobj/tabfile.h"
 #include "../../utils/searchfolder.h"
+#include "../../utils/simstring.h"
 #include "../obj_desc.h"
 #include "obj_node.h"
 #include "obj_writer.h"
@@ -215,7 +216,7 @@ void root_writer_t::dump(int argc, char* argv[])
 }
 
 
-bool root_writer_t::do_list(const char *open_file_name)
+bool root_writer_t::do_list(const char *open_file_name, const char *type_filter, const char *name_filter, bool csv)
 {
 	FILE *const infp = fopen(open_file_name, "rb");
 
@@ -236,10 +237,6 @@ bool root_writer_t::do_list(const char *open_file_name)
 		return false;
 	}
 
-	printf("Contents of file %s (pak version %u):\n", open_file_name, endian(version));
-	printf("type              name                            nodes  size\n"
-	       "----------------  ------------------------------  -----  ----------\n");
-
 	obj_node_info_t node;
 	if (!obj_node_t::read_node( infp, node ) || fseek(infp, node.size, SEEK_CUR) != 0) {
 		fclose(infp);
@@ -247,7 +244,7 @@ bool root_writer_t::do_list(const char *open_file_name)
 	}
 
 	for (int i = 0; i < node.nchildren; i++) {
-		if (!list_nodes(infp)){
+		if (!list_nodes(infp, open_file_name, type_filter, name_filter, csv)){
 			fclose(infp);
 			return false;
 		}
@@ -261,18 +258,53 @@ bool root_writer_t::do_list(const char *open_file_name)
 // list the content of a file
 void root_writer_t::list(int argc, char* argv[])
 {
+	const char *type_filter = NULL;
+	const char *name_filter = NULL;
+	bool csv = false;
+
+	while (argc > 0 && argv[0][0] == '-') {
+		if (strcmp(argv[0], "--csv") == 0) {
+			csv = true;
+			argv++; argc--;
+		}
+		else if (STRNICMP(argv[0], "--type=", 7) == 0) {
+			type_filter = argv[0] + 7;
+			argv++; argc--;
+		}
+		else if (STRNICMP(argv[0], "--name=", 7) == 0) {
+			name_filter = argv[0] + 7;
+			argv++; argc--;
+		}
+		else {
+			printf("Usage: MakeObj LIST [--type=TEXT] [--name=TEXT] [--csv] <pak file(s)>\n");
+			return;
+		}
+	}
+
+	if (argc == 0) {
+		printf("Usage: MakeObj LIST [--type=TEXT] [--name=TEXT] [--csv] <pak file(s)>\n");
+		return;
+	}
+
+	if (!csv) {
+		printf("file                                              type              name                            bytes         image_rle    non_rle       slots    used   empty   fill%%  lists\n"
+		       "------------------------------------------------  ----------------  ------------------------------  ------------  ------------  ------------  ------  ------  ------  ------  -----\n");
+	}
+	else {
+		printf("file,type,name,bytes,image_rle_bytes,non_rle_bytes,image_slots,image_used,image_empty,fill_percent,image_lists\n");
+	}
+
 	for (int i = 0; i < argc; i++) {
 		bool any = false;
 
-		// this is necessary to avoid the hassle with "./*.pak" otherwise
-		if (strchr(argv[i],'*') == NULL) {
-			any = do_list(argv[i]);
+		if (strchr(argv[i], '*') == NULL) {
+			any = do_list(argv[i], type_filter, name_filter, csv);
 		}
 		else {
 			searchfolder_t find;
 			find.search(argv[i], "pak");
 			for(const char* const& i : find) {
-				any |= do_list(i);
+				any |= do_list(i, type_filter, name_filter, csv);
 			}
 		}
 

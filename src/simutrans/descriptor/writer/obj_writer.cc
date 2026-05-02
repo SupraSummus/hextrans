@@ -21,6 +21,117 @@ const char *obj_writer_t::last_name = "";
 int obj_writer_t::default_image_size = 64;
 
 
+struct pak_node_stats_t {
+	unsigned long long storage_bytes;
+	unsigned long long image_rle_bytes;
+	unsigned int image_slots;
+	unsigned int image_used;
+	unsigned int image_lists;
+};
+
+
+static unsigned node_header_size(const obj_node_info_t &node)
+{
+	return node.size >= LARGE_RECORD_SIZE ? EXT_OBJ_NODE_INFO_SIZE : OBJ_NODE_INFO_SIZE;
+}
+
+
+static uint16 decode_le16(const unsigned char *p)
+{
+	return (uint16)p[0] | (uint16)p[1] << 8;
+}
+
+
+static uint32 decode_le32(const unsigned char *p)
+{
+	return
+		(uint32)p[0] <<  0 |
+		(uint32)p[1] <<  8 |
+		(uint32)p[2] << 16 |
+		(uint32)p[3] << 24;
+}
+
+
+static unsigned long long image_rle_bytes(FILE *fp, const obj_node_info_t &node)
+{
+	const long pos = ftell(fp);
+	unsigned long long bytes = 0;
+
+	if (node.size >= 10) {
+		unsigned char header[12];
+		const size_t wanted = node.size < sizeof(header) ? node.size : sizeof(header);
+		if (fread(header, wanted, 1, fp) == 1 && wanted > 6) {
+			const unsigned version = header[6];
+			if (version == 0 && wanted >= 8) {
+				bytes = static_cast<unsigned long long>(decode_le32(header + 4)) * sizeof(uint16);
+			}
+			else if (version <= 2 && wanted >= 9) {
+				bytes = static_cast<unsigned long long>(decode_le16(header + 7)) * sizeof(uint16);
+			}
+			else if (version == 3) {
+				bytes = static_cast<unsigned long long>(node.size - 10);
+			}
+		}
+	}
+
+	fseek(fp, pos, SEEK_SET);
+	return bytes;
+}
+
+
+static bool collect_node_stats(FILE *fp, const obj_node_info_t &node, pak_node_stats_t &stats)
+{
+	stats.storage_bytes += node_header_size(node) + node.size;
+
+	if (node.type == obj_image) {
+		stats.image_slots++;
+		const unsigned long long image_bytes = image_rle_bytes(fp, node);
+		stats.image_rle_bytes += image_bytes;
+		if (image_bytes != 0) {
+			stats.image_used++;
+		}
+	}
+	else if (node.type == obj_imagelist || node.type == obj_imagelist2d) {
+		stats.image_lists++;
+	}
+
+	if (fseek(fp, node.size, SEEK_CUR) != 0) {
+		return false;
+	}
+
+	for (int i = 0; i < node.nchildren; i++) {
+		obj_node_info_t child;
+		if (!obj_node_t::read_node(fp, child)) {
+			return false;
+		}
+		if (!collect_node_stats(fp, child, stats)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+
+static bool text_matches(const std::string &value, const char *filter)
+{
+	return filter == NULL || filter[0] == '\0' || tstrcasestr(value.c_str(), filter) != NULL;
+}
+
+
+static void print_csv_field(const char *text)
+{
+	putchar('"');
+	for (const char *p = text; *p; p++) {
+		if (*p == '"') {
+			putchar('"');
+		}
+		putchar(*p);
+	}
+	putchar('"');
+}
+
+
 void obj_writer_t::register_writer(bool main_obj)
 {
 	if (!writer_by_name) {
@@ -104,41 +215,76 @@ bool obj_writer_t::dump_nodes(FILE* infp, int level, uint16 index)
 }
 
 
-bool obj_writer_t::list_nodes(FILE *infp)
+bool obj_writer_t::list_nodes(FILE *infp, const char *file_name, const char *type_filter, const char *name_filter, bool csv)
 {
 	obj_node_info_t node;
 
-	if (!obj_node_t::read_node( infp, node ) || node.size == 0) {
+	if (!obj_node_t::read_node(infp, node)) {
 		return false;
 	}
 
-	const long next_pos = ftell(infp) + node.size;
+	const long body_pos = ftell(infp);
+	const long child_pos = body_pos + node.size;
 
 	obj_writer_t *writer = writer_by_type->get((obj_type)node.type);
+	const char *type_name = writer ? writer->get_type_name() : "(unknown)";
+
+	std::string node_name;
 	if (writer) {
-		if (fseek(infp, node.size, SEEK_CUR) != 0) {
+		if (fseek(infp, child_pos, SEEK_SET) != 0) {
 			return false;
 		}
-
-		const std::string node_name = writer->get_node_name(infp);
-		printf("%-16s  %-30s  %5u  ", writer->get_type_name(), node_name.c_str(), node.nchildren);
-	}
-	else {
-		printf("(unknown %4.4s)    %30.30s  %5.5s  ", (const char *)&node.type, " ", " ");
+		node_name = writer->get_node_name(infp);
 	}
 
-	if (fseek(infp, next_pos, SEEK_SET) != 0) {
+	if (fseek(infp, body_pos, SEEK_SET) != 0) {
 		return false;
 	}
 
-	size_t offset = 0;
-	for (int i = 0; i < node.nchildren; i++) {
-		if (!skip_nodes(infp, offset)) {
-			return false;
+	pak_node_stats_t stats = {};
+	if (!collect_node_stats(infp, node, stats)) {
+		return false;
+	}
+
+	if (text_matches(type_name, type_filter) && text_matches(node_name, name_filter)) {
+		const unsigned int image_empty = stats.image_slots - stats.image_used;
+		const unsigned long long fill_per_mille = stats.image_slots == 0 ? 0 : (static_cast<unsigned long long>(stats.image_used) * 1000u + stats.image_slots / 2u) / stats.image_slots;
+		const unsigned long long non_rle_bytes = stats.storage_bytes - stats.image_rle_bytes;
+
+		if (csv) {
+			print_csv_field(file_name);
+			putchar(',');
+			print_csv_field(type_name);
+			putchar(',');
+			print_csv_field(node_name.c_str());
+			printf(",%llu,%llu,%llu,%u,%u,%u,%u.%u,%u\n",
+				stats.storage_bytes,
+				stats.image_rle_bytes,
+				non_rle_bytes,
+				stats.image_slots,
+				stats.image_used,
+				image_empty,
+				static_cast<unsigned int>(fill_per_mille / 10u),
+				static_cast<unsigned int>(fill_per_mille % 10u),
+				stats.image_lists);
+		}
+		else {
+			printf("%-48.48s  %-16.16s  %-30.30s  %12llu  %12llu  %12llu  %6u  %6u  %6u  %5u.%u  %5u\n",
+				file_name,
+				type_name,
+				node_name.c_str(),
+				stats.storage_bytes,
+				stats.image_rle_bytes,
+				non_rle_bytes,
+				stats.image_slots,
+				stats.image_used,
+				image_empty,
+				static_cast<unsigned int>(fill_per_mille / 10u),
+				static_cast<unsigned int>(fill_per_mille % 10u),
+				stats.image_lists);
 		}
 	}
 
-	printf("%10lu\n", offset);
 	return true;
 }
 

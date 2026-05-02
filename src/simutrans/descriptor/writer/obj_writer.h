@@ -33,7 +33,7 @@ protected:
 
 	void register_writer(bool main_obj);
 	bool dump_nodes(FILE *infp, int level, uint16 index = 0);
-	bool list_nodes(FILE *infp);
+	bool list_nodes(FILE *infp, const char *file_name, const char *type_filter, const char *name_filter, bool csv);
 	bool skip_nodes(FILE* fp, size_t &offset);
 	void show_capabilites();
 

@@ -64,7 +64,7 @@ public:
 private:
 	bool do_copy(FILE* outfp, obj_node_info_t& root, const char* open_file_name);
 	bool do_dump(const char* open_file_name);
-	bool do_list(const char* open_file_name);
+	bool do_list(const char* open_file_name, const char *type_filter, const char *name_filter, bool csv);
 };
 
 
