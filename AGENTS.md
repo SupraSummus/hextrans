@@ -101,6 +101,30 @@ upstream-mergeable, organically sorts the layering, and a candidate
 for upstreaming back. Reach for this tier when a rename is already
 on the table; don't force it where it would be contrived.
 
+## Cross-checking simutrans-extended
+
+`simutrans-extended` is also checked out as a local read-only
+reference branch (origin/simutrans-extended, fetched from
+`jamespetts/simutrans-extended`). It shares zero commits with our
+history — distinct root commit, no merge base — so nothing is
+liftable; this is purely for reading.
+
+Extended is not a hex port and most of its divergence is gameplay
+depth (passenger routing, signalling, axle loads), orthogonal to
+the geometric work. The case where it's worth a look is when we
+suspect upstream's solution to a problem is square-grid-specific
+*and* extended has had a non-geometric reason to rework the same
+code — they may have already factored out a grid-neutral seam we
+can copy the *shape* of. Concrete suspects: Manhattan distance
+(square-only; extended reportedly uses real distance), turn cost
+in the convoy/physics path (90°-only assumptions don't survive
+hex), anything else where upstream code reads as "tile counts
+standing in for physics".
+
+Don't make this a standing input — it's a targeted probe when a
+specific factoring question is already on the table. Read for the
+seam, not the code.
+
 ## Direction naming convention (pin this — silent-failure landmine)
 
 Flat-top hex has 6 EDGES and 6 VERTICES, and each set has its own
