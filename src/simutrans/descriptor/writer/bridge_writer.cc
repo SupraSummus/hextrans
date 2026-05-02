@@ -12,9 +12,8 @@
 #include "imagelist_writer.h"
 #include "skin_writer.h"
 #include "get_waytype.h"
+#include "hex_keys.h"
 #include "bridge_writer.h"
-
-#include <string>
 
 
 static void write_bridge_images(FILE* outfp, obj_node_t& node, tabfileobj_t& obj, int season)
@@ -22,68 +21,55 @@ static void write_bridge_images(FILE* outfp, obj_node_t& node, tabfileobj_t& obj
 	slist_tpl<std::string> backkeys;
 	slist_tpl<std::string> frontkeys;
 
-	// Hex layout: 3 way axes for segments / pillars (NS, NE-SW,
-	// NW-SE) and 6 hex edges for starts / ramps (N, S, NE, SE, SW,
-	// NW).  Order must stay in sync with `bridge_desc_t::img_t` —
-	// the imagelist is read by enum index, not by name.  Axis names
-	// use `_` as separator because `tabfile_t::find_parameter_expansion`
-	// treats `,` and `-` inside `[…]` as parameter-list mode.
-	static const char* const names[] = {
-		"image",
-		"ns", "ne_sw", "nw_se", NULL,
-		"start",
-		"n", "s", "ne", "se", "sw", "nw", NULL,
-		"ramp",
-		"n", "s", "ne", "se", "sw", "nw", NULL,
-		"pillar",
-		"ns", "ne_sw", "nw_se", NULL,
-		"image2",
-		"ns", "ne_sw", "nw_se", NULL,
-		"start2",
-		"n", "s", "ne", "se", "sw", "nw", NULL,
-		"ramp2",
-		"n", "s", "ne", "se", "sw", "nw", NULL,
-		"pillar2",
-		"ns", "ne_sw", "nw_se", NULL,
-		NULL
+	// Order must stay in sync with `bridge_desc_t::img_t` — the
+	// imagelist is read by enum index, not by name.  Axis / edge key
+	// vocabulary lives in hex_keys.h; this table is just the per-keyname
+	// dispatch.
+	struct keygroup_t {
+		const char* keyname;
+		const char* const* indices;
+		size_t count;
+	};
+	static const keygroup_t groups[] = {
+		{ "image",   hex_keys::axis_names, 3 },
+		{ "start",   hex_keys::edge_names, 6 },
+		{ "ramp",    hex_keys::edge_names, 6 },
+		{ "pillar",  hex_keys::axis_names, 3 },
+		{ "image2",  hex_keys::axis_names, 3 },
+		{ "start2",  hex_keys::edge_names, 6 },
+		{ "ramp2",   hex_keys::edge_names, 6 },
+		{ "pillar2", hex_keys::axis_names, 3 },
 	};
 
-	const char* const * ptr = names;
-	const char* keyname = *ptr++;
 	char keybuf[40];
 
-	do {
-		const char* keyindex = *ptr++;
-		do {
+	for(  size_t g = 0;  g < lengthof(groups);  g++  ) {
+		const keygroup_t& kg = groups[g];
+		for(  size_t i = 0;  i < kg.count;  i++  ) {
+			const char* keyindex = kg.indices[i];
 			std::string value;
 
 			if(  season < 0  ) {
-				sprintf( keybuf, "back%s[%s]", keyname, keyindex );
+				sprintf( keybuf, "back%s[%s]", kg.keyname, keyindex );
 				value = obj.get( keybuf );
 				backkeys.append( value );
-				//intf("BACK: %s -> %s\n", keybuf, value.chars());
-				sprintf( keybuf, "front%s[%s]", keyname, keyindex );
+				sprintf( keybuf, "front%s[%s]", kg.keyname, keyindex );
 			}
 			else {
-				sprintf( keybuf, "back%s[%s][%d]", keyname, keyindex, season );
+				sprintf( keybuf, "back%s[%s][%d]", kg.keyname, keyindex, season );
 				value = obj.get( keybuf );
 				backkeys.append( value );
-				//intf("BACK: %s -> %s\n", keybuf, value.chars());
-				sprintf( keybuf, "front%s[%s][%d]", keyname, keyindex, season );
+				sprintf( keybuf, "front%s[%s][%d]", kg.keyname, keyindex, season );
 			}
 
 			// must append to front keys even if empty to keep order correct (but warn anyway)
 			value = obj.get( keybuf );
 			frontkeys.append( value );
-			//intf("FRNT: %s -> %s\n", keybuf, value.chars());
 			if(  value.size() <= 2  ) {
 				dbg->warning( obj_writer_t::last_name, "No %s specified (might still work)", keybuf );
 			}
-
-			keyindex = *ptr++;
-		} while(  keyindex  );
-		keyname = *ptr++;
-	} while(  keyname  );
+		}
+	}
 
 	imagelist_writer_t::instance()->write_obj( outfp, node, backkeys );
 	imagelist_writer_t::instance()->write_obj( outfp, node, frontkeys );
