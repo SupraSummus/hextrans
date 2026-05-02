@@ -136,12 +136,13 @@ function ASSERT_WAY_PATTERN_MASKED(waytype, lefttop, pattern)
 // Representative single-height slopes for tests that used to iterate
 // `for sl in 0..slope.raised`.  Under the base-4 hex encoding most
 // integers in 0..4095 don't decode to single-height slopes; this
-// returns the 15 that do and correspond to buildable single-height
-// terrain: flat, each single-corner raised, each adjacent-pair hex
-// edge, and the 2 legacy square diagonals (`slope.east`, `slope.west`).
-// Omits `slope.raised` (all_up_one): raising all corners uniformly
-// shifts the whole tile and breaks the cleanup some callers do after
-// the loop.
+// returns the 21 that do: flat, each single-corner raised, each
+// 2-corner hex edge ("narrow") and 4-corner hex edge ("wide"), and
+// the 2 legacy square diagonals (`slope.east`, `slope.west`).  Omits
+// `slope.raised` (all_up_one): raising all corners uniformly shifts
+// the whole tile and breaks the cleanup some callers do after the
+// loop.  Of these, only the 12 hex edges (narrow + wide) and flat
+// are way-buildable — see slope_t::is_way.
 function interesting_slopes()
 {
 	return [
@@ -151,10 +152,13 @@ function interesting_slopes()
 		// and `slope.west` are taken by the legacy 2-corner diagonals
 		// (see end of this list).
 		1, slope.southeast, slope.southwest, 64, slope.northwest, slope.northeast,
-		// 6 hex edges, cyclic: low edge NW, N, NE, SE, S, SW
+		// 6 narrow hex edges (2-corner), cyclic: low edge NW, N, NE, SE, S, SW
 		slope.nw_edge, slope.north, slope.ne_edge,
 		slope.se_edge, slope.south, slope.sw_edge,
-		// 2 legacy square diagonals
+		// 6 wide hex edges (4-corner), same cyclic order
+		slope.nw_wide, slope.north_wide, slope.ne_wide,
+		slope.se_wide, slope.south_wide, slope.sw_wide,
+		// 2 legacy square diagonals (no longer way-buildable)
 		slope.east, slope.west,
 	]
 }

@@ -52,30 +52,25 @@ bridge_desc_t::img_t bridge_desc_t::get_pillar(ribi_t::ribi ribi)
  *
  * Each hex edge slope (low-edge naming: the bridge starts on this
  * slope and points outward through the named low edge) maps to the
- * matching `*_Start` image.  The legacy 2-corner ::east / ::west
- * diagonals project onto the NW-SE axis (per `slope_t::is_way_nw_se`)
- * and route to SE / NW respectively, matching the pak128 rename
- * convention (legacy "east" ↔ hex SE, legacy "west" ↔ hex NW).
+ * matching `*_Start` image.  Narrow (2-corner) and wide (4-corner)
+ * variants of the same axis edge share the start image — bridge
+ * geometry follows the low edge regardless of the off-axis ground.
+ * Double-height edges are no longer way-buildable so they can't reach
+ * here; the IMG##2 enum entries are vestigial — kept only to avoid
+ * renumbering — and never resolved.
  */
 bridge_desc_t::img_t bridge_desc_t::get_start(slope_t::type slope) const
 {
-	const bool use_double = ground_desc_t::double_grounds
-	    && get_background(N_Start2, 0) != IMG_EMPTY;
-
-#define SLOPE_CASE(SLOPE, IMG) \
-	case slope_t::SLOPE:        return IMG;                       \
-	case slope_t::SLOPE * 2:    return use_double ? IMG##2 : IMG;
+#define SLOPE_CASE(SLOPE, WIDE, IMG) \
+	case slope_t::SLOPE: case slope_t::WIDE: return IMG;
 
 	switch (slope) {
-		SLOPE_CASE(north,   N_Start)
-		SLOPE_CASE(south,   S_Start)
-		SLOPE_CASE(ne_edge, NE_Start)
-		SLOPE_CASE(se_edge, SE_Start)
-		SLOPE_CASE(sw_edge, SW_Start)
-		SLOPE_CASE(nw_edge, NW_Start)
-		// Legacy 2-corner diagonals project onto NW-SE (see header).
-		SLOPE_CASE(east, SE_Start)
-		SLOPE_CASE(west, NW_Start)
+		SLOPE_CASE(north,   north_wide, N_Start)
+		SLOPE_CASE(south,   south_wide, S_Start)
+		SLOPE_CASE(ne_edge, ne_wide,    NE_Start)
+		SLOPE_CASE(se_edge, se_wide,    SE_Start)
+		SLOPE_CASE(sw_edge, sw_wide,    SW_Start)
+		SLOPE_CASE(nw_edge, nw_wide,    NW_Start)
 	}
 #undef SLOPE_CASE
 	return (img_t) - 1;
@@ -93,22 +88,16 @@ bridge_desc_t::img_t bridge_desc_t::get_start(slope_t::type slope) const
  */
 bridge_desc_t::img_t bridge_desc_t::get_ramp(slope_t::type slope) const
 {
-	const bool use_double = ground_desc_t::double_grounds && has_double_ramp();
-
-#define SLOPE_CASE(SLOPE, IMG) \
-	case slope_t::SLOPE:        return IMG;                       \
-	case slope_t::SLOPE * 2:    return use_double ? IMG##2 : IMG;
+#define SLOPE_CASE(SLOPE, WIDE, IMG) \
+	case slope_t::SLOPE: case slope_t::WIDE: return IMG;
 
 	switch (slope) {
-		SLOPE_CASE(north,   S_Ramp)
-		SLOPE_CASE(south,   N_Ramp)
-		SLOPE_CASE(ne_edge, SW_Ramp)
-		SLOPE_CASE(se_edge, NW_Ramp)
-		SLOPE_CASE(sw_edge, NE_Ramp)
-		SLOPE_CASE(nw_edge, SE_Ramp)
-		// Legacy 2-corner diagonals project onto NW-SE (see get_start).
-		SLOPE_CASE(east, NW_Ramp)
-		SLOPE_CASE(west, SE_Ramp)
+		SLOPE_CASE(north,   north_wide, S_Ramp)
+		SLOPE_CASE(south,   south_wide, N_Ramp)
+		SLOPE_CASE(ne_edge, ne_wide,    SW_Ramp)
+		SLOPE_CASE(se_edge, se_wide,    NW_Ramp)
+		SLOPE_CASE(sw_edge, sw_wide,    NE_Ramp)
+		SLOPE_CASE(nw_edge, nw_wide,    SE_Ramp)
 	}
 #undef SLOPE_CASE
 	return (img_t) - 1;
