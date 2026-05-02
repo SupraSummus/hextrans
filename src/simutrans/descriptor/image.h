@@ -35,10 +35,10 @@ public:
 	scr_coord_val y;  ///< y offset of data[] image
 	scr_coord_val w;  ///< width of data[] image
 	scr_coord_val h;  ///< height of data[] image
-	image_id imageid; ///< Graphics renderer image id
-	uint8 zoomable;   ///< some images may not be zoomed i.e. icons
-	uint8 is_bitmask; ///< 1bpp packed alphamap (red bit) instead of RLE pixels
-	PIXVAL *data;     ///< RLE-encoded pixels, or packed bits when is_bitmask
+	image_id imageid;     ///< Graphics renderer image id
+	uint8 zoomable   : 1; ///< some images may not be zoomed i.e. icons
+	uint8 is_bitmask : 1; ///< 1bpp packed alphamap (red bit) instead of RLE pixels
+	PIXVAL *data;         ///< RLE-encoded pixels, or packed bits when is_bitmask
 
 	image_t(size_t len_=0) : zoomable(0), is_bitmask(0), data(NULL)
 	{
