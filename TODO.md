@@ -232,6 +232,15 @@ that no longer affects rendering — vestigial, retire alongside
 the hex-aware vehicle-direction work in "ribi_t — audit
 surfaces".
 
+River ways have a narrow engine-side visibility fallback:
+`way_desc_t::get_image_id` maps missing `type_river` multi-ribi
+slots to an available single-edge river sprite, and `weg_t::calc_image`
+falls back from missing river slope sprites to the flat-ribi path.
+This is not a general way-art shim; it exists because natural map
+generation can create rivers before pak128 has complete 64-slot river
+art.  Delete the fallback when `landscape.rivers` ships real hex flat
+and slope river sprites.
+
 The on-disk `way_desc` save version did not bump.  Pre-built paks
 (pak64 from `tools/get_pak.sh` in CI; any cached pak128 build) load
 without fatal but their 16-entry imagelist is now indexed by 6-bit

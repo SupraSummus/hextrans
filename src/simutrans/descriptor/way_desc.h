@@ -86,6 +86,40 @@ private:
 			}
 		}
 	}
+
+	image_id get_river_fallback_image_id(const image_list_t *imglist, ribi_t::ribi ribi) const
+	{
+		// River paks are still square-art placeholders in practice:
+		// the natural generator can build two-ended or bent hex ribis,
+		// while the current pak128 river imagelist only has single-edge
+		// slots.  Prefer the axis representative for straight river
+		// runs, then any present single-edge sprite, so generated rivers
+		// remain visible until real 64-slot river art lands.
+		const ribi_t::ribi axis = ribi_t::straight_axis(ribi);
+		if(  axis != ribi_t::none  ) {
+			image_id image = imglist->get_image_id(axis);
+			if(  image != IMG_EMPTY  ) {
+				return image;
+			}
+			image = imglist->get_image_id(ribi_t::backward(axis));
+			if(  image != IMG_EMPTY  ) {
+				return image;
+			}
+		}
+
+		for(  uint8 i = 0;  i < 6;  i++  ) {
+			const ribi_t::ribi single = ribi_t::nesw[i];
+			if(  (ribi & single) == 0  ) {
+				continue;
+			}
+			const image_id image = imglist->get_image_id(single);
+			if(  image != IMG_EMPTY  ) {
+				return image;
+			}
+		}
+
+		return imglist->get_image_id(ribi_t::none);
+	}
 public:
 
 	/**
@@ -118,7 +152,12 @@ public:
 			return IMG_EMPTY;
 		}
 		const uint16 n = image_list_base_index(season, front);
-		return get_child<image_list_t>(n)->get_image_id(ribi);
+		const image_list_t *imglist = get_child<image_list_t>(n);
+		const image_id image = imglist->get_image_id(ribi);
+		if(  image != IMG_EMPTY  ||  front  ||  wtyp != water_wt  ||  styp != type_river  ) {
+			return image;
+		}
+		return get_river_fallback_image_id(imglist, ribi);
 	}
 
 	/// Slope-up sprite lookup.  Pakset imagelist holds 12 slots, one

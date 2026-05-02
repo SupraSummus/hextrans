@@ -526,6 +526,9 @@ void weg_t::calc_image()
 		if(hang != slope_t::flat) {
 			// on slope
 			set_slope_images(hang, snow);
+			if(  image == IMG_EMPTY  &&  get_waytype() == water_wt  &&  desc->get_styp() == type_river  ) {
+				set_images(image_flat, ribi, snow, false);
+			}
 		}
 		else if (ribi_t::is_threeway(ribi)) {
 			set_images(image_switch, ribi, snow, has_switched());
