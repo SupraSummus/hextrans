@@ -354,7 +354,6 @@ function test_halt_build_air()
 }
 
 
-// test_halt_build_multi_tile: HEX-PORT PENDING.
 function test_halt_build_multi_tile()
 {
 	local pl = player_x(0)

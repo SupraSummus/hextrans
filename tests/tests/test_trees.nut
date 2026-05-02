@@ -260,7 +260,6 @@ function test_trees_plant_single_occupied()
 }
 
 
-// test_trees_plant_forest: HEX-PORT PENDING.
 function test_trees_plant_forest()
 {
 	local pl = player_x(0)

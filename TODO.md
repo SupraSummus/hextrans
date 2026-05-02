@@ -18,20 +18,6 @@ in the test file with a short header comment.  Entries below list
 what's currently skipped and the restoration trigger; remove an
 entry here when its test is re-enabled.
 
-**Square-grid terrain-mutation cascade tests.**
-`test_climate_cliff` raises a 3x3 plateau via `setslope all_up_slope`,
-exercises `tool_set_climate` (including a partial water fill), then
-walks the plateau back down via `setslope all_down_slope`.  The
-cleanup setslope returns "Tile not empty." on the second tile of the
-top row.  The test bodies bake in 4-corner / 8-neighbour terrain
-propagation, so a `setslope` or a multi-tile setclimate that under
-square model affected exactly the named tiles now under hex 6-edge
-propagation reaches one tile further (or stops one short).  The
-invariants survive (build-after-flatten, climate-set-on-cliff)
-but the specific tile choices and the assertions about which
-neighbours are mutated do not.  Restore alongside a hex-aware
-rewrite of the propagation patterns this test probes.
-
 **`ASSERT_WAY_PATTERN` family.**  `ASSERT_WAY_PATTERN` takes an
 array-of-arrays of 6-bit ribi integers (`-1` = don't care, `0` = no
 way).  Each disabled test still needs its patterns rewritten and its
@@ -46,41 +32,57 @@ _crossing / _upgrade_crossing / _upgrade_downgrade /
 _upgrade_downgrade_across_bridge / _cityroad_{build,
 upgrade_with_cityroad, downgrade_with_cityroad,
 replace_by_normal_road, replace_keep_existing}`,
-`test_way_tram_build_{flat, parallel, on_road, across_road_bridge,
-across_crossing, in_tunel}`,
+`test_way_tram_build_{parallel, on_road, across_road_bridge,
+in_tunel}`,
 `test_way_tunnel_build_{straight, up_down, above_tunnel_slope,
 across_tunnel_slope}`, `test_way_tunnel_make_public`,
-`test_wayobj_build_{straight, disconnected}`,
-`test_wayobj_upgrade_{downgrade, change_owner}`,
-`test_wayobj_electrify_depot`, and the two
+`test_wayobj_build_{straight, disconnected}`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
 Several crossing cases additionally need a hex-axis pair to replace
-the square-perpendicular setup.
+the square-perpendicular setup.  `test_wayobj_build_straight /
+_disconnected` additionally cascade-fail on dirty terrain at
+(2,1)/(3,1) left by `test_terraform_raise_lower_land`; see
+"grid_raise/grid_lower asymmetric propagation" below.
 
-**Bridge geometry.**  `test_halt_build_multi_tile` runs a
-`tool_remove_way` over a bridge span whose footprint shifted under
-hex (the "2 tiles on top of each other" sub-test builds a bridge from
-(3, 3) to (3, 5) and tries to remove (3, 2)→(3, 6); the span endpoints
-no longer match).  `test_way_bridge_planner`'s first block (iterate
+**Bridge geometry.**  `test_way_bridge_planner`'s first block (iterate
 `interesting_slopes()` against `bridge_planner_x.find_end` from a
 slope.south start) passes against the current `working_slopes = [
 slope.north ]` whitelist — that part is hex-ready.  The second
 "min length" block fails on `set_slope(pl, coord3d(2, 1, 0),
-slope.south)` returning `""` (out-of-range or `max_diff > 1` gate
-in `tool_set_slope_work`) before the actual bridge-length assertions
-run; root-cause first.
+slope.south)` returning `""` because of dirty terrain left by
+`test_terraform_raise_lower_land` running earlier; the test passes
+in isolation but cascades.  See "grid_raise/grid_lower asymmetric
+propagation" below.
 
-**Powerline 3rd hex axis.**  `test_powerline_connect / _build_below_powerbridge /
-_build_powerbridge_above_powerline / _build_transformer_multiple /
-_remove_powerbridge / _ways` each expect crossings / powerlines
-on the 2 square-era axes (N-S and old E-W).  Under hex there are
-3 axes and the 3rd (NE-SW) has no powerline crossing sprite or
-connection FSM support (`leitung2.cc` diagonal-image table is keyed
-on 4 old-combo values).  Restore after the crossing-cluster /
-3rd-axis work lands.
-`_transformer_multiple` additionally depends on
+**Powerline 3rd hex axis.**  `test_powerline_connect /
+_build_transformer_multiple / _ways` each expect crossings /
+powerlines on the 2 square-era axes (N-S and old E-W).  Under hex
+there are 3 axes and the 3rd (NE-SW) has no powerline crossing sprite
+or connection FSM support (`leitung2.cc` diagonal-image table is
+keyed on 4 old-combo values).  Restore after the crossing-cluster /
+3rd-axis work lands.  `_transformer_multiple` additionally depends on
 `leitung_t::suche_fab_neighbour`'s adjacency order — see
 "Adjacency-order policy" below.
+
+**grid_raise/grid_lower asymmetric propagation.**  Under hex,
+`grid_raise` followed by a matching `grid_lower` at the same vertex
+does not round-trip cleanly once the vertex height exceeds 1: the
+propagation step that forces neighbour vertices up to maintain the
+slope-≤-1 invariant has no symmetric counterpart on the way down,
+so neighbour vertices stay raised after the centre lowers.  A
+single 1-up / 1-down cycle does round-trip; 2-up / 2-down leaves
+6+ adjacent tiles dirty.  The currently-enabled
+`test_terraform_raise_lower_land` exercises a 3-up / 5-down / 2-up
+sequence at (3,2) and leaves (2,1)/(2,2)/(2,3)/(3,1)/(3,2)/(4,1)
+non-flat at end of test.  No enabled test depends on those tiles
+being clean, but several disabled tests do —
+`test_way_bridge_planner` (min-length block at (2,1)/(3,1)),
+`test_wayobj_build_straight` and `test_wayobj_build_disconnected`
+(both build rail at (2,1)→(5,1)), and
+`test_terraform_raise_lower_land_at_water_center` (relies on tiles
+near (3,3) being flat for water flooding).  Restore those four
+together once the propagation symmetry is fixed (or the test is
+moved to coords nothing else uses).
 
 **Sign / traffic-light 2-axis FSM.**  `test_sign_build_oneway /
 _build_trafficlight / _remove_trafficlight / _build_private_way /
@@ -126,9 +128,7 @@ flood, shared-edge corner heights on the *current* tile per
 `test_terraform_raise_lower_water_level` stays commented out: it still
 uses a rectangular `terraform_volcano` scaffold and square-shaped
 flood expectations — restore after a hex-shaped scaffold and
-assertion rewrite.  `test_trees_plant_forest` uses a rectangular
-selection for the forest tool; it needs hex-aware region walkers and
-a hex-shaped scaffold.
+assertion rewrite.
 
 **Adjacency-order policy.**
 `test_powerline_build_transformer_multiple` relies on
