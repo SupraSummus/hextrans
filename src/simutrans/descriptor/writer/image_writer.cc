@@ -257,6 +257,39 @@ uint16 *image_writer_t::encode_image(int x, int y, dimension* dim, int* len)
 }
 
 
+uint16 *image_writer_t::encode_bitmask(int x, int y, dimension* dim, int* len)
+{
+	const int w = dim->xmax - dim->xmin + 1;
+	const int h = dim->ymax - dim->ymin + 1;
+	const int stride = (w + 15) / 16;
+	const int total = stride * h;
+
+	uint16 *dest_base = new uint16[total];
+	for (int i = 0; i < total; i++) {
+		dest_base[i] = 0;
+	}
+
+	x += dim->xmin;
+	y += dim->ymin;
+
+	for (int row = 0; row < h; row++) {
+		uint16 *row_base = dest_base + row * stride;
+		for (int col = 0; col < w; col++) {
+			const uint32 pix = block_getpix(x + col, y + row);
+			// block_getpix returns 0xAARRGGBB with alpha inverted
+			// (0 = opaque). The red channel sits in bits 16..23.
+			const uint8 red = (pix >> 16) & 0xFF;
+			if (red >= 128) {
+				row_base[col >> 4] |= (uint16)(1u << (col & 15));
+			}
+		}
+	}
+
+	*len = total;
+	return dest_base;
+}
+
+
 bool image_writer_t::block_load(const char *fname)
 {
 	// The last image file is cached
@@ -352,14 +385,23 @@ void image_writer_t::write_obj(FILE* outfp, obj_node_t& parent, std::string an_i
 	uint16 *pixdata = NULL;
 
 	MEMZERO(image);
+	image.zoomable = true;
 
-	// if first char is a '>' then this image is not zoomable
-	if(  an_imagekey[0] == '>'  ) {
-		an_imagekey = an_imagekey.substr(1);
-		image.zoomable = false;
-	}
-	else {
-		image.zoomable = true;
+	// Leading prefix flags (any order):
+	//   '>' non-zoomable
+	//   '*' bitmask alphamap (1 bit per pixel, red channel)
+	while(  !an_imagekey.empty()  ) {
+		if(  an_imagekey[0] == '>'  ) {
+			image.zoomable = false;
+			an_imagekey = an_imagekey.substr(1);
+		}
+		else if(  an_imagekey[0] == '*'  ) {
+			image.is_bitmask = true;
+			an_imagekey = an_imagekey.substr(1);
+		}
+		else {
+			break;
+		}
 	}
 	std::string imagekey = trim(an_imagekey);
 
@@ -442,7 +484,9 @@ void image_writer_t::write_obj(FILE* outfp, obj_node_t& parent, std::string an_i
 
 		if (image.h > 0) {
 			int len;
-			pixdata = encode_image(col, row, &dim, &len);
+			pixdata = image.is_bitmask
+				? encode_bitmask(col, row, &dim, &len)
+				: encode_image(col, row, &dim, &len);
 			image.len = len;
 		}
 
@@ -490,18 +534,19 @@ void image_writer_t::write_obj(FILE* outfp, obj_node_t& parent, std::string an_i
 		delete [] pixdata;
 	}
 #else
-	// version 3
-	obj_node_t node(this, 10 + (image.len * sizeof(uint16)), &parent);
+	// version 4
+	obj_node_t node(this, 11 + (image.len * sizeof(uint16)), &parent);
 
 	// to avoid any problems due to structure changes, we write the data manually
 	node.write_uint16(outfp, image.x);
 	node.write_uint16(outfp, image.y);
 	node.write_uint16(outfp, image.w);
-	node.write_uint8 (outfp, 3); // version, always at position 6!
+	node.write_uint8 (outfp, 4); // version, always at position 6!
 	node.write_uint16(outfp, image.h);
 
 	// len is now automatically calculated
 	node.write_uint8 (outfp, image.zoomable);
+	node.write_uint8 (outfp, image.is_bitmask ? 1 : 0); // encoding: 0=RLE, 1=bitmask
 
 	if (image.len) {
 		// only called, if there is something to store

@@ -37,9 +37,10 @@ public:
 	scr_coord_val h;  ///< height of data[] image
 	image_id imageid; ///< Graphics renderer image id
 	uint8 zoomable;   ///< some images may not be zoomed i.e. icons
-	PIXVAL *data;     ///< RLE encoded image data
+	uint8 is_bitmask; ///< 1bpp packed alphamap (red bit) instead of RLE pixels
+	PIXVAL *data;     ///< RLE-encoded pixels, or packed bits when is_bitmask
 
-	image_t(size_t len_=0) : data(NULL)
+	image_t(size_t len_=0) : zoomable(0), is_bitmask(0), data(NULL)
 	{
 		if (len_) {
 			alloc(len_);

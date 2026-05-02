@@ -109,6 +109,26 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 			}
 		}
 	}
+	else if(version==4) {
+		desc->x = decode_sint16(p);
+		desc->y = decode_sint16(p);
+		desc->w = decode_sint16(p);
+		p++; // skip version information
+		desc->h = decode_sint16(p);
+		// data words follow encoding byte at offset 11
+		desc->alloc((node.size-11)/2);
+		desc->zoomable   = decode_uint8(p) != 0;
+		desc->is_bitmask = decode_uint8(p) == 1; // 0 = RLE, 1 = bitmask
+		desc->imageid = IMG_EMPTY;
+
+		skip_reading_pixels_if_no_graphics;
+		uint16* dest = desc->data;
+		if (desc->h > 0) {
+			for (uint i = 0; i < desc->len; i++) {
+				*dest++ = decode_uint16(p);
+			}
+		}
+	}
 	else {
 		dbg->fatal( "image_reader_t::read_node()", "Cannot handle too new node version %i", version );
 	}
@@ -129,14 +149,14 @@ adjust_image:
 	desc->x = 0;
 	desc->y = 0;
 #else
-	if (!image_has_valid_data(desc)) {
+	if (!desc->is_bitmask  &&  !image_has_valid_data(desc)) {
 		delete desc;
 		return NULL;
 	}
 #endif
 
 	// check for left corner
-	if(version<2  &&  desc->h>0) {
+	if(!desc->is_bitmask  &&  version<2  &&  desc->h>0) {
 		// find left border
 		uint16 left = 255;
 		uint16 *dest = desc->data;

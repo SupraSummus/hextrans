@@ -51,6 +51,11 @@ private:
 	/// Encodes an image into a sprite data structure, considers
 	/// special colors.
 	static uint16 *encode_image(int x, int y, dimension* dim, int* len);
+
+	/// Encodes the red channel of a sprite as a 1-bit-per-pixel
+	/// alphamap, packed LSB-first into uint16 words with a per-row
+	/// stride of `(w + 15) / 16` words.
+	static uint16 *encode_bitmask(int x, int y, dimension* dim, int* len);
 };
 
 #endif
