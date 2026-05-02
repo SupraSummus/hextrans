@@ -8,7 +8,6 @@
 // Tests for tramways
 //
 
-// test_way_tram_build_flat: HEX-PORT PENDING.
 function test_way_tram_build_flat()
 {
 	local pl = player_x(0)
@@ -229,7 +228,6 @@ function test_way_tram_build_across_road_bridge()
 }
 
 
-// test_way_tram_build_across_crossing: HEX-PORT PENDING.
 function test_way_tram_build_across_crossing()
 {
 	local pl = player_x(0)

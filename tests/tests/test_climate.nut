@@ -72,7 +72,6 @@ function test_climate_flat()
 }
 
 
-// test_climate_cliff: HEX-PORT PENDING.
 function test_climate_cliff()
 {
 	local pl = player_x(0)

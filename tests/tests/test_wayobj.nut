@@ -121,7 +121,6 @@ function test_wayobj_build_disconnected()
 }
 
 
-// test_wayobj_upgrade_downgrade: HEX-PORT PENDING.
 function test_wayobj_upgrade_downgrade()
 {
 	local pl = player_x(0)
@@ -237,7 +236,6 @@ function test_wayobj_upgrade_downgrade()
 }
 
 
-// test_wayobj_upgrade_change_owner: HEX-PORT PENDING.
 function test_wayobj_upgrade_change_owner()
 {
 	local pl = player_x(0)
@@ -287,7 +285,6 @@ function test_wayobj_upgrade_change_owner()
 }
 
 
-// test_wayobj_electrify_depot: HEX-PORT PENDING.
 function test_wayobj_electrify_depot()
 {
 	local pl = player_x(0)

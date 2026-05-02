@@ -61,7 +61,7 @@ all_tests <- [
 	test_city_remove_with_multitile_townhall,
 	test_climate_invalid,
 	test_climate_flat,
-	// test_climate_cliff: HEX-PORT PENDING.
+	test_climate_cliff,
 	test_depot_build_invalid_params,
 	test_depot_build_invalid_pos,
 	test_depot_build_road,
@@ -116,7 +116,7 @@ all_tests <- [
 	test_halt_build_flat_dock_in_water,
 	test_halt_build_flat_dock_occupied,
 	test_halt_build_air,
-	// test_halt_build_multi_tile: HEX-PORT PENDING.
+	test_halt_build_multi_tile,
 	test_halt_build_multi_mode,
 	test_halt_build_multi_player,
 	test_halt_build_separate,
@@ -140,12 +140,12 @@ all_tests <- [
 	test_player_name,
 	test_player_lines,
 	// test_powerline_connect: HEX-PORT PENDING.
-	// test_powerline_build_below_powerbridge: HEX-PORT PENDING.
-	// test_powerline_build_powerbridge_above_powerline: HEX-PORT PENDING.
+	test_powerline_build_below_powerbridge,
+	test_powerline_build_powerbridge_above_powerline,
 	// test_powerline_build_transformer: HEX-PORT PENDING.
 	test_powerline_build_over_transformer,
 	// test_powerline_build_transformer_multiple: HEX-PORT PENDING.
-	// test_powerline_remove_powerbridge: HEX-PORT PENDING.
+	test_powerline_remove_powerbridge,
 	// test_powerline_ways: HEX-PORT PENDING.
 	test_reservation_clear_ground,
 	test_reservation_clear_road,
@@ -195,7 +195,7 @@ all_tests <- [
 	test_trees_plant_single_ignore_climate,
 	test_trees_plant_single_max_per_square,
 	test_trees_plant_single_occupied,
-	// test_trees_plant_forest: HEX-PORT PENDING.
+	test_trees_plant_forest,
 	// test_way_bridge_build_ground: HEX-PORT PENDING.
 	// test_way_bridge_build_at_slope: HEX-PORT PENDING.
 	// test_way_bridge_build_at_slope_stacked: HEX-PORT PENDING.
@@ -221,11 +221,11 @@ all_tests <- [
 	// test_way_runway_build_rw_flat: HEX-PORT PENDING.
 	// test_way_runway_build_tw_flat: HEX-PORT PENDING.
 	// test_way_runway_build_mixed_flat: HEX-PORT PENDING.
-	// test_way_tram_build_flat: HEX-PORT PENDING.
+	test_way_tram_build_flat,
 	// test_way_tram_build_parallel: HEX-PORT PENDING.
 	// test_way_tram_build_on_road: HEX-PORT PENDING.
 	// test_way_tram_build_across_road_bridge: HEX-PORT PENDING.
-	// test_way_tram_build_across_crossing: HEX-PORT PENDING.
+	test_way_tram_build_across_crossing,
 	// test_way_tram_build_in_tunel: HEX-PORT PENDING.
 	test_way_tram_has_double_slopes,
 	// test_way_tunnel_build_straight: HEX-PORT PENDING.
@@ -235,7 +235,7 @@ all_tests <- [
 	// test_way_tunnel_make_public: HEX-PORT PENDING.
 	// test_wayobj_build_straight: HEX-PORT PENDING.
 	// test_wayobj_build_disconnected: HEX-PORT PENDING.
-	// test_wayobj_upgrade_downgrade: HEX-PORT PENDING.
-	// test_wayobj_upgrade_change_owner: HEX-PORT PENDING.
-	// test_wayobj_electrify_depot: HEX-PORT PENDING.
+	test_wayobj_upgrade_downgrade,
+	test_wayobj_upgrade_change_owner,
+	test_wayobj_electrify_depot,
 ]
