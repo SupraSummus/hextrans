@@ -583,7 +583,6 @@ function test_way_bridge_build_above_runway()
 }
 
 
-// test_way_bridge_planner: HEX-PORT PENDING.
 function test_way_bridge_planner()
 {
 	local pl = player_x(0)

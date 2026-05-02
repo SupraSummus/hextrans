@@ -35,24 +35,10 @@ replace_by_normal_road, replace_keep_existing}`,
 `test_way_tram_build_{parallel, on_road, across_road_bridge,
 in_tunel}`,
 `test_way_tunnel_build_{straight, up_down, above_tunnel_slope,
-across_tunnel_slope}`, `test_way_tunnel_make_public`,
-`test_wayobj_build_{straight, disconnected}`, and the two
+across_tunnel_slope}`, `test_way_tunnel_make_public`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
 Several crossing cases additionally need a hex-axis pair to replace
-the square-perpendicular setup.  `test_wayobj_build_straight /
-_disconnected` additionally cascade-fail on dirty terrain at
-(2,1)/(3,1) left by `test_terraform_raise_lower_land`; see
-"grid_raise/grid_lower asymmetric propagation" below.
-
-**Bridge geometry.**  `test_way_bridge_planner`'s first block (iterate
-`interesting_slopes()` against `bridge_planner_x.find_end` from a
-slope.south start) passes against the current `working_slopes = [
-slope.north ]` whitelist — that part is hex-ready.  The second
-"min length" block fails on `set_slope(pl, coord3d(2, 1, 0),
-slope.south)` returning `""` because of dirty terrain left by
-`test_terraform_raise_lower_land` running earlier; the test passes
-in isolation but cascades.  See "grid_raise/grid_lower asymmetric
-propagation" below.
+the square-perpendicular setup.
 
 **Powerline 3rd hex axis.**  `test_powerline_connect /
 _build_transformer_multiple / _ways` each expect crossings /
@@ -63,26 +49,6 @@ keyed on 4 old-combo values).  Restore after the crossing-cluster /
 3rd-axis work lands.  `_transformer_multiple` additionally depends on
 `leitung_t::suche_fab_neighbour`'s adjacency order — see
 "Adjacency-order policy" below.
-
-**grid_raise/grid_lower asymmetric propagation.**  Under hex,
-`grid_raise` followed by a matching `grid_lower` at the same vertex
-does not round-trip cleanly once the vertex height exceeds 1: the
-propagation step that forces neighbour vertices up to maintain the
-slope-≤-1 invariant has no symmetric counterpart on the way down,
-so neighbour vertices stay raised after the centre lowers.  A
-single 1-up / 1-down cycle does round-trip; 2-up / 2-down leaves
-6+ adjacent tiles dirty.  The currently-enabled
-`test_terraform_raise_lower_land` exercises a 3-up / 5-down / 2-up
-sequence at (3,2) and leaves (2,1)/(2,2)/(2,3)/(3,1)/(3,2)/(4,1)
-non-flat at end of test.  No enabled test depends on those tiles
-being clean, but several disabled tests do —
-`test_way_bridge_planner` (min-length block at (2,1)/(3,1)),
-`test_wayobj_build_straight` and `test_wayobj_build_disconnected`
-(both build rail at (2,1)→(5,1)), and
-`test_terraform_raise_lower_land_at_water_center` (relies on tiles
-near (3,3) being flat for water flooding).  Restore those four
-together once the propagation symmetry is fixed (or the test is
-moved to coords nothing else uses).
 
 **Sign / traffic-light 2-axis FSM.**  `test_sign_build_oneway /
 _build_trafficlight / _remove_trafficlight / _build_private_way /
@@ -267,16 +233,7 @@ gradient walk.  The gradient itself is a per-tile NE-NW corner pair
 (the hex-port translation of the legacy `lookup(x+1, y) - lookup(x, y)`
 square-axis read), so it's still computing the same horizontal slope
 regardless of wind direction.  Both quirks land together in a
-hex-aware rewrite of the climate generator; tied to the
-"Square-grid terrain-mutation cascade tests" cluster above.
-
-`command_x::grid_raise` / `grid_lower` still expose only a tile/grid
-coordinate and therefore default to the raise/lower tool's fallback
-corner (NW).  Cursor-driven terraforming carries the picked hex corner
-through tool custom data, but scripted scenarios cannot yet target the
-other five vertices directly.  Extend the Squirrel API with an explicit
-hex-corner argument when the terraform scenario tests are rewritten for
-the hex model.
+hex-aware rewrite of the climate generator.
 
 ## Map storage shape — open architectural choice
 
