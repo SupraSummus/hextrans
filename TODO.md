@@ -604,8 +604,9 @@ then tile clamp like legacy neighbours) in both `recalc_transitions` and
 slope alpha (snowline / climate-corner mixing) both read pakset
 `(slope, mask)` blocks directly — `ShoreTrans` and `SlopeTrans`
 share `LightTexture`'s silhouette via `hex_synth.silhouette_mask`
-so source and alpha RLE walks stay in lockstep, and
-`init_ground_textures` tripwires both invariants once at startup.
+so source RLE and alpha walks stay in lockstep, and
+`init_ground_textures` tripwires the silhouette match before
+privatising each alpha cell to a 1bpp bitmask.
 The snowline path — `get_alpha_tile(slope)` derives mask =
 `high_corners_of(slope)`, which is an isolated-bit mask on slopes
 with non-edge-union elevated corners (single-corner-up,
@@ -816,3 +817,20 @@ Save-format feature gates now have names in `simversion.h` rather
 than floating against `SIM_SAVE_MINOR`.  Continue that convention for
 future on-disk changes so later fork-version bumps do not silently
 change the meaning of old readers.
+
+`simgraph16_convert_to_bitmask`'s RLE-to-1bpp walk has no unit test.
+The conversion is a non-trivial pure transform (RLE walk plus a
+binary-alpha tripwire that mirrors `draw_alpha`'s `alpha_value > 30`
+threshold under arbitrary alpha-flag combinations), but the body
+sits in `simgraph16.cc` next to the renderer globals and the
+`TRANSPARENT_RUN` macro so a standalone test would need the pure
+walk lifted into a header first.  Lift + test together when next
+touching this code; same standalone-binary shape as
+`tools/hex_proj_test/`.
+
+`SIMUTRANS_DISABLE_BITMASK_ALPHA` and `SIMUTRANS_PROFILE_REZOOM`
+are profiling knobs introduced with the shore/slope alpha bitmask
+path.  Useful for the A/B perf characterisation that motivated the
+bitmask in the first place; both retire (env-var read + the rezoom
+profiler block in `simgraph16.cc`) once we have data confirming the
+bitmask path is the right default and don't expect to flip back.
