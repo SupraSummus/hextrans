@@ -412,7 +412,8 @@ call_tool_work build_bridge_at(player_t* pl, koord3d start, const bridge_desc_t*
 	if (grund_t *gr = world()->lookup(start)) {
 		sint8 height;
 		koord3d end = start;
-		if (const char *err = bridge_builder_t::find_end_pos(pl, start, -koord(gr->get_weg_hang()), height, bridge, 1, 10, false)) {
+		const slope_t::type slope = gr->get_weg_hang() ? gr->get_weg_hang() : gr->get_grund_hang();
+		if (const char *err = bridge_builder_t::find_end_pos(pl, start, -koord(slope), height, bridge, 1, 10, false)) {
 			return call_tool_work(err); // to keep compatibility with old error message
 		}
 		return call_tool_work(TOOL_BUILD_BRIDGE | GENERAL_TOOL, bridge->get_name(), 0, pl, start, end);

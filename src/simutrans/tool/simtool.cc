@@ -3089,7 +3089,7 @@ void tool_build_bridge_t::mark_tiles( player_t *player, const koord3d &start, co
 	// flat -> height is 1 if conversion factor 1, 2 if conversion factor 2
 	// single height -> height is 1
 	// double height -> height is 2
-	const slope_t::type slope = gr->get_weg_hang();
+	const slope_t::type slope = gr->get_weg_hang() ? gr->get_weg_hang() : gr->get_grund_hang();
 	uint8 max_height = slope ?  slope_t::max_diff(slope) : bridge_height-start.z;
 
 	zeiger_t *way = new zeiger_t(start, player );
@@ -3146,7 +3146,7 @@ void tool_build_bridge_t::mark_tiles( player_t *player, const koord3d &start, co
 	// flat -> height is 1 if conversion factor 1, 2 if conversion factor 2
 	// single height -> height is 1
 	// double height -> height is 2
-	const slope_t::type end_slope = gr->get_weg_hang();
+	const slope_t::type end_slope = gr->get_weg_hang() ? gr->get_weg_hang() : gr->get_grund_hang();
 	const uint8 end_max_height = end_slope ? (is_one_high(end_slope) ? 1 : 2) : (pos.z-end.z);
 
 	if(  gr->ist_karten_boden()  &&  end.z + end_max_height == start.z + max_height  ) {
@@ -3197,11 +3197,11 @@ uint8 tool_build_bridge_t::is_valid_pos(  player_t *player, const koord3d &pos, 
 	if (gr == NULL) {
 		return 0;
 	}
-	bool diagonal = (pos.x != start.x) && (pos.y != start.y);
-	if (!is_first_click() && diagonal) {
+	const ribi_t::ribi bridge_ribi = ribi_type(pos - start);
+	if (!is_first_click() && bridge_ribi == ribi_t::none) {
 		return 0;
 	}
-	if (!bridge_builder_t::check_start_tile(player, gr, is_first_click()?0:ribi_type(pos-start), desc)) {
+	if (!bridge_builder_t::check_start_tile(player, gr, is_first_click()?0:bridge_ribi, desc)) {
 		return 2;
 	}
 	if (gr->get_typ() == grund_t::brueckenboden) {
@@ -4334,7 +4334,6 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 			dx2 = koord::step(ribi_t::northwest);
 			break;
 		case slope_t::east:
-		case slope_t::east*2:
 			layout = 1;
 			dx2 = koord::step(ribi_t::north);
 			break;
@@ -4345,7 +4344,6 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 			bau_pos = last_k;
 			break;
 		case slope_t::west:
-		case slope_t::west*2:
 			layout = 3;
 			dx2 = koord::step(ribi_t::north);
 			bau_pos = last_k;

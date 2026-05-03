@@ -1945,7 +1945,8 @@ sint64 grund_t::neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, player_t *player)
 {
 	sint64 cost=0;
 
-	assert(slope_t::is_way(slope));
+	assert(slope_t::is_way(slope)
+	    || (get_typ() == brueckenboden  &&  slope_t::is_planar_double_edge(slope)  &&  get_weg_hang() == slope_t::flat));
 
 	// not already there?
 	const weg_t * alter_weg = get_weg(weg->get_waytype());

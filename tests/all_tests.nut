@@ -201,6 +201,7 @@ all_tests <- [
 	// test_way_bridge_build_at_slope_stacked: HEX-PORT PENDING.
 	// test_way_bridge_build_above_way: HEX-PORT PENDING.
 	// test_way_bridge_build_above_runway: HEX-PORT PENDING.
+	test_way_bridge_build_at_planar_double_slope,
 	test_way_bridge_planner,
 	test_way_road_build_single_tile,
 	// test_way_road_build_straight: HEX-PORT PENDING.

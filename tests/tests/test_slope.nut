@@ -32,8 +32,6 @@ function test_slope_to_dir()
 	}
 	expected[slope.east]     <- dir.northwest  // W corners raised → uphill = NW hex edge (legacy)
 	expected[slope.west]     <- dir.southeast  // E corners raised → uphill = SE hex edge (legacy)
-	expected[2 * slope.east] <- dir.northwest
-	expected[2 * slope.west] <- dir.southeast
 
 	foreach (sl, d in expected) {
 		ASSERT_EQUAL(slope.to_dir(sl), d)

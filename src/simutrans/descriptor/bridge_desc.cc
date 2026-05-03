@@ -55,16 +55,15 @@ bridge_desc_t::img_t bridge_desc_t::get_pillar(ribi_t::ribi ribi)
  * matching `*_Start` image.  Narrow (2-corner) and wide (4-corner)
  * variants of the same axis edge share the start image — bridge
  * geometry follows the low edge regardless of the off-axis ground.
- * 2× start slopes return the `(img_t)-1` sentinel and render as
- * empty; the `*_Start2` / `*_Ramp2` enum slots are still consumed by
- * `has_double_start()` / `has_double_ramp()` (called from
- * `brueckenbauer.cc` to gate 2× *start* geometry, separate from
- * way-buildability) — see TODO.md.
+ * Planar 012210 hex double ramps use the `*_Start2` slots for the
+ * matching low edge.
  */
 bridge_desc_t::img_t bridge_desc_t::get_start(slope_t::type slope) const
 {
 #define SLOPE_CASE(SLOPE, WIDE, IMG) \
 	case slope_t::SLOPE: case slope_t::WIDE: return IMG;
+#define DOUBLE_SLOPE_CASE(PLANAR, IMG) \
+	case slope_t::PLANAR: return IMG;
 
 	switch (slope) {
 		SLOPE_CASE(north,   north_wide, N_Start)
@@ -73,7 +72,14 @@ bridge_desc_t::img_t bridge_desc_t::get_start(slope_t::type slope) const
 		SLOPE_CASE(se_edge, se_wide,    SE_Start)
 		SLOPE_CASE(sw_edge, sw_wide,    SW_Start)
 		SLOPE_CASE(nw_edge, nw_wide,    NW_Start)
+		DOUBLE_SLOPE_CASE(north_double, N_Start2)
+		DOUBLE_SLOPE_CASE(south_double, S_Start2)
+		DOUBLE_SLOPE_CASE(ne_double,    NE_Start2)
+		DOUBLE_SLOPE_CASE(se_double,    SE_Start2)
+		DOUBLE_SLOPE_CASE(sw_double,    SW_Start2)
+		DOUBLE_SLOPE_CASE(nw_double,    NW_Start2)
 	}
+#undef DOUBLE_SLOPE_CASE
 #undef SLOPE_CASE
 	return (img_t) - 1;
 }
@@ -92,6 +98,8 @@ bridge_desc_t::img_t bridge_desc_t::get_ramp(slope_t::type slope) const
 {
 #define SLOPE_CASE(SLOPE, WIDE, IMG) \
 	case slope_t::SLOPE: case slope_t::WIDE: return IMG;
+#define DOUBLE_SLOPE_CASE(SLOPE, IMG) \
+	case 2 * slope_t::SLOPE: return IMG;
 
 	switch (slope) {
 		SLOPE_CASE(north,   north_wide, S_Ramp)
@@ -100,7 +108,14 @@ bridge_desc_t::img_t bridge_desc_t::get_ramp(slope_t::type slope) const
 		SLOPE_CASE(se_edge, se_wide,    NW_Ramp)
 		SLOPE_CASE(sw_edge, sw_wide,    NE_Ramp)
 		SLOPE_CASE(nw_edge, nw_wide,    SE_Ramp)
+		DOUBLE_SLOPE_CASE(north,   S_Ramp2)
+		DOUBLE_SLOPE_CASE(south,   N_Ramp2)
+		DOUBLE_SLOPE_CASE(ne_edge, SW_Ramp2)
+		DOUBLE_SLOPE_CASE(se_edge, NW_Ramp2)
+		DOUBLE_SLOPE_CASE(sw_edge, NE_Ramp2)
+		DOUBLE_SLOPE_CASE(nw_edge, SE_Ramp2)
 	}
+#undef DOUBLE_SLOPE_CASE
 #undef SLOPE_CASE
 	return (img_t) - 1;
 }
@@ -123,16 +138,21 @@ bridge_desc_t::img_t bridge_desc_t::get_end(slope_t::type test_slope, slope_t::t
 
 
 /**
- * returns whether desc has double height images for ramps
+ * returns whether desc supports double-height ramps / starts.  During
+ * the hex port the engine accepts double-height geometry whenever the
+ * desc isn't explicitly capped via `max_height`, regardless of whether
+ * the pakset ships matching art (single-edge art is reused; AGENTS.md
+ * pakset-art-out-of-scope).  Missing art renders empty / wrong-height,
+ * but the engine builds rather than refuses.
  */
 bool bridge_desc_t::has_double_ramp() const
 {
-	return (get_background(bridge_desc_t::N_Ramp2, 0)!=IMG_EMPTY || get_foreground(bridge_desc_t::N_Ramp2, 0)!=IMG_EMPTY);
+	return max_height == 0  ||  max_height >= 2;
 }
 
 bool bridge_desc_t::has_double_start() const
 {
-	return (get_background(bridge_desc_t::N_Start2, 0) != IMG_EMPTY  ||  get_foreground(bridge_desc_t::N_Start2, 0) != IMG_EMPTY);
+	return max_height == 0  ||  max_height >= 2;
 }
 
 

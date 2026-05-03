@@ -161,8 +161,8 @@ function test_way_bridge_build_at_slope()
 	}
 
 	{
-		// double height slope
-		ASSERT_EQUAL(setslope(pl, end_pos, 2*slope.north), null)
+		// planar double height slope, hex corner heights 122100
+		ASSERT_EQUAL(setslope(pl, end_pos, HEX_SLOPE(1, 2, 2, 1, 0, 0)), null)
 		local err = command_x.build_bridge(pl, start_pos, end_pos, bridge_desc)
 		ASSERT_EQUAL(err, "")
 
@@ -180,8 +180,8 @@ function test_way_bridge_build_at_slope()
 	}
 
 	{
-		// wrong double height slope
-		ASSERT_EQUAL(setslope(pl, end_pos, 2*slope.west), null)
+		// wrong planar double height slope, hex corner heights 012210
+		ASSERT_EQUAL(setslope(pl, end_pos, HEX_SLOPE(0, 1, 2, 2, 1, 0)), null)
 		local err = command_x.build_bridge(pl, start_pos, end_pos, bridge_desc)
 		ASSERT_EQUAL(err, "")
 
@@ -449,6 +449,40 @@ function test_way_bridge_build_at_slope_stacked()
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.all_down_slope), null)
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.all_down_slope), null)
 
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+function test_way_bridge_build_at_planar_double_slope()
+{
+	local pl = player_x(0)
+	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
+	local setslope = command_x.set_slope
+
+	ASSERT_TRUE(bridge_desc != null)
+
+	local start = coord3d(4, 4, 0)
+	local middle = coord3d(5, 3, 2)
+	local end_base = coord3d(6, 2, 0)
+	local end = coord3d(6, 2, 2)
+	local start_slope = HEX_SLOPE(0, 1, 2, 2, 1, 0)
+
+	// Active hex counterpart to the disabled double-slope coverage in
+	// test_way_bridge_build_at_slope.  Corner heights E,SE,SW,W,NW,NE
+	// = 012210: uphill is SW, so build_bridge_at should search and
+	// build toward the low NE side.
+	ASSERT_EQUAL(setslope(pl, start, start_slope), null)
+	ASSERT_EQUAL(setslope(pl, end_base, slope.all_up_slope), null)
+	ASSERT_EQUAL(setslope(pl, end_base + coord3d(0, 0, 1), slope.all_up_slope), null)
+
+	ASSERT_EQUAL(command_x.build_bridge_at(pl, start, bridge_desc), null)
+	ASSERT_TRUE(tile_x(middle.x, middle.y, middle.z).find_object(mo_bridge) != null)
+
+	// clean up
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, start), null)
+	ASSERT_EQUAL(setslope(pl, start, slope.flat), null)
+	ASSERT_EQUAL(setslope(pl, end, slope.all_down_slope), null)
+	ASSERT_EQUAL(setslope(pl, end_base + coord3d(0, 0, 1), slope.all_down_slope), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
 

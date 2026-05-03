@@ -100,7 +100,10 @@ frames_per_second = 100
 fast_forward_frames_per_second = 100
 EOF
 
-# run (the runner expects to live at repo root)
+# run (the runner expects to live at repo root, and to find `./sim`
+# next to it — the autoconf/make build above produces that binary
+# directly.  If you only have a cmake build, symlink it: `ln -sf
+# build/simutrans/simutrans sim`.)
 cp tools/run-automated-tests.sh .
 chmod +x run-automated-tests.sh
 export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
@@ -108,6 +111,14 @@ export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
 export SDL_VIDEODRIVER=dummy
 ./run-automated-tests.sh
 ```
+
+The recipe above is brittle to `cd`: `$(pwd)/tests` only resolves
+correctly while you are at the repo root.  Run it as one block, and
+keep the `cd simutrans` for `get_pak.sh` inside its `( ... )`
+subshell — copying it as `cd simutrans && ...` instead is enough to
+silently land the symlink at `<repo>/simutrans/tests`, which doesn't
+exist, and the runner fails with `Reading / compiling script
+failed`.
 
 End-to-end time on a warm cache is ~2-3 minutes (most of it build).
 A cold run is dominated by the first build (~5-10 min).
@@ -143,6 +154,11 @@ tail -50 simutrans/output.log
 
 ccache makes incremental rebuilds seconds, not minutes.  The runner
 itself is ~5-10s of startup before tests start firing.
+
+The autoconf/make build is what the runner expects (`../sim` next to
+the script); a cmake rebuild needs the `ln -sf
+build/simutrans/simutrans sim` step from the setup block above before
+the runner can find the binary.
 
 ### Getting a stack trace when a test crashes
 

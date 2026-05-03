@@ -118,6 +118,17 @@ public:
 	+ (sw) * slope_t::raised_SW + (w)  * slope_t::raised_W  \
 	+ (nw) * slope_t::raised_NW + (ne) * slope_t::raised_NE )
 
+	// True planar double-height edge ramps.  These are the 012210
+	// family: two low-edge corners at 0, two high-edge corners at 2,
+	// and the side corners at 1.  They face the same uphill direction
+	// as the matching narrow edge slope.
+	static constexpr type north_double = encode_corners_hex(1, 2, 2, 1, 0, 0);
+	static constexpr type ne_double    = encode_corners_hex(0, 1, 2, 2, 1, 0);
+	static constexpr type se_double    = encode_corners_hex(0, 0, 1, 2, 2, 1);
+	static constexpr type south_double = encode_corners_hex(1, 0, 0, 1, 2, 2);
+	static constexpr type sw_double    = encode_corners_hex(2, 1, 0, 0, 1, 2);
+	static constexpr type nw_double    = encode_corners_hex(2, 2, 1, 0, 0, 1);
+
 /// True if no corner exceeds height 1 (all base-4 digits are 0 or 1).
 #define is_one_high(i) (!slope_t::has_double_corner(i))
 
@@ -220,6 +231,16 @@ public:
 
 	/// Way allowed on this slope: flat, any edge slope, or all-up.
 	static bool is_way(type x) { return x == flat || is_single(x) || is_all_up(x); }
+
+	static bool is_planar_double_edge(type x) {
+		switch (x) {
+			case north_double: case ne_double: case se_double:
+			case south_double: case sw_double: case nw_double:
+				return true;
+			default:
+				return false;
+		}
+	}
 
 	/// Three hex axes (N-S, NE-SW, NW-SE).  Each predicate is true on
 	/// flat / all_up (axis-agnostic) and on the matching axis edge

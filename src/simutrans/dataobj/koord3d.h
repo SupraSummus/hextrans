@@ -115,21 +115,26 @@ static inline koord3d operator - (const koord3d& a, const koord& b)
 }
 
 
+// Hex axial distance projected from the (x,y) components — matches
+// koord_distance(koord, koord) so callers that mix koord and koord3d
+// see one metric.  The koord3d-specific versions used to use square
+// Manhattan; that put length=4 on a hex 2-step like (4,4)→(6,2),
+// silently breaking can_span_bridge's intermediate iteration.
 static inline uint32 koord_distance(koord3d a, koord b)
 {
-	return abs(a.x - b.x) + abs(a.y - b.y);
+	return koord_distance(a.get_2d(), b);
 }
 
 
 static inline uint32 koord_distance(koord a, koord3d b)
 {
-	return abs(a.x - b.x) + abs(a.y - b.y);
+	return koord_distance(a, b.get_2d());
 }
 
 
 static inline uint32 koord_distance(koord3d a, koord3d b)
 {
-	return abs(a.x - b.x) + abs(a.y - b.y);
+	return koord_distance(a.get_2d(), b.get_2d());
 }
 
 /**
