@@ -58,11 +58,11 @@ synonymous wrappers.
 
 ## Diff against the upstream `simutrans` branch
 
-The pre-port upstream is checked out as the local `simutrans` branch
-(read-only reference; not for development). It shares no merge base
-with the hex-port history — compare, don't merge. Picking up upstream
-fixes is a separate merge job; this technique is for evaluating
-divergence on code we are about to touch.
+The pre-port upstream is tracked on the local `simutrans` branch
+(read-only reference; not for development). `main` was forked from
+it, so the two share a real merge base and upstream fixes can be
+merged in normally — but the everyday use of this branch is reading,
+not merging, to evaluate divergence on code we are about to touch.
 
 ```sh
 git show refs/heads/simutrans:src/simutrans/<file> | sed -n 'A,Bp'
@@ -70,6 +70,20 @@ git grep -n '<symbol>' refs/heads/simutrans -- 'src/simutrans/<dir>/*'
 ```
 
 (`git fetch --unshallow origin` first if `git log` is short.)
+
+To sync upstream: fetch `simutrans/simutrans` master, fast-forward
+the local `simutrans` branch onto it, and push to `origin`. Then
+merge `origin/simutrans` into `main` (or cherry-pick targeted
+commits when the full set isn't wanted). Conflicts are usually in
+files the hex port has already rewritten and are resolved by
+keeping the hex side; upstream-only files apply clean.
+
+```sh
+git fetch https://github.com/simutrans/simutrans master
+git push origin FETCH_HEAD:refs/heads/simutrans
+git fetch origin simutrans
+git merge origin/simutrans   # on main, or on a feature branch
+```
 
 The comparison's main value is sharpening claims — when the port
 has left a "dead under hex" read or a "this branch only made sense
