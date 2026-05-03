@@ -469,10 +469,10 @@ bool way_builder_t::check_slope( const grund_t *from, const grund_t *to )
 		}
 	}
 	else {
-		if(from->get_weg_hang()!=slope_t::flat  &&  ribi_t::doubles(ribi_type(from->get_weg_hang()))!=ribi_t::doubles(ribi_type(zv))) {
+		if(!slope_allows_way_axis(from->get_weg_hang(), ribi_type(zv))) {
 			return false;
 		}
-		if(to->get_weg_hang()!=slope_t::flat  &&  ribi_t::doubles(ribi_type(to->get_weg_hang()))!=ribi_t::doubles(ribi_type(zv))) {
+		if(!slope_allows_way_axis(to->get_weg_hang(), ribi_type(zv))) {
 			return false;
 		}
 	}
@@ -577,8 +577,8 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 	}
 	else {
 		// check slopes
-		bool ok_slope = from->get_weg_hang() == slope_t::flat  ||  ribi_t::doubles(ribi_type(from->get_weg_hang()))==ribi_t::doubles(ribi_type(zv));
-		ok_slope &= to->get_weg_hang() == slope_t::flat  ||  ribi_t::doubles(ribi_type(to->get_weg_hang()))==ribi_t::doubles(ribi_type(zv));
+		bool ok_slope = slope_allows_way_axis(from->get_weg_hang(), ribi_type(zv));
+		ok_slope &= slope_allows_way_axis(to->get_weg_hang(), ribi_type(zv));
 
 		// try terraforming
 		if (!ok_slope) {

@@ -510,18 +510,6 @@ onto 4 square sprite slots and drops information.
 
 Additional follow-ups that did NOT land in the structural commit:
 
-`slope_t::is_way_nw_se` includes the legacy 2-corner diagonals
-`slope_t::east` (NW+SW raised) and `slope_t::west` (NE+SE raised)
-under the NW-SE axis, even though they are not real hex edges.  Pure
-transitional shim so wegbauer keeps allowing ways on those slopes
-during the port; they project onto the NW-SE axis under the iso
-viewport but a way crossing them dips at the W or E corner mid-tile.
-Drop the inclusion (and ideally `slope_t::east`/`west` themselves)
-once dock/harbour placement and any surviving square-era setslope
-paths stop relying on them.  `bridge_desc_t::get_start` /
-`get_ramp` route the same two slopes onto SE_Start / NW_Start (and
-matching ramps); both routings retire together.
-
 Slope-edge naming asymmetry: the 6 hex-edge slope constants split
 into 2 bare names (`slope_t::north`, `::south`) and 4 suffixed
 (`::ne_edge`, `::se_edge`, `::sw_edge`, `::nw_edge`).  The suffix

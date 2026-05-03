@@ -229,6 +229,38 @@ function test_way_road_build_ne_sw()
 }
 
 
+function test_way_rail_build_flat_chord_on_saddle()
+{
+	local pl       = player_x(0)
+	local rail     = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local setslope = command_x.set_slope
+	local remover  = command_x(tool_remove_way)
+	local ew_saddle = HEX_SLOPE(1, 0, 0, 1, 0, 0)
+
+	ASSERT_TRUE(rail != null)
+
+	ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), ew_saddle), null)
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), rail, true), null)
+	ASSERT_WAY_PATTERN(wt_rail, coord3d(3, 3, 0), [
+		[ 0,  2, 0],
+		[ 0, 18, 0],
+		[ 0, 16, 0],
+	])
+
+	ASSERT_EQUAL(remover.work(pl, tile_x(4, 3, 0), coord3d(4, 5, 0), "" + wt_rail), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.flat), null)
+
+	ASSERT_EQUAL(setslope(pl, coord3d(8, 4, 0), ew_saddle), null)
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(7, 4, 0), coord3d(9, 4, 0), rail, true), "")
+	ASSERT_WAY_PATTERN(wt_rail, coord3d(7, 4, 0), [
+		[0, 0, 0],
+	])
+	ASSERT_EQUAL(setslope(pl, coord3d(8, 4, 0), slope.flat), null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // test_way_road_build_parallel: HEX-PORT PENDING.
 function test_way_road_build_parallel()
 {

@@ -235,7 +235,17 @@ public:
 	}
 
 	/// Way allowed on this slope: flat, any edge slope, or all-up.
-	static bool is_way(type x) { return x == flat || is_single(x) || is_all_up(x); }
+	static bool is_way(type x) { return x == flat || is_single(x) || is_flat_way_chord(x) || is_all_up(x); }
+
+	/// A non-ramp saddle with two opposite vertices raised can carry a
+	/// flat way through the one axis whose entry and exit edges remain at
+	/// the tile base height.  The other two axes would cross one raised
+	/// vertex and one low vertex at an edge and are not way-buildable.
+	static bool is_flat_way_chord(type x) {
+		return x == raised_E  + raised_W
+		    || x == raised_SE + raised_NW
+		    || x == raised_SW + raised_NE;
+	}
 
 	static bool is_planar_double_edge(type x) {
 		switch (x) {
@@ -252,18 +262,21 @@ public:
 	/// slopes — both 2-corner narrow and 4-corner wide variants.
 	static bool is_way_ns(type x) {
 		return x == flat || is_all_up(x)
+		    || x == raised_E + raised_W
 		    || x == north || x == south
 		    || x == north_wide || x == south_wide;
 	}
 
 	static bool is_way_ne_sw(type x) {
 		return x == flat || is_all_up(x)
+		    || x == raised_SE + raised_NW
 		    || x == ne_edge || x == sw_edge
 		    || x == ne_wide || x == sw_wide;
 	}
 
 	static bool is_way_nw_se(type x) {
 		return x == flat || is_all_up(x)
+		    || x == raised_SW + raised_NE
 		    || x == nw_edge || x == se_edge
 		    || x == nw_wide || x == se_wide;
 	}
@@ -555,6 +568,16 @@ public:
 	/// Counter-clockwise companion to `rotate_perpendicular`.
 	static ribi rotate_perpendicular_l(ribi x) { return rotate60l(x); }
 };
+
+static inline bool slope_allows_way_axis(slope_t::type sl, ribi_t::ribi r)
+{
+	switch (ribi_t::straight_axis(r)) {
+		case ribi_t::north:     return slope_t::is_way_ns(sl);
+		case ribi_t::northeast: return slope_t::is_way_ne_sw(sl);
+		case ribi_t::northwest: return slope_t::is_way_nw_se(sl);
+		default:                return false;
+	}
+}
 
 /**
  * Calculate slope from directions.

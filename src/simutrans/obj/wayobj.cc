@@ -285,6 +285,9 @@ void wayobj_t::calc_image()
 		dir &= (w->get_ribi_unmasked() | sec_way_ribi_unmasked);
 
 		hang = gr->get_weg_hang();
+		if (slope_t::is_flat_way_chord(hang) && slope_allows_way_axis(hang, (ribi_t::ribi)dir)) {
+			hang = slope_t::flat;
+		}
 	}
 #ifdef MULTI_THREAD
 	pthread_mutex_unlock( &wayobj_calc_image_mutex );

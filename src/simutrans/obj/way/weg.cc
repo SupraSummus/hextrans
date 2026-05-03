@@ -48,6 +48,11 @@ slist_tpl <weg_t *> alle_wege;
 
 uint16 weg_t::cityroad_speed = 50;
 
+static bool is_flat_chord_for_ribi(slope_t::type hang, ribi_t::ribi ribi)
+{
+	return slope_t::is_flat_way_chord(hang) && slope_allows_way_axis(hang, ribi);
+}
+
 /**
  * Get list of all ways
  */
@@ -434,7 +439,7 @@ bool weg_t::check_season(const bool calc_only_season_change)
 	}
 
 	slope_t::type hang = gr->get_weg_hang();
-	if(  hang != slope_t::flat  ) {
+	if(  hang != slope_t::flat  &&  !is_flat_chord_for_ribi(hang, ribi)  ) {
 		set_slope_images( hang, snow );
 		return true;
 	}
@@ -523,7 +528,7 @@ void weg_t::calc_image()
 		}
 
 		slope_t::type hang = from->get_weg_hang();
-		if(hang != slope_t::flat) {
+		if(hang != slope_t::flat  &&  !is_flat_chord_for_ribi(hang, ribi)) {
 			// on slope
 			set_slope_images(hang, snow);
 			if(  image == IMG_EMPTY  &&  get_waytype() == water_wt  &&  desc->get_styp() == type_river  ) {
