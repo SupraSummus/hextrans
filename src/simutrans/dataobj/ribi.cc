@@ -80,14 +80,14 @@ ribi_t::dir ribi_t::get_dir(ribi x)
 ribi_t::ribi ribi_type(slope_t::type hang)
 {
 	switch (hang) {
-		case slope_t::north:   case slope_t::north_wide: case 2 * slope_t::north:   return ribi_t::south;
-		case slope_t::south:   case slope_t::south_wide: case 2 * slope_t::south:   return ribi_t::north;
-		case slope_t::ne_edge: case slope_t::ne_wide:    case 2 * slope_t::ne_edge: return ribi_t::southwest;
-		case slope_t::sw_edge: case slope_t::sw_wide:    case 2 * slope_t::sw_edge: return ribi_t::northeast;
-		case slope_t::se_edge: case slope_t::se_wide:    case 2 * slope_t::se_edge: return ribi_t::northwest;
-		case slope_t::nw_edge: case slope_t::nw_wide:    case 2 * slope_t::nw_edge: return ribi_t::southeast;
-		case slope_t::east:    case 2 * slope_t::east:                              return ribi_t::northwest;
-		case slope_t::west:    case 2 * slope_t::west:                              return ribi_t::southeast;
+		case slope_t::north:   case slope_t::north_wide: case 2 * slope_t::north:   case slope_t::north_double: return ribi_t::south;
+		case slope_t::south:   case slope_t::south_wide: case 2 * slope_t::south:   case slope_t::south_double: return ribi_t::north;
+		case slope_t::ne_edge: case slope_t::ne_wide:    case 2 * slope_t::ne_edge: case slope_t::ne_double:    return ribi_t::southwest;
+		case slope_t::sw_edge: case slope_t::sw_wide:    case 2 * slope_t::sw_edge: case slope_t::sw_double:    return ribi_t::northeast;
+		case slope_t::se_edge: case slope_t::se_wide:    case 2 * slope_t::se_edge: case slope_t::se_double:    return ribi_t::northwest;
+		case slope_t::nw_edge: case slope_t::nw_wide:    case 2 * slope_t::nw_edge: case slope_t::nw_double:    return ribi_t::southeast;
+		case slope_t::east:                                                       return ribi_t::northwest;
+		case slope_t::west:                                                       return ribi_t::southeast;
 		default:                                                                    return ribi_t::none;
 	}
 }

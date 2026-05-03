@@ -51,6 +51,10 @@ also uses `2*slope.east` for its "skip forbidden cube via 2× slope"
 assertion; left untouched because the function is already
 HEX-PORT PENDING and needs a holistic rewrite (`ASSERT_WAY_PATTERN`
 square ribi values throughout, plus 2× way slopes are gone).
+`test_terraform_climate_from_water` still observes terrain restoring
+to `2*slope.east` after a water-height round trip; that is terrain /
+water-table fallout, not a direction-conversion contract, and should
+move to a planar hex double slope when that path is ported.
 
 **Powerline 3rd hex axis.**  `test_powerline_connect /
 _build_transformer_multiple / _ways` each expect crossings /
@@ -170,20 +174,28 @@ and document the asymmetry.  Test
 already and currently passes — it sets 2*slope.south directly,
 then walks back via two all_down steps.
 
-## Bridge `has_double_start` / `has_double_ramp` half-retired
+## Bridge double-height policy: art-permissive
 
-`bridge_desc_t::has_double_start()` and `has_double_ramp()` probe the
-`*_Start2` / `*_Ramp2` enum slots, and are still called by
-`brueckenbauer.cc:364` (allow 2× start slope iff the desc has the
-art) and `:580` (`max_ramp = 1 + has_double_ramp()`, controls how
-tall a ramp may rise on a flat tile).  The way-side rejects 2× via
-`is_way`, but bridge starts on a 2× slope are still reachable
-through the `tool_set_slope_work` gap above.  Pick one: delete the
-2× start path entirely (drop the probes, the enum slots, and the
-two builder branches) or document the asymmetry as deliberate.
-Currently halfway: `bridge_desc::get_start` no longer routes 2×
-slopes to `*_Start2` art (returns `(img_t)-1`) while the builder
-still claims 2× starts are legal when the desc says so.
+`bridge_desc_t::has_double_start()` and `has_double_ramp()` are
+satisfied by `max_height == 0 || max_height >= 2` — the desc's
+declared height cap, not whether the pakset ships matching `*_Start2`
+/ `*_Ramp2` art.  Under pak64 that art is never shipped; the engine
+still builds planar double-slope and 2× flat-tile bridges and renders
+empty or with the single-edge sprite at the wrong height.  AGENTS.md
+"reuse existing square-tile sprites where they still fit" — crooked
+graphics rather than refusing to build.  `bridge_img_valid` remains
+the one img-side gate (rejects the `(img_t)-1` "no slot for this
+slope" sentinel that catches `all_up_slope` and other shapes the
+get_start switch doesn't cover).  Restore art-presence probes (or
+replace them with explicit per-slot pakset declarations) once Start2
+/ Ramp2 art is shipped.
+
+The disabled `test_way_bridge_build_at_slope` (HEX-PORT PENDING)
+asserts `err == ""` (build refused) for its "planar double height
+slope" subcase — that was true under the art-presence policy but is
+not under this one; restoring the test needs to flip that subcase
+to expect `null` and add a `find_object(mo_bridge)` check, the way
+`test_way_bridge_build_at_planar_double_slope` does.
 
 ## `slope_t::is_single` rename
 

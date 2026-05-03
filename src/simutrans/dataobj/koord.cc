@@ -91,15 +91,15 @@ koord::koord(ribi_t::ribi r) : x(0), y(0)
 koord::koord(slope_t::type slope) : x(0), y(0)
 {
 	switch (slope) {
-		case slope_t::nw_edge: case slope_t::nw_wide:    case 2 * slope_t::nw_edge: x =  1;          break; // uphill SE (neighbours[0])
-		case slope_t::north:   case slope_t::north_wide: case 2 * slope_t::north:   y =  1;          break; // uphill S  (neighbours[1])
-		case slope_t::ne_edge: case slope_t::ne_wide:    case 2 * slope_t::ne_edge: x = -1; y =  1;  break; // uphill SW (neighbours[2])
-		case slope_t::se_edge: case slope_t::se_wide:    case 2 * slope_t::se_edge: x = -1;          break; // uphill NW (neighbours[3])
-		case slope_t::south:   case slope_t::south_wide: case 2 * slope_t::south:   y = -1;          break; // uphill N  (neighbours[4])
-		case slope_t::sw_edge: case slope_t::sw_wide:    case 2 * slope_t::sw_edge: x =  1; y = -1;  break; // uphill NE (neighbours[5])
+		case slope_t::nw_edge: case slope_t::nw_wide:    case 2 * slope_t::nw_edge: case slope_t::nw_double:    x =  1;          break; // uphill SE (neighbours[0])
+		case slope_t::north:   case slope_t::north_wide: case 2 * slope_t::north:   case slope_t::north_double: y =  1;          break; // uphill S  (neighbours[1])
+		case slope_t::ne_edge: case slope_t::ne_wide:    case 2 * slope_t::ne_edge: case slope_t::ne_double:    x = -1; y =  1;  break; // uphill SW (neighbours[2])
+		case slope_t::se_edge: case slope_t::se_wide:    case 2 * slope_t::se_edge: case slope_t::se_double:    x = -1;          break; // uphill NW (neighbours[3])
+		case slope_t::south:   case slope_t::south_wide: case 2 * slope_t::south:   case slope_t::south_double: y = -1;          break; // uphill N  (neighbours[4])
+		case slope_t::sw_edge: case slope_t::sw_wide:    case 2 * slope_t::sw_edge: case slope_t::sw_double:    x =  1; y = -1;  break; // uphill NE (neighbours[5])
 
-		case slope_t::east:    case 2 * slope_t::east:                              x = -1;          break; // uphill hex-NW ≈ W (legacy)
-		case slope_t::west:    case 2 * slope_t::west:                              x =  1;          break; // uphill hex-SE ≈ E (legacy)
+		case slope_t::east:                                                       x = -1;          break; // uphill hex-NW ≈ W (legacy)
+		case slope_t::west:                                                       x =  1;          break; // uphill hex-SE ≈ E (legacy)
 		default: break;
 	}
 }

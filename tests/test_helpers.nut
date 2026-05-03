@@ -164,6 +164,12 @@ function interesting_slopes()
 }
 
 
+function HEX_SLOPE(e, se, sw, w, nw, ne)
+{
+	return e + 4*se + 16*sw + 64*w + 256*nw + 1024*ne
+}
+
+
 function get_depot_by_wt(waytype)
 {
 	local list = building_desc_x.get_building_list(building_desc_x.depot)

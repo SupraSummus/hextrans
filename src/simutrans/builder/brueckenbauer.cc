@@ -50,6 +50,18 @@ karte_ptr_t bridge_builder_t::welt;
 static stringhashtable_tpl<const bridge_desc_t *> desc_table;
 
 
+// True iff the slope-to-img_t mapping returned a real enum slot
+// rather than the (img_t)-1 sentinel.  Deliberately does NOT check
+// whether the desc actually ships art for the slot — missing Start2 /
+// Ramp2 art under pak64 renders empty or reuses the single-edge
+// sprite at the wrong height, but bridges still build.  See TODO.md
+// "Bridge double-height policy: art-permissive".
+static bool bridge_img_valid(bridge_desc_t::img_t img)
+{
+	return img >= bridge_desc_t::NS_Segment  &&  img < bridge_desc_t::img_t_count;
+}
+
+
 void bridge_builder_t::register_desc(bridge_desc_t *desc)
 {
 	// avoid duplicates with same name
@@ -331,6 +343,11 @@ bool bridge_builder_t::is_monorail_junction(koord3d pos, player_t *player, const
  * checks if a bridge can start (or end) on this tile in priciple
  * @returns either an error_message (must abort bridge building) or NULL
  */
+static bool is_bridge_start_slope(slope_t::type sl)
+{
+	return slope_t::is_way(sl) || slope_t::is_planar_double_edge(sl);
+}
+
 const char* bridge_builder_t::check_start_tile(const player_t* player, const grund_t* gr, ribi_t::ribi bridge_ribi, const bridge_desc_t* desc)
 {
 	const char* err = "A bridge must start on a way!";
@@ -356,13 +373,20 @@ const char* bridge_builder_t::check_start_tile(const player_t* player, const gru
 	}
 
 	if (slope_t::type sl = gr->get_weg_hang()) {
-		if (!slope_t::is_way(sl)) {
+		if (!is_bridge_start_slope(sl)) {
 			// it's not a straight slope
 			return "Bruecke muss an\neinfachem\nHang beginnen!\n";
 		}
 
 		if (slope_t::max_diff(gr->get_weg_hang()) == 2  &&  !desc->has_double_start()) {
 			// cannot handle double slope
+			return "Bruecke muss an\neinfachem\nHang beginnen!\n";
+		}
+
+		if (!bridge_img_valid(desc->get_start(sl))) {
+			// no matching start image — slope outside the slot table
+			// (e.g. all_up_slope, which is_way() admits but bridges
+			// have no edge to anchor on)
 			return "Bruecke muss an\neinfachem\nHang beginnen!\n";
 		}
 
