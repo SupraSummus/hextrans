@@ -424,6 +424,10 @@ public:
 	inline void set_pos(koord3d newpos) { pos = newpos; }
 
 	// slope are now maintained locally
+	// Some callers (e.g. `wegbauer.cc`, `tunnelbauer.cc` — grep for the pattern)
+	// store the result in a `uint8` local, silently truncating slopes >= 256
+	// like `grund_t::display_boden` used to before the grid-border fix.  Audit
+	// when those code paths are next touched for hex correctness.
 	slope_t::type get_grund_hang() const { return slope; }
 	// Canonicalise terrain state: any common corner height belongs in
 	// pos.z, so the stored slope always has at least one zero-height corner.
