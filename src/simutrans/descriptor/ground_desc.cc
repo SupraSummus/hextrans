@@ -451,44 +451,54 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 	// startup so future pakset drift fails loudly instead of
 	// reintroducing the alpha-renderer overread that motivated the
 	// retired cache.
+	// Profile knob: SIMUTRANS_DISABLE_BITMASK_ALPHA=1 leaves the
+	// shore/slope alphamaps in their original RLE form, routing
+	// draw_alpha through the regular per-channel blend path.
+	const char *bitmask_env = getenv("SIMUTRANS_DISABLE_BITMASK_ALPHA");
+	const bool bitmask_disabled = bitmask_env != NULL  &&  bitmask_env[0] != '\0'  &&  bitmask_env[0] != '0';
+	if(  bitmask_disabled  ) {
+		dbg->message("ground_desc_t::init_ground_textures",
+			"SIMUTRANS_DISABLE_BITMASK_ALPHA set; keeping ShoreTrans/SlopeTrans alphamaps as RLE.");
+	}
+
 	for(  int dslope = 0;  dslope < totalslopes - 1;  dslope++  ) {
 		const image_t* const lightmap = ground_light_map->get_image_ptr( dslope );
 		if(  lightmap == NULL  ) {
 			continue;
 		}
 		for(  int corner_mask = 1;  corner_mask < (1 << hex_corner_t::count);  corner_mask++  ) {
-			const image_t* const shore_alpha = transition_water_texture->get_image_ptr((uint16)dslope, (uint16)corner_mask);
-			if(  shore_alpha != NULL  ) {
-				if(  shore_alpha->w != lightmap->w  ||  shore_alpha->h != lightmap->h
-				  ||  shore_alpha->x != lightmap->x  ||  shore_alpha->y != lightmap->y
-				  ||  shore_alpha->len != lightmap->len  ) {
+			struct trans_cell_t {
+				const image_t *cell;
+				const char    *kind;
+				uint8          alpha_flags;
+			} const cells[] = {
+				{ transition_water_texture->get_image_ptr((uint16)dslope, (uint16)corner_mask), "ShoreTrans", ALPHA_RED },
+				{ transition_slope_texture->get_image_ptr((uint16)dslope, (uint16)corner_mask), "SlopeTrans", (uint8)(ALPHA_GREEN | ALPHA_BLUE) },
+			};
+			for(  const trans_cell_t &c : cells  ) {
+				if(  c.cell == NULL  ) {
+					continue;
+				}
+				if(  c.cell->w != lightmap->w  ||  c.cell->h != lightmap->h
+				  ||  c.cell->x != lightmap->x  ||  c.cell->y != lightmap->y
+				  ||  c.cell->len != lightmap->len  ) {
 					dbg->fatal("ground_desc_t::init_ground_textures",
-						"ShoreTrans[%d][%d] shape (x=%d y=%d w=%d h=%d len=%lu) "
+						"%s[%d][%d] shape (x=%d y=%d w=%d h=%d len=%lu) "
 						"differs from LightTexture[%d] (x=%d y=%d w=%d h=%d len=%lu); "
-						"pakset shore baker must share LightTexture's silhouette.",
-						dslope, corner_mask,
-						shore_alpha->x, shore_alpha->y, shore_alpha->w, shore_alpha->h,
-						(unsigned long)shore_alpha->len,
+						"pakset baker must share LightTexture's silhouette.",
+						c.kind, dslope, corner_mask,
+						c.cell->x, c.cell->y, c.cell->w, c.cell->h,
+						(unsigned long)c.cell->len,
 						dslope,
 						lightmap->x, lightmap->y, lightmap->w, lightmap->h,
 						(unsigned long)lightmap->len);
 				}
-			}
-			const image_t* const slope_alpha = transition_slope_texture->get_image_ptr((uint16)dslope, (uint16)corner_mask);
-			if(  slope_alpha != NULL  ) {
-				if(  slope_alpha->w != lightmap->w  ||  slope_alpha->h != lightmap->h
-				  ||  slope_alpha->x != lightmap->x  ||  slope_alpha->y != lightmap->y
-				  ||  slope_alpha->len != lightmap->len  ) {
-					dbg->fatal("ground_desc_t::init_ground_textures",
-						"SlopeTrans[%d][%d] shape (x=%d y=%d w=%d h=%d len=%lu) "
-						"differs from LightTexture[%d] (x=%d y=%d w=%d h=%d len=%lu); "
-						"pakset slope baker must share LightTexture's silhouette.",
-						dslope, corner_mask,
-						slope_alpha->x, slope_alpha->y, slope_alpha->w, slope_alpha->h,
-						(unsigned long)slope_alpha->len,
-						dslope,
-						lightmap->x, lightmap->y, lightmap->w, lightmap->h,
-						(unsigned long)lightmap->len);
+				// Privatise the alphamap as a 1bpp bitmask.  The
+				// silhouette tripwire above is what lets the bitmask
+				// draw path index the renderer's source RLE skeleton
+				// by (x, y) without an extra normalisation step.
+				if(  !bitmask_disabled  ) {
+					gfx->convert_to_bitmask(c.cell, c.alpha_flags);
 				}
 			}
 		}
