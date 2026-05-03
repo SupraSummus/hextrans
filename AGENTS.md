@@ -185,6 +185,18 @@ introduced by a port move — add a paragraph to `TODO.md` rather than
 leaving it as a `// HEX-PORT TODO` comment that drifts away from the
 context that produced it.
 
+Every entry must name a concrete next move with a concrete trigger.
+"Verify in-game once a pakset is available", "audit when next touched",
+"eyeball when somebody runs the game" are non-actions: nobody is
+booked to do them, nothing fires when the trigger condition lands,
+and they accumulate forever. If the work is genuinely deferred,
+either gate it on a tracked entry that *will* fire (e.g. "lands with
+the third-axis bridge bake — see <other entry>") or drop it and
+trust `git grep` to surface the call sites when somebody is in the
+neighbourhood. "Implemented but needs testing" without a way to
+test belongs in the commit message of the change that landed it,
+not here.
+
 The aim is for `TODO.md` to remain a useful, current map of "what
 still needs doing". A growing TODO file is fine; a stale one is not.
 

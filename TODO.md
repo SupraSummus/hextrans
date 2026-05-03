@@ -147,15 +147,6 @@ corner that touches a neighbour-with-higher-water drop".  Real semantic
 choice, not a mechanical refactor; lands together with the wider
 hex-aware water-table propagation pass when that gets scheduled.
 
-## max_diff callers assume max-corner ≤ 2
-
-~35 sites in vehicle, bridge, road-builder, and signal code call
-`slope_t::max_diff()` and assume the result is ≤ 2 (the old base-3
-maximum).  Base-4 encoding allows max-corner = 3, so clearance
-calculations, collision-avoidance predicates, and image-select branches
-at these sites may now compute wrong values on high-delta terrain.  Audit
-each site when the path it guards is next touched for hex correctness.
-
 ## `tool_set_slope_work` doesn't gate on `is_way`
 
 The way-slope tightening (12 axis edges, no 2×, no east/west) is
@@ -263,10 +254,6 @@ gameplay-only scenario tests should still pass because they don't
 assert on visuals.  Bump the version field once the migration is
 worth a hard cutover, or rebuild the CI pak from source against the
 new makeobj when one becomes available.
-
-Elevated construction code may still copy or restore legacy slope
-values outside the ordinary setter path; audit those paths when the
-associated builders next get hex-port attention.
 
 The same migration story applies to slope-up keys.  `way_writer.cc`
 now expects 12 keys (`ImageUp[n]`, `ImageUp[ne]`, ..., `ImageUp[nw]`,
@@ -648,12 +635,6 @@ below; on-slope water and snow now use LightTexture-derived shapes.
 `rotate_transitions` still applies a 60° bit-rotate as a stand-in for
 90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
 
-Some builder paths still assign `get_grund_hang()` into a `uint8`
-local (e.g. `wegbauer.cc`, `tunnelbauer.cc` — grep for the pattern).
-That silently truncates slopes ≥ 256 the way `grund_t::display_boden`
-used to before the grid-border fix; audit when those code paths are
-next touched for hex correctness.
-
 On-slope water tiles now use the same required `LightTexture`
 ground-lightmap path as climate ground.  Deep water still comes from
 the pakset `Water` animation block.  6-edge way / wall / ribi-keyed
@@ -709,6 +690,15 @@ rides along on `get_screen_coord` so positions become hex-correct
 automatically; per-tile drawing under each anchor still assumes
 square geometry until phase B lands.
 
+**Half-tile centring nudge missing.**  The square renderer applied a
+`disp_w/IMG_SIZE & 1` half-row nudge so the world centre lined up
+with the screen centre at all viewport widths; the hex equivalent
+`disp_w/(3·IMG_SIZE/4) & 1` is not applied anywhere in
+`display/simview.cc`'s draw loop.  At specific window widths the
+world centre therefore sits half a tile off the screen centre.
+Apply the parity nudge to the `i_off` / `j_off` setup around
+`simview.cc:138`; mechanical fix.
+
 **Sprite raster choice (pinned design decision).**  The lattice
 the projection runs on is a *clean integer approximation* of hex
 iso, not a regular hex tiling.  With unit `u = IMG_SIZE/4`:
@@ -728,20 +718,6 @@ projection stays in fixed-point.  Two alternatives were rejected:
 fixed-point) and *square-row-spacing-preserving* with row step
 `(0, u)` (halves the hex height, sprites overlap massively).
 Revisit when sprite art enters scope.
-
-**Phase A verification gaps.**  No full-game visual confirmation
-in this env; `tools/hex_proj_test/` covers the projection math, overlay
-vector bbox / anchor contracts, raster half-open edge parity, and vertex
-closure.  The vertex-closure check mirrors `koord.cc::vertex_owners` by
-formula only — the standalone binary stays one TU and does not link
-`koord.cc`.  It still does not cover sprite draw order or pakset-art
-integration.  One
-suspect still to eyeball when a pakset is available: the no-parity
-centring (square renderer had a
-`disp_w/IMG_SIZE & 1` half-row nudge; for hex the natural parity
-is `disp_w/(3·IMG_SIZE/4) & 1`, currently not applied at all).
-At specific window widths the world centre may sit half a tile off
-the screen centre.  Cheap to fix once visible.
 
 **Square-art-as-placeholder strategy.**  Real hex pakset art —
 sprite redraws, animator work, per-direction vehicle frames — is

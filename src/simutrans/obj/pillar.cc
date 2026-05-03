@@ -63,6 +63,10 @@ void pillar_t::calc_image()
 					break;
 				case bridge_desc_t::NE_SW_Pillar:
 				case bridge_desc_t::NE_SW_Pillar2:
+					// Provisional pair: the square-era choices (NS: SW+SE, NW-SE: SE+NE)
+					// carried a "lower-screen half" semantic that doesn't split a hex
+					// tile into clean halves; verify against a real composite when a
+					// hex NE-SW bridge bake exists.
 					height += ((corner_e(slope)  + corner_se(slope)) * TILE_HEIGHT_STEP) / 2;
 					break;
 				case bridge_desc_t::NW_SE_Pillar:

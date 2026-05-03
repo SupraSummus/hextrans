@@ -161,6 +161,11 @@ public:
 	static bool is_all_up(type x) { return x == all_up_one || x == all_up_two || x == all_up_three; }
 
 	/// Maximum corner height delta across this slope.  0 for flat, 1-3 otherwise.
+	/// ~35 callers in vehicle / bridge / road-builder / signal code assume the
+	/// upstream square base-3 cap (`<= 2`) for clearance, collision and
+	/// image-select branches.  Base-4 encoding allows max-corner = 3, so those
+	/// sites may compute wrong on high-delta hex terrain — audit when next
+	/// touched for hex correctness.
 	static uint8 max_diff(type x) {
 		return (uint8)max(max(max(corner_e(x), corner_se(x)), max(corner_sw(x), corner_w(x))), max(corner_nw(x), corner_ne(x)));
 	}
