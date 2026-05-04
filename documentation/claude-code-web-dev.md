@@ -59,7 +59,9 @@ worry about new ones in the Simutrans source under `src/simutrans/`.
 ## Running automated tests
 
 This is the part that does **not** work out of the box in a remote
-session and requires a manual setup step.
+session and requires a manual setup step.  For the local-checkout
+quick recipe and sandbox-related caveats, see
+`documentation/codex-local-dev.md`.
 
 `tools/run-automated-tests.sh` (and the CMake `test` target) launch the
 freshly built `simutrans` binary against the `automated-tests` scenario

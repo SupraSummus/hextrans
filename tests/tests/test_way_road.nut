@@ -229,33 +229,74 @@ function test_way_road_build_ne_sw()
 }
 
 
-function test_way_rail_build_flat_chord_on_saddle()
+// Tracks on partially-sloped tiles: a way crossing a non-flat tile
+// builds when the simulator's get_vmove() samples agree at both
+// endpoints AND those heights match the neighbour ground.
+function test_way_rail_build_through_partial_slope()
 {
-	local pl       = player_x(0)
-	local rail     = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
-	local setslope = command_x.set_slope
-	local remover  = command_x(tool_remove_way)
-	local ew_saddle = HEX_SLOPE(1, 0, 0, 1, 0, 0)
+	local pl      = player_x(0)
+	local rail    = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local remover = command_x(tool_remove_way)
 
 	ASSERT_TRUE(rail != null)
 
-	ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), ew_saddle), null)
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), rail, true), null)
-	ASSERT_WAY_PATTERN(wt_rail, coord3d(3, 3, 0), [
-		[ 0,  2, 0],
-		[ 0, 18, 0],
-		[ 0, 16, 0],
-	])
+	// Drop a slope, run a build attempt, check the resulting pattern,
+	// roll back to flat ground.  When the build is expected to succeed
+	// (expected == null) the planted way is also removed afterwards.
+	local check = function(slope_pos, slope_val, from, to, expected, anchor, pattern) {
+		ASSERT_EQUAL(command_x.set_slope(pl, slope_pos, slope_val), null)
+		ASSERT_EQUAL(command_x.build_way(pl, from, to, rail, true), expected)
+		ASSERT_WAY_PATTERN(wt_rail, anchor, pattern)
+		if (expected == null) {
+			ASSERT_EQUAL(remover.work(pl, tile_x(from.x, from.y, from.z), to, "" + wt_rail), null)
+		}
+		ASSERT_EQUAL(command_x.set_slope(pl, slope_pos, slope.flat), null)
+	}
 
-	ASSERT_EQUAL(remover.work(pl, tile_x(4, 3, 0), coord3d(4, 5, 0), "" + wt_rail), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.flat), null)
+	local ew_saddle = HEX_SLOPE(1, 0, 0, 1, 0, 0) // E, W corners raised
+	local e_corner  = HEX_SLOPE(1, 0, 0, 0, 0, 0) // only E corner raised
+	local nw_edge   = HEX_SLOPE(1, 1, 0, 0, 0, 0) // E + SE = NW-SE ramp
 
-	ASSERT_EQUAL(setslope(pl, coord3d(8, 4, 0), ew_saddle), null)
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(7, 4, 0), coord3d(9, 4, 0), rail, true), "")
-	ASSERT_WAY_PATTERN(wt_rail, coord3d(7, 4, 0), [
-		[0, 0, 0],
-	])
-	ASSERT_EQUAL(setslope(pl, coord3d(8, 4, 0), slope.flat), null)
+	// Saddle, NS axis: NW and SE samples both at 0 → flat chord at z=0.
+	check(coord3d(4, 4, 0), ew_saddle,
+	      coord3d(4, 3, 0), coord3d(4, 5, 0), null,
+	      coord3d(3, 3, 0), [
+	          [0,  2, 0],
+	          [0, 18, 0],
+	          [0, 16, 0],
+	      ])
+
+	// Saddle, NW-SE axis: side-chord samples (W=1, E=1) put the way at
+	// z=1, but flat neighbours are at z=0 — build refused.
+	check(coord3d(8, 4, 0), ew_saddle,
+	      coord3d(7, 4, 0), coord3d(9, 4, 0), "",
+	      coord3d(7, 4, 0), [[0, 0, 0]])
+
+	// Single raised corner, NS axis: corner E sits off the way; NW and
+	// SE samples agree at 0.
+	check(coord3d(12, 4, 0), e_corner,
+	      coord3d(12, 3, 0), coord3d(12, 5, 0), null,
+	      coord3d(11, 3, 0), [
+	          [0,  2, 0],
+	          [0, 18, 0],
+	          [0, 16, 0],
+	      ])
+
+	// nw_edge ramp, NE-SW axis (perpendicular to its natural ramp):
+	// admitted as a side chord — NE and SW samples both at 0.
+	check(coord3d(12, 6, 0), nw_edge,
+	      coord3d(11, 7, 0), coord3d(13, 5, 0), null,
+	      coord3d(11, 5, 0), [
+	          [ 0,  0,  4],
+	          [ 0, 36,  0],
+	          [32,  0,  0],
+	      ])
+
+	// nw_edge ramp, NW-SE axis: NW sample at 0, SE sample at 1 — the
+	// way ramps from z=0 to z=1, but the SE neighbour is flat at z=0.
+	check(coord3d(12, 6, 0), nw_edge,
+	      coord3d(11, 6, 0), coord3d(13, 6, 0), "",
+	      coord3d(11, 6, 0), [[0, 0, 0]])
 
 	RESET_ALL_PLAYER_FUNDS()
 }
