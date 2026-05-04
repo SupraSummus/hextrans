@@ -189,6 +189,19 @@ not under this one; restoring the test needs to flip that subcase
 to expect `null` and add a `find_object(mo_bridge)` check, the way
 `test_way_bridge_build_at_planar_double_slope` does.
 
+## Flat-way chord altitude is hardcoded to the bottom of the interval
+
+`slope_t::chord_h_axis` returns the lowest height in the overlap of
+the two edges' height intervals.  A saddle / single-corner-on-axis-edge
+slope often admits a chord at z=1 as well as z=0, but `get_vmove`
+always reports the z=0 chord, so a path threading the slope tile
+between two raised-flat (z=1) neighbours fails to chain and the build
+is refused.  Surfaces if somebody tries to route through a saddle
+between higher terrain.  Generalise to "pick the chord matching the
+requested altitude" (per-neighbour, plumbed through `get_vmove` /
+`is_allowed_step`), or expose the full interval and let the pathfinder
+pick — when somebody actually hits the refusal.
+
 ## `slope_t::is_single` rename
 
 The predicate name historically meant "single-edge slope" (a 2-corner
