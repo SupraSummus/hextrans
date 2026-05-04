@@ -235,29 +235,40 @@ public:
 	}
 
 	/// Does an axis crossing edges (a0, a1) entering and (b0, b1) exiting
-	/// admit a way?  Corner pairs are listed in hex_corner_t order, and
-	/// `a0` / `b0` are the corners that grund_t::get_vmove() samples for
-	/// the way's two endpoints (entry corner, exit corner — the
-	/// "first-corner" of each edge).  Two cases:
-	///   1. Edges internally level, at most one height step between them
-	///      — flat, all-up, ramp, wide ramp.
-	///   2. Side chord: the two endpoint samples agree, on a slope
-	///      without double-height corners.  Picks up saddles, single
-	///      corners, and side chords across ramps; the way sits at
-	///      constant height by the simulator's convention even where
-	///      the surface around it is non-uniform.
+	/// admit a way?  The four corners are the axis's two edges' endpoints,
+	/// in hex_corner_t order.  Two cases:
+	///   1. Ramp: both edges internally level, height delta 0 or 1.  The
+	///      way slopes uniformly between them.
+	///   2. Flat chord at some height H: each edge has at least one corner
+	///      at H, i.e. the edges' height intervals
+	///      [min(a0,a1)..max(a0,a1)] and [min(b0,b1)..max(b0,b1)] overlap.
+	///      The way sits at the lowest such H, resting on the level corners
+	///      of each edge.  A raised corner that's not at H is "off the way"
+	///      — perimeter geometry the way passes by but doesn't touch.
+	///      Excludes double-corner slopes.
+	///
+	/// The chord rule is symmetric in the two corners of each edge, so
+	/// mirror-symmetric configurations get the same answer.
 	static bool is_way_axis(type x, uint8 a0, uint8 a1, uint8 b0, uint8 b1) {
-		const bool level = a0 == a1 && b0 == b1;
-		const bool ramp_step = a0 == b0 || a0 + 1 == b0 || b0 + 1 == a0;
-		return (level && ramp_step) || (a0 == b0 && !has_double_corner(x));
+		if (a0 == a1 && b0 == b1 && (a0 == b0 || a0 + 1 == b0 || b0 + 1 == a0)) {
+			return true; // ramp
+		}
+		return chord_h_axis(x, a0, a1, b0, b1) >= 0;
 	}
 
-	/// True when a way along this axis sits at constant height across
-	/// the slope (`get_vmove` samples `a0` and `b0` agree).  Drives
-	/// "render this slope's way / wayobj as flat" for flat, all-up,
-	/// saddles and matched-sample side chords.
-	static bool is_flat_way_chord_axis(type x, uint8 a0, uint8 a1, uint8 b0, uint8 b1) {
-		return is_way_axis(x, a0, a1, b0, b1) && a0 == b0;
+	/// Returns the height H at which a flat way sits on this axis, or -1
+	/// if no flat chord is admissible (axis is a ramp, or not way-buildable
+	/// at all).  H is the lowest height in the overlap of the two edges'
+	/// height intervals — the way rests on level corners on both edges.
+	static sint8 chord_h_axis(type x, uint8 a0, uint8 a1, uint8 b0, uint8 b1) {
+		if (has_double_corner(x)) return -1;
+		const uint8 a_lo = a0 < a1 ? a0 : a1;
+		const uint8 a_hi = a0 < a1 ? a1 : a0;
+		const uint8 b_lo = b0 < b1 ? b0 : b1;
+		const uint8 b_hi = b0 < b1 ? b1 : b0;
+		const uint8 lo = a_lo > b_lo ? a_lo : b_lo;
+		const uint8 hi = a_hi < b_hi ? a_hi : b_hi;
+		return lo <= hi ? (sint8)lo : (sint8)-1;
 	}
 
 	/// Way buildable on this slope: at least one of the three hex axes
@@ -265,15 +276,11 @@ public:
 	/// opposite-corner saddles, single-corner peaks, and side chords
 	/// across ramps.  flat and uniform all-up fall out of any axis (all
 	/// four crossed corners equal).
-	static bool is_way(type x) { return is_way_ns(x) || is_way_ne_sw(x) || is_way_nw_se(x); }
-
-	static bool is_way_ns(type x)    { return is_way_axis(x, corner_nw(x), corner_ne(x), corner_se(x), corner_sw(x)); }
-	static bool is_way_ne_sw(type x) { return is_way_axis(x, corner_ne(x), corner_e(x),  corner_sw(x), corner_w(x));  }
-	static bool is_way_nw_se(type x) { return is_way_axis(x, corner_w(x),  corner_nw(x), corner_e(x),  corner_se(x)); }
-
-	static bool is_flat_way_chord_ns(type x)    { return is_flat_way_chord_axis(x, corner_nw(x), corner_ne(x), corner_se(x), corner_sw(x)); }
-	static bool is_flat_way_chord_ne_sw(type x) { return is_flat_way_chord_axis(x, corner_ne(x), corner_e(x),  corner_sw(x), corner_w(x));  }
-	static bool is_flat_way_chord_nw_se(type x) { return is_flat_way_chord_axis(x, corner_w(x),  corner_nw(x), corner_e(x),  corner_se(x)); }
+	static bool is_way(type x) {
+		return is_way_axis(x, corner_nw(x), corner_ne(x), corner_se(x), corner_sw(x))
+		    || is_way_axis(x, corner_ne(x), corner_e(x),  corner_sw(x), corner_w(x))
+		    || is_way_axis(x, corner_w(x),  corner_nw(x), corner_e(x),  corner_se(x));
+	}
 
 	static bool is_planar_double_edge(type x) {
 		switch (x) {
@@ -573,24 +580,71 @@ public:
 	static ribi rotate_perpendicular_l(ribi x) { return rotate60l(x); }
 };
 
-static inline bool slope_allows_way_axis(slope_t::type sl, ribi_t::ribi r)
+/// Resolve the four crossed corners for the axis through @p r.  Both
+/// ribis on the same axis yield the same corners; non-axis ribis (none,
+/// multi-bit) return false with corners untouched.
+static inline bool slope_corners_along_axis(slope_t::type sl, ribi_t::ribi r, uint8& a0, uint8& a1, uint8& b0, uint8& b1)
 {
 	switch (ribi_t::straight_axis(r)) {
-		case ribi_t::north:     return slope_t::is_way_ns(sl);
-		case ribi_t::northeast: return slope_t::is_way_ne_sw(sl);
-		case ribi_t::northwest: return slope_t::is_way_nw_se(sl);
+		case ribi_t::north:     a0 = corner_nw(sl); a1 = corner_ne(sl); b0 = corner_se(sl); b1 = corner_sw(sl); return true;
+		case ribi_t::northeast: a0 = corner_ne(sl); a1 = corner_e(sl);  b0 = corner_sw(sl); b1 = corner_w(sl);  return true;
+		case ribi_t::northwest: a0 = corner_w(sl);  a1 = corner_nw(sl); b0 = corner_e(sl);  b1 = corner_se(sl); return true;
 		default:                return false;
 	}
 }
 
+/// Way buildable along the axis through @p r — see slope_t::is_way_axis.
+static inline bool slope_allows_way_axis(slope_t::type sl, ribi_t::ribi r)
+{
+	uint8 a0, a1, b0, b1;
+	return slope_corners_along_axis(sl, r, a0, a1, b0, b1) && slope_t::is_way_axis(sl, a0, a1, b0, b1);
+}
+
+/// Height at which a flat way sits along the axis through @p r, or -1 if
+/// the axis is a ramp / not way-buildable / non-axis — see slope_t::chord_h_axis.
+static inline sint8 slope_chord_h_along_axis(slope_t::type sl, ribi_t::ribi r)
+{
+	uint8 a0, a1, b0, b1;
+	if (!slope_corners_along_axis(sl, r, a0, a1, b0, b1)) return -1;
+	return slope_t::chord_h_axis(sl, a0, a1, b0, b1);
+}
+
+/// Convenience: way along this axis sits at constant height (flat
+/// chord) rather than ramping.  Drives "render this slope's way /
+/// wayobj as flat".  Accepts multi-bit ribi (bends, junctions): all
+/// axes spanned by @p r must admit a flat chord at the same height.
 static inline bool slope_allows_flat_way_chord_axis(slope_t::type sl, ribi_t::ribi r)
 {
-	switch (ribi_t::straight_axis(r)) {
-		case ribi_t::north:     return slope_t::is_flat_way_chord_ns(sl);
-		case ribi_t::northeast: return slope_t::is_flat_way_chord_ne_sw(sl);
-		case ribi_t::northwest: return slope_t::is_flat_way_chord_nw_se(sl);
-		default:                return false;
+	sint8 h = -1;
+	if (r & (ribi_t::north | ribi_t::south)) {
+		const sint8 ah = slope_chord_h_along_axis(sl, ribi_t::north);
+		if (ah < 0) return false;
+		h = ah;
 	}
+	if (r & (ribi_t::northeast | ribi_t::southwest)) {
+		const sint8 ah = slope_chord_h_along_axis(sl, ribi_t::northeast);
+		if (ah < 0) return false;
+		if (h < 0) h = ah; else if (h != ah) return false;
+	}
+	if (r & (ribi_t::northwest | ribi_t::southeast)) {
+		const sint8 ah = slope_chord_h_along_axis(sl, ribi_t::northwest);
+		if (ah < 0) return false;
+		if (h < 0) h = ah; else if (h != ah) return false;
+	}
+	return h >= 0;
+}
+
+/// Height delta (above tile base) at which a way sits at the edge in
+/// direction @p r.  Flat chord: returns the chord's H.  Ramp: returns
+/// the edge's level corner height (entry on the axis's canonical
+/// direction, exit on its opposite).  Non-axis ribi or flat slope: 0.
+static inline sint8 slope_way_h_at_edge(slope_t::type sl, ribi_t::ribi r)
+{
+	uint8 a0, a1, b0, b1;
+	if (!slope_corners_along_axis(sl, r, a0, a1, b0, b1)) return 0;
+	const sint8 chord_h = slope_t::chord_h_axis(sl, a0, a1, b0, b1);
+	if (chord_h >= 0) return chord_h;
+	return (r == ribi_t::straight_axis(r)) ? (sint8)a0 : (sint8)b0;
 }
 
 /**

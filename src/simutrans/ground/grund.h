@@ -862,25 +862,8 @@ public:
 	 * This is called many times, so it is inline
 	 */
 	inline sint8 get_vmove(ribi_t::ribi ribi) const {
-		sint8 h = pos.z;
 		const slope_t::type way_slope = get_weg_hang();
-
-		// Each hex edge i (ribi bit position) lies between hex corners
-		// i and (i+1) % 6 (corner indexing matches hex_corner_t).  For
-		// is_single slopes both endpoints are equal, so we read corner
-		// i.  Multi-bit / zero ribis aren't expected here — every
-		// caller passes a single direction.
-		if (way_slope != slope_t::flat) {
-			switch (ribi) {
-				case ribi_t::southeast: h += corner_e(way_slope);  break;
-				case ribi_t::south:     h += corner_se(way_slope); break;
-				case ribi_t::southwest: h += corner_sw(way_slope); break;
-				case ribi_t::northwest: h += corner_w(way_slope);  break;
-				case ribi_t::north:     h += corner_nw(way_slope); break;
-				case ribi_t::northeast: h += corner_ne(way_slope); break;
-				default: break;
-			}
-		}
+		sint8 h = pos.z + slope_way_h_at_edge(way_slope, ribi);
 
 		/* ground and way slope are only different on tunnelmound or bridgehead
 		 * since we already know both slopes, this check is faster than the virtual

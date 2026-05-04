@@ -255,6 +255,10 @@ function test_way_rail_build_through_partial_slope()
 
 	local ew_saddle = HEX_SLOPE(1, 0, 0, 1, 0, 0) // E, W corners raised
 	local e_corner  = HEX_SLOPE(1, 0, 0, 0, 0, 0) // only E corner raised
+	local se_corner = HEX_SLOPE(0, 1, 0, 0, 0, 0) // only SE corner raised
+	local sw_corner = HEX_SLOPE(0, 0, 1, 0, 0, 0) // only SW corner raised
+	local nw_corner = HEX_SLOPE(0, 0, 0, 0, 1, 0) // only NW corner raised
+	local ne_corner = HEX_SLOPE(0, 0, 0, 0, 0, 1) // only NE corner raised
 	local nw_edge   = HEX_SLOPE(1, 1, 0, 0, 0, 0) // E + SE = NW-SE ramp
 
 	// Saddle, NS axis: NW and SE samples both at 0 → flat chord at z=0.
@@ -266,11 +270,13 @@ function test_way_rail_build_through_partial_slope()
 	          [0, 16, 0],
 	      ])
 
-	// Saddle, NW-SE axis: side-chord samples (W=1, E=1) put the way at
-	// z=1, but flat neighbours are at z=0 — build refused.
+	// Saddle, NW-SE axis: both edge intervals span [0..1] (each edge has
+	// one raised vertex and one flat one).  The chord rule picks the
+	// lowest H that fits — z=0 — so the way stays flat with the flat
+	// neighbours, threading between the two raised vertices.
 	check(coord3d(8, 4, 0), ew_saddle,
-	      coord3d(7, 4, 0), coord3d(9, 4, 0), "",
-	      coord3d(7, 4, 0), [[0, 0, 0]])
+	      coord3d(7, 4, 0), coord3d(9, 4, 0), null,
+	      coord3d(7, 4, 0), [[1, 9, 8]])
 
 	// Single raised corner, NS axis: corner E sits off the way; NW and
 	// SE samples agree at 0.
@@ -281,6 +287,32 @@ function test_way_rail_build_through_partial_slope()
 	          [0, 18, 0],
 	          [0, 16, 0],
 	      ])
+
+	// Single raised corner on the N-S axis edge (NE / NW / SE / SW): the
+	// raised vertex sits at one endpoint of either the N or S edge, so
+	// the way's body — running through the tile centre — passes by it
+	// without touching.  All four mirror-related cases must admit a flat
+	// chord at z=0; before the chord rule was made symmetric across the
+	// two corners of each edge, NW and SE rejected while NE and SW
+	// admitted, even though the configurations are mirror images of one
+	// another across the N-S axis.
+	local ns_pattern = [
+	    [0,  2, 0],
+	    [0, 18, 0],
+	    [0, 16, 0],
+	]
+	check(coord3d(4, 8, 0), se_corner,
+	      coord3d(4, 7, 0), coord3d(4, 9, 0), null,
+	      coord3d(3, 7, 0), ns_pattern)
+	check(coord3d(8, 8, 0), sw_corner,
+	      coord3d(8, 7, 0), coord3d(8, 9, 0), null,
+	      coord3d(7, 7, 0), ns_pattern)
+	check(coord3d(12, 8, 0), nw_corner,
+	      coord3d(12, 7, 0), coord3d(12, 9, 0), null,
+	      coord3d(11, 7, 0), ns_pattern)
+	check(coord3d(4, 11, 0), ne_corner,
+	      coord3d(4, 10, 0), coord3d(4, 12, 0), null,
+	      coord3d(3, 10, 0), ns_pattern)
 
 	// nw_edge ramp, NE-SW axis (perpendicular to its natural ramp):
 	// admitted as a side chord — NE and SW samples both at 0.

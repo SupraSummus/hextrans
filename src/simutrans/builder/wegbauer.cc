@@ -95,9 +95,9 @@ static ribi_t::ribi compute_test_dir(slope_t::type sl, ribi_t::ribi straight_dir
 		return straight_dir;
 	}
 	ribi_t::ribi slope_dir = ribi_t::none;
-	if (slope_t::is_way_ns(sl))    slope_dir |= ribi_t::north     | ribi_t::south;
-	if (slope_t::is_way_ne_sw(sl)) slope_dir |= ribi_t::northeast | ribi_t::southwest;
-	if (slope_t::is_way_nw_se(sl)) slope_dir |= ribi_t::northwest | ribi_t::southeast;
+	if (slope_allows_way_axis(sl, ribi_t::north))     slope_dir |= ribi_t::north     | ribi_t::south;
+	if (slope_allows_way_axis(sl, ribi_t::northeast)) slope_dir |= ribi_t::northeast | ribi_t::southwest;
+	if (slope_allows_way_axis(sl, ribi_t::northwest)) slope_dir |= ribi_t::northwest | ribi_t::southeast;
 	return is_root ? slope_dir : (ribi_t::ribi)(slope_dir & ~ribi_t::backward(straight_dir));
 }
 
