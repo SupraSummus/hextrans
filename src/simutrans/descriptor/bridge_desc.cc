@@ -81,7 +81,7 @@ bridge_desc_t::img_t bridge_desc_t::get_start(slope_t::type slope) const
 	}
 #undef DOUBLE_SLOPE_CASE
 #undef SLOPE_CASE
-	return (img_t) - 1;
+	return img_t_count;
 }
 
 
@@ -117,7 +117,7 @@ bridge_desc_t::img_t bridge_desc_t::get_ramp(slope_t::type slope) const
 	}
 #undef DOUBLE_SLOPE_CASE
 #undef SLOPE_CASE
-	return (img_t) - 1;
+	return img_t_count;
 }
 
 

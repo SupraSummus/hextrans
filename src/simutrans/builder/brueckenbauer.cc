@@ -51,11 +51,12 @@ static stringhashtable_tpl<const bridge_desc_t *> desc_table;
 
 
 // True iff the slope-to-img_t mapping returned a real enum slot
-// rather than the (img_t)-1 sentinel.  Deliberately does NOT check
-// whether the desc actually ships art for the slot — missing Start2 /
-// Ramp2 art under pak64 renders empty or reuses the single-edge
-// sprite at the wrong height, but bridges still build.  See TODO.md
-// "Bridge double-height policy: art-permissive".
+// rather than the `img_t_count` "no slot for this slope" sentinel.
+// Deliberately does NOT check whether the desc actually ships art
+// for the slot — missing Start2 / Ramp2 art under pak64 renders
+// empty or reuses the single-edge sprite at the wrong height, but
+// bridges still build.  See TODO.md "Bridge double-height policy:
+// art-permissive".
 static bool bridge_img_valid(bridge_desc_t::img_t img)
 {
 	return img >= bridge_desc_t::NS_Segment  &&  img < bridge_desc_t::img_t_count;
@@ -1064,7 +1065,7 @@ const char* bridge_builder_t::renovate(player_t* player, koord3d pos_start, wayt
 	// Check whether we can replace the ends
 	for (grund_t *& gr : end_list) {
 		const slope_t::type slope = gr->get_grund_hang();
-		if (desc->get_end(slope, slope, gr->get_weg_hang()) == (bridge_desc_t::img_t)IMG_EMPTY) {
+		if (!bridge_img_valid(desc->get_end(slope, slope, gr->get_weg_hang()))) {
 			// wrong starting slope
 			return "bridge is too high for its type!";
 		}

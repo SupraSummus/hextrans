@@ -234,18 +234,46 @@ public:
 		}
 	}
 
-	/// Way allowed on this slope: flat, any edge slope, or all-up.
-	static bool is_way(type x) { return x == flat || is_single(x) || is_flat_way_chord(x) || is_all_up(x); }
-
-	/// A non-ramp saddle with two opposite vertices raised can carry a
-	/// flat way through the one axis whose entry and exit edges remain at
-	/// the tile base height.  The other two axes would cross one raised
-	/// vertex and one low vertex at an edge and are not way-buildable.
-	static bool is_flat_way_chord(type x) {
-		return x == raised_E  + raised_W
-		    || x == raised_SE + raised_NW
-		    || x == raised_SW + raised_NE;
+	/// Does an axis crossing edges (a0, a1) entering and (b0, b1) exiting
+	/// admit a way?  Corner pairs are listed in hex_corner_t order, and
+	/// `a0` / `b0` are the corners that grund_t::get_vmove() samples for
+	/// the way's two endpoints (entry corner, exit corner — the
+	/// "first-corner" of each edge).  Two cases:
+	///   1. Edges internally level, at most one height step between them
+	///      — flat, all-up, ramp, wide ramp.
+	///   2. Side chord: the two endpoint samples agree, on a slope
+	///      without double-height corners.  Picks up saddles, single
+	///      corners, and side chords across ramps; the way sits at
+	///      constant height by the simulator's convention even where
+	///      the surface around it is non-uniform.
+	static bool is_way_axis(type x, uint8 a0, uint8 a1, uint8 b0, uint8 b1) {
+		const bool level = a0 == a1 && b0 == b1;
+		const bool ramp_step = a0 == b0 || a0 + 1 == b0 || b0 + 1 == a0;
+		return (level && ramp_step) || (a0 == b0 && !has_double_corner(x));
 	}
+
+	/// True when a way along this axis sits at constant height across
+	/// the slope (`get_vmove` samples `a0` and `b0` agree).  Drives
+	/// "render this slope's way / wayobj as flat" for flat, all-up,
+	/// saddles and matched-sample side chords.
+	static bool is_flat_way_chord_axis(type x, uint8 a0, uint8 a1, uint8 b0, uint8 b1) {
+		return is_way_axis(x, a0, a1, b0, b1) && a0 == b0;
+	}
+
+	/// Way buildable on this slope: at least one of the three hex axes
+	/// admits it.  Includes the named edge ramps, their wide variants,
+	/// opposite-corner saddles, single-corner peaks, and side chords
+	/// across ramps.  flat and uniform all-up fall out of any axis (all
+	/// four crossed corners equal).
+	static bool is_way(type x) { return is_way_ns(x) || is_way_ne_sw(x) || is_way_nw_se(x); }
+
+	static bool is_way_ns(type x)    { return is_way_axis(x, corner_nw(x), corner_ne(x), corner_se(x), corner_sw(x)); }
+	static bool is_way_ne_sw(type x) { return is_way_axis(x, corner_ne(x), corner_e(x),  corner_sw(x), corner_w(x));  }
+	static bool is_way_nw_se(type x) { return is_way_axis(x, corner_w(x),  corner_nw(x), corner_e(x),  corner_se(x)); }
+
+	static bool is_flat_way_chord_ns(type x)    { return is_flat_way_chord_axis(x, corner_nw(x), corner_ne(x), corner_se(x), corner_sw(x)); }
+	static bool is_flat_way_chord_ne_sw(type x) { return is_flat_way_chord_axis(x, corner_ne(x), corner_e(x),  corner_sw(x), corner_w(x));  }
+	static bool is_flat_way_chord_nw_se(type x) { return is_flat_way_chord_axis(x, corner_w(x),  corner_nw(x), corner_e(x),  corner_se(x)); }
 
 	static bool is_planar_double_edge(type x) {
 		switch (x) {
@@ -255,30 +283,6 @@ public:
 			default:
 				return false;
 		}
-	}
-
-	/// Three hex axes (N-S, NE-SW, NW-SE).  Each predicate is true on
-	/// flat / all_up (axis-agnostic) and on the matching axis edge
-	/// slopes — both 2-corner narrow and 4-corner wide variants.
-	static bool is_way_ns(type x) {
-		return x == flat || is_all_up(x)
-		    || x == raised_E + raised_W
-		    || x == north || x == south
-		    || x == north_wide || x == south_wide;
-	}
-
-	static bool is_way_ne_sw(type x) {
-		return x == flat || is_all_up(x)
-		    || x == raised_SE + raised_NW
-		    || x == ne_edge || x == sw_edge
-		    || x == ne_wide || x == sw_wide;
-	}
-
-	static bool is_way_nw_se(type x) {
-		return x == flat || is_all_up(x)
-		    || x == raised_SW + raised_NE
-		    || x == nw_edge || x == se_edge
-		    || x == nw_wide || x == se_wide;
 	}
 };
 
@@ -575,6 +579,16 @@ static inline bool slope_allows_way_axis(slope_t::type sl, ribi_t::ribi r)
 		case ribi_t::north:     return slope_t::is_way_ns(sl);
 		case ribi_t::northeast: return slope_t::is_way_ne_sw(sl);
 		case ribi_t::northwest: return slope_t::is_way_nw_se(sl);
+		default:                return false;
+	}
+}
+
+static inline bool slope_allows_flat_way_chord_axis(slope_t::type sl, ribi_t::ribi r)
+{
+	switch (ribi_t::straight_axis(r)) {
+		case ribi_t::north:     return slope_t::is_flat_way_chord_ns(sl);
+		case ribi_t::northeast: return slope_t::is_flat_way_chord_ne_sw(sl);
+		case ribi_t::northwest: return slope_t::is_flat_way_chord_nw_se(sl);
 		default:                return false;
 	}
 }

@@ -40,18 +40,19 @@ across_tunnel_slope}`, `test_way_tunnel_make_public`, and the two
 Several crossing cases additionally need a hex-axis pair to replace
 the square-perpendicular setup.
 
-**`slope.east` / `slope.west` removal.**  Square-era `slope.east`
-and `slope.west` are no longer way-buildable.  Four call sites
-(`test_building_rotate_harbour`, `test_depot_build_on_bridge_end`'s
-"east-west direction" block, `test_halt_build_on_bridge_end`'s
-matching block, `test_powerline_remove_powerbridge`) migrated to
-`slope.se_edge` / `slope.nw_edge`, the hex axis they were already
-projecting onto.  `test_scenario_rules_allow_forbid_way_tool_cube`
-also uses `2*slope.east` for its "skip forbidden cube via 2× slope"
-assertion; left untouched because the function is already
-HEX-PORT PENDING and needs a holistic rewrite (`ASSERT_WAY_PATTERN`
-square ribi values throughout, plus 2× way slopes are gone).
-`test_terraform_climate_from_water` still observes terrain restoring
+**Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner
+diagonals are still admitted as way slopes by the post-slope-way
+predicate (side-chord branch with samples both at 1), but the names
+project poorly onto the hex axes and read as historical baggage.  Four
+call sites (`test_building_rotate_harbour`, the "east-west direction"
+block in `test_depot_build_on_bridge_end` and the matching block in
+`test_halt_build_on_bridge_end`, `test_powerline_remove_powerbridge`)
+migrated to `slope.se_edge` / `slope.nw_edge`, the hex axis they were
+already projecting onto.  `test_scenario_rules_allow_forbid_way_tool_cube`
+still uses `2*slope.east`; left untouched because the function is
+already HEX-PORT PENDING and needs a holistic rewrite (square ribi
+values in `ASSERT_WAY_PATTERN` throughout, plus 2× way slopes are
+gone).  `test_terraform_climate_from_water` observes terrain restoring
 to `2*slope.east` after a water-height round trip; that is terrain /
 water-table fallout, not a direction-conversion contract, and should
 move to a planar hex double slope when that path is ported.
@@ -193,10 +194,12 @@ to expect `null` and add a `find_object(mo_bridge)` check, the way
 The predicate name historically meant "single-edge slope" (a 2-corner
 edge slope, the only kind that hosted ways).  After the wide-edge
 addition it covers narrow + wide hex axis slopes — 12 values, half
-of which are 4-corner.  Name now reads as a small lie; rename to
-`is_way_edge` (or similar) when the next slope refactor touches the
-callers (`tunnelbauer.cc:362`, `wegbauer.cc:1128/1155`, the internal
-`opposite()` and `is_way()` callers in `ribi.h`).
+of which are 4-corner — and after the slope-way generalisation
+`is_way()` no longer routes through it at all.  Name now reads as
+a small lie; rename to `is_named_axis_slope` (or similar) when the
+next slope refactor touches the callers (`tunnelbauer.cc:362`,
+`wegbauer.cc:1128/1155`, the internal `opposite()` caller in
+`ribi.h`).
 
 ## Way-object slope-up sprites — still 4 of 6 hex edges
 
