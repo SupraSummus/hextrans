@@ -1125,7 +1125,7 @@ void way_builder_t::do_terraforming()
 			}
 			else if(  from_slope != slope_t::all_up_one  ) {
 				// bit of a hack to recognise single height slopes shifted up 1
-				if(  from_slope > slope_t::all_up_one  &&  slope_t::is_single( from_slope-slope_t::all_up_one )  ) {
+				if(  from_slope > slope_t::all_up_one  &&  slope_t::is_axis_slope( from_slope-slope_t::all_up_one )  ) {
 					from->set_hoehe( from->get_hoehe() + 1 );
 					from_slope -= slope_t::all_up_one;
 					route[i].z = from->get_hoehe();
@@ -1152,7 +1152,7 @@ void way_builder_t::do_terraforming()
 			}
 			else if(  to_slope != slope_t::all_up_one  ) {
 				// bit of a hack to recognise single height slopes shifted up 1
-				if(  to_slope > slope_t::all_up_one  &&  slope_t::is_single( to_slope-slope_t::all_up_one )  ) {
+				if(  to_slope > slope_t::all_up_one  &&  slope_t::is_axis_slope( to_slope-slope_t::all_up_one )  ) {
 					to->set_hoehe( to->get_hoehe() + 1 );
 					to_slope -= slope_t::all_up_one;
 					route[i + 1].z = to->get_hoehe();

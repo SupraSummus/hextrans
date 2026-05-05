@@ -4266,7 +4266,7 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 	halthandle_t halt;
 
 	// check, if we can build here ...
-	if(!slope_t::is_single(hang)) {
+	if(!slope_t::is_axis_slope(hang)) {
 		return "Dock must be built on single slope!";
 	}
 	else {

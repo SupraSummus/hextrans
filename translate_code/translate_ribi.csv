@@ -13,7 +13,7 @@ hang_typ,slope_type
 hang_t::flach,slope_t::flat
 hang_t::erhoben,slope_t::raised
 hang_t::gegenueber,slope_t::opposite
-hang_t::ist_einfach,slope_t::is_single
+hang_t::ist_einfach,slope_t::is_axis_slope
 hang_t::ist_wegbar_ns,slope_t::is_way_ns
 hang_t::ist_wegbar_ow,slope_t::is_way_ew
 hang_t::ist_wegbar,slope_t::is_way

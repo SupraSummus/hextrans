@@ -146,7 +146,7 @@ public:
 	/// which no caller wants.
 	static type opposite(type x)
 	{
-		if (!is_single(x)) return flat;
+		if (!is_axis_slope(x)) return flat;
 		return rotate60(rotate60(rotate60(x)));
 	}
 
@@ -220,7 +220,7 @@ public:
 	/// perpendicular side corners are also lifted).  All 12 are
 	/// single-height; double-height edges and square-era diagonals
 	/// (east, west) are no longer way-buildable.
-	static bool is_single(type x) {
+	static bool is_axis_slope(type x) {
 		switch (x) {
 			case north:      case south:
 			case ne_edge:    case se_edge:

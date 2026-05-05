@@ -359,7 +359,7 @@ const char *tunnel_builder_t::build( player_t *player, koord pos, const tunnel_d
 			return "Tunnel must start on single way!";
 		}
 	}
-	if(  !slope_t::is_single(slope)  ) {
+	if(  !slope_t::is_axis_slope(slope)  ) {
 		return "Tunnel muss an\neinfachem\nHang beginnen!\n";
 	}
 

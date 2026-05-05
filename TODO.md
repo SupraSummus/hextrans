@@ -202,18 +202,6 @@ requested altitude" (per-neighbour, plumbed through `get_vmove` /
 `is_allowed_step`), or expose the full interval and let the pathfinder
 pick — when somebody actually hits the refusal.
 
-## `slope_t::is_single` rename
-
-The predicate name historically meant "single-edge slope" (a 2-corner
-edge slope, the only kind that hosted ways).  After the wide-edge
-addition it covers narrow + wide hex axis slopes — 12 values, half
-of which are 4-corner — and after the slope-way generalisation
-`is_way()` no longer routes through it at all.  Name now reads as
-a small lie; rename to `is_named_axis_slope` (or similar) when the
-next slope refactor touches the callers (`tunnelbauer.cc:362`,
-`wegbauer.cc:1128/1155`, the internal `opposite()` caller in
-`ribi.h`).
-
 ## Way-object slope-up sprites — still 4 of 6 hex edges
 
 `way_obj_writer.cc` iterates `slope = 3, 6, 9, 12` for
