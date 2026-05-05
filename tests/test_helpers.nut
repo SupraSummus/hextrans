@@ -141,8 +141,8 @@ function ASSERT_WAY_PATTERN_MASKED(waytype, lefttop, pattern)
 // the 2 legacy square diagonals (`slope.east`, `slope.west`).  Omits
 // `slope.raised` (all_up_one): raising all corners uniformly shifts
 // the whole tile and breaks the cleanup some callers do after the
-// loop.  Of these, only the 12 hex edges (narrow + wide) and flat
-// are way-buildable — see slope_t::is_way.
+// loop.  Of these, only the 12 hex edges (narrow + wide), the 2
+// legacy diagonals, and flat are way-buildable — see `slope_t::is_way`.
 function interesting_slopes()
 {
 	return [
@@ -158,7 +158,10 @@ function interesting_slopes()
 		// 6 wide hex edges (4-corner), same cyclic order
 		slope.nw_wide, slope.north_wide, slope.ne_wide,
 		slope.se_wide, slope.south_wide, slope.sw_wide,
-		// 2 legacy square diagonals (no longer way-buildable)
+		// 2 legacy square diagonals (raise two non-adjacent hex
+		// corners with the third in the valley between them — no
+		// clean hex gradient, but `slope_allows_ribi` admits stubs
+		// against their side chords)
 		slope.east, slope.west,
 	]
 }

@@ -450,6 +450,38 @@ bool way_builder_t::check_powerline(const koord zv, const grund_t *bd) const
 }
 
 
+// Walk the computed route once and reject builds that would leave a
+// way sitting on a slope that can't geometrically support its final
+// ribi.  The per-step `check_slope` only sees one edge at a time and
+// admits both chord and ramp axes, so it lets through configurations
+// — half-chord stubs on a sloped tile, axis-mixed bends — that no
+// chord-or-ramp placement on the tile actually satisfies.  This is
+// the post-pass that closes that gap; see slope_allows_ribi for the
+// rule.  Tiles flagged for terraforming are skipped: their slope is
+// reshaped during build and the post-terraform shape is what the way
+// actually sits on.
+bool way_builder_t::validate_route_slopes() const
+{
+	for (uint32 i = 0; i < route.get_count(); i++) {
+		if (terraform_index.is_contained(i)) continue;
+		const grund_t* gr = welt->lookup(route[i]);
+		if (gr == NULL) continue;
+		const slope_t::type sl = gr->get_weg_hang();
+		if (sl == slope_t::flat) continue;
+
+		ribi_t::ribi ribi = route.get_short_ribi(i);
+		if (const weg_t* existing = gr->get_weg(desc->get_wtyp())) {
+			ribi |= existing->get_ribi_unmasked();
+		}
+
+		if (!slope_allows_ribi(sl, ribi)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+
 // allowed slope?
 bool way_builder_t::check_slope( const grund_t *from, const grund_t *to )
 {
@@ -2277,6 +2309,10 @@ const char *way_builder_t::calc_straight_route(koord3d start, const koord3d ziel
 		if (route.empty()) {
 			intern_calc_straight_route(ziel,start);
 		}
+		if (!route.empty() && !validate_route_slopes()) {
+			route.clear();
+			terraform_index.clear();
+		}
 	}
 	return warn_fail;
 }
@@ -2335,6 +2371,11 @@ uint32 ms = dr_time();
 			INT_CHECK("wegbauer 1165");
 			if(cost2 < 0) {
 				intern_calc_route( ziel, start );
+				return warn_fail;
+			}
+			if (!validate_route_slopes()) {
+				route.clear();
+				terraform_index.clear();
 				return warn_fail;
 			}
 		}
