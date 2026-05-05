@@ -299,17 +299,19 @@ and least reliable.
 Compile from the repo root: `cmake --build build -j "$(nproc)"`. The
 session-start hook configures `build/` for you.
 
-The build cannot be tested end-to-end without a pakset (see
-`documentation/claude-code-web-dev.md`). For now, "the binary compiles
-and launches" is the only signal we have. Behaviour of the ported
-codebase under a real game cannot be validated in this env; flag any
-assumption that depends on running the game.
+`tools/test.py` runs the scenario suite end-to-end against pak64 — it
+fetches pak64 on first invocation (~30 MB, cached) and skips setup it
+already did, so warm runs are dominated by sim startup. Pass substring
+filters to narrow the run: `tools/test.py halt` runs only tests whose
+name contains "halt". This is the cmake-Debug fast loop.
 
-CI (`.github/workflows/run-tests.yml`) does have a pakset — it
-installs pak64 and runs the full scenario suite under clang+ASAN+UBSAN
-on every push, so any hex regression will surface there. To reproduce
-a CI failure locally, see `documentation/claude-code-web-dev.md` →
-"Running automated tests".
+CI (`.github/workflows/run-tests.yml`) runs the same scenario suite
+under clang+ASAN+UBSAN on every push, so any hex regression surfaces
+there. The local fast loop trades sanitizer coverage for speed; reach
+for the autoconf+ASAN recipe in `documentation/claude-code-web-dev.md`
+when reproducing a sanitizer-class CI failure. Real-game GUI play is
+still not testable in this env; flag assumptions that depend on a
+human at the keyboard.
 
 Claude Code on the web checks out a shallow clone — `git log` only
 reaches back a handful of commits and `git blame` on older lines
