@@ -942,44 +942,27 @@ stadt_t::~stadt_t()
 
 		welt->lookup_kartenboden(pos)->set_text(NULL);
 
+		// avoid the bookkeeping if world gets destroyed
 		if (!welt->is_destroying()) {
+			stadt_t* city = NULL; // headquarters will be belong to the same town with all tiles ...
 			// remove city info and houses
 			while (!buildings.empty()) {
 
-				gebaeude_t* const gb = buildings.pop_back();
-				assert(  gb!=NULL  &&  !buildings.is_contained(gb)  );
-
+				gebaeude_t* const gb = buildings[0];
 				if(gb->get_tile()->get_desc()->get_type()==building_desc_t::headquarters) {
-					stadt_t *city = welt->find_nearest_city(gb->get_pos().get_2d());
+					if (!city) {
+						city = welt->find_nearest_city(gb->get_pos().get_2d());
+					}
 					gb->set_stadt( city );
 					if(city) {
 						city->buildings.append(gb, gb->get_passagier_level());
 					}
+					buildings.remove_at(0);
 				}
 				else {
-					// add_gebaeude_to_stadt put one entry per tile of a
-					// multi-tile building into `buildings`; pop_back only
-					// took out the head.  Walk the tiles, drop the still-
-					// listed siblings here, and null every tile's stadt
-					// so the hausbauer_t::remove cascade short-circuits
-					// remove_gebaeude_from_stadt — its recalc_city_size()
-					// is wasted work on a city about to vanish, and its
-					// per-tile buildings.remove() would re-find an
-					// already-popped entry and assert.
-					static vector_tpl<grund_t*> gb_tiles;
-					gb->get_tile_list(gb_tiles);
-					for (grund_t* gr : gb_tiles) {
-						if (gebaeude_t* part = gr->find<gebaeude_t>()) {
-							if (part != gb) {
-								buildings.remove(part);
-							}
-							part->set_stadt(NULL);
-						}
-					}
-					hausbauer_t::remove(welt->get_public_player(), gb);
+					hausbauer_t::remove(welt->get_public_player(),gb);
 				}
 			}
-			// avoid the bookkeeping if world gets destroyed
 		}
 	}
 }
