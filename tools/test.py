@@ -100,10 +100,7 @@ def main(argv):
     finally:
         write_filter([])
     if rc != 0:
-        print("FAILED. tail simutrans/output.log for details:")
-        log = ROOT / "simutrans" / "output.log"
-        if log.exists():
-            print("\n".join(log.read_text(errors="replace").splitlines()[-30:]))
+        print("FAILED. tail simutrans/output.log for details")
     sys.exit(rc)
 
 
