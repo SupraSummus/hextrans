@@ -144,6 +144,11 @@ public:
 	bool is_allowed_step(const grund_t *from, const grund_t *to, sint32 *costs, bool is_upperlayer = false );
 
 private:
+	// Post-pathfinding pass that rejects routes whose final per-tile
+	// ribi can't be carried by the tile's slope.  See implementation
+	// for details.
+	bool validate_route_slopes() const;
+
 	bool has_neighbour_with_way(koord3d pos, waytype_t wt) const;
 
 	// checks, if we can build a bridge here ...

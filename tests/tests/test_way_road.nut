@@ -334,6 +334,74 @@ function test_way_rail_build_through_partial_slope()
 }
 
 
+// Rail building onto a sloped tile from a direction that doesn't sit
+// on the slope's gradient or any of its admissible chord axes.  Raise
+// T's NW and W vertices: T ends up with W + NW raised (gradient runs
+// NW high → SE low).  Rail T → NW lies on the NW-SE ramp axis and
+// builds.  Rail S → T joining the existing T → NW would leave T
+// carrying ribi NW + S — a bend mixing the NW ramp axis with the N
+// chord axis — which slope_allows_ribi rejects (the body can't be
+// flat at z=0 for the chord and tilted on the ramp at the same time).
+function test_way_rail_terminate_on_slope_off_gradient()
+{
+	local pl      = player_x(0)
+	local rail    = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local remover = command_x(tool_remove_way)
+	ASSERT_TRUE(rail != null)
+
+	local T  = coord3d(8, 8, 0)
+	local NW = coord3d(7, 8, 0) // T + neighbours[3]
+	local S  = coord3d(8, 9, 0) // T + neighbours[1]
+
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.NW), null)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.W),  null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_slope(), HEX_SLOPE(0, 0, 0, 1, 1, 0))
+
+	ASSERT_EQUAL(command_x.build_way(pl, T, NW, rail, true), null)
+	ASSERT_EQUAL(command_x.build_way(pl, S, T, rail, true), "")
+
+	// cleanup
+	ASSERT_EQUAL(remover.work(pl, tile_x(T.x, T.y, T.z), NW, "" + wt_rail), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.NW), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.W),  null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// Same setup as the bend rejection above, but no prior rail: a stub
+// from the S neighbour into T's S edge sits at z=0 on the flat half
+// of T (S, SE, SW corners all at 0).  The rail body is flat on the
+// chord at z=0; the raised NW half of T is just unoccupied terrain
+// the way doesn't touch.  Player-intuitively buildable, and the
+// rule has to admit it: a half-chord stub is geometrically fine on
+// its own, even though combining it with a ramp on the other axis
+// is not.
+function test_way_rail_terminate_on_slope_chord_stub()
+{
+	local pl      = player_x(0)
+	local rail    = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local remover = command_x(tool_remove_way)
+	ASSERT_TRUE(rail != null)
+
+	local T = coord3d(8, 8, 0)
+	local S = coord3d(8, 9, 0)
+
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.NW), null)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.W),  null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_slope(), HEX_SLOPE(0, 0, 0, 1, 1, 0))
+
+	ASSERT_EQUAL(command_x.build_way(pl, S, T, rail, true), null)
+
+	// cleanup
+	ASSERT_EQUAL(remover.work(pl, tile_x(S.x, S.y, S.z), T, "" + wt_rail), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.NW), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.W),  null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // test_way_road_build_parallel: HEX-PORT PENDING.
 function test_way_road_build_parallel()
 {

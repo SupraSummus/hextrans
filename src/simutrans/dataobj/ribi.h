@@ -73,10 +73,14 @@ public:
 		nw_wide    = nw_edge + raised_SW + raised_NE, ///< low edge NW, wide (NW-SE axis perpendicular = SW, NE)
 		se_wide    = se_edge + raised_SW + raised_NE, ///< low edge SE, wide
 
-		// Legacy 2-corner square diagonals.  NOT hex edges and NOT
-		// way-buildable; kept as named values only because the
-		// legacy_slope4 conversion helper at the bottom still needs to
-		// map old square-era table indices to *some* slope value.
+		// Legacy 2-corner square diagonals.  NOT hex edges — they raise
+		// two non-adjacent corners with a third corner sitting in the
+		// valley between, which has no clean hex gradient.  Way-buildable
+		// only as side chords (`is_way` admits, `slope_allows_ribi`
+		// admits stubs and through-traffic at z=0).  Kept as named
+		// values mainly because the legacy_slope4 conversion helper at
+		// the bottom still needs to map old square-era table indices
+		// to *some* slope value.
 		east    = raised_NW + raised_SW, ///< 2 west corners raised (legacy square)
 		west    = raised_NE + raised_SE, ///< 2 east corners raised (legacy square)
 
@@ -219,7 +223,9 @@ public:
 	/// variants (4 corners raised — same low edge but the 2
 	/// perpendicular side corners are also lifted).  All 12 are
 	/// single-height; double-height edges and square-era diagonals
-	/// (east, west) are no longer way-buildable.
+	/// (east, west) aren't here.  Other shapes can still host a way
+	/// via the more general chord rule (see `is_way` / `is_way_axis`)
+	/// — this predicate names the canonical axis-aligned ramp slopes.
 	static bool is_axis_slope(type x) {
 		switch (x) {
 			case north:      case south:
@@ -645,6 +651,51 @@ static inline sint8 slope_way_h_at_edge(slope_t::type sl, ribi_t::ribi r)
 	const sint8 chord_h = slope_t::chord_h_axis(sl, a0, a1, b0, b1);
 	if (chord_h >= 0) return chord_h;
 	return (r == ribi_t::straight_axis(r)) ? (sint8)a0 : (sint8)b0;
+}
+
+/// Whether a tile with this slope can geometrically support a way with
+/// this ribi.  flat slope passes trivially; on a sloped tile a single
+/// rail body must lie on either a flat chord at constant z or a tilted
+/// ramp on one axis, never both at once.  For each of the three hex
+/// axes (N-S, NE-SW, NW-SE) the ribi has bits on:
+///
+///   * the axis must admit a way (`slope_allows_way_axis`),
+///   * any chord axis touched fixes the body at the chord's H, and
+///     all other touched chord axes must agree on the same H, and
+///   * a ramp axis can't share the tile with a chord axis or another
+///     ramp axis — the body has one slope, not two.
+///
+/// Subsets within an axis are fine: a stub on a chord axis sits on
+/// the chord at H, a stub on a ramp axis is half a ramp.  Multi-axis
+/// configurations (bends, junctions) admit only when every touched
+/// axis is a chord at the same H.
+static inline bool slope_allows_ribi(slope_t::type sl, ribi_t::ribi r)
+{
+	if (sl == slope_t::flat) return true;
+
+	sint8 chord_h = -1;   // height fixed by chord axes touched so far, or -1
+	bool  has_ramp = false;
+
+	for (const ribi_t::ribi axis : { ribi_t::north, ribi_t::northeast, ribi_t::northwest }) {
+		const ribi_t::ribi axis_mask = (ribi_t::ribi)(axis | ribi_t::backward(axis));
+		if ((r & axis_mask) == 0) continue;
+		if (!slope_allows_way_axis(sl, axis)) return false;
+
+		const sint8 h = slope_chord_h_along_axis(sl, axis);
+		if (h < 0) {
+			// Ramp axis.  Can't coexist with a chord or another ramp.
+			if (chord_h >= 0  ||  has_ramp) return false;
+			has_ramp = true;
+		}
+		else {
+			// Chord axis.  Can't coexist with a ramp; chord heights
+			// across all touched axes must match.
+			if (has_ramp) return false;
+			if (chord_h < 0) chord_h = h;
+			else if (chord_h != h) return false;
+		}
+	}
+	return true;
 }
 
 /**
