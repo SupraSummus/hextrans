@@ -17,6 +17,23 @@ scenario.version = "0.1"
 
 include("test_helpers")
 include("all_tests")
+// rewritten by tools/test.py per run; committed default `[]` = full suite.
+include("filter")
+
+if (test_filter_patterns.len() > 0) {
+	local filtered = []
+	foreach (t in all_tests) {
+		local name = t.getinfos().name
+		foreach (pat in test_filter_patterns) {
+			if (name.find(pat) != null) {
+				filtered.append(t)
+				break
+			}
+		}
+	}
+	all_tests = filtered
+	print("Filter active: " + all_tests.len() + " test(s) selected.")
+}
 
 
 //

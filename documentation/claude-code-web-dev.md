@@ -58,10 +58,26 @@ worry about new ones in the Simutrans source under `src/simutrans/`.
 
 ## Running automated tests
 
-This is the part that does **not** work out of the box in a remote
-session and requires a manual setup step.  For the local-checkout
-quick recipe and sandbox-related caveats, see
-`documentation/codex-local-dev.md`.
+The fast path is `tools/test.py`:
+
+```sh
+tools/test.py                # full suite (same as CI)
+tools/test.py halt           # only tests whose name contains "halt"
+tools/test.py halt terraform # OR-match
+```
+
+It's idempotent: first run downloads pak64 into `simutrans/pak/` and
+sets up `~/simutrans/`, the `./sim` symlink, and the scenario link;
+later runs skip whatever's already in place. Build is `cmake --build
+build`, so warm-cache runs are dominated by sim startup (~1-2s).
+Filtering is substring against test function names; an unmatched
+filter exits 1 without launching sim. The runner uses the cmake Debug
+build — CI's `autoconf` + clang + ASAN/UBSAN path below is what
+catches sanitizer-class bugs.
+
+The rest of this section documents the underlying recipe (matches
+`.github/workflows/run-tests.yml`) for when something off the happy
+path needs investigating.
 
 `tools/run-automated-tests.sh` (and the CMake `test` target) launch the
 freshly built `simutrans` binary against the `automated-tests` scenario
@@ -156,6 +172,10 @@ tail -50 simutrans/output.log
 
 ccache makes incremental rebuilds seconds, not minutes.  The runner
 itself is ~5-10s of startup before tests start firing.
+
+`tools/test.py` (above) is the cmake-Debug equivalent of this loop and
+also lets you filter to a subset of tests; reach for the autoconf+ASAN
+recipe when you specifically need sanitizer coverage.
 
 The autoconf/make build is what the runner expects (`../sim` next to
 the script); a cmake rebuild needs the `ln -sf
