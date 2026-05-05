@@ -37,9 +37,6 @@ started directly; stop it with `pkill -f
 build does not create one.  Use `ln -sf build/simutrans/simutrans sim`
 if you want to run the wrapper.
 
-The wrapper pipes through `ts` from `moreutils`; this install did not
-have it.  Install `moreutils` or run the binary directly as above.
-
 `-use_workdir` still looked for addon scenarios under
 `~/simutrans/addons/pak/scenario`, not the repo-local
 `simutrans/addons/...`, so linking only inside the checkout made the

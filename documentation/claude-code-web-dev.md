@@ -16,7 +16,6 @@ session boots in this repo. It:
      `libfontconfig-dev`
    - Backend: `libsdl2-dev` (so CMake selects the `sdl2` backend)
    - Optional: `libzstd-dev`, `libminiupnpc-dev`, `libfluidsynth-dev`
-   - `moreutils` (for `ts` used by `tools/run-automated-tests.sh`)
 3. Configures a CMake build dir at `build/` (`-DCMAKE_BUILD_TYPE=Debug`).
 
 The hook is **synchronous**: the session does not start until apt and the
@@ -93,7 +92,7 @@ that mirrors it is:
 
 ```sh
 # one-time deps beyond what the session-start hook installs
-apt-get install -y ccache libclang-rt-18-dev zlib1g-dev moreutils
+apt-get install -y ccache libclang-rt-18-dev zlib1g-dev
 
 # build with the CI's sanitizer flags
 autoconf

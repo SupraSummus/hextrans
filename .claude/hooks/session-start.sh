@@ -33,8 +33,7 @@ apt-get install -y --no-install-recommends \
     libsdl2-dev \
     libzstd-dev \
     libminiupnpc-dev \
-    libfluidsynth-dev \
-    moreutils
+    libfluidsynth-dev
 
 echo "session-start.sh: configuring CMake build dir (build/)..."
 # Headless-friendly: SIMUTRANS_BACKEND=sdl2 is selected automatically when
