@@ -170,22 +170,6 @@ struct simgraph_t
 	/// @returns the image id (should be stored to img->imgid)
 	image_id (*register_image)(const image_t *img);
 
-	/// Re-encode an already-registered binary alphamap as a renderer-
-	/// private 1-bit-per-pixel mask.  `alpha_flags` is the same bitset
-	/// `draw_alpha` would receive (`ALPHA_RED | ALPHA_GREEN | ALPHA_BLUE`)
-	/// and selects which 5-bit channel(s) of the source carry the binary
-	/// alpha; the bit is set when the channel(s) sum to fully-opaque
-	/// (matching `draw_alpha`'s `alpha_value > 30` threshold) and clear
-	/// when they sum to zero.  Partial alpha is rejected.  After the
-	/// renderer takes its private bitmask the descriptor's RLE buffer
-	/// is freed (the impl drops const internally) since no runtime
-	/// path reads `image_t::data` for transition cells; the next
-	/// `init_ground_textures` pass sees `FLAG_BITMASK` and early-
-	/// returns before touching the freed pointer.  Used by
-	/// `ground_desc.cc` to compress ShoreTrans + SlopeTrans at load
-	/// time without a pak-format change.
-	void (*convert_to_bitmask)(const image_t *img, uint8 alpha_flags);
-
 	// delete all images above a certain number ...
 	void (*free_all_images_above)(image_id above);
 
