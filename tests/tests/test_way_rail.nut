@@ -10,8 +10,10 @@
 
 
 // Tracks on partially-sloped tiles: a way crossing a non-flat tile
-// builds when the simulator's get_vmove() samples agree at both
-// endpoints AND those heights match the neighbour ground.
+// builds iff every edge it traverses on that tile is internally level
+// (both endpoint corners at the same height) — a half-raised edge
+// runs the slope sideways across the rail body, which has no flat or
+// single-ramp pose on it.
 function test_way_rail_build_through_partial_slope()
 {
 	local pl      = player_x(0)
@@ -43,9 +45,6 @@ function test_way_rail_build_through_partial_slope()
 	local ew_saddle = HEX_SLOPE(1, 0, 0, 1, 0, 0) // E, W corners raised
 	local e_corner  = HEX_SLOPE(1, 0, 0, 0, 0, 0) // only E corner raised
 	local se_corner = HEX_SLOPE(0, 1, 0, 0, 0, 0) // only SE corner raised
-	local sw_corner = HEX_SLOPE(0, 0, 1, 0, 0, 0) // only SW corner raised
-	local nw_corner = HEX_SLOPE(0, 0, 0, 0, 1, 0) // only NW corner raised
-	local ne_corner = HEX_SLOPE(0, 0, 0, 0, 0, 1) // only NE corner raised
 	local nw_edge   = HEX_SLOPE(1, 1, 0, 0, 0, 0) // E + SE = NW-SE ramp
 
 	local ns_pattern = [
@@ -54,58 +53,44 @@ function test_way_rail_build_through_partial_slope()
 	    [0, 16, 0],
 	]
 
-	// Saddle, NS axis: NW and SE samples both at 0 → flat chord at z=0.
+	// Saddle, NS axis: N edge (NW, NE) and S edge (SE, SW) are both
+	// fully flat at 0; the raised E and W corners sit off the axis.
 	check_admit(coord3d(4, 4, 0), ew_saddle,
 	            coord3d(4, 3, 0), coord3d(4, 5, 0),
 	            coord3d(3, 3, 0), ns_pattern)
 
-	// Saddle, NW-SE axis: both edge intervals span [0..1] (each edge has
-	// one raised vertex and one flat one).  The chord rule picks the
-	// lowest H that fits — z=0 — so the way stays flat with the flat
-	// neighbours, threading between the two raised vertices.
-	check_admit(coord3d(8, 4, 0), ew_saddle,
-	            coord3d(7, 4, 0), coord3d(9, 4, 0),
-	            coord3d(7, 4, 0), [[1, 9, 8]])
+	// Saddle, NW-SE axis: both crossed edges (NW: W=1, NW=0; SE: E=1,
+	// SE=0) are half-raised — the slope runs sideways across the rail
+	// on both, no flat or ramp pose fits.
+	check_reject(coord3d(8, 4, 0), ew_saddle,
+	             coord3d(7, 4, 0), coord3d(9, 4, 0))
 
-	// Single raised corner, NS axis: corner E sits off the way; NW and
-	// SE samples agree at 0.
+	// Single raised corner off the N-S axis: corner E sits between the
+	// NE and SE edges, neither of which the N-S ribi crosses; both
+	// crossed edges (N, S) are flat at 0.
 	check_admit(coord3d(12, 4, 0), e_corner,
 	            coord3d(12, 3, 0), coord3d(12, 5, 0),
 	            coord3d(11, 3, 0), ns_pattern)
 
-	// Single raised corner on the N-S axis edge (NE / NW / SE / SW): the
-	// raised vertex sits at one endpoint of either the N or S edge, so
-	// the way's body — running through the tile centre — passes by it
-	// without touching.  All four mirror-related cases must admit a flat
-	// chord at z=0; before the chord rule was made symmetric across the
-	// two corners of each edge, NW and SE rejected while NE and SW
-	// admitted, even though the configurations are mirror images of one
-	// another across the N-S axis.
-	check_admit(coord3d(4, 8, 0), se_corner,
-	            coord3d(4, 7, 0), coord3d(4, 9, 0),
-	            coord3d(3, 7, 0), ns_pattern)
-	check_admit(coord3d(8, 8, 0), sw_corner,
-	            coord3d(8, 7, 0), coord3d(8, 9, 0),
-	            coord3d(7, 7, 0), ns_pattern)
-	check_admit(coord3d(12, 8, 0), nw_corner,
-	            coord3d(12, 7, 0), coord3d(12, 9, 0),
-	            coord3d(11, 7, 0), ns_pattern)
-	check_admit(coord3d(4, 11, 0), ne_corner,
-	            coord3d(4, 10, 0), coord3d(4, 12, 0),
-	            coord3d(3, 10, 0), ns_pattern)
+	// Single raised corner sitting at one endpoint of an N-S axis edge:
+	// that edge becomes half-raised — slope sideways — and the build
+	// must reject.  Sampled on the SE corner; the SW / NW / NE mirrors
+	// are mechanically the same.
+	check_reject(coord3d(4, 8, 0), se_corner,
+	             coord3d(4, 7, 0), coord3d(4, 9, 0))
 
 	// nw_edge ramp, NE-SW axis (perpendicular to its natural ramp):
-	// admitted as a side chord — NE and SW samples both at 0.
-	check_admit(coord3d(12, 6, 0), nw_edge,
-	            coord3d(11, 7, 0), coord3d(13, 5, 0),
-	            coord3d(11, 5, 0), [
-	                [ 0,  0,  4],
-	                [ 0, 36,  0],
-	                [32,  0,  0],
-	            ])
+	// NE edge (NE=0, E=1) is half-raised, so the side-chord pose the
+	// old chord-overlap rule admitted is rejected — the rail can't sit
+	// flat across the slope's gradient.
+	check_reject(coord3d(12, 6, 0), nw_edge,
+	             coord3d(11, 7, 0), coord3d(13, 5, 0))
 
-	// nw_edge ramp, NW-SE axis: NW sample at 0, SE sample at 1 — the
-	// way ramps from z=0 to z=1, but the SE neighbour is flat at z=0.
+	// nw_edge ramp, NW-SE axis (the slope's gradient axis): NW edge
+	// (W=0, NW=0) flat at 0, SE edge (E=1, SE=1) flat at 1 — adjacent
+	// heights, the body ramps uniformly.  The slope itself admits, but
+	// the cross-tile vmove check rejects: the SE neighbour (13,6) is
+	// flat at z=0, not z=1.
 	check_reject(coord3d(12, 6, 0), nw_edge,
 	             coord3d(11, 6, 0), coord3d(13, 6, 0))
 
@@ -176,6 +161,39 @@ function test_way_rail_terminate_on_slope_chord_stub()
 	ASSERT_EQUAL(remover.work(pl, tile_x(S.x, S.y, S.z), T, "" + wt_rail), null)
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.NW), null)
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.W),  null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// Raising a single shared vertex lifts a corner on each of the three
+// tiles around it.  T = (5, 5), SW neighbour = (4, 6); they share the
+// W vertex of T (= NE vertex of (4, 6) = SE vertex of (4, 5)).  After
+// raising it, T has only its W corner up and (4, 6) has only its NE
+// corner up — and that vertex sits at one endpoint of the SW edge of
+// T / NE edge of (4, 6) that the rail would cross.  The rail's body
+// would have to bridge a flat corner and a raised corner along its
+// own edge crossing on both tiles, which no flat or single-ramp pose
+// satisfies, so the build must be rejected.
+function test_way_rail_build_across_half_raised_edge()
+{
+	local pl   = player_x(0)
+	local rail = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	ASSERT_TRUE(rail != null)
+
+	local T  = coord3d(5, 5, 0)
+	local SW = coord3d(4, 6, 0) // T + neighbours[2]
+
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.W), null)
+	ASSERT_EQUAL(tile_x(T.x,  T.y,  T.z ).get_slope(), HEX_SLOPE(0, 0, 0, 1, 0, 0))
+	ASSERT_EQUAL(tile_x(SW.x, SW.y, SW.z).get_slope(), HEX_SLOPE(0, 0, 0, 0, 0, 1))
+
+	ASSERT_EQUAL(command_x.build_way(pl, T, SW, rail, true), "")
+	ASSERT_EQUAL(tile_x(T.x,  T.y,  T.z ).get_way_dirs(wt_rail), 0)
+	ASSERT_EQUAL(tile_x(SW.x, SW.y, SW.z).get_way_dirs(wt_rail), 0)
+
+	// cleanup
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.W), null)
 
 	RESET_ALL_PLAYER_FUNDS()
 }

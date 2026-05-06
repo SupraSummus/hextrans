@@ -653,49 +653,55 @@ static inline sint8 slope_way_h_at_edge(slope_t::type sl, ribi_t::ribi r)
 	return (r == ribi_t::straight_axis(r)) ? (sint8)a0 : (sint8)b0;
 }
 
+/// Height of the tile edge in direction @p r (a single hex direction
+/// bit), if and only if that edge is internally level — i.e. its two
+/// endpoint corners are at the same height.  Returns -1 for half-raised
+/// edges (the slope is sideways to a way crossing here, no flat or
+/// single-ramp body fits) and for non-single-bit @p r.
+static inline sint8 slope_level_edge_h(slope_t::type sl, ribi_t::ribi r)
+{
+	uint8 c0, c1;
+	switch (r) {
+		case ribi_t::southeast: c0 = corner_e(sl);  c1 = corner_se(sl); break;
+		case ribi_t::south:     c0 = corner_se(sl); c1 = corner_sw(sl); break;
+		case ribi_t::southwest: c0 = corner_sw(sl); c1 = corner_w(sl);  break;
+		case ribi_t::northwest: c0 = corner_w(sl);  c1 = corner_nw(sl); break;
+		case ribi_t::north:     c0 = corner_nw(sl); c1 = corner_ne(sl); break;
+		case ribi_t::northeast: c0 = corner_ne(sl); c1 = corner_e(sl);  break;
+		default:                return -1;
+	}
+	return c0 == c1 ? (sint8)c0 : (sint8)-1;
+}
+
 /// Whether a tile with this slope can geometrically support a way with
-/// this ribi.  flat slope passes trivially; on a sloped tile a single
-/// rail body must lie on either a flat chord at constant z or a tilted
-/// ramp on one axis, never both at once.  For each of the three hex
-/// axes (N-S, NE-SW, NW-SE) the ribi has bits on:
-///
-///   * the axis must admit a way (`slope_allows_way_axis`),
-///   * any chord axis touched fixes the body at the chord's H, and
-///     all other touched chord axes must agree on the same H, and
-///   * a ramp axis can't share the tile with a chord axis or another
-///     ramp axis — the body has one slope, not two.
-///
-/// Subsets within an axis are fine: a stub on a chord axis sits on
-/// the chord at H, a stub on a ramp axis is half a ramp.  Multi-axis
-/// configurations (bends, junctions) admit only when every touched
-/// axis is a chord at the same H.
+/// this ribi.  Each set ribi bit names an exit edge; that edge must be
+/// internally level (a half-raised edge runs the slope sideways across
+/// the rail).  The collected edge heights must form either a chord
+/// (all equal — the body sits flat) or a single-axis ramp (two adjacent
+/// heights differing by 1, all touched bits on one axis — the body
+/// slopes uniformly along that axis).
 static inline bool slope_allows_ribi(slope_t::type sl, ribi_t::ribi r)
 {
 	if (sl == slope_t::flat) return true;
 
-	sint8 chord_h = -1;   // height fixed by chord axes touched so far, or -1
-	bool  has_ramp = false;
+	sint8        hmin  = 127;
+	sint8        hmax  = -1;
+	ribi_t::ribi axes  = ribi_t::none;
 
-	for (const ribi_t::ribi axis : { ribi_t::north, ribi_t::northeast, ribi_t::northwest }) {
-		const ribi_t::ribi axis_mask = (ribi_t::ribi)(axis | ribi_t::backward(axis));
-		if ((r & axis_mask) == 0) continue;
-		if (!slope_allows_way_axis(sl, axis)) return false;
-
-		const sint8 h = slope_chord_h_along_axis(sl, axis);
-		if (h < 0) {
-			// Ramp axis.  Can't coexist with a chord or another ramp.
-			if (chord_h >= 0  ||  has_ramp) return false;
-			has_ramp = true;
-		}
-		else {
-			// Chord axis.  Can't coexist with a ramp; chord heights
-			// across all touched axes must match.
-			if (has_ramp) return false;
-			if (chord_h < 0) chord_h = h;
-			else if (chord_h != h) return false;
-		}
+	for (uint8 b = 0; b < 6; b++) {
+		const ribi_t::ribi dir = (ribi_t::ribi)(1u << b);
+		if (!(r & dir)) continue;
+		const sint8 h = slope_level_edge_h(sl, dir);
+		if (h < 0) return false;
+		if (h < hmin) hmin = h;
+		if (h > hmax) hmax = h;
+		axes |= ribi_t::straight_axis(dir);
 	}
-	return true;
+
+	if (hmax < 0)        return true;            // no bits — vacuous
+	if (hmin == hmax)    return true;            // chord across all touched edges
+	return hmax - hmin == 1                      // ramp on a single axis
+	    && (axes & (axes - 1)) == 0;
 }
 
 /**

@@ -170,17 +170,17 @@ then walks back via two all_down steps.
 
 The post-pathfinding slope-vs-ribi check landed in `way_builder_t`
 only — `validate_route_slopes` walks the ground route and rejects
-configurations the per-step `check_slope` lets through (half-chord
-stubs that mix with a ramp, axis-mixed bends, chord heights that
-don't reconcile across axes).  `bridge_builder_t` (`brueckenbauer.cc`)
-and `tunnel_builder_t` (`tunnelbauer.cc`) have their own slope
-admissibility checks that pre-date the rule and don't call it,
-so a bridge end or tunnel mound can land in a configuration the
-rule would reject on a ground way.  Wire `slope_allows_ribi` into
-those builders next time either is touched — pulling out a small
-"check this single tile's final ribi against its slope" helper from
-`validate_route_slopes` would let all three sites share one entry
-point.
+configurations the per-step `check_slope` lets through (half-raised
+edges with the slope sideways across the rail, axis-mixed bends,
+chord heights that don't reconcile across axes).  `bridge_builder_t`
+(`brueckenbauer.cc`) and `tunnel_builder_t` (`tunnelbauer.cc`) have
+their own slope admissibility checks that pre-date the rule and
+don't call it, so a bridge end or tunnel mound can land in a
+configuration the rule would reject on a ground way.  Wire
+`slope_allows_ribi` into those builders next time either is touched
+— pulling out a small "check this single tile's final ribi against
+its slope" helper from `validate_route_slopes` would let all three
+sites share one entry point.
 
 ## Bridge double-height policy: art-permissive
 
@@ -204,19 +204,6 @@ slope" subcase — that was true under the art-presence policy but is
 not under this one; restoring the test needs to flip that subcase
 to expect `null` and add a `find_object(mo_bridge)` check, the way
 `test_way_bridge_build_at_planar_double_slope` does.
-
-## Flat-way chord altitude is hardcoded to the bottom of the interval
-
-`slope_t::chord_h_axis` returns the lowest height in the overlap of
-the two edges' height intervals.  A saddle / single-corner-on-axis-edge
-slope often admits a chord at z=1 as well as z=0, but `get_vmove`
-always reports the z=0 chord, so a path threading the slope tile
-between two raised-flat (z=1) neighbours fails to chain and the build
-is refused.  Surfaces if somebody tries to route through a saddle
-between higher terrain.  Generalise to "pick the chord matching the
-requested altitude" (per-neighbour, plumbed through `get_vmove` /
-`is_allowed_step`), or expose the full interval and let the pathfinder
-pick — when somebody actually hits the refusal.
 
 ## Way-object slope-up sprites — still 4 of 6 hex edges
 
