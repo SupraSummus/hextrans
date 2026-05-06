@@ -1225,14 +1225,17 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 				//display snow transitions if required
 				if(  slope != 0  &&  (!weg  ||  !weg->hat_gehweg())  ) {
 					// the gehweg flag is used for rail switches, but a slope has no switches ...
-					// Snow shares SlopeTrans with the climate-corner mix
-					// above; init_ground_textures bakes that mask to a
-					// 1-bit bitmask, so any tile the snowline crosses
-					// gets snow on the slope's high corners.  The
-					// square-era ALPHA_BLUE-only narrow band on
-					// snow_transition==2 / max_diff>1 is gone.
-					if(  snow_transition == 1  ||  snow_transition == 2  ) {
-						gfx->draw_alpha( ground_desc_t::get_snow_tile(slope), ground_desc_t::get_alpha_tile(slope), ALPHA_GREEN | ALPHA_BLUE, xpos, ypos, 0, 0, true, dirty CLIP_NUM_PAR );
+					switch(  snow_transition  ) {
+						case 1: {
+							gfx->draw_alpha( ground_desc_t::get_snow_tile(slope), ground_desc_t::get_alpha_tile(slope), ALPHA_GREEN | ALPHA_BLUE, xpos, ypos, 0, 0, true, dirty CLIP_NUM_PAR );
+							break;
+						}
+						case 2: {
+							if(  slope_t::max_diff(slope) > 1  ) {
+								gfx->draw_alpha( ground_desc_t::get_snow_tile(slope), ground_desc_t::get_alpha_tile(slope), ALPHA_BLUE, xpos, ypos, 0, 0, true, dirty CLIP_NUM_PAR );
+							}
+							break;
+						}
 					}
 				}
 
