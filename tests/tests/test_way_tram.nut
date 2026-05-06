@@ -102,7 +102,9 @@ function test_way_tram_build_parallel()
 }
 
 
-// test_way_tram_build_on_road: HEX-PORT PENDING.
+// Tram laid along the S axis on top of an existing N-S road, then a
+// crossing case where the tram runs along the SE axis through the
+// road's middle tile.
 function test_way_tram_build_on_road()
 {
 	local pl = player_x(0)
@@ -111,32 +113,33 @@ function test_way_tram_build_on_road()
 
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 3, 0), coord3d(3, 5, 0), road, true), null)
 
+	// Column at x=3, y=3..5 along S axis: S=2, N|S=18, N=16.
+	local ns_col = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  2, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 16, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
+	local empty_8x8 = [
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
+
 	// build fully on existing road
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 3, 0), coord3d(3, 5, 0), tramway, true), null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...1....",
-				"........",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...1....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), ns_col)
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), ns_col)
 
 		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(3, 3, 0), coord3d(3, 5, 0), "" + wt_rail), null)
 	}
@@ -145,39 +148,33 @@ function test_way_tram_build_on_road()
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 4, 0), coord3d(4, 4, 0), tramway, true), null)
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...1....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), ns_col)
 
+		// Row at y=4, x=2..4 along SE axis: SE=1, SE|NW=9, NW=8.
 		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"..2A8...",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 1, 9, 8, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 
 		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(2, 4, 0), coord3d(4, 4, 0), "" + wt_rail), null)
 	}
 
 	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(3, 3, 0), coord3d(3, 5, 0), "" + wt_road), null)
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
 
-// test_way_tram_build_across_road_bridge: HEX-PORT PENDING.
+// Bridge runs N-S between two narrow-edge ramps; the column at z=1
+// carries S=2 / N|S=18 / N=16 (north ramp, span, south ramp), each
+// end-tile reporting only the direction pointing into the bridge.
 function test_way_tram_build_across_road_bridge()
 {
 	local pl = player_x(0)
@@ -190,32 +187,22 @@ function test_way_tram_build_across_road_bridge()
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.north), null)
 	ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 3, 0), bridge), null)
 
+	local bridge_col = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  2, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 16, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
+
 	// and build tram track
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 3, 0), coord3d(3, 5, 0), tramway, true), null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...1....",
-				"........",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...1....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), bridge_col)
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 1), bridge_col)
 
 		// do not remove tram tracks here, this is done by tool_remover below
 	}

@@ -206,7 +206,7 @@ all_tests <- [
 	test_way_bridge_build_at_planar_double_slope,
 	test_way_bridge_planner,
 	test_way_road_build_single_tile,
-	// test_way_road_build_straight: HEX-PORT PENDING.
+	test_way_road_build_straight,
 	test_way_road_build_ne_sw,
 	test_way_rail_build_through_partial_slope,
 	test_way_rail_terminate_on_slope_off_gradient,
@@ -217,7 +217,7 @@ all_tests <- [
 	// test_way_road_build_below_powerline: HEX-PORT PENDING.
 	// test_way_road_build_crossing: HEX-PORT PENDING.
 	// test_way_road_upgrade_crossing: HEX-PORT PENDING.
-	// test_way_road_upgrade_downgrade: HEX-PORT PENDING.
+	test_way_road_upgrade_downgrade,
 	// test_way_road_upgrade_downgrade_across_bridge: HEX-PORT PENDING.
 	// test_way_road_cityroad_build: HEX-PORT PENDING.
 	// test_way_road_cityroad_upgrade_with_cityroad: HEX-PORT PENDING.
@@ -230,8 +230,8 @@ all_tests <- [
 	// test_way_runway_build_mixed_flat: HEX-PORT PENDING.
 	test_way_tram_build_flat,
 	// test_way_tram_build_parallel: HEX-PORT PENDING.
-	// test_way_tram_build_on_road: HEX-PORT PENDING.
-	// test_way_tram_build_across_road_bridge: HEX-PORT PENDING.
+	test_way_tram_build_on_road,
+	test_way_tram_build_across_road_bridge,
 	test_way_tram_build_across_crossing,
 	// test_way_tram_build_in_tunel: HEX-PORT PENDING.
 	// test_way_tunnel_build_straight: HEX-PORT PENDING.
