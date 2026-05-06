@@ -119,6 +119,16 @@ bool slope_is_way(my_slope_t slope)
 	return slope_t::is_way((slope_t::type)slope);
 }
 
+bool slope_allows_ribi_export(my_slope_t slope, my_ribi_t ribi)
+{
+	return slope_allows_ribi((slope_t::type)slope, (ribi_t::ribi)ribi);
+}
+
+bool slope_allows_flat_way_chord_export(my_slope_t slope, my_ribi_t ribi)
+{
+	return slope_allows_flat_way_chord((slope_t::type)slope, (ribi_t::ribi)ribi);
+}
+
 
 template<int idx> SQInteger coord_to_ribi(HSQUIRRELVM vm)
 {
@@ -355,6 +365,31 @@ void export_simple(HSQUIRRELVM vm)
 	 * @param s slope
 	 */
 	STATIC register_method(vm, &slope_is_way, "is_way", false, true);
+	/**
+	 * Whether a tile with this slope can geometrically support a way
+	 * with this ribi.  Each set ribi bit names an exit edge; that edge
+	 * must be internally level (a half-raised edge runs the slope
+	 * sideways across the way body).  The collected edge heights must
+	 * form either a flat chord (all equal — the body sits flat) or a
+	 * single-axis ramp (two adjacent heights differing by 1, all
+	 * touched bits on one axis — the body slopes uniformly along that
+	 * axis).  Mirrors `slope_allows_ribi` in `dataobj/ribi.h`.
+	 * @param s slope
+	 * @param r ribi (multi-bit allowed for bends and junctions)
+	 */
+	STATIC register_method(vm, &slope_allows_ribi_export, "allows_ribi", false, true);
+	/**
+	 * Whether a way with this ribi sits at constant height (flat chord)
+	 * on this slope rather than ramping.  Drives the renderer's choice
+	 * between the flat-ribi sprite and the slope-shape sprite.  Per-edge
+	 * rather than per-axis: a half-chord stub on the flat half of a
+	 * sloped tile (e.g. ribi S on a slope with the N edge half-raised)
+	 * also reports flat.  Mirrors `slope_allows_flat_way_chord` in
+	 * `dataobj/ribi.h`.
+	 * @param s slope
+	 * @param r ribi (multi-bit allowed for bends and junctions)
+	 */
+	STATIC register_method(vm, &slope_allows_flat_way_chord_export, "allows_flat_way_chord", false, true);
 	end_class(vm);
 
 #ifdef SQAPI_DOC

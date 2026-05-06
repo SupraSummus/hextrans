@@ -2931,7 +2931,7 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 
 			zeiger_t* way = new zeiger_t(pos, player);
 			const slope_t::type hang = gr->get_weg_hang();
-			if (hang != slope_t::flat  &&  !slope_allows_flat_way_chord_axis(hang, zeige)) {
+			if (hang != slope_t::flat  &&  !slope_allows_flat_way_chord(hang, zeige)) {
 				way->set_image(desc->get_slope_image_id(hang, 0));
 			}
 			else {
@@ -3436,7 +3436,7 @@ void tool_build_tunnel_t::mark_tiles(  player_t *player, const koord3d &start, c
 
 			zeiger_t *way = new zeiger_t(pos, player );
 			const slope_t::type hang = gr->get_weg_hang();
-			if(hang != slope_t::flat  &&  !slope_allows_flat_way_chord_axis(hang, zeige)) {
+			if(hang != slope_t::flat  &&  !slope_allows_flat_way_chord(hang, zeige)) {
 				way->set_image( wb->get_slope_image_id(hang,0) );
 			}
 			else {

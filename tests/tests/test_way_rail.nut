@@ -166,6 +166,60 @@ function test_way_rail_terminate_on_slope_chord_stub()
 }
 
 
+// 60° bend around the SE corner of an NW-high tile must render as a
+// flat way, not as the tile's NW-SE gradient ramp.  Setup: raise T's
+// NW and W vertices (gradient NW high → SE low, S/SE/E corners flat
+// at 0).  Build S → T (chord stub on the S edge) and T → SE (chord
+// stub on the SE edge), so T carries ribi S + SE = 3 — both crossed
+// edges level at z=0, body sits flat on the chord.
+//
+// `slope.allows_flat_way_chord(slope, ribi)` is the predicate the
+// renderer's gate in `weg_t::calc_image` consults when picking
+// between the flat-ribi sprite and the slope-shape sprite.  True
+// means flat — the bend is drawn from ribi as a flat chord at z=0.
+// The renderer regression had the predicate rejecting half-axis
+// chord stubs; the fix is per-edge level checks rather than
+// per-axis.  Pak-independent — the test never resolves an image_id.
+function test_way_rail_render_bend_around_se_on_nw_high_tile()
+{
+	local pl      = player_x(0)
+	local rail    = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local remover = command_x(tool_remove_way)
+	ASSERT_TRUE(rail != null)
+
+	local T  = coord3d(10, 10, 0)
+	local S  = coord3d(10, 11, 0) // T + neighbours[1]
+	local SE = coord3d(11, 10, 0) // T + neighbours[0]
+
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.NW), null)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.W),  null)
+
+	local hang = HEX_SLOPE(0, 0, 0, 1, 1, 0)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_slope(), hang)
+
+	ASSERT_EQUAL(command_x.build_way(pl, S,  T,  rail, true), null)
+	ASSERT_EQUAL(command_x.build_way(pl, T,  SE, rail, true), null)
+
+	// Data sanity: SE bit (1) + S bit (2) = 3.
+	local ribi = tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail)
+	ASSERT_EQUAL(ribi, 3)
+
+	// Renderer flat-chord predicate — drives the choice between the
+	// flat-ribi sprite and the slope-shape sprite in
+	// `weg_t::calc_image`.  Pre-fix this returned false (per-axis
+	// check) and the renderer fell into the slope-image branch,
+	// drawing the NW-SE gradient ramp instead of the bend.
+	ASSERT_TRUE(slope.allows_flat_way_chord(hang, ribi))
+
+	// cleanup
+	ASSERT_EQUAL(remover.work(pl, tile_x(S.x, S.y, S.z), SE, "" + wt_rail), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.NW), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.W),  null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // Raising a single shared vertex lifts a corner on each of the three
 // tiles around it.  T = (5, 5), SW neighbour = (4, 6); they share the
 // W vertex of T (= NE vertex of (4, 6) = SE vertex of (4, 5)).  After
