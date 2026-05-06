@@ -138,15 +138,17 @@ directly rather than 4 corners of a 2x2 square.
 
 ## Lower_to water-tile NW-only gate
 
-`terraformer_t::lower_to` short-circuits water tiles unless the NW corner
-is being lowered (`terraformer.cc:472-476`); `raise_to` has no symmetric
-gate.  The NW pick is the legacy "tile reference height" corner from the
-square era — under hex no single corner has that role.  In practice the
-gate decides "did the corner the water table is keyed off of drop", and
+`terraformer_t::lower_to` short-circuits water tiles unless the NW
+corner is being lowered; `raise_to` has no symmetric gate.  The NW
+pick is the legacy "tile reference height" corner from the square era
+— under hex no single corner has that role.  In practice the gate
+decides "did the corner the water table is keyed off of drop", and
 the answer probably wants to be "did `min_corner` drop" or "did any
-corner that touches a neighbour-with-higher-water drop".  Real semantic
-choice, not a mechanical refactor; lands together with the wider
-hex-aware water-table propagation pass when that gets scheduled.
+corner that touches a neighbour-with-higher-water drop".  Real
+semantic choice, not a mechanical refactor; lands together with the
+wider hex-aware water-table propagation pass when that gets
+scheduled.  `can_lower_tile_to` mirrors the same gate so its noop
+short-circuit matches `lower_to` exactly; both retire together.
 
 ## `tool_set_slope_work` doesn't gate on `is_way`
 

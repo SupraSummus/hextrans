@@ -256,3 +256,38 @@ function test_slope_restore_on_label()
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 2, 0), slope.flat), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+// Raising / lowering a corner propagates "≥ H − 1" / "≤ H + 1"
+// to the vertex-neighbours of the picked corner; the terraformer
+// adds a node for every tile owning one of those vertices and
+// runs `can_*_plan_to` on each.  On flat ground the propagation
+// target equals the tile's existing corner heights, so no height
+// actually changes — the plan-changeable gate must not fire on
+// those drive-by tiles, otherwise a way two vertex-steps from
+// the cursor vetoes the operation with "Tile not empty.".
+//
+// Geometry: corner SW of (6, 7) has canonical vertex (5, 8, E);
+// its 3 vertex-neighbours are SE of (5, 8), (5, 7) and (6, 7).
+// Tile (5, 7) is reached only via the propagation step, not as
+// an owner of SW((6, 7)) itself.  Place a rail there and check
+// the operation still goes through.
+function test_slope_raise_lower_corner_near_way()
+{
+	local pl   = player_x(0)
+	local rail = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	ASSERT_TRUE(rail != null)
+
+	local R       = coord3d(5, 7, 0)
+	local R_NE    = coord3d(6, 6, 0) // R + neighbours[5]
+	local pivot   = coord3d(6, 7, 0)
+
+	ASSERT_EQUAL(command_x.build_way(pl, R, R_NE, rail, true), null)
+
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, pivot, hex_corner.SW), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, pivot, hex_corner.SW), null)
+
+	// cleanup
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, R, R_NE, "" + wt_rail), null)
+	RESET_ALL_PLAYER_FUNDS()
+}
