@@ -27,7 +27,8 @@ function test_way_road_build_single_tile()
 }
 
 
-// test_way_road_build_straight: HEX-PORT PENDING.
+// First build is along the S axis (constant q, r increasing); second
+// along the SE axis (q increasing, constant r), crossing at (2, 2).
 function test_way_road_build_straight()
 {
 	local default_cash = 200000 * 100
@@ -40,19 +41,32 @@ function test_way_road_build_straight()
 	//prerequisites
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 
+	local empty_8x8 = [
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
+
+	// Column at x=2, y=1..6 along the S axis (S=2, N=16, N|S=18).
+	local col_only = [
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+	]
+
 	local tool_result = command_x.build_way(pl, coord3d(2, 1, 0), coord3d(2, 6, 0), desc, true)
 	ASSERT_EQUAL(tool_result, null)
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"..4.....",
-			"..5.....",
-			"..5.....",
-			"..5.....",
-			"..5.....",
-			"..1.....",
-			"........"
-		])
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), col_only)
 
 	ASSERT_TRUE(pl.get_current_net_wealth() < current_cash)
 	ASSERT_TRUE(pl.get_current_maintenance() > 0)
@@ -66,134 +80,77 @@ function test_way_road_build_straight()
 	ASSERT_EQUAL(pl.get_current_maintenance(), maintenance_per_tile * (6 + 4))
 	ASSERT_TRUE(pl.get_current_cash() < default_cash / 100)
 
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"..4.....",
-			"..7AAA8.",
-			"..5.....",
-			"..5.....",
-			"..5.....",
-			"..1.....",
-			"........"
-		])
+	// Row at y=2, x=2..6 along the SE axis (SE=1, NW=8, SE|NW=9), and
+	// the (2,2) crossing now carries N|S|SE = 19.
+	local cross = [
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 19, 9, 9, 9, 8, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+	]
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), cross)
 
 	tool_result = command_x.build_way(pl, coord3d(16, 5, 0), coord3d(5, 5, 0), desc, true)
 	ASSERT_EQUAL(tool_result, "")
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"..4.....",
-			"..7AAA8.",
-			"..5.....",
-			"..5.....",
-			"..5.....",
-			"..1.....",
-			"........"
-		])
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), cross)
 
 	tool_result = command_x.build_way(pl, coord3d(1, 1, 1), coord3d(1, 5, 1), desc, true)
 	ASSERT_EQUAL(tool_result, "")
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"..4.....",
-			"..7AAA8.",
-			"..5.....",
-			"..5.....",
-			"..5.....",
-			"..1.....",
-			"........"
-		])
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), cross)
 
 	tool_result = command_x.build_way(pl, coord3d(1, 1, -1), coord3d(1, 5, -1), desc, true)
 	ASSERT_EQUAL(tool_result, "")
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"..4.....",
-			"..7AAA8.",
-			"..5.....",
-			"..5.....",
-			"..5.....",
-			"..1.....",
-			"........"
-		])
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), cross)
 
 	// clean up
 
 	local remover = command_x(tool_remove_way)
 	tool_result = remover.work(pl, tile_x(2, 2, 0), tile_x(6, 2, 0), "" + wt_road)
 	ASSERT_EQUAL(tool_result, null)
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"..4.....",
-			"..5.....",
-			"..5.....",
-			"..5.....",
-			"..5.....",
-			"..1.....",
-			"........"
-		])
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), col_only)
 
+	// Severing the (2,3)↔(2,4) edge leaves stub ribi at both ends.
 	tool_result = remover.work(pl, tile_x(2, 3, 0), tile_x(2, 4, 0), "" + wt_road)
 	ASSERT_EQUAL(tool_result, null)
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 		[
-			"........",
-			"..4.....",
-			"..5.....",
-			"..1.....",
-			"..4.....",
-			"..5.....",
-			"..1.....",
-			"........"
+			[0, 0,  0, 0, 0, 0, 0, 0],
+			[0, 0,  2, 0, 0, 0, 0, 0],
+			[0, 0, 18, 0, 0, 0, 0, 0],
+			[0, 0, 16, 0, 0, 0, 0, 0],
+			[0, 0,  2, 0, 0, 0, 0, 0],
+			[0, 0, 18, 0, 0, 0, 0, 0],
+			[0, 0, 16, 0, 0, 0, 0, 0],
+			[0, 0,  0, 0, 0, 0, 0, 0],
 		])
 
 	tool_result = remover.work(pl, tile_x(2, 1, 0), tile_x(2, 2, 0), "" + wt_road)
 	ASSERT_EQUAL(tool_result, null)
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"........",
-			"..4.....",
-			"..1.....",
-			"..4.....",
-			"..5.....",
-			"..1.....",
-			"........"
-		])
+	local after_top_cut = [
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+	]
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), after_top_cut)
 
 	tool_result = remover.work(pl, tile_x(2, 2, 0), tile_x(2, 6, 0), "" + wt_road)
 	ASSERT_EQUAL(tool_result, "Ways not connected")
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"........",
-			"..4.....",
-			"..1.....",
-			"..4.....",
-			"..5.....",
-			"..1.....",
-			"........"
-		])
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), after_top_cut)
 
 	tool_result = remover.work(pl, tile_x(2, 2, 0), tile_x(2, 3, 0), "" + wt_road)
 	ASSERT_EQUAL(tool_result, null)
 	tool_result = remover.work(pl, tile_x(2, 4, 0), tile_x(2, 6, 0), "" + wt_road)
 	ASSERT_EQUAL(tool_result, null)
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........"
-		])
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
 
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -712,7 +669,6 @@ function test_way_road_upgrade_crossing()
 }
 
 
-// test_way_road_upgrade_downgrade: HEX-PORT PENDING.
 function test_way_road_upgrade_downgrade()
 {
 	local pl = player_x(0)
@@ -730,24 +686,25 @@ function test_way_road_upgrade_downgrade()
 	ASSERT_TRUE(slow_road.get_name() != fast_road.get_name())
 	ASSERT_TRUE(slow_road.get_topspeed() < fast_road.get_topspeed())
 
+	// Column at x=4, y=3..5 along the S axis: S=2, N|S=18, N=16.
+	local ns_col = [
+		[0, 0, 0, 0,  0, 0, 0, 0],
+		[0, 0, 0, 0,  0, 0, 0, 0],
+		[0, 0, 0, 0,  0, 0, 0, 0],
+		[0, 0, 0, 0,  2, 0, 0, 0],
+		[0, 0, 0, 0, 18, 0, 0, 0],
+		[0, 0, 0, 0, 16, 0, 0, 0],
+		[0, 0, 0, 0,  0, 0, 0, 0],
+		[0, 0, 0, 0,  0, 0, 0, 0],
+	]
+
 	// build road
 	ASSERT_EQUAL(command_x.build_way(pl, start_pos, end_pos, slow_road, true), null)
 
 	// upgrade road
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, start_pos, end_pos, fast_road, true), null)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"....4...",
-				"....5...",
-				"....1...",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), ns_col)
 	}
 
 	// Replace road with same road, should incur no cost
@@ -755,18 +712,7 @@ function test_way_road_upgrade_downgrade()
 		local old_cash = pl.get_current_cash()
 		ASSERT_EQUAL(command_x.build_way(pl, start_pos, end_pos, fast_road, true), null)
 		ASSERT_EQUAL(pl.get_current_cash(), old_cash)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"....4...",
-				"....5...",
-				"....1...",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), ns_col)
 	}
 
 	// downgrade road without ctrl; should fail
@@ -782,18 +728,7 @@ function test_way_road_upgrade_downgrade()
 		ASSERT_EQUAL(tile_x(4, 4, 0).find_object(mo_way).get_desc().get_name(), fast_road.get_name())
 		ASSERT_EQUAL(pl.get_current_cash(), old_cash)
 		ASSERT_EQUAL(pl.get_current_maintenance(), old_maintenance)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"....4...",
-				"....5...",
-				"....1...",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), ns_col)
 	}
 
 	// downgrade road with ctrl
@@ -803,18 +738,7 @@ function test_way_road_upgrade_downgrade()
 		ASSERT_EQUAL(tool.work(pl, start_pos, end_pos, slow_road.get_name()), null)
 
 		ASSERT_EQUAL(tile_x(4, 4, 0).find_object(mo_way).get_desc().get_name(), slow_road.get_name())
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"....4...",
-				"....5...",
-				"....1...",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), ns_col)
 	}
 
 	ASSERT_EQUAL(remover.work(pl, start_pos, end_pos, "" + wt_road), null)
