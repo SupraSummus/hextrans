@@ -285,7 +285,7 @@ void wayobj_t::calc_image()
 		dir &= (w->get_ribi_unmasked() | sec_way_ribi_unmasked);
 
 		hang = gr->get_weg_hang();
-		if (slope_allows_flat_way_chord_axis(hang, (ribi_t::ribi)dir)) {
+		if (slope_allows_flat_way_chord(hang, (ribi_t::ribi)dir)) {
 			hang = slope_t::flat;
 		}
 	}

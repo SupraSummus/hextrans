@@ -615,44 +615,6 @@ static inline sint8 slope_chord_h_along_axis(slope_t::type sl, ribi_t::ribi r)
 	return slope_t::chord_h_axis(sl, a0, a1, b0, b1);
 }
 
-/// Convenience: way along this axis sits at constant height (flat
-/// chord) rather than ramping.  Drives "render this slope's way /
-/// wayobj as flat".  Accepts multi-bit ribi (bends, junctions): all
-/// axes spanned by @p r must admit a flat chord at the same height.
-static inline bool slope_allows_flat_way_chord_axis(slope_t::type sl, ribi_t::ribi r)
-{
-	sint8 h = -1;
-	if (r & (ribi_t::north | ribi_t::south)) {
-		const sint8 ah = slope_chord_h_along_axis(sl, ribi_t::north);
-		if (ah < 0) return false;
-		h = ah;
-	}
-	if (r & (ribi_t::northeast | ribi_t::southwest)) {
-		const sint8 ah = slope_chord_h_along_axis(sl, ribi_t::northeast);
-		if (ah < 0) return false;
-		if (h < 0) h = ah; else if (h != ah) return false;
-	}
-	if (r & (ribi_t::northwest | ribi_t::southeast)) {
-		const sint8 ah = slope_chord_h_along_axis(sl, ribi_t::northwest);
-		if (ah < 0) return false;
-		if (h < 0) h = ah; else if (h != ah) return false;
-	}
-	return h >= 0;
-}
-
-/// Height delta (above tile base) at which a way sits at the edge in
-/// direction @p r.  Flat chord: returns the chord's H.  Ramp: returns
-/// the edge's level corner height (entry on the axis's canonical
-/// direction, exit on its opposite).  Non-axis ribi or flat slope: 0.
-static inline sint8 slope_way_h_at_edge(slope_t::type sl, ribi_t::ribi r)
-{
-	uint8 a0, a1, b0, b1;
-	if (!slope_corners_along_axis(sl, r, a0, a1, b0, b1)) return 0;
-	const sint8 chord_h = slope_t::chord_h_axis(sl, a0, a1, b0, b1);
-	if (chord_h >= 0) return chord_h;
-	return (r == ribi_t::straight_axis(r)) ? (sint8)a0 : (sint8)b0;
-}
-
 /// Height of the tile edge in direction @p r (a single hex direction
 /// bit), if and only if that edge is internally level — i.e. its two
 /// endpoint corners are at the same height.  Returns -1 for half-raised
@@ -671,6 +633,40 @@ static inline sint8 slope_level_edge_h(slope_t::type sl, ribi_t::ribi r)
 		default:                return -1;
 	}
 	return c0 == c1 ? (sint8)c0 : (sint8)-1;
+}
+
+/// Convenience: the way's body sits at constant height (flat chord)
+/// rather than ramping.  Drives "render this slope's way / wayobj
+/// as flat".  Accepts multi-bit ribi (bends, junctions): every set
+/// edge must be internally level and at the same height.  Per-edge
+/// rather than per-axis, so a half-chord stub on the flat half of a
+/// sloped tile (e.g. ribi S on a slope with the N edge half-raised)
+/// also reports flat — matching the chord branch of
+/// `slope_allows_ribi` that admitted the build.
+static inline bool slope_allows_flat_way_chord(slope_t::type sl, ribi_t::ribi r)
+{
+	sint8 h = -1;
+	for (uint8 b = 0; b < 6; b++) {
+		const ribi_t::ribi dir = (ribi_t::ribi)(1u << b);
+		if (!(r & dir)) continue;
+		const sint8 eh = slope_level_edge_h(sl, dir);
+		if (eh < 0) return false;
+		if (h < 0) h = eh; else if (h != eh) return false;
+	}
+	return h >= 0;
+}
+
+/// Height delta (above tile base) at which a way sits at the edge in
+/// direction @p r.  Flat chord: returns the chord's H.  Ramp: returns
+/// the edge's level corner height (entry on the axis's canonical
+/// direction, exit on its opposite).  Non-axis ribi or flat slope: 0.
+static inline sint8 slope_way_h_at_edge(slope_t::type sl, ribi_t::ribi r)
+{
+	uint8 a0, a1, b0, b1;
+	if (!slope_corners_along_axis(sl, r, a0, a1, b0, b1)) return 0;
+	const sint8 chord_h = slope_t::chord_h_axis(sl, a0, a1, b0, b1);
+	if (chord_h >= 0) return chord_h;
+	return (r == ribi_t::straight_axis(r)) ? (sint8)a0 : (sint8)b0;
 }
 
 /// Whether a tile with this slope can geometrically support a way with

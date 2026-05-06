@@ -434,7 +434,7 @@ bool weg_t::check_season(const bool calc_only_season_change)
 	}
 
 	slope_t::type hang = gr->get_weg_hang();
-	if(  hang != slope_t::flat  &&  !slope_allows_flat_way_chord_axis(hang, ribi)  ) {
+	if(  hang != slope_t::flat  &&  !slope_allows_flat_way_chord(hang, ribi)  ) {
 		set_slope_images( hang, snow );
 		return true;
 	}
@@ -523,7 +523,7 @@ void weg_t::calc_image()
 		}
 
 		slope_t::type hang = from->get_weg_hang();
-		if(hang != slope_t::flat  &&  !slope_allows_flat_way_chord_axis(hang, ribi)) {
+		if(hang != slope_t::flat  &&  !slope_allows_flat_way_chord(hang, ribi)) {
 			// on slope
 			set_slope_images(hang, snow);
 			if(  image == IMG_EMPTY  &&  get_waytype() == water_wt  &&  desc->get_styp() == type_river  ) {
