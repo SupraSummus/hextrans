@@ -52,6 +52,41 @@ namespace {
 		}
 	}
 
+	// Merge a node's per-corner targets against the tile's current
+	// corner heights into the bound `hn[]` the rest of the raise /
+	// lower path consumes.  Raise takes the elementwise max (only
+	// pushes corners up); lower takes the min.  Returns whether any
+	// corner actually changed — the apply path uses this to skip
+	// no-op nodes (a node can sit in the list with all targets
+	// already satisfied if propagation reached the tile but its
+	// existing heights covered the constraint), and the can_*_tile_to
+	// predicates use the same bool to skip the plan-changeable /
+	// bridge-clearance gates so a way two vertex-steps from the
+	// cursor doesn't veto the operation.
+	bool merge_raise_targets(const sint8 h0[HEX_N], const sint8 nh[HEX_N], sint8 hn[HEX_N])
+	{
+		bool any_up = false;
+		for (uint8 c = 0; c < HEX_N; c++) {
+			hn[c] = max(nh[c], h0[c]);
+			if (h0[c] < nh[c]) {
+				any_up = true;
+			}
+		}
+		return any_up;
+	}
+
+	bool merge_lower_targets(const sint8 h0[HEX_N], const sint8 nh[HEX_N], sint8 hn[HEX_N])
+	{
+		bool any_down = false;
+		for (uint8 c = 0; c < HEX_N; c++) {
+			hn[c] = min(nh[c], h0[c]);
+			if (h0[c] > nh[c]) {
+				any_down = true;
+			}
+		}
+		return any_down;
+	}
+
 	// Slope of a tile whose 6 corner heights are hn[], seen from a
 	// displayed base of disp_hneu.  Under the 6-corner base-4 encoding
 	// the per-corner deltas are in [0, 3]; callers clamp against
@@ -191,12 +226,7 @@ void terraformer_t::generate_affected_tile_list()
 			node_t& i = list[j];
 			if (i.changed & actual_flag) {
 				i.changed &= ~actual_flag;
-				if (op == terraformer_t::raise) {
-					prepare_raise(i);
-				}
-				else {
-					prepare_lower(i);
-				}
+				prepare_node(i);
 			}
 		}
 	}
@@ -254,29 +284,23 @@ int terraformer_t::apply()
 
 // Propagate along the hex vertex graph, not whole tiles.  Raising a
 // vertex to H requires its 3 adjacent vertices to be at least H-1;
-// lowering to H requires them to be at most H+1.
-void terraformer_t::prepare_raise(const node_t node)
+// lowering to H requires them to be at most H+1.  Direction `factor`
+// (+1 raise, -1 lower) flips the per-corner skip condition and the
+// neighbour-step sign — same convention as `add_node_internal`.
+void terraformer_t::prepare_node(const node_t node)
 {
 	assert(welt->is_within_limits(node.x, node.y));
 
 	sint8 h0[HEX_N];
 	read_corners(welt, node.x, node.y, h0);
 
-	bool any_up = false;
-	for (uint8 c = 0; c < HEX_N; c++) {
-		if (h0[c] < node.h[c]) {
-			any_up = true;
-			break;
-		}
-	}
-
-	const grund_t *gr = welt->lookup_kartenboden_nocheck(node.x, node.y);
-	if (!gr->is_water() && !any_up) {
-		return;
-	}
+	const sint8 factor = (op == terraformer_t::raise) ? +1 : -1;
 
 	for (uint8 c = 0; c < HEX_N; c++) {
-		if (h0[c] >= node.h[c]) {
+		// Skip when this corner's target doesn't move "up" in the
+		// op direction: factor*h0 >= factor*node.h means h0 >= node.h
+		// for raise, h0 <= node.h for lower.
+		if (factor * h0[c] >= factor * node.h[c]) {
 			continue;
 		}
 		add_vertex_node(koord(node.x, node.y), (hex_corner_t::type)c, node.h[c]);
@@ -284,31 +308,7 @@ void terraformer_t::prepare_raise(const node_t node)
 		const hex_vertex_t cv = canonical_vertex({ koord(node.x, node.y), (hex_corner_t::type)c });
 		hex_vertex_t nb[3];
 		vertex_neighbours(cv, nb);
-		const sint8 h1 = (sint8)(node.h[c] - 1);
-		for (int i = 0; i < 3; i++) {
-			add_vertex_node(nb[i].tile, nb[i].corner, h1);
-		}
-	}
-}
-
-
-void terraformer_t::prepare_lower(const node_t node)
-{
-	assert(welt->is_within_limits(node.x, node.y));
-
-	sint8 h0[HEX_N];
-	read_corners(welt, node.x, node.y, h0);
-
-	for (uint8 c = 0; c < HEX_N; c++) {
-		if (h0[c] <= node.h[c]) {
-			continue;
-		}
-		add_vertex_node(koord(node.x, node.y), (hex_corner_t::type)c, node.h[c]);
-
-		const hex_vertex_t cv = canonical_vertex({ koord(node.x, node.y), (hex_corner_t::type)c });
-		hex_vertex_t nb[3];
-		vertex_neighbours(cv, nb);
-		const sint8 h1 = (sint8)(node.h[c] + 1);
+		const sint8 h1 = (sint8)(node.h[c] - factor);
 		for (int i = 0; i < 3; i++) {
 			add_vertex_node(nb[i].tile, nb[i].corner, h1);
 		}
@@ -327,8 +327,9 @@ const char *terraformer_t::can_raise_tile_to(const node_t &node, const player_t 
 	read_corners(welt, node.x, node.y, h0);
 
 	sint8 hn[HEX_N];
-	for (uint8 c = 0; c < HEX_N; c++) {
-		hn[c] = max(node.h[c], h0[c]);
+	const bool any_up = merge_raise_targets(h0, node.h, hn);
+	if (!gr->is_water() && !any_up) {
+		return NULL;
 	}
 
 	sint8 min_hgt, max_hgt;
@@ -346,12 +347,23 @@ const char* terraformer_t::can_lower_tile_to(const node_t &node, const player_t 
 {
 	assert(welt->is_within_limits(node.x,node.y));
 
+	const grund_t *gr = welt->lookup_kartenboden_nocheck(node.x,node.y);
+
 	sint8 h0[HEX_N];
 	read_corners(welt, node.x, node.y, h0);
 
 	sint8 hn[HEX_N];
-	for (uint8 c = 0; c < HEX_N; c++) {
-		hn[c] = min(node.h[c], h0[c]);
+	const bool any_down = merge_lower_targets(h0, node.h, hn);
+
+	// Water tiles only react to a NW drop (water-table recalc); land
+	// tiles bail when no corner falls.  Same gate as lower_to.
+	if (gr->is_water()) {
+		if (h0[hex_corner_t::NW] <= node.h[hex_corner_t::NW]) {
+			return NULL;
+		}
+	}
+	else if (!any_down) {
+		return NULL;
 	}
 
 	sint8 hneu, max_hgt_ignored;
@@ -388,14 +400,7 @@ int terraformer_t::raise_to(const node_t &node)
 	read_corners(welt, node.x, node.y, h0);
 
 	sint8 hn[HEX_N];
-	bool any_up = false;
-	for (uint8 c = 0; c < HEX_N; c++) {
-		hn[c] = max(node.h[c], h0[c]);
-		if (h0[c] < node.h[c]) {
-			any_up = true;
-		}
-	}
-
+	const bool any_up = merge_raise_targets(h0, node.h, hn);
 	if (!gr->is_water() && !any_up) {
 		return 0;
 	}
@@ -457,13 +462,7 @@ int terraformer_t::lower_to(const node_t &node)
 	read_corners(welt, node.x, node.y, h0);
 
 	sint8 hn[HEX_N];
-	bool any_down = false;
-	for (uint8 c = 0; c < HEX_N; c++) {
-		hn[c] = min(node.h[c], h0[c]);
-		if (h0[c] > node.h[c]) {
-			any_down = true;
-		}
-	}
+	const bool any_down = merge_lower_targets(h0, node.h, hn);
 
 	// nothing to do?  For water tiles fall through on NW-only change so
 	// the water table gets rechecked; for land tiles bail if unchanged.

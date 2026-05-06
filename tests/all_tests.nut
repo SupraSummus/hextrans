@@ -172,6 +172,7 @@ all_tests <- [
 	test_slope_restore_on_foundation,
 	test_slope_restore_on_bridge,
 	test_slope_restore_on_label,
+	test_slope_raise_lower_corner_near_way,
 	test_slope_max_height_diff,
 	test_terraform_raise_lower_land,
 	test_terraform_raise_lower_land_at_map_border,

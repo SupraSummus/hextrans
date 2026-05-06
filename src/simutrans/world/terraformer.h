@@ -96,9 +96,10 @@ private:
 	/// Add a target for one world vertex, mirrored to all in-map owner tiles.
 	void add_vertex_node(koord tile, hex_corner_t::type corner, sint8 h);
 
-	/// Internal functions to be used with terraformer_t to propagate terrain changes to neighbouring tiles
-	void prepare_raise(const node_t node);
-	void prepare_lower(const node_t node);
+	/// Propagate this node's targets along the hex vertex graph;
+	/// op-direction (raise vs lower) flips the skip condition and
+	/// the neighbour-step sign.
+	void prepare_node(const node_t node);
 
 	/**
 	 * Checks whether the heights of the corners of the tile at (@p x, @p y) can be raised.
