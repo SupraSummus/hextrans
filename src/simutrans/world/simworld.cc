@@ -3329,6 +3329,9 @@ void karte_t::step()
 	last_step_ticks = ticks;
 	steps ++;
 
+	// Block re-entrant GUI dispatch — INT_CHECK below would otherwise let welt_gui_t's "Start" button call welt->init() and free what we're iterating. Mirrors modal_dialogue (gui/simwin.cc).
+	intr_disable();
+
 	// to make sure the tick counter will be updated
 	INT_CHECK("karte_t::step");
 
@@ -3447,6 +3450,8 @@ void karte_t::step()
 			esb->step(get_active_player());
 		}
 	}
+
+	intr_enable();
 
 	DBG_DEBUG4("karte_t::step", "end");
 }
