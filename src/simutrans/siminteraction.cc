@@ -22,6 +22,7 @@
 #include "world/simworld.h"
 #include "descriptor/sound_desc.h"
 #include "obj/zeiger.h"
+#include "display/simgraph.h"
 #include "display/viewport.h"
 
 
@@ -108,50 +109,38 @@ void interaction_t::move_cursor( const event_t &ev )
 }
 
 
+// Camera moves +x ⇔ world content shifts -x on screen ⇔ x_off
+// decreases; same sign flip on y.  The integer-hex-step normalisation
+// happens inside `change_world_position`.
+void interaction_t::pan_camera(sint16 dx_camera, sint16 dy_camera)
+{
+	viewport->change_world_position(viewport->get_world_position(),
+		viewport->get_x_off() - dx_camera,
+		viewport->get_y_off() - dy_camera);
+	world->set_dirty();
+}
+
+
 void interaction_t::interactive_event( const event_t &ev )
 {
 	if (IS_KEYDOWN(&ev)) {
 		DBG_MESSAGE("interaction_t::interactive_event()", "Key-down event with code %d '%c'", ev.ev_code, (ev.ev_code>=32  &&  ev.ev_code<=126) ? ev.ev_code : '?' );
 
+		// Keyboard scroll step basis (W, W/2): full-tile horizontal,
+		// half-tile vertical, matching the iso 2:1 row-to-column
+		// y-ratio of the hex projection (see display/hex_proj.h) so
+		// diagonals come out visually balanced.
+		const sint16 W = gfx->get_tile_raster_width();
 		switch(ev.ev_code) {
 
-			// cursor movements.  HEX-PORT: keyboard pans by one hex
-			// neighbour step.  Displacements are identical to the
-			// old square cardinals (since hex and square share the
-			// same axial coord layout) — just named via
-			// koord(ribi_t::<edge>).
-			case SIM_KEYCODE_UPRIGHT:
-				viewport->change_world_position(viewport->get_world_position() + koord::step(ribi_t::north));
-				world->set_dirty();
-				break;
-			case SIM_KEYCODE_DOWNLEFT:
-				viewport->change_world_position(viewport->get_world_position() + koord::step(ribi_t::south));
-				world->set_dirty();
-				break;
-			case SIM_KEYCODE_UPLEFT:
-				viewport->change_world_position(viewport->get_world_position() + koord::step(ribi_t::northwest));
-				world->set_dirty();
-				break;
-			case SIM_KEYCODE_DOWNRIGHT:
-				viewport->change_world_position(viewport->get_world_position() + koord::step(ribi_t::southeast));
-				world->set_dirty();
-				break;
-			case SIM_KEYCODE_RIGHT:
-				viewport->change_world_position(viewport->get_world_position() + koord(+1,-1));
-				world->set_dirty();
-				break;
-			case SIM_KEYCODE_DOWN:
-				viewport->change_world_position(viewport->get_world_position() + koord(+1,+1));
-				world->set_dirty();
-				break;
-			case SIM_KEYCODE_UP:
-				viewport->change_world_position(viewport->get_world_position() + koord(-1,-1));
-				world->set_dirty();
-				break;
-			case SIM_KEYCODE_LEFT:
-				viewport->change_world_position(viewport->get_world_position() + koord(-1,+1));
-				world->set_dirty();
-				break;
+			case SIM_KEYCODE_RIGHT:     pan_camera( +W,    0); break;
+			case SIM_KEYCODE_LEFT:      pan_camera( -W,    0); break;
+			case SIM_KEYCODE_DOWN:      pan_camera(  0, +W/2); break;
+			case SIM_KEYCODE_UP:        pan_camera(  0, -W/2); break;
+			case SIM_KEYCODE_DOWNRIGHT: pan_camera( +W, +W/2); break;
+			case SIM_KEYCODE_DOWNLEFT:  pan_camera( -W, +W/2); break;
+			case SIM_KEYCODE_UPRIGHT:   pan_camera( +W, -W/2); break;
+			case SIM_KEYCODE_UPLEFT:    pan_camera( -W, -W/2); break;
 
 			// closing windows
 			case 27:
