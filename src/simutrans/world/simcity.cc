@@ -3663,9 +3663,16 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 		}
 
 		// try artificial slope. For this, we need to know the height
-		// of the tile with the connecting road.  HEX-PORT: iterate 6
-		// hex neighbours instead of 4 cardinals.
-		for (sint8 r = 0; r < 6; r++) {
+		// of the tile with the connecting road.  HEX-PORT: city roads
+		// stick to 4 of the 6 hex neighbours (SE/S/NW/N) so a tile only
+		// connects along two axes at a time.  Iterating all 6 here
+		// produced 6-way junctions at every interior city tile and made
+		// the grid render as a triangulated mesh; the dropped pair
+		// (NE, SW) reappears naturally where two cityroad strips meet
+		// at a townhall or hand-built road.
+		static const sint8 city_road_dirs[4] = { 0, 1, 3, 4 }; // SE, S, NW, N
+		for (sint8 ri = 0; ri < 4; ri++) {
+			const sint8 r = city_road_dirs[ri];
 			if (grund_t* gr = welt->lookup_kartenboden(k + koord::neighbours[r])) {
 				if (gr->hat_weg(road_wt)) {
 
