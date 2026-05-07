@@ -453,6 +453,25 @@ function test_way_bridge_build_at_slope_stacked()
 }
 
 
+function test_way_bridge_build_flat_ground_nw_se()
+{
+	// Flat-ground bridge along the NW-SE axis (constant y), the
+	// hex axis whose ramp slope path is exercised by neither the
+	// N-S `_planner` nor the NE-SW `_planar_double_slope` cases.
+	local pl = player_x(0)
+	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
+	local remover = command_x(tool_remove_way)
+	ASSERT_TRUE(bridge_desc != null)
+
+	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(2, 4, 0), coord3d(5, 4, 0), bridge_desc), null)
+	ASSERT_TRUE(tile_x(2, 4, 0).find_object(mo_bridge) != null)
+	ASSERT_TRUE(tile_x(5, 4, 0).find_object(mo_bridge) != null)
+
+	ASSERT_EQUAL(remover.work(pl, tile_x(1, 4, 0), tile_x(6, 4, 0), "" + wt_road), null)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_way_bridge_build_at_planar_double_slope()
 {
 	local pl = player_x(0)
