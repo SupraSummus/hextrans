@@ -3664,15 +3664,24 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 
 		// try artificial slope. For this, we need to know the height
 		// of the tile with the connecting road.  HEX-PORT: city roads
-		// stick to 4 of the 6 hex neighbours (SE/S/NW/N) so a tile only
-		// connects along two axes at a time.  Iterating all 6 here
-		// produced 6-way junctions at every interior city tile and made
-		// the grid render as a triangulated mesh; the dropped pair
-		// (NE, SW) reappears naturally where two cityroad strips meet
-		// at a townhall or hand-built road.
-		static const sint8 city_road_dirs[4] = { 0, 1, 3, 4 }; // SE, S, NW, N
+		// stick to 4 of the 6 hex neighbours so a tile only connects
+		// along two axes at a time.  Iterating all 6 here produced
+		// 6-way junctions at every interior city tile and made the
+		// grid render as a triangulated mesh.  The 3 hex edge axes
+		// (N-S, NE-SW, SE-NW) yield 3 ways to pick a 2-axis pair —
+		// each city chooses one based on its founding position, so
+		// neighbouring cities tend to use different parallelogram
+		// orientations.  The unused 3rd axis still appears organically
+		// where two cityroad strips meet at a townhall or hand-built
+		// road.
+		static const sint8 city_road_dirs[3][4] = {
+			{ 0, 1, 3, 4 }, // axes A+C: SE, S, NW, N
+			{ 1, 2, 4, 5 }, // axes A+B: S, SW, N, NE
+			{ 0, 2, 3, 5 }, // axes B+C: SE, SW, NW, NE
+		};
+		const uint8 orient = (uint32)(pos.x * 5 + pos.y * 7) % 3;
 		for (sint8 ri = 0; ri < 4; ri++) {
-			const sint8 r = city_road_dirs[ri];
+			const sint8 r = city_road_dirs[orient][ri];
 			if (grund_t* gr = welt->lookup_kartenboden(k + koord::neighbours[r])) {
 				if (gr->hat_weg(road_wt)) {
 
