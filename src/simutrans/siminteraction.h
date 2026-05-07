@@ -7,6 +7,9 @@
 #define SIMINTERACTION_H
 
 
+#include "simtypes.h"
+
+
 class karte_ptr_t;
 class viewport_t;
 struct event_t;
@@ -40,6 +43,14 @@ private:
 	 * Processes a mouse event that's moving the camera.
 	 */
 	void move_view(const event_t &ev);
+
+	/**
+	 * Pans the camera by a screen-pixel delta (camera direction:
+	 * +x right, +y down).  Routed through `change_world_position`,
+	 * which absorbs the pixel pan into integer hex steps and keeps
+	 * the residual fine-pan within one tile.
+	 */
+	void pan_camera(sint16 dx_camera, sint16 dy_camera);
 
 	/**
 	 * Processes a cursor movement event, related to the tool pointer in-map.
