@@ -1313,7 +1313,7 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 				ribis |= gr1->get_leitung()->get_ribi();
 			}
 
-			if(  new_slope==RESTORE_SLOPE  ||  !ribi_t::is_single(ribis)  ||  (new_slope<slope_t::max_number  &&  ribi_t::backward(ribi_type(new_slope))!=ribis)  ) {
+			if(  new_slope==RESTORE_SLOPE  ||  !ribi_t::is_single(ribis)  ||  (new_slope<slope_t::max_number  &&  (ribi_t::backward(ribi_type(new_slope))!=ribis  ||  !slope_t::is_way(new_slope)))  ) {
 				// has the wrong tilt
 				return NOTICE_TILE_FULL;
 			}
