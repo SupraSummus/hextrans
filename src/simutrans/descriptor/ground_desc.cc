@@ -253,11 +253,20 @@ const ground_desc_t *ground_desc_t::slopes = NULL;
 const ground_desc_t *ground_desc_t::fences = NULL;
 const ground_desc_t *ground_desc_t::marker = NULL;
 const ground_desc_t *ground_desc_t::borders = NULL;
+const ground_desc_t *ground_desc_t::sidewalk = NULL;
 const ground_desc_t *ground_desc_t::sea = NULL;
 const ground_desc_t *ground_desc_t::outside = NULL;
 
+// Optional descriptors come first; `successfully_loaded` skips them
+// via `grounds + N_OPTIONAL_GROUNDS`.  Sidewalk is optional so legacy
+// paksets without an `Obj=ground Sidewalk` block (their old
+// `Obj=misc Sidewalk` is silently shelved) keep loading; sidewalks
+// just don't render under city-road tiles in that case — see the
+// NULL guard in `get_sidewalk_image`.
+static const int N_OPTIONAL_GROUNDS = 2;
 static special_obj_tpl<ground_desc_t> const grounds[] = {
 	{ &ground_desc_t::shore,     "Shore"          },
+	{ &ground_desc_t::sidewalk,  "Sidewalk"       },
 	{ &boden_texture,            "ClimateTexture" },
 	{ &hex_light_map,            "LightTexture"   },
 	{ &transition_water_texture, "ShoreTrans"     },
@@ -331,7 +340,7 @@ bool ground_desc_t::register_desc(const ground_desc_t *desc)
 bool ground_desc_t::successfully_loaded()
 {
 	DBG_MESSAGE("ground_desc_t::successfully_loaded()","boden");
-	return ::successfully_loaded(grounds+1);
+	return ::successfully_loaded(grounds + N_OPTIONAL_GROUNDS);
 }
 
 

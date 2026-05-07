@@ -131,29 +131,31 @@ void boden_t::calc_image_internal(const bool calc_only_snowline_change)
 	const slope_t::type slope_this = get_disp_slope();
 
 	const weg_t *const weg = get_weg( road_wt );
+	image_id img = IMG_EMPTY;
 	if(  weg  &&  weg->hat_gehweg()  ) {
-		// Single, double, or triple slope.  Under the 6-corner base-4
-		// encoding the old `slope >> 1` halving trick (which assumed each
-		// digit was either 0 or 2) is gone; for double-height and
-		// hex-corner slopes we project to the closest square
-		// single-height sprite via `project_to_square_sprite`.
-		const uint8 imageid = ground_desc_t::project_to_square_sprite(slope_this);
+		// Hex sidewalk: one cell per valid hex slope, looked up by raw
+		// slope_t (normalised so the lowest corner is at z=0).  Snow /
+		// transition stages may be absent (or the whole descriptor —
+		// pakset is optional); each get_sidewalk_image returns
+		// IMG_EMPTY in that case and we fall back to the next stage,
+		// then to the bare ground tile.
+		const bool snow = get_hoehe() >= welt->get_snowline()  ||  welt->get_climate(pos.get_2d()) == arctic_climate;
+		const bool transition = slope_this != 0  &&  get_hoehe() == welt->get_snowline() - 1;
 
-		if(  (get_hoehe() >= welt->get_snowline()  ||  welt->get_climate(pos.get_2d()) == arctic_climate)  &&  skinverwaltung_t::fussweg->get_image_id(imageid + 1) != IMG_EMPTY  ) {
-			// snow images
-			set_image( skinverwaltung_t::fussweg->get_image_id(imageid + 1) );
+		if(  snow  ) {
+			img = ground_desc_t::get_sidewalk_image(slope_this, 1);
 		}
-		else if(  slope_this != 0  &&  get_hoehe() == welt->get_snowline() - 1  &&  skinverwaltung_t::fussweg->get_image_id(imageid + 2) != IMG_EMPTY  ) {
-			// transition images
-			set_image( skinverwaltung_t::fussweg->get_image_id(imageid + 2) );
+		else if(  transition  ) {
+			img = ground_desc_t::get_sidewalk_image(slope_this, 2);
 		}
-		else {
-			set_image( skinverwaltung_t::fussweg->get_image_id(imageid) );
+		if(  img == IMG_EMPTY  ) {
+			img = ground_desc_t::get_sidewalk_image(slope_this, 0);
 		}
 	}
-	else {
-		set_image( ground_desc_t::get_ground_tile(this) );
+	if(  img == IMG_EMPTY  ) {
+		img = ground_desc_t::get_ground_tile(this);
 	}
+	set_image( img );
 
 	if(  !calc_only_snowline_change  ) {
 		grund_t::calc_back_image( get_disp_height(), slope_this );

@@ -42,6 +42,7 @@ public:
 	static const ground_desc_t *fences;
 	static const ground_desc_t *marker;
 	static const ground_desc_t *borders;
+	static const ground_desc_t *sidewalk; // city-road pavement, keyed by raw slope_t
 	static const ground_desc_t *sea;     // different water depth
 	static const ground_desc_t *outside;
 
@@ -141,6 +142,18 @@ public:
 	static image_id get_border_image(slope_t::type slope_in)
 	{
 		return borders->get_image(slope_t::lower_min_corner(slope_in));
+	}
+
+	/// City-road pavement under a `weg_t` whose `hat_gehweg()` is true,
+	/// and the building footpath sprite via `gebaeude.cc` (slope=flat).
+	/// `stage` is 0 = base, 1 = snow, 2 = transition; missing stages
+	/// (or a missing descriptor — sidewalk is optional) return
+	/// IMG_EMPTY and the caller falls back, see
+	/// `boden_t::calc_image_internal`.
+	static image_id get_sidewalk_image(slope_t::type slope_in, uint8 stage = 0)
+	{
+		return sidewalk ? sidewalk->get_image(slope_t::lower_min_corner(slope_in), stage)
+		                : IMG_EMPTY;
 	}
 };
 

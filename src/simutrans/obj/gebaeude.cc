@@ -383,7 +383,7 @@ image_id gebaeude_t::get_image() const
 					// no ground tiles for water things
 					return IMG_EMPTY;
 				}
-				return skinverwaltung_t::fussweg->get_image_id(0);
+				return ground_desc_t::get_sidewalk_image(slope_t::flat);
 			}
 			// only one kind of construction site
 			if (skinverwaltung_t::construction_site->get_count() == 1) {

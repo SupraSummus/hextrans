@@ -67,7 +67,7 @@ void tunnelboden_t::calc_image_internal(const bool calc_only_snowline_change)
 				boden_t::calc_image_internal( calc_only_snowline_change );
 			}
 			// default tunnel ground images
-			set_image( skinverwaltung_t::tunnel_texture->get_image_id(0) );
+			set_image( ground_desc_t::get_sidewalk_image(slope_t::flat) );
 			clear_flag( draw_as_obj );
 		}
 		else {
@@ -88,12 +88,10 @@ void tunnelboden_t::calc_image_internal(const bool calc_only_snowline_change)
 	// inside tunnel
 	else if(  !calc_only_snowline_change  ) {
 		clear_back_image();
-		// default tunnel ground images — see boden.cc for the note on
-		// the vanished `slope >> 1` halving trick.  Under 6-corner
-		// base-3 we just use the single-height slope sprite slot.
-		const slope_t::type slope_this = get_disp_slope();
-		const uint8 imageid = ground_desc_t::project_to_square_sprite(slope_this);
-		set_image( skinverwaltung_t::tunnel_texture->get_image_id( imageid ) );
+		// Default tunnel ground images: the sidewalk descriptor doubles
+		// as the tunnel texture — same hex slope_t key, same per-slope
+		// art.
+		set_image( ground_desc_t::get_sidewalk_image(get_disp_slope()) );
 	}
 }
 
