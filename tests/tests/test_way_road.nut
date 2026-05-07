@@ -878,28 +878,40 @@ function test_way_road_upgrade_downgrade_across_bridge()
 }
 
 
-// test_way_road_cityroad_build: HEX-PORT PENDING.
+// Builds a 5-tile city road (3,2)→(3,6) along the S axis (constant q,
+// r increasing): (3,2) gets S=2, interior tiles N|S=18, (3,6) gets N=16.
 function test_way_road_cityroad_build()
 {
 	local public_pl = player_x(1)
 	local start_pos = coord3d(3, 2, 0)
 	local end_pos = coord3d(3, 6, 0)
 
+	local empty_pattern = [
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
+	local s_axis_pattern = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  2, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 16, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
+
 	// build single tile -> should fail
 	{
 		ASSERT_EQUAL(command_x(tool_build_cityroad).work(public_pl, start_pos, start_pos, "city_road"), "")
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........"
-		])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_pattern)
 	}
 
 	// build city road
@@ -914,17 +926,7 @@ function test_way_road_cityroad_build()
 			ASSERT_EQUAL(r.desc.name, "city_road")
 		}
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), s_axis_pattern)
 	}
 
 	// clean up
@@ -933,7 +935,6 @@ function test_way_road_cityroad_build()
 }
 
 
-// test_way_road_cityroad_upgrade_with_cityroad: HEX-PORT PENDING.
 function test_way_road_cityroad_upgrade_with_cityroad()
 {
 	local public_pl = player_x(1)
@@ -956,14 +957,14 @@ function test_way_road_cityroad_upgrade_with_cityroad()
 
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"........"
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  2, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 16, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
 			])
 	}
 
@@ -973,7 +974,6 @@ function test_way_road_cityroad_upgrade_with_cityroad()
 }
 
 
-// test_way_road_cityroad_downgrade_with_cityroad: HEX-PORT PENDING.
 function test_way_road_cityroad_downgrade_with_cityroad()
 {
 	local public_pl = player_x(1)
@@ -998,14 +998,14 @@ function test_way_road_cityroad_downgrade_with_cityroad()
 
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"........"
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  2, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 16, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
 			])
 	}
 
@@ -1015,7 +1015,6 @@ function test_way_road_cityroad_downgrade_with_cityroad()
 }
 
 
-// test_way_road_cityroad_replace_by_normal_road: HEX-PORT PENDING.
 function test_way_road_cityroad_replace_by_normal_road()
 {
 	local public_pl = player_x(1)
@@ -1026,7 +1025,7 @@ function test_way_road_cityroad_replace_by_normal_road()
 
 	// replace cityroad by normal road
 	{
-		ASSERT_EQUAL(command_x.build_way(public_pl start_pos, end_pos, way_desc_x("cobblestone_road"), true), null)
+		ASSERT_EQUAL(command_x.build_way(public_pl, start_pos, end_pos, way_desc_x("cobblestone_road"), true), null)
 
 		for (local y = start_pos.y; y < end_pos.y; ++y) {
 			local r = way_x(start_pos.x, y, start_pos.z)
@@ -1038,14 +1037,14 @@ function test_way_road_cityroad_replace_by_normal_road()
 
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"........"
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  2, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 16, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
 			])
 	}
 
@@ -1055,7 +1054,6 @@ function test_way_road_cityroad_replace_by_normal_road()
 }
 
 
-// test_way_road_cityroad_replace_keep_existing: HEX-PORT PENDING.
 function test_way_road_cityroad_replace_keep_existing()
 {
 	local public_pl = player_x(1)
@@ -1081,14 +1079,14 @@ function test_way_road_cityroad_replace_keep_existing()
 
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"........"
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  2, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 16, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
 			])
 	}
 
