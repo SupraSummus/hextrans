@@ -219,11 +219,11 @@ all_tests <- [
 	// test_way_road_upgrade_crossing: HEX-PORT PENDING.
 	test_way_road_upgrade_downgrade,
 	// test_way_road_upgrade_downgrade_across_bridge: HEX-PORT PENDING.
-	// test_way_road_cityroad_build: HEX-PORT PENDING.
-	// test_way_road_cityroad_upgrade_with_cityroad: HEX-PORT PENDING.
-	// test_way_road_cityroad_downgrade_with_cityroad: HEX-PORT PENDING.
-	// test_way_road_cityroad_replace_by_normal_road: HEX-PORT PENDING.
-	// test_way_road_cityroad_replace_keep_existing: HEX-PORT PENDING.
+	test_way_road_cityroad_build,
+	test_way_road_cityroad_upgrade_with_cityroad,
+	test_way_road_cityroad_downgrade_with_cityroad,
+	test_way_road_cityroad_replace_by_normal_road,
+	test_way_road_cityroad_replace_keep_existing,
 	test_way_road_make_public,
 	// test_way_runway_build_rw_flat: HEX-PORT PENDING.
 	// test_way_runway_build_tw_flat: HEX-PORT PENDING.

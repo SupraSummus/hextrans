@@ -28,21 +28,20 @@ into a 2-step path through `(q+1, r)`-style intermediate tiles.
 Affected: `test_way_bridge_build_{ground, above_way,
 at_slope, at_slope_stacked, above_runway}`,
 `test_way_road_build_{parallel, below_powerline,
-crossing, upgrade_crossing, upgrade_downgrade_across_bridge,
-cityroad_{build, upgrade_with_cityroad, downgrade_with_cityroad,
-replace_by_normal_road, replace_keep_existing}}`,
+crossing, upgrade_crossing, upgrade_downgrade_across_bridge}`,
 `test_way_tram_build_{parallel, in_tunel}`,
 `test_way_tunnel_build_{straight, up_down, above_tunnel_slope,
 across_tunnel_slope}`, `test_way_tunnel_make_public`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
 Several crossing cases additionally need a hex-axis pair to replace
 the square-perpendicular setup.  Patterns must be rewritten as
-array-of-ints — the helper indexes `row[x]` directly, which on a
-Squirrel string returns the ASCII code of the character rather than
-a parsed digit, so the legacy `"..5....."` shorthand never matches.
-Restored sites (`test_way_road_build_straight`,
-`test_way_road_upgrade_downgrade`, `test_way_tram_build_on_road`)
-are the worked examples.
+array-of-ints; `ASSERT_WAY_PATTERN` tripwires on string rows because
+Squirrel indexes `row[x]` to ASCII codes (so the legacy `"..5....."`
+shorthand silently produced wrong expected values), and 6-bit hex
+ribis don't fit a single digit besides.  Restored sites
+(`test_way_road_build_straight`, `test_way_road_upgrade_downgrade`,
+`test_way_tram_build_on_road`, `test_way_road_cityroad_*`) are the
+worked examples.
 
 **Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner
 diagonals are still admitted as way slopes by the post-slope-way

@@ -74,12 +74,18 @@ function RESET_ALL_PLAYER_FUNDS()
 // src/simutrans/dataobj/ribi.h: SE=1, S=2, SW=4, NW=8, N=16, NE=32).
 // A cell value of -1 means "don't care" — skip the assertion entirely.
 // 0 means "no way here" and is asserted normally.
+// Strings are rejected: legacy square-era patterns used a "..5...."
+// digit-shorthand that Squirrel decodes as ASCII codes (so '5' read as
+// 53), and 6-bit hex ribis don't fit a single digit anyway.
 function ASSERT_WAY_PATTERN(waytype, lefttop, pattern)
 {
 	local z = lefttop.z
 
 	for (local y = 0; y < pattern.len(); ++y) {
 		local row = pattern[y]
+		if (typeof row == "string") {
+			throw "ASSERT_WAY_PATTERN row is a string; pass an array of 6-bit ribi ints"
+		}
 		for (local x = 0; x < row.len(); ++x) {
 			local expected_dir = row[x]
 			if (expected_dir < 0) continue
@@ -121,6 +127,9 @@ function ASSERT_WAY_PATTERN_MASKED(waytype, lefttop, pattern)
 
 	for (local y = 0; y < pattern.len(); ++y) {
 		local row = pattern[y]
+		if (typeof row == "string") {
+			throw "ASSERT_WAY_PATTERN_MASKED row is a string; pass an array of 6-bit ribi ints"
+		}
 		for (local x = 0; x < row.len(); ++x) {
 			local expected_dir = row[x]
 			if (expected_dir < 0) continue
