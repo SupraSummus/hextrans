@@ -78,10 +78,8 @@ const skin_desc_t* skinverwaltung_t::mouse_cursor       = NULL;
 
 // misc images
 const skin_desc_t* skinverwaltung_t::construction_site  = NULL;
-const skin_desc_t* skinverwaltung_t::fussweg            = NULL;
 const skin_desc_t* skinverwaltung_t::pumpe              = NULL;
 const skin_desc_t* skinverwaltung_t::senke              = NULL;
-const skin_desc_t* skinverwaltung_t::tunnel_texture     = NULL;
 
 slist_tpl<const skin_desc_t *>skinverwaltung_t::extra_menu_obj;
 slist_tpl<const skin_desc_t *>skinverwaltung_t::extra_cursor_obj;
@@ -90,8 +88,6 @@ static special_obj_tpl<skin_desc_t> const misc_objekte[] = {
 	{ &skinverwaltung_t::senke,             "PowerDest"    },
 	{ &skinverwaltung_t::pumpe,             "PowerSource"  },
 	{ &skinverwaltung_t::construction_site, "Construction" },
-	{ &skinverwaltung_t::fussweg,           "Sidewalk"     },
-	{ &skinverwaltung_t::tunnel_texture,    "TunnelTexture"},
 	{ NULL, NULL }
 };
 
@@ -180,10 +176,6 @@ bool skinverwaltung_t::successfully_loaded(skintyp_t type)
 		case symbol:  sd = symbol_objekte;     break;
 		case misc:
 			sd = misc_objekte+2;
-			// for compatibility: use sidewalk as tunneltexture
-			if (tunnel_texture==NULL) {
-				tunnel_texture = fussweg;
-			}
 			break;
 		case nothing: return true;
 		default:      return false;

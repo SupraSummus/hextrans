@@ -143,14 +143,10 @@ public:
 
 	/// shown in hidden-buildings mode instead of buildings images
 	static const skin_desc_t *construction_site;
-	/// texture to be shown beneath city roads to indicate pavements
-	static const skin_desc_t *fussweg;
 	/// transformer image: supply
 	static const skin_desc_t *pumpe;
 	/// transformer image: consumer
 	static const skin_desc_t *senke;
-	/// texture to be shown beneath ways in tunnel
-	static const skin_desc_t *tunnel_texture;
 
 	static bool register_desc(skintyp_t type, const skin_desc_t *desc);
 	static bool successfully_loaded(skintyp_t type);
