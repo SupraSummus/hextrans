@@ -153,24 +153,6 @@ wider hex-aware water-table propagation pass when that gets
 scheduled.  `can_lower_tile_to` mirrors the same gate so its noop
 short-circuit matches `lower_to` exactly; both retire together.
 
-## `tool_set_slope_work` doesn't gate on `is_way`
-
-The way-slope tightening (12 axis edges, no 2×, no east/west) is
-enforced by `slope_t::is_way` at way-build time and by
-`way_desc::has_double_slopes()` returning false on the all_up/down
-progression in `tool_set_slope_work`.  Direct `setslope(tile,
-2*slope.south)` under an existing way still succeeds — the
-terraformer's only way-direction check at `simtool.cc:1316` is the
-`backward(ribi_type) == ribis` opposite-axis check, which 2×
-satisfies.  Result: a way ends up sitting on a non-way-buildable
-slope, reachable from script as `command_x.set_slope(pl, pos,
-2*slope.south)`.  Either add an `is_way(new_slope)` gate when the
-tile carries a way, or accept that ground slopes are unrestricted
-and document the asymmetry.  Test
-`test_terraform_raise_lower_land_below_way` exercises this path
-already and currently passes — it sets 2*slope.south directly,
-then walks back via two all_down steps.
-
 ## `slope_allows_ribi` not applied to bridges and tunnels
 
 The post-pathfinding slope-vs-ribi check landed in `way_builder_t`
