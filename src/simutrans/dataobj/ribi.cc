@@ -169,17 +169,15 @@ slope_t::type slope_type(koord dir)
 {
 	// Direction → slope walking which UP goes in that direction
 	// (corners on the destination side raised).  Three hex axes:
-	// N-S (dx==0), NW-SE (dy==0), NE-SW (dx+dy==0).  The NW-SE
-	// axis returns the legacy 2-corner ::east / ::west diagonals
-	// during the transition; the NE-SW axis returns the proper
-	// hex-edge slopes.
+	// N-S (dx==0), NW-SE (dy==0), NE-SW (dx+dy==0).  Mirrors the
+	// ribi overload below.
 	if (dir.x == 0) {
 		if (dir.y < 0) return slope_t::south; // toward N
 		if (dir.y > 0) return slope_t::north; // toward S
 	}
 	if (dir.y == 0) {
-		if (dir.x < 0) return slope_t::east;  // toward NW (legacy square diagonal)
-		if (dir.x > 0) return slope_t::west;  // toward SE (legacy square diagonal)
+		if (dir.x < 0) return slope_t::se_edge; // toward NW
+		if (dir.x > 0) return slope_t::nw_edge; // toward SE
 	}
 	if (dir.x + dir.y == 0) {
 		if (dir.x > 0) return slope_t::sw_edge; // toward NE
