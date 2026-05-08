@@ -343,17 +343,15 @@ int surface_t::grid_raise(const player_t *player, koord k, hex_corner_t::type co
 
 		// All 6 corners track the same target height: the picked corner
 		// rises by `f`, the others may stay anywhere `≥ hgt - o`.  The
-		// terraformer's 6-edge propagation handles neighbour flow.
+		// terraformer's 6-edge propagation handles neighbour flow.  Same
+		// shape for water and land — water tiles transition to boden via
+		// the corner lift (any_up=true → wasser→boden transition in
+		// raise_to fires on the targeted tile and only the targeted tile).
 		sint8 h[hex_corner_t::count];
-		if(  !gr->is_water()  ) {
-			const sint8 f = ground_desc_t::double_grounds ?  2 : 1;
-			const sint8 o = ground_desc_t::double_grounds ?  1 : 0;
-			for (uint8 c = 0; c < hex_corner_t::count; c++) {
-				h[c] = hgt - o + (c == (uint8)corner ? f : 0);
-			}
-		}
-		else {
-			for (uint8 c = 0; c < hex_corner_t::count; c++) h[c] = hgt;
+		const sint8 f = ground_desc_t::double_grounds ?  2 : 1;
+		const sint8 o = ground_desc_t::double_grounds ?  1 : 0;
+		for (uint8 c = 0; c < hex_corner_t::count; c++) {
+			h[c] = hgt - o + (c == (uint8)corner ? f : 0);
 		}
 
 		terraformer_t digger(terraformer_t::raise, world());

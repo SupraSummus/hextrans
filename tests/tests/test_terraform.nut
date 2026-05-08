@@ -79,8 +79,11 @@ function test_terraform_raise_lower_land_at_water_center()
 		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
 	}
 
-	// grid_raise can't pull a vertex back up out of water, so reset
-	// terrain via set_slope before the next test sees it.
+	// Drain the water block back to flat land for the next test.  The
+	// grid_lower above returned "" (interior-vertex lower into water is
+	// gated), so terrain is unchanged — but `clim.work` to cl_mediterran
+	// converts the wasser_t tiles to boden_t, and set_slope ensures the
+	// final shape regardless.
 	clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_mediterran)
 	for (local q = 2; q <= 3; ++q) {
 		for (local r = 2; r <= 3; ++r) {
@@ -92,244 +95,110 @@ function test_terraform_raise_lower_land_at_water_center()
 }
 
 
-// test_terraform_raise_lower_land_at_water_corner: HEX-PORT PENDING.
-function test_terraform_raise_lower_land_at_water_corner()
+// Test scaffold shared by `_at_water_corner` (1-of-3 owner vertices)
+// and `_at_water_edge` (2-of-3).  The 2x2 axial water block is at
+// (2,2)..(3,3); each vertex touching it has 3 owner tiles, of which
+// 1, 2, or 3 lie inside the block.  The 3-of-3 case is covered by
+// `_at_water_center`.
+//
+// Each case names a vertex via (`tile`, `corner`) and the per-block-tile
+// effect of raising it: `hit` lists [block_tile, raised_corner] pairs,
+// one per block-internal owner.  We re-flatten the 4x4 enclosing region
+// (prior cascades may have lifted neighbour corners), re-water the 2x2,
+// raise, and check that each `hit` tile shows exactly the named single
+// corner up while the unlisted block tiles stay flat water.
+function check_water_block_raise(cases)
 {
-	local clim  = command_x(tool_set_climate)
+	local clim = command_x(tool_set_climate)
+	local pl   = player_x(0)
 
-	// FIXME inconsistencies with raising/lowering depending on direction
+	// Hex corner index → slope value for "single-corner up by 1".
+	// Indexed by `hex_corner_t` (E=0, SE=1, SW=2, W=3, NW=4, NE=5).
+	local single_corner_up = [
+		slope.raised_E, slope.raised_SE, slope.raised_SW,
+		slope.raised_W, slope.raised_NW, slope.raised_NE,
+	]
 
-	// raise north-west corner
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
+	foreach (c in cases) {
+		flatten_water_block_region(pl)
+		clim.work(pl, coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water)
 
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(2, 2, 0)), "")
+		command_x.grid_raise_at_corner(pl, c.tile, c.corner)
 
-		ASSERT_FALSE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
+		for (local q = 2; q <= 3; ++q) {
+			for (local r = 2; r <= 3; ++r) {
+				local hit_corner = -1
+				foreach (h in c.hit) {
+					if (h[0].x == q && h[0].y == r) hit_corner = h[1]
+				}
+				local tile = tile_x(q, r, 0)
+				if (hit_corner < 0) {
+					ASSERT_TRUE(tile.is_water())
+				}
+				else {
+					ASSERT_FALSE(tile.is_water())
+					ASSERT_EQUAL(tile.get_slope(), single_corner_up[hit_corner])
+				}
+			}
+		}
 	}
 
-	// lower north-west corner
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(2, 2, 0)), "")
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
-	}
-
-
-	// raise south-east corner
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(2, 4, 0)), null)
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(2, 4, 0)), null)
-	}
-
-	// lower south-east corner
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(2, 4, 0)), null)
-
-		ASSERT_FALSE(tile_x(2, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(2, 3, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(2, 4, 0)), null)
-	}
-
-	// raise south-west corner
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(4, 4, 0)), null)
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(4, 4, 0)), null)
-	}
-
-	// lower south-west corner
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(4, 4, 0)), null)
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(2, 3, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(4, 4, 0)), null)
-	}
-
-	// raise north-west corner
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(4, 2, 0)), null)
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(4, 2, 0)), null)
-	}
-
-	// lower north-west corner
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(4, 2, 0)), null)
-
-		ASSERT_FALSE(tile_x(2, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(2, 3, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(4, 2, 0)), null)
-	}
-
-	// clean up
-	ASSERT_EQUAL(clim.work(player_x(0), coord3d(3, 2, 0), coord3d(2, 3, 0), "" + cl_mediterran), null)
+	// Restore flat mediterran for the next test: drop any leftover
+	// raised corners and convert the still-wasser_t tiles to boden.
+	flatten_water_block_region(pl)
+	ASSERT_EQUAL(clim.work(pl, coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_mediterran), null)
 
 	RESET_ALL_PLAYER_FUNDS()
 }
 
 
-// test_terraform_raise_lower_land_at_water_edge: HEX-PORT PENDING.
+function flatten_water_block_region(pl)
+{
+	for (local q = 1; q <= 4; ++q) {
+		for (local r = 1; r <= 4; ++r) {
+			command_x.set_slope(pl, coord3d(q, r, 0), slope.flat)
+		}
+	}
+}
+
+
+function test_terraform_raise_lower_land_at_water_corner()
+{
+	// 1-of-3 vertices: each touches exactly one block tile.  NW of (q, r)
+	// is the vertex (q, r)NW = (q-1, r)E = (q, r-1)SW; pick (q, r) so
+	// neither neighbour lies inside the block.
+	check_water_block_raise([
+		{ tile = coord3d(2, 2, 0), corner = hex_corner.NW, hit = [[coord(2, 2), hex_corner.NW]] },
+		{ tile = coord3d(4, 2, 0), corner = hex_corner.NW, hit = [[coord(3, 2), hex_corner.E ]] },
+		{ tile = coord3d(2, 4, 0), corner = hex_corner.NW, hit = [[coord(2, 3), hex_corner.SW]] },
+		{ tile = coord3d(4, 3, 0), corner = hex_corner.NW, hit = [[coord(3, 3), hex_corner.E ]] },
+	])
+}
+
+
 function test_terraform_raise_lower_land_at_water_edge()
 {
-	local clim  = command_x(tool_set_climate)
-
-	// FIXME inconsistencies with raising/lowering depending on direction
-
-	// raise north edge
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(3, 2, 0)), "")
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
-	}
-
-	// lower north edge
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 2, 0)), "")
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
-	}
-
-	// raise east edge
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(4, 3, 0)), null)
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(4, 3, 0)), null)
-	}
-
-	// lower east edge
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(4, 3, 0)), null)
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(4, 3, 0)), null)
-	}
-
-	// raise south edge
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(3, 4, 0)), null)
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(2, 3, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 4, 0)), null)
-	}
-
-	// lower south edge
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 4, 0)), null)
-
-		ASSERT_FALSE(tile_x(2, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(2, 3, 0).is_water())
-		ASSERT_FALSE(tile_x(3, 3, 0).is_water())
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(3, 4, 0)), null)
-	}
-
-	// raise west edge
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(2, 3, 0)), "")
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
-		ASSERT_FALSE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
-	}
-
-	// lower west edge
-	{
-		ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water), null)
-
-		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(2, 3, 0)), "")
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
-	}
-
-	// clean up
-	ASSERT_EQUAL(clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_mediterran), null)
-
-	RESET_ALL_PLAYER_FUNDS()
+	// 2-of-3 vertices: each touches two block tiles.  The 2x2 axial block
+	// has 4 such vertices — two NW-of-block-tile (between SE-adjacent
+	// pairs) and two SE-of-block-tile (between S-adjacent pairs).
+	check_water_block_raise([
+		{ tile = coord3d(3, 2, 0), corner = hex_corner.NW, hit = [
+			[coord(3, 2), hex_corner.NW],
+			[coord(2, 2), hex_corner.E ],
+		] },
+		{ tile = coord3d(2, 3, 0), corner = hex_corner.NW, hit = [
+			[coord(2, 3), hex_corner.NW],
+			[coord(2, 2), hex_corner.SW],
+		] },
+		{ tile = coord3d(3, 2, 0), corner = hex_corner.SE, hit = [
+			[coord(3, 2), hex_corner.SE],
+			[coord(3, 3), hex_corner.NE],
+		] },
+		{ tile = coord3d(2, 3, 0), corner = hex_corner.SE, hit = [
+			[coord(2, 3), hex_corner.SE],
+			[coord(3, 3), hex_corner.W ],
+		] },
+	])
 }
 
 
