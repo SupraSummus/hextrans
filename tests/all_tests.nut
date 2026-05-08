@@ -23,6 +23,7 @@ include("tests/test_player")
 include("tests/test_powerline")
 include("tests/test_reservation")
 include("tests/test_scenario")
+include("tests/test_script_sandbox")
 include("tests/test_sign")
 include("tests/test_slope")
 include("tests/test_terraform")
@@ -152,6 +153,7 @@ all_tests <- [
 	test_reservation_clear_road,
 	test_reservation_clear_rail,
 	test_scenario_rules_allow_forbid_tool,
+	test_script_sandbox_no_shell_exec,
 	// test_scenario_rules_allow_forbid_way_tool_rect: HEX-PORT PENDING.
 	// test_scenario_rules_allow_forbid_way_tool_cube: HEX-PORT PENDING.
 	// test_scenario_rules_allow_forbid_tool_stacked_rect: HEX-PORT PENDING.
