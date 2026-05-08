@@ -411,7 +411,11 @@ void planquadrat_t::angehoben()
 {
 	grund_t *gr = get_kartenboden();
 	if(gr) {
-		const uint8 slope = gr->get_grund_hang();
+		// HEX-PORT: slope_t::type is 12-bit base-4 under hex; uint8
+		// silently truncates corner-up bits >= NW (which collapses
+		// slope.raised_NW etc. to 0 and routes through the
+		// "water at zero level" branch below as if flat).
+		const slope_t::type slope = gr->get_grund_hang();
 
 		gr->obj_loesche_alle(NULL);
 		sint8 max_hgt = gr->get_hoehe() + (slope ? 1 : 0);		// only matters that not flat

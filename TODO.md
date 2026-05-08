@@ -92,18 +92,16 @@ scenario rule coverage.  Under hex the region shapes are different;
 restore after the region-selection tools are hex-aware.
 
 **Per-vertex grid topology.**
-`test_building_build_multi_tile_sloped`,
-`test_terraform_raise_lower_land_at_water_corner` and
-`test_terraform_raise_lower_land_at_water_edge` depend on 4-way
-vertex sharing (hex shares 3 per vertex).  With the terraformer
-now hex-correct, `grid_raise` propagates to the 3 hex-vertex owners
-rather than 4 square-vertex owners, so the tests' specific
-assertions (4 tiles with 4 specific slopes each, 2x2 water-corner
-reachability patterns) no longer hold.  These need per-test coord
-rewrites, not a deeper engine fix — the invariants ("raising a
-vertex affects the tiles sharing it", "lowering into water connects
-reachable water tiles") survive, but the test bodies bake in square
-arithmetic throughout.
+`test_building_build_multi_tile_sloped` depends on 4-way vertex
+sharing (hex shares 3 per vertex).  With the terraformer now
+hex-correct, `grid_raise` propagates to the 3 hex-vertex owners
+rather than 4 square-vertex owners, so the test's specific
+assertions (4 tiles with 4 specific slopes each) no longer hold.
+Per-test coord rewrite, not a deeper engine fix — the invariant
+("raising a vertex affects the tiles sharing it") survives, but
+the test body bakes in square arithmetic throughout.  See
+`test_terraform_raise_lower_land_at_water_{corner, edge}` for the
+worked examples of the same migration shape.
 
 **Flood-fill / region walkers.**
 `tool_change_water_height_t` in `simtool.cc` is hex-aware (6-neighbour
@@ -111,8 +109,10 @@ flood, shared-edge corner heights on the *current* tile per
 `vertex_owners`, six-corner apply + `set_grid_hgt_nocheck`).  Scenario
 `test_terraform_raise_lower_water_level` stays commented out: it still
 uses a rectangular `terraform_volcano` scaffold and square-shaped
-flood expectations — restore after a hex-shaped scaffold and
-assertion rewrite.
+flood expectations — restore after a hex-shaped scaffold (a hex ring
+of 6R cells at axial distance R from the centre) replaces the 4-side
+square ring, and the per-subcase coord and flood-pattern assertions
+get rewritten.
 
 **Adjacency-order policy.**
 `test_powerline_build_transformer_multiple` relies on
@@ -142,16 +142,20 @@ the underground-tunnel subcase that used to live inside
 ## Lower_to water-tile NW-only gate
 
 `terraformer_t::lower_to` short-circuits water tiles unless the NW
-corner is being lowered; `raise_to` has no symmetric gate.  The NW
-pick is the legacy "tile reference height" corner from the square era
-— under hex no single corner has that role.  In practice the gate
-decides "did the corner the water table is keyed off of drop", and
-the answer probably wants to be "did `min_corner` drop" or "did any
-corner that touches a neighbour-with-higher-water drop".  Real
-semantic choice, not a mechanical refactor; lands together with the
-wider hex-aware water-table propagation pass when that gets
-scheduled.  `can_lower_tile_to` mirrors the same gate so its noop
-short-circuit matches `lower_to` exactly; both retire together.
+corner is being lowered.  The NW pick is the legacy "tile reference
+height" corner from the square era — under hex no single corner has
+that role.  In practice the gate decides "did the corner the water
+table is keyed off of drop", and the answer probably wants to be
+"did `min_corner` drop" or "did any corner that touches a
+neighbour-with-higher-water drop".  Real semantic choice, not a
+mechanical refactor; lands together with the wider hex-aware
+water-table propagation pass when that gets scheduled.
+`can_lower_tile_to` mirrors the same gate so its noop short-circuit
+matches `lower_to` exactly; both retire together.  `raise_to`
+already migrated to a corner-neutral `!any_up` short-circuit — the
+"flat-at-water-level → land" reconciliation that used to keep the
+water-side gate open is now driven by the targeted-corner lift in
+`surface_t::grid_raise`.
 
 ## Bridge double-height policy: art-permissive
 

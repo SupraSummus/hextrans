@@ -401,7 +401,14 @@ int terraformer_t::raise_to(const node_t &node)
 
 	sint8 hn[HEX_N];
 	const bool any_up = merge_raise_targets(h0, node.h, hn);
-	if (!gr->is_water() && !any_up) {
+	// Hex vertex propagation can pull neighbour tiles into the list
+	// with no real height change (existing heights already cover the
+	// targets — see `merge_raise_targets` comment).  Skip those: the
+	// originally-clicked tile gets any_up=true via grid_raise's
+	// targeted-corner lift, and the legacy "flat-at-water-level →
+	// land" reconciliation below would otherwise fire on every cascade
+	// water neighbour under 3-tile vertex sharing.
+	if (!any_up) {
 		return 0;
 	}
 
