@@ -502,8 +502,8 @@ sync_result roadsign_t::sync_step(uint32 /*delta_t*/)
 			// HEX-PORT: 2-phase traffic light — state 0 opens the N-S
 			// axis, state 1 opens the old E-W axis (now SE-NW under
 			// the 2:1 iso rename).  Flat-top hex has a 3rd axis
-			// (NE-SW) that this FSM doesn't serve; tracked under
-			// crossing/3rd-axis notes.
+			// (NE-SW) that this FSM doesn't serve; see TODO.md →
+			// "Building / crossing cluster".
 			switch(new_state) {
 			case 0:
 			  dir = (ribi_t::ribi)(ribi_t::north | ribi_t::south);

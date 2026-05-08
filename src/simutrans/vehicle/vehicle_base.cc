@@ -536,7 +536,7 @@ vehicle_base_t *vehicle_base_t::no_cars_blocking( const grund_t *gr, const convo
 				// rotate45 → rotate60, rotate90 → two rotate60 calls
 				// (via rotate_perpendicular).  Collision
 				// behaviour is approximate; a real hex-crossroads port
-				// is tracked in the TODO building/crossing cluster.
+				// is tracked in TODO.md → "Building / crossing cluster".
 				const bool drives_on_left = welt->get_settings().is_drive_left();
 				const bool across = next_direction == (drives_on_left ? ribi_t::rotate60l(next_90direction) : ribi_t::rotate60(next_90direction)); // turning across the opposite directions lane
 				const bool other_across = other_direction == (drives_on_left ? ribi_t::rotate60l(other_90direction) : ribi_t::rotate60(other_90direction)); // other is turning across the opposite directions lane

@@ -170,7 +170,9 @@ climate-transition code can't be ported cleanly until this lands.
 
 ## TODO file rules
 
-`TODO.md` tracks port work in flight. Working rules:
+`TODO.md` tracks work in flight — port work, gameplay bugs,
+upstream-inherited rough edges, anything else worth tracking
+centrally rather than as a scattered code comment. Working rules:
 
 It is not a changelog. When an entry is resolved, or becomes outdated,
 **delete it**. Do not strike it through, do not leave a "(done)" note.

@@ -503,9 +503,9 @@ halthandle_t ai_passenger_t::build_airport(const stadt_t* city, koord pos, int r
 	// a NW-SE hex axis.  We keep the 4-corner airport geometry
 	// intact so the builder compiles and produces SOMETHING on a
 	// hex map, but the resulting airport is diamond-shaped rather
-	// than square and the taxiway topology is likely wrong — a
-	// proper hex airport layout is tracked in TODO.md building
-	// cluster.
+	// than square and the taxiway topology is likely wrong — see
+	// TODO.md → "Runway layout" (test fallout) and "Building /
+	// crossing cluster" (engine-side redesign).
 	const koord hex_N ( 0, -1);  // ribi_t::north
 	const koord hex_S ( 0,  1);  // ribi_t::south
 	const koord hex_SE( 1,  0);  // ribi_t::southeast — old square E
