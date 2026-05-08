@@ -9,7 +9,6 @@
 //
 
 
-// test_sign_build_oneway: HEX-PORT PENDING.
 function test_sign_build_oneway()
 {
 	local pl = player_x(0)
@@ -66,7 +65,7 @@ function test_sign_build_oneway()
 		local w = tile_x(2, 3, 0).find_object(mo_way)
 		ASSERT_TRUE(w != null)
 		ASSERT_EQUAL(w.get_dirs(), dir.northsouth)
-		ASSERT_EQUAL(w.get_dirs_masked(), dir.south)
+		ASSERT_EQUAL(w.get_dirs_masked(), dir.north)
 
 		// change direction of sign
 		ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(2, 3, 0), sign), null)
@@ -75,7 +74,7 @@ function test_sign_build_oneway()
 		ASSERT_TRUE(s.can_pass(public_pl))
 
 		ASSERT_EQUAL(w.get_dirs(), dir.northsouth)
-		ASSERT_EQUAL(w.get_dirs_masked(), dir.north)
+		ASSERT_EQUAL(w.get_dirs_masked(), dir.south)
 
 		// change direction again, should have original direction
 		ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(2, 3, 0), sign), null)
@@ -84,8 +83,48 @@ function test_sign_build_oneway()
 		ASSERT_TRUE(s.can_pass(public_pl))
 
 		ASSERT_EQUAL(w.get_dirs(), dir.northsouth)
-		ASSERT_EQUAL(w.get_dirs_masked(), dir.south)
+		ASSERT_EQUAL(w.get_dirs_masked(), dir.north)
 	}
+
+	// Crossing subcases split out as test_sign_build_oneway_at_crossing
+	// — see "Sign / traffic-light 2-axis FSM" in TODO.md.
+
+	// Cannot remove signs of other players (except public player)
+	{
+		ASSERT_EQUAL(command_x.build_sign_at(public_pl, coord3d(2, 2, 0), sign), null)
+		ASSERT_EQUAL(command_x.build_sign_at(pl,        coord3d(2, 3, 0), sign), null)
+
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 2, 0)), "Der Besitzer erlaubt das Entfernen nicht")
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(2, 2, 0)), null)
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(2, 3, 0)), null)
+	}
+
+	// remove stuff
+	ASSERT_EQUAL(wayremover.work(pl, coord3d(2, 1, 0), coord3d(2, 4, 0), "" + wt_road), null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// test_sign_build_oneway_at_crossing: HEX-PORT PENDING.
+function test_sign_build_oneway_at_crossing()
+{
+	// Sign behavior at multi-axis intersections: placement allowed on
+	// a road-rail crossing (way is a 2-way after subtracting the
+	// crossing axis), rejected once a road-road crossing turns the
+	// junction into 3+ ways.  Bakes the 2-axis intersection model and
+	// the legacy ASSERT_WAY_PATTERN_MASKED string rows — see
+	// "Sign / traffic-light 2-axis FSM" in TODO.md.
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local wayremover = command_x(tool_remove_way)
+	local remover = command_x(tool_remover)
+	local road = way_desc_x("dirt_road")
+	local rail = way_desc_x("sand_track")
+	local sign = sign_desc_x.get_available_signs(wt_road).filter(@(idx, sign) sign.is_one_way())[0]
+
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 1, 0), coord3d(2, 4, 0), road, true), null)
+	ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(2, 3, 0), sign), null)
 
 	// build road/rail crossing over sign, should succeed if crossing is possible without sign
 	{
@@ -220,18 +259,6 @@ function test_sign_build_oneway()
 	}
 
 	ASSERT_EQUAL(wayremover.work(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), "" + wt_road), null)
-
-	// Cannot remove signs of other players (except public player)
-	{
-		ASSERT_EQUAL(command_x.build_sign_at(public_pl, coord3d(2, 2, 0), sign), null)
-		ASSERT_EQUAL(command_x.build_sign_at(pl,        coord3d(2, 3, 0), sign), null)
-
-		ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 2, 0)), "Der Besitzer erlaubt das Entfernen nicht")
-		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(2, 2, 0)), null)
-		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(2, 3, 0)), null)
-	}
-
-	// remove stuff
 	ASSERT_EQUAL(wayremover.work(pl, coord3d(2, 1, 0), coord3d(2, 4, 0), "" + wt_road), null)
 
 	RESET_ALL_PLAYER_FUNDS()
