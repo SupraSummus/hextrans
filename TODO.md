@@ -7,10 +7,6 @@ NOT a changelog — describing finished work, current status, or
 recent progress belongs in git history or the code itself, not here.
 If an entry becomes outdated, delete it.
 
-paragraphs not lists;
-delete resolved items rather than strikethrough;
-add new items as you find them.
-
 ## Tests pending migration to hex model
 
 Scenario tests that encode square-grid geometry are commented out in
@@ -503,8 +499,6 @@ edges × 2 magnitudes for 1-step vs 2-step) or a distinct
 together with the viewport / sprite port.  The dir enum in ribi.h
 similarly needs widening; `get_dir()` currently projects 6 hex edges
 onto 4 square sprite slots and drops information.
-
-Additional follow-ups that did NOT land in the structural commit:
 
 Save-file format: `weg_t`'s in-memory ribi is now two full bytes
 (was a packed 4-bit bitfield that silently truncated hex bits 4-5),
