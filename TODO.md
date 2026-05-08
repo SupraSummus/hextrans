@@ -673,15 +673,6 @@ rides along on `get_screen_coord` so positions become hex-correct
 automatically; per-tile drawing under each anchor still assumes
 square geometry until phase B lands.
 
-**Half-tile centring nudge missing.**  The square renderer applied a
-`disp_w/IMG_SIZE & 1` half-row nudge so the world centre lined up
-with the screen centre at all viewport widths; the hex equivalent
-`disp_w/(3·IMG_SIZE/4) & 1` is not applied anywhere in
-`display/simview.cc`'s draw loop.  At specific window widths the
-world centre therefore sits half a tile off the screen centre.
-Apply the parity nudge to the `i_off` / `j_off` setup around
-`simview.cc:138`; mechanical fix.
-
 **Sprite raster choice (pinned design decision).**  The lattice
 the projection runs on is a *clean integer approximation* of hex
 iso, not a regular hex tiling.  With unit `u = IMG_SIZE/4`:
