@@ -151,22 +151,6 @@ wider hex-aware water-table propagation pass when that gets
 scheduled.  `can_lower_tile_to` mirrors the same gate so its noop
 short-circuit matches `lower_to` exactly; both retire together.
 
-## `slope_allows_ribi` not applied to bridges and tunnels
-
-The post-pathfinding slope-vs-ribi check landed in `way_builder_t`
-only — `validate_route_slopes` walks the ground route and rejects
-configurations the per-step `check_slope` lets through (half-raised
-edges with the slope sideways across the rail, axis-mixed bends,
-chord heights that don't reconcile across axes).  `bridge_builder_t`
-(`brueckenbauer.cc`) and `tunnel_builder_t` (`tunnelbauer.cc`) have
-their own slope admissibility checks that pre-date the rule and
-don't call it, so a bridge end or tunnel mound can land in a
-configuration the rule would reject on a ground way.  Wire
-`slope_allows_ribi` into those builders next time either is touched
-— pulling out a small "check this single tile's final ribi against
-its slope" helper from `validate_route_slopes` would let all three
-sites share one entry point.
-
 ## Bridge double-height policy: art-permissive
 
 `bridge_desc_t::has_double_start()` and `has_double_ramp()` are
