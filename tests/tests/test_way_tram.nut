@@ -183,8 +183,8 @@ function test_way_tram_build_across_road_bridge()
 	local tramway = way_desc_x.get_available_ways(wt_rail, st_tram)[0]
 
 	// build bridge
-	ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.south), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.north), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.north_narrow), null)
 	ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 3, 0), bridge), null)
 
 	local bridge_col = [

@@ -66,18 +66,18 @@ bridge_desc_t::img_t bridge_desc_t::get_start(slope_t::type slope) const
 	case slope_t::PLANAR: return IMG;
 
 	switch (slope) {
-		SLOPE_CASE(north,   north_wide, N_Start)
-		SLOPE_CASE(south,   south_wide, S_Start)
-		SLOPE_CASE(ne_edge, ne_wide,    NE_Start)
-		SLOPE_CASE(se_edge, se_wide,    SE_Start)
-		SLOPE_CASE(sw_edge, sw_wide,    SW_Start)
-		SLOPE_CASE(nw_edge, nw_wide,    NW_Start)
-		DOUBLE_SLOPE_CASE(north_double, N_Start2)
-		DOUBLE_SLOPE_CASE(south_double, S_Start2)
-		DOUBLE_SLOPE_CASE(ne_double,    NE_Start2)
-		DOUBLE_SLOPE_CASE(se_double,    SE_Start2)
-		DOUBLE_SLOPE_CASE(sw_double,    SW_Start2)
-		DOUBLE_SLOPE_CASE(nw_double,    NW_Start2)
+		SLOPE_CASE(north_narrow,     north_wide,     N_Start)
+		SLOPE_CASE(south_narrow,     south_wide,     S_Start)
+		SLOPE_CASE(northeast_narrow, northeast_wide, NE_Start)
+		SLOPE_CASE(southeast_narrow, southeast_wide, SE_Start)
+		SLOPE_CASE(southwest_narrow, southwest_wide, SW_Start)
+		SLOPE_CASE(northwest_narrow, northwest_wide, NW_Start)
+		DOUBLE_SLOPE_CASE(north_double,     N_Start2)
+		DOUBLE_SLOPE_CASE(south_double,     S_Start2)
+		DOUBLE_SLOPE_CASE(northeast_double, NE_Start2)
+		DOUBLE_SLOPE_CASE(southeast_double, SE_Start2)
+		DOUBLE_SLOPE_CASE(southwest_double, SW_Start2)
+		DOUBLE_SLOPE_CASE(northwest_double, NW_Start2)
 	}
 #undef DOUBLE_SLOPE_CASE
 #undef SLOPE_CASE
@@ -90,7 +90,7 @@ bridge_desc_t::img_t bridge_desc_t::get_start(slope_t::type slope) const
  *
  * Ramp images are named for the **high** end of the ramp, opposite
  * to the bridge's outward direction.  On a slope where the south
- * corners are raised (`slope_t::north`, low edge N) the bridge points
+ * corners are raised (`slope_t::north_narrow`, low edge N) the bridge points
  * north; the ramp's high end is to the south, so it's an `S_Ramp`.
  * Pattern carries over to the four hex-only edges.
  */
@@ -98,22 +98,22 @@ bridge_desc_t::img_t bridge_desc_t::get_ramp(slope_t::type slope) const
 {
 #define SLOPE_CASE(SLOPE, WIDE, IMG) \
 	case slope_t::SLOPE: case slope_t::WIDE: return IMG;
-#define DOUBLE_SLOPE_CASE(SLOPE, IMG) \
-	case 2 * slope_t::SLOPE: return IMG;
+#define DOUBLE_SLOPE_CASE(PLANAR, IMG) \
+	case slope_t::PLANAR: return IMG;
 
 	switch (slope) {
-		SLOPE_CASE(north,   north_wide, S_Ramp)
-		SLOPE_CASE(south,   south_wide, N_Ramp)
-		SLOPE_CASE(ne_edge, ne_wide,    SW_Ramp)
-		SLOPE_CASE(se_edge, se_wide,    NW_Ramp)
-		SLOPE_CASE(sw_edge, sw_wide,    NE_Ramp)
-		SLOPE_CASE(nw_edge, nw_wide,    SE_Ramp)
-		DOUBLE_SLOPE_CASE(north,   S_Ramp2)
-		DOUBLE_SLOPE_CASE(south,   N_Ramp2)
-		DOUBLE_SLOPE_CASE(ne_edge, SW_Ramp2)
-		DOUBLE_SLOPE_CASE(se_edge, NW_Ramp2)
-		DOUBLE_SLOPE_CASE(sw_edge, NE_Ramp2)
-		DOUBLE_SLOPE_CASE(nw_edge, SE_Ramp2)
+		SLOPE_CASE(north_narrow,     north_wide,     S_Ramp)
+		SLOPE_CASE(south_narrow,     south_wide,     N_Ramp)
+		SLOPE_CASE(northeast_narrow, northeast_wide, SW_Ramp)
+		SLOPE_CASE(southeast_narrow, southeast_wide, NW_Ramp)
+		SLOPE_CASE(southwest_narrow, southwest_wide, NE_Ramp)
+		SLOPE_CASE(northwest_narrow, northwest_wide, SE_Ramp)
+		DOUBLE_SLOPE_CASE(north_double,     S_Ramp2)
+		DOUBLE_SLOPE_CASE(south_double,     N_Ramp2)
+		DOUBLE_SLOPE_CASE(northeast_double, SW_Ramp2)
+		DOUBLE_SLOPE_CASE(southeast_double, NW_Ramp2)
+		DOUBLE_SLOPE_CASE(southwest_double, NE_Ramp2)
+		DOUBLE_SLOPE_CASE(northwest_double, SE_Ramp2)
 	}
 #undef DOUBLE_SLOPE_CASE
 #undef SLOPE_CASE

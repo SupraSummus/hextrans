@@ -52,7 +52,7 @@ project poorly onto the hex axes and read as historical baggage.  Four
 call sites (`test_building_rotate_harbour`, the "east-west direction"
 block in `test_depot_build_on_bridge_end` and the matching block in
 `test_halt_build_on_bridge_end`, `test_powerline_remove_powerbridge`)
-migrated to `slope.se_edge` / `slope.nw_edge`, the hex axis they were
+migrated to `slope.southeast_narrow` / `slope.northwest_narrow`, the hex axis they were
 already projecting onto.  `test_scenario_rules_allow_forbid_way_tool_cube`
 still uses `2*slope.east`; left untouched because the function is
 already HEX-PORT PENDING and needs a holistic rewrite (square ribi
@@ -505,17 +505,6 @@ similarly needs widening; `get_dir()` currently projects 6 hex edges
 onto 4 square sprite slots and drops information.
 
 Additional follow-ups that did NOT land in the structural commit:
-
-Slope-edge naming asymmetry: the 6 hex-edge slope constants split
-into 2 bare names (`slope_t::north`, `::south`) and 4 suffixed
-(`::ne_edge`, `::se_edge`, `::sw_edge`, `::nw_edge`).  The suffix
-disambiguates from the `southeast = raised_SE` etc. single-corner
-aliases above and from squirrel's `slope.northeast = 1024` (single
-corner on the script side).  Cosmetic; collapse the asymmetry by
-either retiring the C++ single-corner aliases (no in-tree use
-beyond the enum declaration itself) or by suffixing all 6 edges
-(`n_edge`/`s_edge` etc.).  Either move ripples through ~50 call
-sites of `::north` / `::south`.
 
 Save-file format: `weg_t`'s in-memory ribi is now two full bytes
 (was a packed 4-bit bitfield that silently truncated hex bits 4-5),

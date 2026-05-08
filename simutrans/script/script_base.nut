@@ -532,30 +532,49 @@ class slope {
 	// Base-4 6-corner encoding, matches slope_t::type in
 	// src/simutrans/dataobj/ribi.h.  Digit positions follow
 	// hex_corner_t: E=1, SE=4, SW=16, W=64, NW=256, NE=1024.
+	// Squirrel class statics can't see each other through bare names
+	// so values are inlined; the comments name the C++ form.
 	static flat = 0
-	static southeast = 4       ///< SE corner raised
-	static southwest = 16      ///< SW corner raised
-	static northwest = 256     ///< NW corner raised
-	static northeast = 1024    ///< NE corner raised
-	static north   = 4 + 16      ///< North slope:    low edge N,  S corners raised = 20
-	static south   = 256 + 1024  ///< South slope:    low edge S,  N corners raised = 1280
-	static ne_edge = 16 + 64     ///< NE-edge slope:  low edge NE, SW + W corners raised = 80
-	static se_edge = 64 + 256    ///< SE-edge slope:  low edge SE, W + NW corners raised = 320
-	static sw_edge = 1024 + 1    ///< SW-edge slope:  low edge SW, NE + E corners raised = 1025
-	static nw_edge = 1 + 4       ///< NW-edge slope:  low edge NW, E + SE corners raised = 5
-	// 4-corner "wide" axis slopes — narrow edge plus the 2 perpendicular
-	// side corners (perpendicular to the slope's axis).  Way-buildable
-	// like the narrow variants.  Squirrel class statics can't see each
-	// other through bare names so the values are inlined; matches the
-	// C++ form `narrow + perpendicular_pair` in src/.../ribi.h.
-	static north_wide = 4 + 16 + 1 + 64       ///< low edge N, wide  = 85   (NS axis perpendicular = E, W)
-	static south_wide = 256 + 1024 + 1 + 64   ///< low edge S, wide  = 1345
-	static ne_wide    = 16 + 64 + 4 + 256     ///< low edge NE, wide = 340  (NE-SW axis perpendicular = SE, NW)
-	static sw_wide    = 1024 + 1 + 4 + 256    ///< low edge SW, wide = 1285
-	static nw_wide    = 1 + 4 + 16 + 1024     ///< low edge NW, wide = 1045 (NW-SE axis perpendicular = SW, NE)
-	static se_wide    = 64 + 256 + 16 + 1024  ///< low edge SE, wide = 1360
-	static east    = 256 + 16    ///< East slope (legacy square diagonal, no longer way-buildable): 2 west corners raised = 272
-	static west    = 1024 + 4    ///< West slope (legacy square diagonal, no longer way-buildable): 2 east corners raised = 1028
+
+	// Single-corner raised (height 1).
+	static raised_E  = 1
+	static raised_SE = 4
+	static raised_SW = 16
+	static raised_W  = 64
+	static raised_NW = 256
+	static raised_NE = 1024
+
+	// 2-corner "narrow" edge slopes (height 1), named by LOW edge.
+	static north_narrow     = 4 + 16       ///< low edge N,  S corners raised = 20
+	static south_narrow     = 256 + 1024   ///< low edge S,  N corners raised = 1280
+	static northeast_narrow = 16 + 64      ///< low edge NE, SW + W corners raised = 80
+	static southeast_narrow = 64 + 256     ///< low edge SE, W + NW corners raised = 320
+	static southwest_narrow = 1024 + 1     ///< low edge SW, NE + E corners raised = 1025
+	static northwest_narrow = 1 + 4        ///< low edge NW, E + SE corners raised = 5
+
+	// 4-corner "wide" axis slopes (height 1) — narrow + 2 perpendicular
+	// corners on the off-axis.  Way-buildable like the narrow variants.
+	static north_wide     = 4 + 16 + 1 + 64       ///< low edge N, wide  = 85   (NS axis perpendicular = E, W)
+	static south_wide     = 256 + 1024 + 1 + 64   ///< low edge S, wide  = 1345
+	static northeast_wide = 16 + 64 + 4 + 256     ///< low edge NE, wide = 340  (NE-SW axis perpendicular = SE, NW)
+	static southwest_wide = 1024 + 1 + 4 + 256    ///< low edge SW, wide = 1285
+	static northwest_wide = 1 + 4 + 16 + 1024     ///< low edge NW, wide = 1045 (NW-SE axis perpendicular = SW, NE)
+	static southeast_wide = 64 + 256 + 16 + 1024  ///< low edge SE, wide = 1360
+
+	// Planar double-height edge ramps (012210 family): two low-edge
+	// corners at 0, two high-edge corners at 2, side corners at 1.
+	// Same uphill direction as the matching narrow slope.
+	static north_double     = 1 + 8 + 32 + 64                  ///< encode_corners_hex(1, 2, 2, 1, 0, 0) = 105
+	static northeast_double = 4 + 32 + 128 + 256               ///< encode_corners_hex(0, 1, 2, 2, 1, 0) = 420
+	static southeast_double = 16 + 128 + 512 + 1024            ///< encode_corners_hex(0, 0, 1, 2, 2, 1) = 1680
+	static south_double     = 1 + 64 + 512 + 2048              ///< encode_corners_hex(1, 0, 0, 1, 2, 2) = 2625
+	static southwest_double = 2 + 4 + 256 + 2048               ///< encode_corners_hex(2, 1, 0, 0, 1, 2) = 2310
+	static northwest_double = 2 + 8 + 16 + 1024                ///< encode_corners_hex(2, 2, 1, 0, 0, 1) = 1050
+
+	// Legacy square diagonals (no longer way-buildable, kept for save compat).
+	static east = 256 + 16    ///< 2 west corners raised = 272
+	static west = 1024 + 4    ///< 2 east corners raised = 1028
+
 	// `raised` here is the single-height "all corners 1" value, used
 	// by scripts as the iteration bound over "interesting" single-
 	// height slopes — NOT the same as C++ `slope_t::raised`, which is

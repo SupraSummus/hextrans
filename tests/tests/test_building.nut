@@ -229,10 +229,10 @@ function test_building_build_multi_tile_sloped()
 		ASSERT_EQUAL(builder.work(public_pl, coord3d(3, 1, 0), "11" + building_desc.get_name()), null)
 		ASSERT_EQUAL(remover.work(public_pl, coord3d(3, 1, 0)), null)
 
-		ASSERT_EQUAL(tile_x(3, 1, 0).get_slope(), slope.southeast)
-		ASSERT_EQUAL(tile_x(4, 1, 0).get_slope(), slope.southwest)
-		ASSERT_EQUAL(tile_x(3, 2, 0).get_slope(), slope.northeast)
-		ASSERT_EQUAL(tile_x(4, 2, 0).get_slope(), slope.northwest)
+		ASSERT_EQUAL(tile_x(3, 1, 0).get_slope(), slope.raised_SE)
+		ASSERT_EQUAL(tile_x(4, 1, 0).get_slope(), slope.raised_SW)
+		ASSERT_EQUAL(tile_x(3, 2, 0).get_slope(), slope.raised_NE)
+		ASSERT_EQUAL(tile_x(4, 2, 0).get_slope(), slope.raised_NW)
 	}
 
 	ASSERT_EQUAL(command_x.grid_lower(public_pl, coord3d(4, 2, 1)), null)
@@ -396,7 +396,7 @@ function test_building_rotate_harbour()
 	local harbour = harbours[0]
 
 	ASSERT_EQUAL(setclimate.work(pl, coord3d(4, 2, 0), coord3d(5, 2, 0), "" + cl_water), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.se_edge), null)  // low SE → ramps into water at the SE neighbour (4,2)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.southeast_narrow), null)  // low SE → ramps into water at the SE neighbour (4,2)
 	ASSERT_EQUAL(command_x(tool_build_station).work(pl, coord3d(3, 2, 0), harbour.get_name()), null)
 
 	{

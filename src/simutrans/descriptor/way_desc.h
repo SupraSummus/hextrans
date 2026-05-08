@@ -173,18 +173,18 @@ public:
 		const uint16 n = image_list_base_index(season, front) + 1;
 		uint16 nr;
 		switch(slope) {
-			case slope_t::north:      nr = 0;  break;
-			case slope_t::ne_edge:    nr = 1;  break;
-			case slope_t::se_edge:    nr = 2;  break;
-			case slope_t::south:      nr = 3;  break;
-			case slope_t::sw_edge:    nr = 4;  break;
-			case slope_t::nw_edge:    nr = 5;  break;
-			case slope_t::north_wide: nr = 6;  break;
-			case slope_t::ne_wide:    nr = 7;  break;
-			case slope_t::se_wide:    nr = 8;  break;
-			case slope_t::south_wide: nr = 9;  break;
-			case slope_t::sw_wide:    nr = 10; break;
-			case slope_t::nw_wide:    nr = 11; break;
+			case slope_t::north_narrow:     nr = 0;  break;
+			case slope_t::northeast_narrow: nr = 1;  break;
+			case slope_t::southeast_narrow: nr = 2;  break;
+			case slope_t::south_narrow:     nr = 3;  break;
+			case slope_t::southwest_narrow: nr = 4;  break;
+			case slope_t::northwest_narrow: nr = 5;  break;
+			case slope_t::north_wide:     nr = 6;  break;
+			case slope_t::northeast_wide: nr = 7;  break;
+			case slope_t::southeast_wide: nr = 8;  break;
+			case slope_t::south_wide:     nr = 9;  break;
+			case slope_t::southwest_wide: nr = 10; break;
+			case slope_t::northwest_wide: nr = 11; break;
 			default:
 				return IMG_EMPTY;
 		}

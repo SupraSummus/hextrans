@@ -204,13 +204,13 @@ function test_dir_to_slope()
 	// flat.
 	ASSERT_EQUAL(dir.to_slope(dir.none),  slope.flat)
 
-	ASSERT_EQUAL(dir.to_slope(dir.north), slope.south)
-	ASSERT_EQUAL(dir.to_slope(dir.south), slope.north)
+	ASSERT_EQUAL(dir.to_slope(dir.north), slope.south_narrow)
+	ASSERT_EQUAL(dir.to_slope(dir.south), slope.north_narrow)
 
-	ASSERT_EQUAL(dir.to_slope(dir.northeast), slope.sw_edge)
-	ASSERT_EQUAL(dir.to_slope(dir.southwest), slope.ne_edge)
-	ASSERT_EQUAL(dir.to_slope(dir.northwest), slope.se_edge)
-	ASSERT_EQUAL(dir.to_slope(dir.southeast), slope.nw_edge)
+	ASSERT_EQUAL(dir.to_slope(dir.northeast), slope.southwest_narrow)
+	ASSERT_EQUAL(dir.to_slope(dir.southwest), slope.northeast_narrow)
+	ASSERT_EQUAL(dir.to_slope(dir.northwest), slope.southeast_narrow)
+	ASSERT_EQUAL(dir.to_slope(dir.southeast), slope.northwest_narrow)
 
 	// Multi-bit ribis are not a slope direction.
 	ASSERT_EQUAL(dir.to_slope(dir.northsouth),           slope.flat)

@@ -413,7 +413,7 @@ static void test_slope_project_to_square_clamping()
 {
 	// Double-height slopes clamp to single height.
 	const slope_t::type sq_north_single = slope_t::raised_SE + slope_t::raised_SW;
-	assert(slope_t::project_to_square(2 * slope_t::north) == sq_north_single);
+	assert(slope_t::project_to_square(2 * slope_t::north_narrow) == sq_north_single);
 	// all_up_one and all_up_two both saturate every square corner.
 	const slope_t::type sq_all_up = slope_t::raised_SW + slope_t::raised_SE
 	                              + slope_t::raised_NE + slope_t::raised_NW;

@@ -4330,8 +4330,7 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 	int layout = 0;
 	koord dx2;
 	switch(hang) {
-		case slope_t::south:
-		case slope_t::south*2:
+		case slope_t::south_narrow:
 			layout = 0;
 			dx2 = koord::step(ribi_t::northwest);
 			break;
@@ -4339,8 +4338,7 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 			layout = 1;
 			dx2 = koord::step(ribi_t::north);
 			break;
-		case slope_t::north:
-		case slope_t::north*2:
+		case slope_t::north_narrow:
 			layout = 2;
 			dx2 = koord::step(ribi_t::northwest);
 			bau_pos = last_k;
