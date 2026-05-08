@@ -100,7 +100,7 @@ function ASSERT_WAY_PATTERN(waytype, lefttop, pattern)
 				// powerlines connect to other powerlines automatically.
 				actual_dir = 0
 				if (tile.find_object(mo_powerline)) {
-					for (local i = 0; i < 4; ++i) {
+					for (local i = 0; i < 6; ++i) {
 						local offset = dir.to_coord(1<<i)
 						local nb = square_x(lefttop.x + x + offset.x, lefttop.y + y + offset.y)
 						if (nb && nb.is_valid() && nb.get_tile_at_height(z) && nb.get_tile_at_height(z).find_object(mo_powerline)) {

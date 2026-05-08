@@ -144,7 +144,8 @@ all_tests <- [
 	// test_powerline_connect: HEX-PORT PENDING.
 	test_powerline_build_below_powerbridge,
 	test_powerline_build_powerbridge_above_powerline,
-	// test_powerline_build_transformer: HEX-PORT PENDING.
+	test_powerline_build_transformer,
+	// test_powerline_build_underground_transformer_on_powerline: HEX-PORT PENDING.
 	test_powerline_build_over_transformer,
 	// test_powerline_build_transformer_multiple: HEX-PORT PENDING.
 	test_powerline_remove_powerbridge,
@@ -158,7 +159,8 @@ all_tests <- [
 	// test_scenario_rules_allow_forbid_way_tool_cube: HEX-PORT PENDING.
 	// test_scenario_rules_allow_forbid_tool_stacked_rect: HEX-PORT PENDING.
 	// test_scenario_rules_allow_forbid_tool_stacked_cube: HEX-PORT PENDING.
-	// test_sign_build_oneway: HEX-PORT PENDING.
+	test_sign_build_oneway,
+	// test_sign_build_oneway_at_crossing: HEX-PORT PENDING.
 	// test_sign_build_trafficlight: HEX-PORT PENDING.
 	test_sign_remove_trafficlight,
 	// test_sign_build_private_way: HEX-PORT PENDING.
@@ -178,7 +180,7 @@ all_tests <- [
 	test_slope_max_height_diff,
 	test_terraform_raise_lower_land,
 	test_terraform_raise_lower_land_at_map_border,
-	// test_terraform_raise_lower_land_at_water_center: HEX-PORT PENDING.
+	test_terraform_raise_lower_land_at_water_center,
 	// test_terraform_raise_lower_land_at_water_corner: HEX-PORT PENDING.
 	// test_terraform_raise_lower_land_at_water_edge: HEX-PORT PENDING.
 	test_terraform_raise_lower_land_below_way,

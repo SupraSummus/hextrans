@@ -68,14 +68,15 @@ keyed on 4 old-combo values).  Restore after the crossing-cluster /
 `leitung_t::suche_fab_neighbour`'s adjacency order — see
 "Adjacency-order policy" below.
 
-**Sign / traffic-light 2-axis FSM.**  `test_sign_build_oneway /
-_build_trafficlight / _remove_trafficlight / _build_private_way /
-_build_signal / _build_signal_multiple / _replace_signal /
-_signal_when_player_removed` bake the 2-phase traffic-light FSM
-(state 0 = N-S axis, state 1 = old-E-W) and 4-direction sign
-rotation layouts from `roadsign.cc`.  Under hex, 3 axes / 6
-rotations.  Real gameplay design choice, not a test edit; restore
-when `roadsign_t` and the trafficlight info UI get their hex port.
+**Sign / traffic-light 2-axis FSM.**  `test_sign_build_trafficlight /
+_build_private_way / _build_signal / _build_signal_multiple /
+_replace_signal` bake the 2-phase traffic-light FSM (state 0 = N-S
+axis, state 1 = old-E-W) and 4-direction sign rotation layouts from
+`roadsign.cc`.  Under hex, 3 axes / 6 rotations.  Real gameplay
+design choice, not a test edit; restore when `roadsign_t` and the
+trafficlight info UI get their hex port.  `test_sign_build_oneway_at_crossing`
+holds the crossing subcases that used to live inside
+`test_sign_build_oneway`; same trigger.
 
 **Runway layout.**  `test_way_runway_build_rw_flat / _tw_flat /
 _mixed_flat` bake a 4-direction airport layout (runway + taxiway
@@ -92,7 +93,6 @@ restore after the region-selection tools are hex-aware.
 
 **Per-vertex grid topology.**
 `test_building_build_multi_tile_sloped`,
-`test_terraform_raise_lower_land_at_water_center`,
 `test_terraform_raise_lower_land_at_water_corner` and
 `test_terraform_raise_lower_land_at_water_edge` depend on 4-way
 vertex sharing (hex shares 3 per vertex).  With the terraformer
@@ -123,9 +123,8 @@ first.  Needs a real policy choice in `suche_fab_neighbour` (prefer
 producers?  prefer nearest?), not a test edit.
 
 **Hill-with-sloped-neighbours test setup.**
-`test_depot_build_on_tunnel_entrance`, `test_halt_build_on_tunnel_entrance`,
-`test_halt_make_public_underground` and `test_powerline_build_transformer`
-each build their terrain by
+`test_depot_build_on_tunnel_entrance`, `test_halt_build_on_tunnel_entrance`
+and `test_halt_make_public_underground` each build their terrain by
 raising the 4 corners of a 2x2 grid-point square — which under
 square-terraformer propagation produced one raised tile plus 4
 cardinal single-slope neighbours.  Under hex's 3-way vertex sharing
@@ -136,6 +135,9 @@ grund_t slopes but leaves the per-vertex height storage inconsistent.
 Now that the NW-corner-only writers are ported, restoration
 needs a hex-aware test scaffold that raises the right vertices
 directly rather than 4 corners of a 2x2 square.
+`test_powerline_build_underground_transformer_on_powerline` holds
+the underground-tunnel subcase that used to live inside
+`test_powerline_build_transformer`; same trigger.
 
 ## Lower_to water-tile NW-only gate
 

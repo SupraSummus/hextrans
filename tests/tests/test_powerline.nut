@@ -185,7 +185,6 @@ function test_powerline_build_powerbridge_above_powerline()
 }
 
 
-// test_powerline_build_transformer: HEX-PORT PENDING.
 function test_powerline_build_transformer()
 {
 	local pl = player_x(0)
@@ -275,37 +274,63 @@ function test_powerline_build_transformer()
 		ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	}
 
-	{
-		// build underground transformer on underground powerline, should fail
-		local digger = command_x(tool_build_tunnel)
-		digger.set_flags(2) # Ctrl
-
-		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 4, 0)), null)
-		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(3, 4, 0)), null)
-		ASSERT_EQUAL(pl.get_current_maintenance(), 0)
-
-		ASSERT_EQUAL(digger.work(pl, coord3d(2, 3, -1), power_tunnel.get_name()), null)
-		ASSERT_EQUAL(digger.work(pl, coord3d(2, 3, -1), coord3d(2, 2, -1), power_tunnel.get_name()), null)
-
-		// test
-		local old_maint = pl.get_current_maintenance()
-		ASSERT_EQUAL(build_trafo.work(pl, coord3d(2, 2, -1)), "Tile not empty.")
-		ASSERT_EQUAL(pl.get_current_maintenance(), old_maint)
-		ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 2, -1)), null)
-
-		// and clean up
-		ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 2, -1)), "")   // underground  ???
-		ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 3, -1)), null) // above ground ???
-		ASSERT_EQUAL(pl.get_current_maintenance(), 0)
-
-		ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 4, -1)), null)
-		ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(3, 4, -1)), null)
-	}
+	// Underground-transformer-on-underground-powerline subcase split
+	// out as test_powerline_build_underground_transformer_on_powerline
+	// — see "Hill-with-sloped-neighbours test setup" in TODO.md.
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(7, 7, 0)), null)
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// test_powerline_build_underground_transformer_on_powerline: HEX-PORT PENDING.
+function test_powerline_build_underground_transformer_on_powerline()
+{
+	// Tile-occupancy invariant: a transformer cannot be built on an
+	// existing underground powerline ("Tile not empty.").  Setup digs a
+	// power tunnel after lowering 2 grid points, which under hex's
+	// 3-way vertex sharing produces a different terrain shape than
+	// upstream square — see "Hill-with-sloped-neighbours test setup"
+	// in TODO.md.
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local build_trafo = command_x(tool_build_transformer)
+	local power_tunnel = tunnel_desc_x.get_available_tunnels(wt_power)[0]
+
+	ASSERT_TRUE(power_tunnel != null)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+
+	ASSERT_EQUAL(build_factory(public_pl, coord3d(0, 0, 0), 1, 1, 1024, "Kohlegrube"), null)
+	ASSERT_EQUAL(build_factory(public_pl, coord3d(6, 6, 0), 1, 1, 1024, "Kohlekraftwerk"), null)
+
+	local digger = command_x(tool_build_tunnel)
+	digger.set_flags(2) # Ctrl
+
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 4, 0)), null)
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(3, 4, 0)), null)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+
+	ASSERT_EQUAL(digger.work(pl, coord3d(2, 3, -1), power_tunnel.get_name()), null)
+	ASSERT_EQUAL(digger.work(pl, coord3d(2, 3, -1), coord3d(2, 2, -1), power_tunnel.get_name()), null)
+
+	local old_maint = pl.get_current_maintenance()
+	ASSERT_EQUAL(build_trafo.work(pl, coord3d(2, 2, -1)), "Tile not empty.")
+	ASSERT_EQUAL(pl.get_current_maintenance(), old_maint)
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 2, -1)), null)
+
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 2, -1)), "")   // underground  ???
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 3, -1)), null) // above ground ???
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 4, -1)), null)
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(3, 4, -1)), null)
+
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(6, 6, 0)), null)
 
 	RESET_ALL_PLAYER_FUNDS()
 }

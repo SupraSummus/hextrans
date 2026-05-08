@@ -59,17 +59,19 @@ function test_terraform_raise_lower_land_at_map_border()
 }
 
 
-// test_terraform_raise_lower_land_at_water_center: HEX-PORT PENDING.
 function test_terraform_raise_lower_land_at_water_center()
 {
 	local clim  = command_x(tool_set_climate)
 
-	{
+	// Lowering the NW vertex of (3,3) — inside the water block — keeps
+	// the four tiles water across repeated lower calls.  (Upstream
+	// labelled the first block "raise" but called grid_lower in both;
+	// under hex grid_raise here would lift (3,3) out of water, so the
+	// idempotent-lower invariant is the one that actually survives.)
+	for (local pass = 0; pass < 2; ++pass) {
 		clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water)
 
-		// raise center piece
-		local err = command_x.grid_lower(player_x(0), coord3d(3, 3, 0))
-		ASSERT_EQUAL(err, "")
+		ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(3, 3, 0)), "")
 
 		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
 		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
@@ -77,17 +79,13 @@ function test_terraform_raise_lower_land_at_water_center()
 		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
 	}
 
-	{
-		clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_water)
-
-		// lower center piece
-		local err = command_x.grid_lower(player_x(0), coord3d(3, 3, 0))
-		ASSERT_EQUAL(err, "")
-
-		ASSERT_TRUE(tile_x(2, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 2, 0).is_water())
-		ASSERT_TRUE(tile_x(2, 3, 0).is_water())
-		ASSERT_TRUE(tile_x(3, 3, 0).is_water())
+	// grid_raise can't pull a vertex back up out of water, so reset
+	// terrain via set_slope before the next test sees it.
+	clim.work(player_x(0), coord3d(2, 3, 0), coord3d(3, 2, 0), "" + cl_mediterran)
+	for (local q = 2; q <= 3; ++q) {
+		for (local r = 2; r <= 3; ++r) {
+			command_x.set_slope(player_x(0), coord3d(q, r, 0), slope.flat)
+		}
 	}
 
 	RESET_ALL_PLAYER_FUNDS()
