@@ -5794,8 +5794,8 @@ const char* tool_build_depot_t::tool_depot_aux(player_t* player, koord3d pos, co
 		// HEX-PORT: 2-layout depots pick layout 0 (N-S axis) or 1
 		// (old E-W axis = hex SE-NW under the 2:1 iso rename).  The
 		// 3rd hex axis (NE-SW) can't be served by a 2-layout depot —
-		// real hex depots need 3 layouts.  Tracked in building
-		// cluster TODO.
+		// real hex depots need 3 layouts.  See TODO.md → "Building /
+		// crossing cluster".
 		layout = (ribi == (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest));
 	}
 	else {

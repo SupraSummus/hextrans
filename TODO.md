@@ -1,7 +1,9 @@
 # TODO
 
-Live registry of port work still to do. This is NOT documentation
-and NOT a changelog — describing finished work, current status, or
+Live registry of work still to do — port work, gameplay bugs,
+upstream-inherited rough edges, anything else with a concrete
+next move and a concrete trigger.  This is NOT documentation and
+NOT a changelog — describing finished work, current status, or
 recent progress belongs in git history or the code itself, not here.
 If an entry becomes outdated, delete it.
 
@@ -779,6 +781,49 @@ but this is only a narrow fix for post-port saves.  Once the
 structural changes settle, either reject old upstream saves cleanly or
 write a one-shot square→hex converter (hard because 4 corners do not
 map cleanly to 6).
+
+## Building / crossing cluster
+
+Buildings and intersections that bake the square 4-axis crossroads
+into their gameplay logic, beyond the mechanical
+`rotate90`→`rotate60` rename covered by the `rotate_perpendicular`
+sweep in "ribi_t — audit surfaces".  The shared trigger is "hex
+crossroads have a real design" — what the 3-axis / 6-arm geometry
+means for collision avoidance, depot orientation, traffic-light
+phasing, and airport layouts isn't a mechanical port, it's a
+gameplay choice that hasn't been made yet.
+
+*Depot 3rd-axis layout.*  `tool_build_depot_t::tool_depot_aux` in
+`tool/simtool.cc` picks `layout = 0` (N-S axis) or `layout = 1`
+(SE-NW = old E-W) from the way's ribi.  The 3rd hex axis (NE-SW)
+falls through to layout 0, so depots on NE-SW track render
+mis-oriented.  Real fix is a 3-layout depot descriptor; needs
+`depot_t` rotation handling + pakset depot images for all three
+axes.
+
+*Crossroads collision FSM.*  `vehicle_base.cc::is_blocking`
+(`vehicle_base.cc:533`) and the related branches in
+`road_vehicle.cc::can_enter_tile` were written against 4-way
+crossroads — "across" = rotate90, "perpendicular" = rotate90, and
+the right-of-way table assumes two axes meeting at 90°.  The
+`rotate_perpendicular` sweep makes them compile under hex (one
+60° step instead of one 90° step), but a real 3- or 6-arm hex
+crossroads needs the FSM redesigned: which arms have priority,
+how is "across" defined when two arms meet at 60° vs. 120°, what
+does the "exit same side" predicate mean with three axes.
+
+*Traffic-light phase count.*  `roadsign.cc:502` cycles between
+state 0 (N-S open) and state 1 (SE-NW open); the NE-SW axis is
+never opened.  `Sign / traffic-light 2-axis FSM` in the test
+section above tracks the test fallout; the engine-side fix is a
+3-state cycle (one axis open per state) and a corresponding
+`trafficlight_info_t` UI port.
+
+*Airport layout.*  Tracked separately under `Runway layout` in
+the test section above — `ai_passenger.cc:499` builds a hex
+diamond using 4 of 6 hex edges, which compiles and produces
+something playable but is not a real hex airport.  Lands together
+with the other items here when crossroads design lands.
 
 ## other
 
