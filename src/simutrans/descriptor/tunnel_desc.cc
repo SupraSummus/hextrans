@@ -11,7 +11,7 @@
 
 // Slope → tunnel-entrance sprite index.  Edge index matches
 // `hex_keys::edge_names[6]` = {n, s, ne, se, sw, nw}, low-edge
-// naming (matching bridge's start/ramp convention): `slope_t::north`
+// naming (matching bridge's start/ramp convention): `slope_t::north_narrow`
 // is "low edge N, mountain rises south, portal points outward through
 // N" → index 0.  This INVERTS the upstream tunnel convention (where
 // the key was named for the high edge / portal-facing direction),
@@ -24,12 +24,12 @@
 int tunnel_desc_t::slope_index(slope_t::type slope)
 {
 	switch (slope) {
-		case slope_t::north:    case slope_t::north_wide: return 0; // n
-		case slope_t::south:    case slope_t::south_wide: return 1; // s
-		case slope_t::ne_edge:  case slope_t::ne_wide:    return 2; // ne
-		case slope_t::se_edge:  case slope_t::se_wide:    return 3; // se
-		case slope_t::sw_edge:  case slope_t::sw_wide:    return 4; // sw
-		case slope_t::nw_edge:  case slope_t::nw_wide:    return 5; // nw
+		case slope_t::north_narrow:     case slope_t::north_wide:     return 0; // n
+		case slope_t::south_narrow:     case slope_t::south_wide:     return 1; // s
+		case slope_t::northeast_narrow: case slope_t::northeast_wide: return 2; // ne
+		case slope_t::southeast_narrow: case slope_t::southeast_wide: return 3; // se
+		case slope_t::southwest_narrow: case slope_t::southwest_wide: return 4; // sw
+		case slope_t::northwest_narrow: case slope_t::northwest_wide: return 5; // nw
 		default: return -1;
 	}
 }

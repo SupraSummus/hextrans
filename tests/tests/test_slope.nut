@@ -11,24 +11,23 @@ function test_slope_to_dir()
 {
 	// slope.to_dir(sl) returns the ribi that walks UP the slope — see
 	// ribi_type(slope_t::type) in ribi.cc.  Each of the 6 hex axis edges
-	// carries a ribi mapping shared by its narrow (2-corner), wide
-	// (4-corner) and double-height (2×narrow) variants.  The 2 legacy
-	// square diagonals (slope.east / slope.west) keep their projection
-	// onto the closest hex direction.  Flat, the 6 single-corner
-	// raises, and any other multi-corner slope map to dir.none.
+	// carries a ribi mapping shared by its narrow (2-corner) and wide
+	// (4-corner) variants.  The 2 legacy square diagonals (slope.east /
+	// slope.west) keep their projection onto the closest hex direction.
+	// Flat, the 6 single-corner raises, and any other multi-corner
+	// slope map to dir.none.
 	local edges = {}
-	edges[slope.north]   <- { dir = dir.south,     wide = slope.north_wide }
-	edges[slope.south]   <- { dir = dir.north,     wide = slope.south_wide }
-	edges[slope.ne_edge] <- { dir = dir.southwest, wide = slope.ne_wide }
-	edges[slope.se_edge] <- { dir = dir.northwest, wide = slope.se_wide }
-	edges[slope.sw_edge] <- { dir = dir.northeast, wide = slope.sw_wide }
-	edges[slope.nw_edge] <- { dir = dir.southeast, wide = slope.nw_wide }
+	edges[slope.north_narrow]   <- { dir = dir.south,     wide = slope.north_wide }
+	edges[slope.south_narrow]   <- { dir = dir.north,     wide = slope.south_wide }
+	edges[slope.northeast_narrow] <- { dir = dir.southwest, wide = slope.northeast_wide }
+	edges[slope.southeast_narrow] <- { dir = dir.northwest, wide = slope.southeast_wide }
+	edges[slope.southwest_narrow] <- { dir = dir.northeast, wide = slope.southwest_wide }
+	edges[slope.northwest_narrow] <- { dir = dir.southeast, wide = slope.northwest_wide }
 
 	local expected = {}
 	foreach (sl, e in edges) {
 		expected[sl]      <- e.dir
 		expected[e.wide]  <- e.dir
-		expected[2 * sl]  <- e.dir
 	}
 	expected[slope.east]     <- dir.northwest  // W corners raised → uphill = NW hex edge (legacy)
 	expected[slope.west]     <- dir.southeast  // E corners raised → uphill = SE hex edge (legacy)
@@ -89,11 +88,11 @@ function test_slope_set_and_restore()
 	local restoreslope = command_x(tool_restoreslope)
 
 	{
-		ASSERT_EQUAL(setslope(pl, coord3d(2, 3, 0), slope.north), null)
-		ASSERT_EQUAL(tile_x(2, 3, 0).get_slope(), slope.north)
+		ASSERT_EQUAL(setslope(pl, coord3d(2, 3, 0), slope.north_narrow), null)
+		ASSERT_EQUAL(tile_x(2, 3, 0).get_slope(), slope.north_narrow)
 
-		ASSERT_EQUAL(setslope(pl, coord3d(2, 3, 0), slope.south), null)
-		ASSERT_EQUAL(tile_x(2, 3, 0).get_slope(), slope.south)
+		ASSERT_EQUAL(setslope(pl, coord3d(2, 3, 0), slope.south_narrow), null)
+		ASSERT_EQUAL(tile_x(2, 3, 0).get_slope(), slope.south_narrow)
 
 		ASSERT_EQUAL(restoreslope.work(pl, coord3d(2, 3, 0)), null)
 		ASSERT_EQUAL(tile_x(2, 3, 0).get_slope(), slope.flat)
@@ -224,8 +223,8 @@ function test_slope_restore_on_bridge()
 
 	ASSERT_TRUE(rail_bridge != null)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 2, 0), slope.south), null)
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.north), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 2, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.north_narrow), null)
 	ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(4, 2, 0), rail_bridge), null)
 
 	{
@@ -244,7 +243,7 @@ function test_slope_restore_on_label()
 {
 	local pl = player_x(0)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 2, 0), slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 2, 0), slope.south_narrow), null)
 	ASSERT_EQUAL(label_x.create(coord(4, 2), pl, "foo"), null)
 
 	{

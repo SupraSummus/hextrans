@@ -68,24 +68,22 @@ ribi_t::dir ribi_t::get_dir(ribi x)
 
 // Slope → direction of travel that goes UP this slope.  Convention
 // "going X walks up slope named after low-edge opposite(X)": e.g.
-// going north walks up slope_t::south (N corners raised).  Three
-// kinds of slope share each direction: 2-corner narrow edge, 4-corner
-// wide variant, and the legacy 2× double-height narrow.  Track on
-// any of them climbs the same 0→1 path along the axis (or 0→2 for
-// the double-height variant); off-axis ground shape varies.  Wide
-// edges are way-buildable, double-height ones are no longer (kept
-// here because terrain may still carry 2× slopes under bridges or
-// pre-port saves).  Legacy square diagonals (::east / ::west) project
-// onto the closest hex direction.
+// going north walks up slope_t::south_narrow (N corners raised).  Two
+// kinds of slope share each direction: 2-corner narrow edge and the
+// 4-corner wide variant.  Track on either climbs the same 0→1 path
+// along the axis; off-axis ground shape varies.  Planar double-height
+// (`*_double`) slopes face the same direction with a 0→2 climb.
+// Legacy square diagonals (::east / ::west) project onto the closest
+// hex direction.
 ribi_t::ribi ribi_type(slope_t::type hang)
 {
 	switch (hang) {
-		case slope_t::north:   case slope_t::north_wide: case 2 * slope_t::north:   case slope_t::north_double: return ribi_t::south;
-		case slope_t::south:   case slope_t::south_wide: case 2 * slope_t::south:   case slope_t::south_double: return ribi_t::north;
-		case slope_t::ne_edge: case slope_t::ne_wide:    case 2 * slope_t::ne_edge: case slope_t::ne_double:    return ribi_t::southwest;
-		case slope_t::sw_edge: case slope_t::sw_wide:    case 2 * slope_t::sw_edge: case slope_t::sw_double:    return ribi_t::northeast;
-		case slope_t::se_edge: case slope_t::se_wide:    case 2 * slope_t::se_edge: case slope_t::se_double:    return ribi_t::northwest;
-		case slope_t::nw_edge: case slope_t::nw_wide:    case 2 * slope_t::nw_edge: case slope_t::nw_double:    return ribi_t::southeast;
+		case slope_t::north_narrow:     case slope_t::north_wide:     case slope_t::north_double:     return ribi_t::south;
+		case slope_t::south_narrow:     case slope_t::south_wide:     case slope_t::south_double:     return ribi_t::north;
+		case slope_t::northeast_narrow: case slope_t::northeast_wide: case slope_t::northeast_double: return ribi_t::southwest;
+		case slope_t::southwest_narrow: case slope_t::southwest_wide: case slope_t::southwest_double: return ribi_t::northeast;
+		case slope_t::southeast_narrow: case slope_t::southeast_wide: case slope_t::southeast_double: return ribi_t::northwest;
+		case slope_t::northwest_narrow: case slope_t::northwest_wide: case slope_t::northwest_double: return ribi_t::southeast;
 		case slope_t::east:                                                       return ribi_t::northwest;
 		case slope_t::west:                                                       return ribi_t::southeast;
 		default:                                                                    return ribi_t::none;
@@ -152,15 +150,14 @@ bool ribi_t::is_perpendicular(ribi x, ribi y)
 
 sint16 get_sloping_upwards(const slope_t::type slope, const ribi_t::ribi from)
 {
-	// slope upwards relative to direction 'from'
-	const slope_t::type from_slope = slope_type(from);
-
-	if (from_slope == slope) {
-		return 1;
-	}
-	else if (2*from_slope == slope) {
-		return 2;
-	}
+	// 1 if @p slope is the narrow / wide ramp facing direction @p from
+	// (single-step climb), 2 if it's the planar double facing the same
+	// direction (two-step climb), 0 otherwise.  The narrow/double pair
+	// is identified by ribi_type(slope) returning the same uphill
+	// direction; the height tier is then narrow vs planar-double.
+	const slope_t::type narrow = slope_type(from);
+	if (narrow == slope) return 1;
+	if (slope_t::is_planar_double_edge(slope) && ribi_type(slope) == ribi_type(narrow)) return 2;
 	return 0;
 }
 
@@ -172,16 +169,16 @@ slope_t::type slope_type(koord dir)
 	// N-S (dx==0), NW-SE (dy==0), NE-SW (dx+dy==0).  Mirrors the
 	// ribi overload below.
 	if (dir.x == 0) {
-		if (dir.y < 0) return slope_t::south; // toward N
-		if (dir.y > 0) return slope_t::north; // toward S
+		if (dir.y < 0) return slope_t::south_narrow; // toward N
+		if (dir.y > 0) return slope_t::north_narrow; // toward S
 	}
 	if (dir.y == 0) {
-		if (dir.x < 0) return slope_t::se_edge; // toward NW
-		if (dir.x > 0) return slope_t::nw_edge; // toward SE
+		if (dir.x < 0) return slope_t::southeast_narrow; // toward NW
+		if (dir.x > 0) return slope_t::northwest_narrow; // toward SE
 	}
 	if (dir.x + dir.y == 0) {
-		if (dir.x > 0) return slope_t::sw_edge; // toward NE
-		if (dir.x < 0) return slope_t::ne_edge; // toward SW
+		if (dir.x > 0) return slope_t::southwest_narrow; // toward NE
+		if (dir.x < 0) return slope_t::northeast_narrow; // toward SW
 	}
 	return slope_t::flat;
 }
@@ -192,12 +189,12 @@ slope_t::type slope_type(ribi_t::ribi r)
 	// Single hex-edge direction → slope whose low edge is opposite
 	// that direction (i.e. the destination corners are raised).
 	switch (r) {
-		case ribi_t::north:     return slope_t::south;
-		case ribi_t::south:     return slope_t::north;
-		case ribi_t::northeast: return slope_t::sw_edge;
-		case ribi_t::southwest: return slope_t::ne_edge;
-		case ribi_t::northwest: return slope_t::se_edge;
-		case ribi_t::southeast: return slope_t::nw_edge;
+		case ribi_t::north:     return slope_t::south_narrow;
+		case ribi_t::south:     return slope_t::north_narrow;
+		case ribi_t::northeast: return slope_t::southwest_narrow;
+		case ribi_t::southwest: return slope_t::northeast_narrow;
+		case ribi_t::northwest: return slope_t::southeast_narrow;
+		case ribi_t::southeast: return slope_t::northwest_narrow;
 		default:                return slope_t::flat;
 	}
 }

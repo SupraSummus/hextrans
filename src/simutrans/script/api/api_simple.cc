@@ -333,19 +333,33 @@ void export_simple(HSQUIRRELVM vm)
 	/** @name Named slopes. */
 	//@{
 	static const slope flat;
-	static const slope north;      ///< N edge slope (low N edge, S corners raised)
-	static const slope south;      ///< S edge slope
-	static const slope ne_edge;    ///< NE edge slope
-	static const slope se_edge;    ///< SE edge slope
-	static const slope sw_edge;    ///< SW edge slope
-	static const slope nw_edge;    ///< NW edge slope
-	static const slope east;       ///< 2-W-corner diagonal (legacy square)
-	static const slope west;       ///< 2-E-corner diagonal (legacy square)
-	static const slope northwest;  ///< NW corner raised (single-corner)
-	static const slope northeast;  ///< NE corner raised (single-corner)
-	static const slope southeast;  ///< SE corner raised (single-corner)
-	static const slope southwest;  ///< SW corner raised (single-corner)
-	static const slope raised;     ///< special meaning: used as slope of bridgeheads
+	static const slope raised_E;            ///< E corner raised
+	static const slope raised_SE;           ///< SE corner raised
+	static const slope raised_SW;           ///< SW corner raised
+	static const slope raised_W;            ///< W corner raised
+	static const slope raised_NW;           ///< NW corner raised
+	static const slope raised_NE;           ///< NE corner raised
+	static const slope north_narrow;        ///< low edge N, narrow (2-corner) ramp
+	static const slope south_narrow;        ///< low edge S, narrow
+	static const slope northeast_narrow;    ///< low edge NE, narrow
+	static const slope southeast_narrow;    ///< low edge SE, narrow
+	static const slope southwest_narrow;    ///< low edge SW, narrow
+	static const slope northwest_narrow;    ///< low edge NW, narrow
+	static const slope north_wide;          ///< low edge N, wide (4-corner) ramp
+	static const slope south_wide;          ///< low edge S, wide
+	static const slope northeast_wide;      ///< low edge NE, wide
+	static const slope southeast_wide;      ///< low edge SE, wide
+	static const slope southwest_wide;      ///< low edge SW, wide
+	static const slope northwest_wide;      ///< low edge NW, wide
+	static const slope north_double;        ///< low edge N, planar 2-step ramp
+	static const slope south_double;        ///< low edge S, planar 2-step
+	static const slope northeast_double;    ///< low edge NE, planar 2-step
+	static const slope southeast_double;    ///< low edge SE, planar 2-step
+	static const slope southwest_double;    ///< low edge SW, planar 2-step
+	static const slope northwest_double;    ///< low edge NW, planar 2-step
+	static const slope east;                ///< 2-W-corner diagonal (legacy square)
+	static const slope west;                ///< 2-E-corner diagonal (legacy square)
+	static const slope raised;              ///< special meaning: used as slope of bridgeheads
 	static const slope all_up_slope   = 4097; ///< used for terraforming tools
 	static const slope all_down_slope = 4098; ///< used for terraforming tools
 	//@}

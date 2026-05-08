@@ -465,8 +465,8 @@ function test_depot_build_on_bridge_end()
 
 	// north-south direction
 	{
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.south), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.north), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.south_narrow), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.north_narrow), null)
 
 		ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(4, 2, 0), rail_bridge), null)
 		ASSERT_EQUAL(command_x.build_depot(pl, coord3d(4, 2, 0), get_depot_by_wt(wt_rail)), null)
@@ -481,8 +481,8 @@ function test_depot_build_on_bridge_end()
 	// (3,3)→(5,3) vector is 2 × SE-neighbour step, so the bridge sits
 	// on the hex NW-SE axis with low edges facing each other)
 	{
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.se_edge), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(5, 3, 0), slope.nw_edge), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.southeast_narrow), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(5, 3, 0), slope.northwest_narrow), null)
 
 		ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 3, 0), rail_bridge), null)
 		ASSERT_EQUAL(command_x.build_depot(pl, coord3d(3, 3, 0), get_depot_by_wt(wt_rail)), null)

@@ -82,21 +82,22 @@ koord::koord(ribi_t::ribi r) : x(0), y(0)
 // height) each map to one of the 6 hex neighbours: edge between
 // corners i and (i+1)%6 of the centre tile has the neighbour at
 // koord::neighbours[i] across it, and that neighbour direction is
-// the uphill step.  Narrow (2-corner), wide (4-corner) and
-// double-height (2× narrow) variants of the same axis edge share
-// the uphill direction — track on any of them climbs the same path
-// along the axis.  ::east / ::west are legacy 2-corner square
-// diagonals, no longer way-buildable but kept projected onto the
-// closest hex direction for any non-way consumer.
+// the uphill step.  Narrow (2-corner) and wide (4-corner) variants
+// of the same axis edge share the uphill direction — track on either
+// climbs the same path along the axis.  Planar double-height
+// (`*_double`) slopes face the same direction with a 0→2 climb.
+// ::east / ::west are legacy 2-corner square diagonals, no longer
+// way-buildable but kept projected onto the closest hex direction for
+// any non-way consumer.
 koord::koord(slope_t::type slope) : x(0), y(0)
 {
 	switch (slope) {
-		case slope_t::nw_edge: case slope_t::nw_wide:    case 2 * slope_t::nw_edge: case slope_t::nw_double:    x =  1;          break; // uphill SE (neighbours[0])
-		case slope_t::north:   case slope_t::north_wide: case 2 * slope_t::north:   case slope_t::north_double: y =  1;          break; // uphill S  (neighbours[1])
-		case slope_t::ne_edge: case slope_t::ne_wide:    case 2 * slope_t::ne_edge: case slope_t::ne_double:    x = -1; y =  1;  break; // uphill SW (neighbours[2])
-		case slope_t::se_edge: case slope_t::se_wide:    case 2 * slope_t::se_edge: case slope_t::se_double:    x = -1;          break; // uphill NW (neighbours[3])
-		case slope_t::south:   case slope_t::south_wide: case 2 * slope_t::south:   case slope_t::south_double: y = -1;          break; // uphill N  (neighbours[4])
-		case slope_t::sw_edge: case slope_t::sw_wide:    case 2 * slope_t::sw_edge: case slope_t::sw_double:    x =  1; y = -1;  break; // uphill NE (neighbours[5])
+		case slope_t::northwest_narrow: case slope_t::northwest_wide: case slope_t::northwest_double: x =  1;          break; // uphill SE (neighbours[0])
+		case slope_t::north_narrow:     case slope_t::north_wide:     case slope_t::north_double:     y =  1;          break; // uphill S  (neighbours[1])
+		case slope_t::northeast_narrow: case slope_t::northeast_wide: case slope_t::northeast_double: x = -1; y =  1;  break; // uphill SW (neighbours[2])
+		case slope_t::southeast_narrow: case slope_t::southeast_wide: case slope_t::southeast_double: x = -1;          break; // uphill NW (neighbours[3])
+		case slope_t::south_narrow:     case slope_t::south_wide:     case slope_t::south_double:     y = -1;          break; // uphill N  (neighbours[4])
+		case slope_t::southwest_narrow: case slope_t::southwest_wide: case slope_t::southwest_double: x =  1; y = -1;  break; // uphill NE (neighbours[5])
 
 		case slope_t::east:                                                       x = -1;          break; // uphill hex-NW ≈ W (legacy)
 		case slope_t::west:                                                       x =  1;          break; // uphill hex-SE ≈ E (legacy)

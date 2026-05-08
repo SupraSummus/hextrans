@@ -377,14 +377,14 @@ function test_terraform_raise_lower_land_below_way()
 		// double-corner slopes), so direct setslope to 2*south under a way
 		// is gated even though the engine's all_up progression to 2× is
 		// already gated separately by `has_double_slopes()`.
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0),   slope.south), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0),   slope.south), "")
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), 2*slope.south), "Tile not empty.")
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0),   slope.south_narrow), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0),   slope.south_narrow), "")
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), 2*slope.south_narrow), "Tile not empty.")
 		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0), slope.all_down_slope), null)
 
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0),   slope.north), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0),   slope.north), "")
-		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), 2*slope.north), "Tile not empty.")
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0),   slope.north_narrow), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0),   slope.north_narrow), "")
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), 2*slope.north_narrow), "Tile not empty.")
 		ASSERT_EQUAL(setslope(pl, coord3d(4, 4, 0), slope.all_down_slope), null)
 
 		// First all_up_slope on a flat way tile makes the way the slope

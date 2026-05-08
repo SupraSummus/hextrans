@@ -2437,7 +2437,10 @@ void way_builder_t::build_tunnel_and_bridges()
 				continue;
 			}
 
-			if(start->get_grund_hang()==slope_t::flat  ||  start->get_grund_hang()==slope_type(zv*(-1))  ||  start->get_grund_hang()==2*slope_type(zv*(-1))) {
+			const slope_t::type start_slope = start->get_grund_hang();
+			const slope_t::type uphill_narrow = slope_type(zv*(-1));
+			const bool uphill_double = slope_t::is_planar_double_edge(start_slope) && ribi_type(start_slope) == ribi_type(uphill_narrow);
+			if(start_slope==slope_t::flat  ||  start_slope==uphill_narrow  ||  uphill_double) {
 				sint8 bridge_height = 0;
 				const char* error = bridge_builder_t::can_build_bridge(player_builder, route[i], route[i + 1], bridge_height, bridge_desc);
 				if (error) {

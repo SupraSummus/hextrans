@@ -238,7 +238,7 @@ function test_powerline_build_transformer()
 
 	{
 		// cannot build transformer on sloped tile
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.north), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.north_narrow), null)
 
 		ASSERT_EQUAL(build_trafo.work(pl, coord3d(3, 2, 0)), "Transformer only on flat bare land!")
 		ASSERT_EQUAL(build_trafo.work(pl, coord3d(3, 2, 1)), "Transformer only on flat bare land!")
@@ -579,8 +579,8 @@ function test_powerline_remove_powerbridge()
 
 	// (2,3)→(4,3) is 2 × SE-neighbour step → hex NW-SE axis;
 	// matching ramps face each other.
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(2, 3, 0), slope.se_edge), null)
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 3, 0), slope.nw_edge), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(2, 3, 0), slope.southeast_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 3, 0), slope.northwest_narrow), null)
 	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(2, 3, 0), coord3d(4, 3, 0), power_bridge), null)
 
 	// try removing the bridge from its centre

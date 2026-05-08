@@ -42,36 +42,28 @@ public:
 		raised_NW = 256,  ///< NW corner, digit 4
 		raised_NE = 1024, ///< NE corner, digit 5
 
-		// Square-style single-corner aliases.  Under hex these name the
-		// corresponding hex corner at height 1.
-		southeast = raised_SE,
-		southwest = raised_SW,
-		northwest = raised_NW,
-		northeast = raised_NE,
+		// 2-corner "narrow" edge slopes (height 1) named by their LOW
+		// edge.  The two corners on the high edge are raised to h=1, the
+		// rest stay at h=0.  Track running on the matching axis climbs
+		// 0→1 along its length.
+		north_narrow     = raised_SE + raised_SW, ///< low edge N  (S corners raised)
+		south_narrow     = raised_NE + raised_NW, ///< low edge S  (N corners raised)
+		northeast_narrow = raised_SW + raised_W,  ///< low edge NE
+		southeast_narrow = raised_W  + raised_NW, ///< low edge SE
+		southwest_narrow = raised_NE + raised_E,  ///< low edge SW
+		northwest_narrow = raised_E  + raised_SE, ///< low edge NW
 
-		// 2-corner "edge" slopes named by their LOW edge.  ::north and
-		// ::south are the legacy bare names for the N and S hex edges;
-		// the 4 hex-only edges (NE, SE, SW, NW) carry the `_edge` suffix
-		// to disambiguate from the single-corner aliases above.  Track
-		// running on the matching axis climbs 0→1 along its length.
-		north   = raised_SE + raised_SW, ///< low edge N  (S corners raised)
-		south   = raised_NE + raised_NW, ///< low edge S  (N corners raised)
-		ne_edge = raised_SW + raised_W,  ///< low edge NE
-		se_edge = raised_W  + raised_NW, ///< low edge SE
-		sw_edge = raised_NE + raised_E,  ///< low edge SW
-		nw_edge = raised_E  + raised_SE, ///< low edge NW
-
-		// 4-corner "wide" axis slopes — narrow edge slope plus the 2
-		// perpendicular side corners (the corners on the axis that
-		// crosses the slope's axis at 90°).  Track on the same axis
-		// sees the same 0→1 climb as the narrow variant; only the
-		// off-axis ground shape differs.
-		north_wide = north   + raised_E  + raised_W,  ///< low edge N, wide  (NS axis perpendicular = E, W)
-		south_wide = south   + raised_E  + raised_W,  ///< low edge S, wide
-		ne_wide    = ne_edge + raised_SE + raised_NW, ///< low edge NE, wide (NE-SW axis perpendicular = SE, NW)
-		sw_wide    = sw_edge + raised_SE + raised_NW, ///< low edge SW, wide
-		nw_wide    = nw_edge + raised_SW + raised_NE, ///< low edge NW, wide (NW-SE axis perpendicular = SW, NE)
-		se_wide    = se_edge + raised_SW + raised_NE, ///< low edge SE, wide
+		// 4-corner "wide" axis slopes (height 1) — narrow edge slope plus
+		// the 2 perpendicular side corners (the corners on the axis that
+		// crosses the slope's axis at 90°).  Track on the same axis sees
+		// the same 0→1 climb as the narrow variant; only the off-axis
+		// ground shape differs.
+		north_wide     = north_narrow     + raised_E  + raised_W,  ///< low edge N, wide  (NS axis perpendicular = E, W)
+		south_wide     = south_narrow     + raised_E  + raised_W,  ///< low edge S, wide
+		northeast_wide = northeast_narrow + raised_SE + raised_NW, ///< low edge NE, wide (NE-SW axis perpendicular = SE, NW)
+		southwest_wide = southwest_narrow + raised_SE + raised_NW, ///< low edge SW, wide
+		northwest_wide = northwest_narrow + raised_SW + raised_NE, ///< low edge NW, wide (NW-SE axis perpendicular = SW, NE)
+		southeast_wide = southeast_narrow + raised_SW + raised_NE, ///< low edge SE, wide
 
 		// Legacy 2-corner square diagonals.  NOT hex edges — they raise
 		// two non-adjacent corners with a third corner sitting in the
@@ -126,12 +118,12 @@ public:
 	// family: two low-edge corners at 0, two high-edge corners at 2,
 	// and the side corners at 1.  They face the same uphill direction
 	// as the matching narrow edge slope.
-	static constexpr type north_double = encode_corners_hex(1, 2, 2, 1, 0, 0);
-	static constexpr type ne_double    = encode_corners_hex(0, 1, 2, 2, 1, 0);
-	static constexpr type se_double    = encode_corners_hex(0, 0, 1, 2, 2, 1);
-	static constexpr type south_double = encode_corners_hex(1, 0, 0, 1, 2, 2);
-	static constexpr type sw_double    = encode_corners_hex(2, 1, 0, 0, 1, 2);
-	static constexpr type nw_double    = encode_corners_hex(2, 2, 1, 0, 0, 1);
+	static constexpr type north_double     = encode_corners_hex(1, 2, 2, 1, 0, 0);
+	static constexpr type northeast_double = encode_corners_hex(0, 1, 2, 2, 1, 0);
+	static constexpr type southeast_double = encode_corners_hex(0, 0, 1, 2, 2, 1);
+	static constexpr type south_double     = encode_corners_hex(1, 0, 0, 1, 2, 2);
+	static constexpr type southwest_double = encode_corners_hex(2, 1, 0, 0, 1, 2);
+	static constexpr type northwest_double = encode_corners_hex(2, 2, 1, 0, 0, 1);
 
 /// True if no corner exceeds height 1 (all base-4 digits are 0 or 1).
 #define is_one_high(i) (!slope_t::has_double_corner(i))
@@ -228,12 +220,12 @@ public:
 	/// — this predicate names the canonical axis-aligned ramp slopes.
 	static bool is_axis_slope(type x) {
 		switch (x) {
-			case north:      case south:
-			case ne_edge:    case se_edge:
-			case sw_edge:    case nw_edge:
-			case north_wide: case south_wide:
-			case ne_wide:    case se_wide:
-			case sw_wide:    case nw_wide:
+			case north_narrow:     case south_narrow:
+			case northeast_narrow: case southeast_narrow:
+			case southwest_narrow: case northwest_narrow:
+			case north_wide:       case south_wide:
+			case northeast_wide:   case southeast_wide:
+			case southwest_wide:   case northwest_wide:
 				return true;
 			default:
 				return false;
@@ -290,8 +282,8 @@ public:
 
 	static bool is_planar_double_edge(type x) {
 		switch (x) {
-			case north_double: case ne_double: case se_double:
-			case south_double: case sw_double: case nw_double:
+			case north_double:     case northeast_double: case southeast_double:
+			case south_double:     case southwest_double: case northwest_double:
 				return true;
 			default:
 				return false;
@@ -359,8 +351,8 @@ static constexpr slope_t::type slope_from_legacy_slope4_table(sint16 sl)
 	return encode_corners(sl % 3, (sl / 3) % 3, (sl / 9) % 3, (sl / 27) % 3);
 }
 
-static_assert(slope_from_legacy_slope4_table(36) == slope_t::south, "legacy south slope value changed");
-static_assert(slope_from_legacy_slope4_table(4) == slope_t::north, "legacy north slope value changed");
+static_assert(slope_from_legacy_slope4_table(36) == slope_t::south_narrow, "legacy south slope value changed");
+static_assert(slope_from_legacy_slope4_table(4) == slope_t::north_narrow, "legacy north slope value changed");
 static_assert(slope_from_legacy_slope4_table(12) == slope_t::west, "legacy west slope value changed");
 static_assert(slope_from_legacy_slope4_table(28) == slope_t::east, "legacy east slope value changed");
 
@@ -702,13 +694,13 @@ static inline bool slope_allows_ribi(slope_t::type sl, ribi_t::ribi r)
 
 /**
  * Calculate slope from directions.
- * Go upward on the slope: going north translates to slope_t::south.
+ * Go upward on the slope: going north translates to slope_t::south_narrow.
  */
 slope_t::type slope_type(koord dir);
 
 /**
  * Calculate slope from directions.
- * Go upward on the slope: going north translates to slope_t::south.
+ * Go upward on the slope: going north translates to slope_t::south_narrow.
  */
 slope_t::type slope_type(ribi_t::ribi);
 
@@ -731,7 +723,7 @@ ribi_t::ribi ribi_type(const koord3d& dir);
 
 /**
  * Calculate direction bit from slope.
- * Note: slope_t::north (slope north) will be translated to ribi_t::south (direction south).
+ * Note: slope_t::north_narrow (slope north) will be translated to ribi_t::south (direction south).
  */
 ribi_t::ribi ribi_type(slope_t::type slope);
 

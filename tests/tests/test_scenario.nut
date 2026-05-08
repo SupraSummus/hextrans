@@ -216,7 +216,7 @@ function test_scenario_rules_allow_forbid_way_tool_cube()
 	// build into forbidden zone
 	{
 		ASSERT_EQUAL(setslope(pl, coord3d(3, 4, 0), slope.all_up_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.north), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.north_narrow), null)
 
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 0, 0), coord3d(3, 4, 1), road, true), "")
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),

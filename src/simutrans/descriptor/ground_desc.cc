@@ -194,7 +194,7 @@ static uint8 slopetable(slope_t::type slope)
 		case slope_t::all_up_two:                                             return 0;
 		case slope_t::raised_SW:                                              return 1;
 		case slope_t::raised_SE:                                              return 2;
-		case slope_t::raised_SE + slope_t::raised_SW:                         return 3;  // slope_t::north
+		case slope_t::raised_SE + slope_t::raised_SW:                         return 3;  // slope_t::north_narrow
 		case slope_t::raised_NE:                                              return 4;
 		case slope_t::raised_NE + slope_t::raised_SW:                         return 5;  // NE+SW
 		case slope_t::raised_NE + slope_t::raised_SE:                         return 6;  // slope_t::west
@@ -203,7 +203,7 @@ static uint8 slopetable(slope_t::type slope)
 		case slope_t::raised_NW + slope_t::raised_SW:                         return 9;  // slope_t::east
 		case slope_t::raised_NW + slope_t::raised_SE:                         return 10; // NW+SE
 		case slope_t::raised_NW + slope_t::raised_SE + slope_t::raised_SW:    return 11;
-		case slope_t::raised_NW + slope_t::raised_NE:                         return 12; // slope_t::south
+		case slope_t::raised_NW + slope_t::raised_NE:                         return 12; // slope_t::south_narrow
 		case slope_t::raised_NW + slope_t::raised_NE + slope_t::raised_SW:    return 13;
 		case slope_t::raised_NW + slope_t::raised_NE + slope_t::raised_SE:    return 14;
 		default: return 0xFF;

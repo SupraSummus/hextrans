@@ -156,17 +156,14 @@ function interesting_slopes()
 {
 	return [
 		slope.flat,
-		// 6 single-corner raised, in hex_corner_t order (E, SE, SW, W,
-		// NW, NE).  E and W have no script-side aliases — `slope.east`
-		// and `slope.west` are taken by the legacy 2-corner diagonals
-		// (see end of this list).
-		1, slope.southeast, slope.southwest, 64, slope.northwest, slope.northeast,
+		// 6 single-corner raised, in hex_corner_t order (E, SE, SW, W, NW, NE).
+		slope.raised_E, slope.raised_SE, slope.raised_SW, slope.raised_W, slope.raised_NW, slope.raised_NE,
 		// 6 narrow hex edges (2-corner), cyclic: low edge NW, N, NE, SE, S, SW
-		slope.nw_edge, slope.north, slope.ne_edge,
-		slope.se_edge, slope.south, slope.sw_edge,
+		slope.northwest_narrow, slope.north_narrow, slope.northeast_narrow,
+		slope.southeast_narrow, slope.south_narrow, slope.southwest_narrow,
 		// 6 wide hex edges (4-corner), same cyclic order
-		slope.nw_wide, slope.north_wide, slope.ne_wide,
-		slope.se_wide, slope.south_wide, slope.sw_wide,
+		slope.northwest_wide, slope.north_wide, slope.northeast_wide,
+		slope.southeast_wide, slope.south_wide, slope.southwest_wide,
 		// 2 legacy square diagonals (raise two non-adjacent hex
 		// corners with the third in the valley between them — no
 		// clean hex gradient, but `slope_allows_ribi` admits stubs
