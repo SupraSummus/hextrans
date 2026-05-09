@@ -62,6 +62,10 @@ private:
 
 	bool clip_below; // only relevant for elevated ways
 
+	/// .dat opt-in for double-height slope builds.  Read by
+	/// `way_reader_t` from version 9 nodes; older paks default false.
+	bool double_slopes;
+
 	/**
 	 * calculates index of image list for flat ways
 	 * for winter and/or front images
@@ -200,9 +204,11 @@ public:
 		return get_child<image_list_t>(n)->get_image_id(ribi / 3 - 1);
 	}
 
-	/// Double-height way slopes are no longer way-buildable; stub
-	/// returns false for any caller that still asks.
-	bool has_double_slopes() const { return false; }
+	/// True iff the .dat declares `has_double_slopes=1`.  Lets a way
+	/// opt into double-height slope builds independently of which
+	/// slope sprites the pakset shipped.  Stored on-disk from
+	/// `way_desc` save version 9; older nodes default to `false`.
+	bool has_double_slopes() const { return double_slopes; }
 
 	/// Diagonal (smooth out-of-axis bend) sprites — gone under hex,
 	/// every direction lies on an axis.  The imagelist node is still
