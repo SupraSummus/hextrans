@@ -46,14 +46,15 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 
 	// Slope-up image slot order.  6 narrow (2-corner) hex edge slopes
 	// clockwise from north, then their 6 wide (4-corner) variants in
+	// the same order, then their 6 double-height (012210) variants in
 	// the same order.  Order matches way_desc_t::get_slope_image_id;
-	// double-height edges and square diagonals are no longer
-	// way-buildable.  `_` separates suffix because `,` and `-` inside
-	// `[…]` trigger tabfile_t::find_parameter_expansion's parameter-
-	// list mode.
-	static const char* const slope_keys[12] = {
+	// square diagonals are no longer way-buildable.  `_` separates
+	// suffix because `,` and `-` inside `[…]` trigger
+	// tabfile_t::find_parameter_expansion's parameter-list mode.
+	static const char* const slope_keys[18] = {
 		"n", "ne", "se", "s", "sw", "nw",
-		"n_wide", "ne_wide", "se_wide", "s_wide", "sw_wide", "nw_wide"
+		"n_wide", "ne_wide", "se_wide", "s_wide", "sw_wide", "nw_wide",
+		"n_double", "ne_double", "se_double", "s_double", "sw_double", "nw_double"
 	};
 	static const char* const image_type[] = { "", "front" };
 
@@ -134,7 +135,7 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
 			keys.clear();
 
-			// Slope-up sprites — 12 fixed slots, indexed by slope value
+			// Slope-up sprites — 18 fixed slots, indexed by slope value
 			// in way_desc_t::get_slope_image_id.  Empty entries become
 			// IMG_EMPTY so indices stay aligned.
 			for (uint32 i = 0; i < lengthof(slope_keys); ++i) {

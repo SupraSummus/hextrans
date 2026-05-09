@@ -206,8 +206,8 @@ to expect `null` and add a `find_object(mo_bridge)` check, the way
 `frontimageup` / `backimageup` under the square-era pattern: 4 of
 6 hex edges, missing the two third-axis edges (raised E+SE and
 raised NE+E pairs, see `koord.cc` neighbour case table).  Needs
-the same widening that `way_writer.cc` got — 12 slots covering
-all 6 hex edges × {narrow, wide}, indexed by
+the same widening that `way_writer.cc` got — 18 slots covering
+all 6 hex edges × {narrow, wide, double}, indexed by
 `way_obj_desc::get_slope_image_id`.  Land alongside the first hex
 sloped way-object asset.  `ground_writer.cc` was already widened
 to scan `slope_t::max_slopes` so sparse hex slope indices

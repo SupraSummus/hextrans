@@ -164,11 +164,16 @@ public:
 		return get_river_fallback_image_id(imglist, ribi);
 	}
 
-	/// Slope-up sprite lookup.  Pakset imagelist holds 12 slots, one
+	/// Slope-up sprite lookup.  Pakset imagelist holds 18 slots, one
 	/// per way-buildable hex slope: 6 narrow (2-corner) edge slopes
 	/// 0..5 in clockwise order from north, then their 6 wide (4-corner)
-	/// variants 6..11 in the same order.  Anything else (flat,
-	/// all_up sentinels, non-buildable values) returns IMG_EMPTY.
+	/// variants 6..11 in the same order, then their 6 double-height
+	/// (012210) variants 12..17 in the same order.  Anything else
+	/// (flat, all_up sentinels, non-buildable values) returns IMG_EMPTY.
+	/// Pre-double-slope paksets ship a 12-entry imagelist; slots
+	/// 12..17 fall through to image_list_t::get_image_id's
+	/// out-of-range IMG_EMPTY return, same as a pak that ships the
+	/// keys but leaves them blank.
 	image_id get_slope_image_id(slope_t::type slope, uint8 season, bool front = false) const
 	{
 		if (front  &&  !front_images) {
@@ -189,6 +194,12 @@ public:
 			case slope_t::south_wide:     nr = 9;  break;
 			case slope_t::southwest_wide: nr = 10; break;
 			case slope_t::northwest_wide: nr = 11; break;
+			case slope_t::north_double:     nr = 12; break;
+			case slope_t::northeast_double: nr = 13; break;
+			case slope_t::southeast_double: nr = 14; break;
+			case slope_t::south_double:     nr = 15; break;
+			case slope_t::southwest_double: nr = 16; break;
+			case slope_t::northwest_double: nr = 17; break;
 			default:
 				return IMG_EMPTY;
 		}
