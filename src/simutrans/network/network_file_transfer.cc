@@ -28,15 +28,12 @@
 
 // Parse a Content-Length header value. Returns -1 on missing/invalid/out-of-range
 // so the caller can distinguish a malformed header from a legitimate zero body.
-static sint32 parse_content_length(const char *value, sint32 max_value)
+static sint32 parse_content_length(const char *value)
 {
-	while (*value == ' '  ||  *value == '\t') {
-		value++;
-	}
 	char *endp = NULL;
 	errno = 0;
 	long parsed = strtol(value, &endp, 10);
-	if (endp == value  ||  errno != 0  ||  parsed < 0  ||  parsed > max_value) {
+	if (endp == value  ||  errno != 0  ||  parsed < 0  ||  parsed > INT32_MAX) {
 		return -1;
 	}
 	return (sint32)parsed;
@@ -405,7 +402,7 @@ const char *network_http_post( const char *address, const char *name, const char
 					// are seeking (e.g. Content-Length)
 					DBG_MESSAGE("network_http_post", "received header: %s", line);
 					if(  STRNICMP("Content-Length:",line,15)==0  ) {
-						length = parse_content_length(line + 15, INT32_MAX);
+						length = parse_content_length(line + 15);
 					}
 					// Begin again to parse the next line
 					pos = 0;
@@ -470,8 +467,7 @@ const char* network_http_get(const char* address, const char* name, cbuffer_t& l
 					line[pos] = 0;
 					DBG_MESSAGE("network_http_get", "received header: %s", line);
 					if (STRNICMP("Content-Length:", line, 15) == 0) {
-						// cap at uint16 max so length passes to network_receive_data without truncation
-						length = parse_content_length(line + 15, 0xFFFF);
+						length = parse_content_length(line + 15);
 					}
 					pos = 0;
 				}
@@ -484,6 +480,12 @@ const char* network_http_get(const char* address, const char* name, cbuffer_t& l
 		if (length < 0) {
 			network_close_socket(my_client_socket);
 			return "Error: missing or invalid Content-Length";
+		}
+		if (length > 0xFFFF) {
+			// network_receive_data takes a uint16 length; bigger bodies would need chunking.
+			// No real responder hits this today; revisit if one does.
+			network_close_socket(my_client_socket);
+			return "Error: Content-Length exceeds buffer limit";
 		}
 
 		char* buffer = new char[(size_t)length + 1];
@@ -583,7 +585,7 @@ const char *network_http_get_file( const char* address, const char* name, const 
 
 		if (http_code == 200) {
 			if (char *c=strstr(line,"Content-Length:")) {
-				length = parse_content_length(c + 15, INT32_MAX);
+				length = parse_content_length(c + 15);
 			}
 			DBG_MESSAGE("network_http_get", "received data length: %i", length);
 			err = network_receive_file(my_client_socket, filename, length);
