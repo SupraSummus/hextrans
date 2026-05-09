@@ -63,6 +63,7 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 	const uint32 max_weight  = obj.get_int("max_weight",  999);
 	const uint16 axle_load   = obj.get_int("axle_load",  9999);
 	const uint8  clip_below  = obj.get_int_clamped("clip_below", 1, 0, 1);         // clip ground below (if elevated way)
+	const uint8  double_slopes = obj.get_int_clamped("has_double_slopes", 0, 0, 1); // opt-in for double-height slope builds
 
 
 	uint16 intro = obj.get_int("intro_year", DEFAULT_INTRO_YEAR) * 12;
@@ -86,9 +87,9 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 	uint8 draw_as_ding = (obj.get_int("draw_as_ding", 0) == 1);
 	sint8 number_of_seasons = 0;
 
-	obj_node_t node(this, 37, &parent);
+	obj_node_t node(this, 38, &parent);
 
-	node.write_version(outfp, 8);
+	node.write_version(outfp, 9);
 	node.write_sint64(outfp, price);
 	node.write_sint64(outfp, maintenance);
 	node.write_sint32(outfp, topspeed);
@@ -100,6 +101,7 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 	node.write_uint8 (outfp, styp);
 	node.write_uint8 (outfp, draw_as_ding);
 	node.write_uint8 (outfp, clip_below);
+	node.write_uint8 (outfp, double_slopes);
 
 
 	// Try `<key>[<season>]` first; for season 0, fall back to bare

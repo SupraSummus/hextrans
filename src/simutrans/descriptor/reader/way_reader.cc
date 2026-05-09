@@ -48,7 +48,23 @@ obj_desc_t * way_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 
 	const uint16 version = node.size==0 ? 0 : decode_uint16(p)&0x7FFFu;
 
-	if (version == 8) {
+	if (version == 9) {
+		// explicit has_double_slopes flag
+		desc->price = decode_sint64(p);
+		desc->maintenance = decode_sint64(p);
+		desc->topspeed = decode_uint32(p);
+		desc->max_weight = decode_uint32(p);
+		desc->intro_date = decode_uint16(p);
+		desc->retire_date = decode_uint16(p);
+		desc->axle_load = decode_uint16(p);
+		desc->wtyp = decode_uint8(p);
+		desc->styp = decode_uint8(p);
+		desc->draw_as_obj = decode_uint8(p);
+		desc->clip_below = decode_uint8(p);
+		desc->double_slopes = decode_uint8(p);
+		desc->number_of_seasons = decode_sint8(p);
+	}
+	else if (version == 8) {
 		// clipping of elevated ways
 		desc->price = decode_sint64(p);
 		desc->maintenance = decode_sint64(p);
@@ -181,6 +197,10 @@ obj_desc_t * way_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 
 	if (version < 8) {
 		desc->clip_below = desc->wtyp != powerline_wt;
+	}
+
+	if (version < 9) {
+		desc->double_slopes = false;
 	}
 
 	// front images from version 5 on

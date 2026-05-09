@@ -293,12 +293,15 @@ surrounding tiles (which inherit edge slopes for free).
 does not produce a flat hex tile — it hits only 4 of the 6 vertices,
 leaving an alternating-corner slope.
 
-`way_desc_t::has_double_slopes()` is hardcoded `false` under the hex
-port (`way_desc.h:205` — stub comment names it).  A second consecutive
+`way_desc_t::has_double_slopes()` reads an explicit `has_double_slopes=`
+.dat key (way_desc save version 9); paksets opt each way in or out
+independently of which slope sprites they ship.  Pak64 doesn't set it,
+so every test-suite way answers `false` and a second consecutive
 `setslope(all_down)` on the same underground tunnel tile fails with
-"Tile not empty" regardless of way type; tests that need a 2-step
-underground staircase (`test_way_tunnel_build_above_tunnel_slope`,
-`_across_tunnel_slope`) stay disabled until the stub is restored.
+"Tile not empty".  Tests that need a 2-step underground staircase
+(`test_way_tunnel_build_above_tunnel_slope`, `_across_tunnel_slope`)
+stay disabled until pak64 sets the flag — see TODO.md → "Tunnel tests
+blocked on `has_double_slopes=1` opt-in".
 
 ## Externalize the thinking
 

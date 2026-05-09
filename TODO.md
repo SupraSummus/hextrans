@@ -42,16 +42,18 @@ worked examples; the tunnel ones additionally demonstrate the
 6-vertex hex-hill scaffold described in "Hill-with-sloped-neighbours
 test setup" below.
 
-**Tunnel tests blocked on `has_double_slopes()`.**
+**Tunnel tests blocked on `has_double_slopes=1` opt-in.**
 `test_way_tunnel_build_above_tunnel_slope` and
 `_across_tunnel_slope` build a 2-step underground staircase via two
-consecutive `setslope all_down`.  `way_desc.h:205` hardcodes
-`has_double_slopes()` to false in the hex port (intentional stub —
-see "Way slope-up sprites" below), so the second `all_down` fails
-with "Tile not empty" regardless of way type.  The
+consecutive `setslope all_down`.  `has_double_slopes()` reads the
+explicit `has_double_slopes=` .dat key (way_desc save version 9);
+pak64 doesn't set it on its tunnels, so the second `all_down` fails
+with "Tile not empty".  The
 `test_way_tunnel_build_up_down` HEX-PORT TODO comment in the test
 body names the same dependency for the deferred final sub-block.
-All three retire when `has_double_slopes` is restored.
+All three retire when pak64's tunnel .dat declares
+`has_double_slopes=1` (and ideally ships matching wide slope-up
+sprites — `imageup[*_wide]` — for rendering).
 
 **Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner
 diagonals are still admitted as way slopes by the post-slope-way
@@ -244,16 +246,18 @@ generation can create rivers before pak128 has complete 64-slot river
 art.  Delete the fallback when `landscape.rivers` ships real hex flat
 and slope river sprites.
 
-The on-disk `way_desc` save version did not bump.  Pre-built paks
-(pak64 from `tools/get_pak.sh` in CI; any cached pak128 build) load
-without fatal but their 16-entry imagelist is now indexed by 6-bit
-hex ribi: `ribi >= 16` returns IMG_EMPTY, and `ribi 0..15` returns
-the upstream sprite at that slot drawn for a different hex direction
-than the index now means.  Rendering is wrong but graceful;
-gameplay-only scenario tests should still pass because they don't
-assert on visuals.  Bump the version field once the migration is
-worth a hard cutover, or rebuild the CI pak from source against the
-new makeobj when one becomes available.
+The hex ribi rework didn't bump the on-disk `way_desc` save version
+(the `has_double_slopes=` opt-in did, taking it from 8 to 9, but
+that's an unrelated additive field with a legacy default).  Pre-built
+paks (pak64 from `tools/get_pak.sh` in CI; any cached pak128 build)
+still load without fatal — their 16-entry flat imagelist gets
+indexed by the 6-bit hex ribi, so `ribi >= 16` returns IMG_EMPTY and
+`ribi 0..15` returns the upstream sprite at that slot drawn for a
+different hex direction than the index now means.  Rendering is wrong
+but graceful; gameplay-only scenario tests still pass because they
+don't assert on visuals.  Bump the version *for the hex ribi cutover*
+once the migration is worth a hard fail, or rebuild the CI pak from
+source against the new makeobj when one becomes available.
 
 The same migration story applies to slope-up keys.  `way_writer.cc`
 now expects 12 keys (`ImageUp[n]`, `ImageUp[ne]`, ..., `ImageUp[nw]`,
