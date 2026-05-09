@@ -27,9 +27,7 @@ Affected: `test_way_bridge_build_{ground, above_way,
 at_slope, at_slope_stacked, above_runway}`,
 `test_way_road_build_{parallel, below_powerline,
 crossing, upgrade_crossing, upgrade_downgrade_across_bridge}`,
-`test_way_tram_build_{parallel, in_tunel}`,
-`test_way_tunnel_build_{straight, up_down, above_tunnel_slope,
-across_tunnel_slope}`, `test_way_tunnel_make_public`, and the two
+`test_way_tram_build_{parallel, in_tunel}`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
 Several crossing cases additionally need a hex-axis pair to replace
 the square-perpendicular setup.  Patterns must be rewritten as
@@ -38,8 +36,22 @@ Squirrel indexes `row[x]` to ASCII codes (so the legacy `"..5....."`
 shorthand silently produced wrong expected values), and 6-bit hex
 ribis don't fit a single digit besides.  Restored sites
 (`test_way_road_build_straight`, `test_way_road_upgrade_downgrade`,
-`test_way_tram_build_on_road`, `test_way_road_cityroad_*`) are the
-worked examples.
+`test_way_tram_build_on_road`, `test_way_road_cityroad_*`,
+`test_way_tunnel_build_{straight, up_down, make_public}`) are the
+worked examples; the tunnel ones additionally demonstrate the
+6-vertex hex-hill scaffold described in "Hill-with-sloped-neighbours
+test setup" below.
+
+**Tunnel tests blocked on `has_double_slopes()`.**
+`test_way_tunnel_build_above_tunnel_slope` and
+`_across_tunnel_slope` build a 2-step underground staircase via two
+consecutive `setslope all_down`.  `way_desc.h:205` hardcodes
+`has_double_slopes()` to false in the hex port (intentional stub —
+see "Way slope-up sprites" below), so the second `all_down` fails
+with "Tile not empty" regardless of way type.  The
+`test_way_tunnel_build_up_down` HEX-PORT TODO comment in the test
+body names the same dependency for the deferred final sub-block.
+All three retire when `has_double_slopes` is restored.
 
 **Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner
 diagonals are still admitted as way slopes by the post-slope-way
@@ -135,6 +147,12 @@ grund_t slopes but leaves the per-vertex height storage inconsistent.
 Now that the NW-corner-only writers are ported, restoration
 needs a hex-aware test scaffold that raises the right vertices
 directly rather than 4 corners of a 2x2 square.
+`test_way_tunnel_build_straight` is the worked example for the
+single-raised-tile case: 3 `grid_raise` + 3 `grid_raise_at_corner`
+calls hit all 6 vertices of the centre tile, and the surrounding
+6 hex neighbours pick up clean 2-corner edge slopes for free via
+shared vertices.  The 2-tile-hill cases above need the same
+recipe extended to cover both tiles' vertices.
 `test_powerline_build_underground_transformer_on_powerline` holds
 the underground-tunnel subcase that used to live inside
 `test_powerline_build_transformer`; same trigger.

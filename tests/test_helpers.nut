@@ -70,6 +70,68 @@ function RESET_ALL_PLAYER_FUNDS()
 }
 
 
+// Raise all 6 vertices of tile (q, r) by 1 from base height z, so the
+// tile becomes flat at z+1.  Three vertices are reachable through
+// `grid_raise` (which targets the NW corner — i.e., vertex `(q-1, r).E`
+// of the picked tile); the other three are SE-canonical and need
+// `grid_raise_at_corner(..., 1)`.  Each raised vertex is shared with
+// exactly one of the 6 surrounding hex tiles, which pick up clean
+// 2-corner edge slopes for free — useful for tunnel/depot/halt tests
+// that need a single elevated tile with sloped approaches.  The
+// original square-era 4-grid_raise scaffold doesn't translate cleanly
+// under per-vertex hex topology.
+function raise_hex_tile(pl, q, r, z)
+{
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(q,   r,   z)), null)              // (q,r).NW
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(q+1, r,   z)), null)              // (q,r).E
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(q,   r+1, z)), null)              // (q,r).SW
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(q,   r,   z), 1), null) // (q,r).SE
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(q-1, r,   z), 1), null) // (q,r).W
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(q,   r-1, z), 1), null) // (q,r).NE
+}
+
+
+// Inverse of raise_hex_tile: tile (q, r) is flat at z+1 (with the
+// surrounding 6 neighbours holding edge slopes from the raise), bring
+// it back to flat at z and restore the neighbours to flat.
+function lower_hex_tile(pl, q, r, z)
+{
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(q,   r-1, z+1), 1), null) // (q,r).NE
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(q-1, r,   z+1), 1), null) // (q,r).W
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(q,   r,   z+1), 1), null) // (q,r).SE
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(q,   r+1, z+1)), null)              // (q,r).SW
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(q+1, r,   z+1)), null)              // (q,r).E
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(q,   r,   z+1)), null)              // (q,r).NW
+}
+
+
+// Raise tiles (q, r) and (q, r+1) to flat at z+1 (S-axis-adjacent
+// pair).  The two tiles share an edge whose 2 vertices are common, so
+// the recipe is raise_hex_tile(q, r) plus the 4 vertices of (q, r+1)
+// not shared with (q, r) — `(q,r+1)`'s NW = `(q,r)`'s SW and `(q,r+1)`'s
+// NE = `(q,r)`'s SE.  Surrounding edge slopes mirror the 1-tile case
+// extended along the pair: (q, r-1) → north_narrow, (q, r+2) →
+// south_narrow, plus side slopes on (q±1, r), (q±1, r+1).
+function raise_hex_tile_pair_S(pl, q, r, z)
+{
+	raise_hex_tile(pl, q, r, z)
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(q+1, r+1, z)), null)              // (q,r+1).E
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(q,   r+2, z)), null)              // (q,r+1).SW
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(q,   r+1, z), 1), null) // (q,r+1).SE
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(q-1, r+1, z), 1), null) // (q,r+1).W
+}
+
+
+function lower_hex_tile_pair_S(pl, q, r, z)
+{
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(q-1, r+1, z+1), 1), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(q,   r+1, z+1), 1), null)
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(q,   r+2, z+1)), null)
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(q+1, r+1, z+1)), null)
+	lower_hex_tile(pl, q, r, z)
+}
+
+
 // Patterns are arrays of arrays of 6-bit ribi values (see ribi_t in
 // src/simutrans/dataobj/ribi.h: SE=1, S=2, SW=4, NW=8, N=16, NE=32).
 // A cell value of -1 means "don't care" — skip the assertion entirely.

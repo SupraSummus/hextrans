@@ -272,6 +272,34 @@ large failing set, expect most failures to be cascades from a smaller
 number of actual hex regressions. Work the cascade head first, rerun,
 and see what is left before classifying the tail.
 
+Hex test-authoring primer. Coordinate-to-direction: along `+y` (constant
+`x`, increasing `y`) is hex S; along `+x` is hex SE under the current
+2:1 viewport rename (see "Old-east→hex-SE" in `TODO.md`). Slope names
+use a low-edge-X convention: `south_narrow` has S as the *low* edge, so
+the tile rises toward N. `slope_type(ribi)` (in `dataobj/ribi.cc`)
+returns the slope where a way ascends in the ribi direction —
+`slope_type(N) == south_narrow` and so on. Ribi values are in
+`dataobj/ribi.h` (SE=1, S=2, SW=4, NW=8, N=16, NE=32).
+
+To set up a single elevated tile with clean 2-corner edge slopes on
+its 6 neighbours, use `raise_hex_tile(pl, q, r, z)` from
+`test_helpers.nut`: 3 `grid_raise` plus 3 `grid_raise_at_corner` calls
+hit all 6 vertices of the centre tile, each shared with one of the 6
+surrounding tiles (which inherit edge slopes for free).
+`raise_hex_tile_pair_S` is the 2-tile S-axis variant — `(q, r)` and
+`(q, r+1)` share 2 vertices across their common edge.
+`lower_hex_tile{,_pair_S}` reverse the lift. The square-era
+4-grid_raise scaffold (raise the 4 NW corners of a 2x2 grid square)
+does not produce a flat hex tile — it hits only 4 of the 6 vertices,
+leaving an alternating-corner slope.
+
+`way_desc_t::has_double_slopes()` is hardcoded `false` under the hex
+port (`way_desc.h:205` — stub comment names it).  A second consecutive
+`setslope(all_down)` on the same underground tunnel tile fails with
+"Tile not empty" regardless of way type; tests that need a 2-step
+underground staircase (`test_way_tunnel_build_above_tunnel_slope`,
+`_across_tunnel_slope`) stay disabled until the stub is restored.
+
 ## Externalize the thinking
 
 Long internal monologue on a hard idea is brittle. A private chain
