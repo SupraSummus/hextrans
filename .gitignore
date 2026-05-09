@@ -1,5 +1,6 @@
 *.ncb
 *.suo
+__pycache__/
 *.vcproj.*
 /out
 /Debug
@@ -9,6 +10,8 @@ build
 /config.*
 /makeobj/makeobj
 /makeobj/makeobj.exe
+/src/makeobj/makeobj
+/src/makeobj/makeobj.exe
 *sim
 /sim.exe
 *.*~

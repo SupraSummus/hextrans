@@ -63,7 +63,34 @@ def ensure_sim_symlink():
 
 def build():
     nproc = os.cpu_count() or 1
-    subprocess.check_call(["cmake", "--build", "build", "-j", str(nproc)], cwd=ROOT)
+    subprocess.check_call(
+        ["cmake", "--build", "build", "--target", "simutrans", "makeobj",
+         "-j", str(nproc)],
+        cwd=ROOT,
+    )
+
+
+def ensure_test_pak():
+    """Bake `tests/test-pak/` into `~/simutrans/addons/pak/test-pak.pak`.
+
+    Carries descriptors with engine flags pak64 itself does not opt
+    into (e.g. `has_double_slopes=1`), so scenario tests can exercise
+    those code paths without waiting on a pakset commit. CI wires the
+    same bake / link via .github/workflows/run-tests.yml.
+    """
+    pak_out = ROOT / "tests" / "test-pak" / "test-pak.pak"
+    subprocess.check_call(
+        [str(ROOT / "build" / "src" / "makeobj" / "makeobj"),
+         "QUIET", "PAK", str(pak_out), str(pak_out.parent) + "/"],
+    )
+    addons_link = HOME / "simutrans" / "addons" / "pak" / "test-pak.pak"
+    addons_link.parent.mkdir(parents=True, exist_ok=True)
+    if (addons_link.is_symlink()
+            and Path(os.readlink(addons_link)) == pak_out):
+        return
+    if addons_link.exists() or addons_link.is_symlink():
+        addons_link.unlink()
+    addons_link.symlink_to(pak_out)
 
 
 def active_test_names():
@@ -90,6 +117,7 @@ def main(argv):
     ensure_scenario_link()
     ensure_sim_symlink()
     build()
+    ensure_test_pak()
     write_filter(patterns)
     env = os.environ.copy()
     env.setdefault("SDL_VIDEODRIVER", "dummy")
