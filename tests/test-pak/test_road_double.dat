@@ -1,0 +1,17 @@
+obj=way
+name=test_road_double
+copyright=hextrans test
+waytype=road
+has_double_slopes=1
+
+# `image[-]=` is mandatory in way_writer; `-` is the writer's "no
+# image" sentinel.  Headless tests never render the way.
+image[-]=-
+
+# Icon is needed for a different reason: way_builder_t::register_desc
+# only attaches a build-tool when the icon is non-empty
+# (wegbauer.cc:142), and `way_desc_x.get_available_ways` filters to
+# descs that have a build-tool.  Without an icon the descriptor loads
+# but is invisible to scripts.
+icon=icon.0.0
+---

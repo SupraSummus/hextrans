@@ -13,6 +13,7 @@ include("tests/test_city")
 include("tests/test_climate")
 include("tests/test_depot")
 include("tests/test_dir")
+include("tests/test_double_slopes")
 include("tests/test_factory")
 include("tests/test_good")
 include("tests/test_groundobj")
@@ -86,6 +87,7 @@ all_tests <- [
 	test_dir_backward,
 	test_dir_to_slope,
 	test_dir_to_coord,
+	test_double_slopes_setslope_gate,
 	test_factory_build_pp,
 	test_factory_build_with_fields,
 	test_factory_build_climate,

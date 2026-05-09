@@ -58,11 +58,29 @@ jobs:
     - name: Build Simutrans
       run: |
         CC="ccache clang" CXX="ccache clang++" make -j$(nproc)
+    - name: Build makeobj
+      # Used by the next step to bake the test-pak addon.  makeobj
+      # links libpng (the simutrans build doesn't), and isn't part of
+      # the default `make` target.
+      run: |
+        CC="ccache clang" CXX="ccache clang++" make -C src/makeobj -j$(nproc)
     - name: Install pak64
       run: |
         pushd simutrans
         ../tools/get_pak.sh pak64
         popd
+    - name: Bake test-pak addon
+      # tests/test-pak/ ships descriptors that opt into engine flags
+      # pak64 doesn't (e.g. has_double_slopes=1), so scenario tests
+      # can exercise those code paths.  See tools/test.py:ensure_test_pak
+      # for the local equivalent and tests/test-pak/test_road_double.dat
+      # for the rationale.
+      run: |
+        src/makeobj/makeobj QUIET PAK \
+          tests/test-pak/test-pak.pak tests/test-pak/
+        mkdir -p ~/simutrans/addons/pak
+        ln -sT $GITHUB_WORKSPACE/tests/test-pak/test-pak.pak \
+          ~/simutrans/addons/pak/test-pak.pak
     - name: Install language files
       run: tools/get_lang_files.sh
     - name: Link tests as scenario
