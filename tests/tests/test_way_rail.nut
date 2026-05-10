@@ -220,21 +220,39 @@ function test_way_rail_render_bend_around_se_on_nw_high_tile()
 }
 
 
-// Single-bit ribi on a ramp slope must reject flat-chord rendering:
-// the stub body extends to the tile centre, past where the edge is
-// level.  Negative companion to the bend-on-narrow predicate test
-// above.
+// Companion to the bend-on-narrow test above: a single-bit ribi (way-
+// end stub) on a ramp slope must NOT be admitted as a flat chord, even
+// when the stub's edge is internally level.  The stub's body extends
+// from the edge to the tile centre, where the surface is partway up
+// the ramp, so flat-rendering at the edge height would float the road
+// over (or sink it into) the ramped half of the tile.  PR #143's
+// in-game repro was road_050 stubs at the low edge of a `*_double`
+// ridge rendering as "dead ends" at z=0 with the slope towering past.
+// Pure-predicate check -- no map setup needed.  End-to-end renderer
+// coverage of the same regression lives in test_way_road as
+// test_way_road_image_slot_dispatch (uses get_image_slot_id, exercises
+// the actual `weg_t::pick_image_slot` path).
 function test_way_rail_render_stub_on_ramp_uses_slope_image()
 {
+	// Single-bit stub on a planar double slope: ridge user case.
 	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_double, dir.south))
 	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_double, dir.north))
+
+	// Single-bit stub on a narrow / wide slope: same renderer regression
+	// at half the height delta.  Upstream simutrans never drew flat
+	// stubs on these either.
 	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_narrow, dir.south))
 	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_wide,   dir.south))
 
-	// Pre-existing mismatched-edge-heights case still rejects.
+	// Regression guard: multi-bit ribi on the same planar double where
+	// edge heights mismatch already returned false via the per-edge
+	// check, and still does.
 	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_double, dir.northsouth))
 
-	// Predicate contract on flat (renderer short-circuits before this).
+	// Regression guard: a single-bit stub on a non-ramp slope (here a
+	// flat tile) still admits the flat-ribi sprite.  The renderer
+	// short-circuits flat tiles before reaching this predicate, but
+	// the predicate's contract holds.
 	ASSERT_TRUE(slope.allows_flat_way_chord(slope.flat, dir.south))
 }
 

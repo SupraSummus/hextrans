@@ -156,6 +156,65 @@ function test_way_road_build_straight()
 }
 
 
+// End-to-end coverage of `weg_t::pick_image_slot`'s slope-vs-flat
+// dispatch via `way_x.get_image_slot_id`.  Regression guard for the
+// renderer bug where `slope_allows_flat_way_chord(south_narrow,
+// dir.south)` wrongly admitted the flat path: the south_narrow stub
+// would have come back as `image[s]` (the flat sprite) instead of
+// `imageup[s]` (the slope sprite).  Asserting on the slot label keeps
+// this independent of pakset numbering -- the tests/test-pak road's
+// `image[-]=-` (no real sprites) is enough to drive the south_double
+// case, because the slot label is the engine's intent, not the
+// resolved image_id.  Pure-predicate guards for slopes that don't
+// have a clean way-build path (south_wide) live in test_way_rail
+// as test_way_rail_render_stub_on_ramp_uses_slope_image.
+function test_way_road_image_slot_dispatch()
+{
+	local pl     = player_x(0)
+	local stock  = null
+	local double = null
+	foreach (r in way_desc_x.get_available_ways(wt_road, st_flat)) {
+		if (r.has_double_slopes()) double = r
+		else if (stock == null)    stock  = r
+	}
+	ASSERT_TRUE(stock != null)
+	ASSERT_TRUE(double != null) // tests/test-pak ships test_road_double; see test_double_slopes.nut
+
+	// Flat reference: 2-tile road on flat ground gives ribi=S on the
+	// north end.  Slot must be the flat row keyed on south.
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 2, 0), coord3d(5, 3, 0), stock, true), null)
+	ASSERT_EQUAL(tile_x(5, 2, 0).get_way(wt_road).get_image_slot_id(), "image[s]")
+
+	// south_narrow ramp under a single-S-ribi stub: slot must be the
+	// slope row keyed on the narrow ramp.  This is the original bug
+	// repro: pre-fix the engine would have written `image[s]` here.
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 3, 0), coord3d(3, 4, 0), stock, true), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(3, 3, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(tile_x(3, 3, 0).get_way(wt_road).get_image_slot_id(), "imageup[s]")
+
+	// south_double: the planar 2-step ridge that sparked PR #143's
+	// repro.  Build with the has_double_slopes-opted-in test-pak road
+	// and ramp twice -- the way's image_id resolves to IMG_EMPTY
+	// because the test-pak ships no sprites, but the slot label is
+	// the engine's intent and reads `imageup[s_double]` regardless.
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(7, 3, 0), coord3d(7, 4, 0), double, true), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(7, 3, 0), slope.all_up_slope), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(7, 3, 0), slope.all_up_slope), null)
+	ASSERT_EQUAL(tile_x(7, 3, 0).get_slope(), slope.south_double)
+	ASSERT_EQUAL(tile_x(7, 3, 0).get_way(wt_road).get_image_slot_id(), "imageup[s_double]")
+
+	local remover = command_x(tool_remove_way)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(3, 3, 0), slope.all_down_slope), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(7, 3, 0), slope.all_down_slope), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(7, 3, 0), slope.all_down_slope), null)
+	ASSERT_EQUAL(remover.work(pl, tile_x(3, 3, 0), tile_x(3, 4, 0), "" + wt_road), null)
+	ASSERT_EQUAL(remover.work(pl, tile_x(5, 2, 0), tile_x(5, 3, 0), "" + wt_road), null)
+	ASSERT_EQUAL(remover.work(pl, tile_x(7, 3, 0), tile_x(7, 4, 0), "" + wt_road), null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // (0,1) and (1,0) are direct NE-SW hex neighbours.  The straight-route
 // builder steps along all 3 hex axes, so this builds a single NE edge
 // rather than detouring through (1,1).  No pakset has NE-SW sprites

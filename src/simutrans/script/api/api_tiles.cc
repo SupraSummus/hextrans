@@ -95,6 +95,13 @@ my_slope_t get_slope(grund_t *gr)
 	return gr->get_grund_hang();
 }
 
+// see obj_get_image in api_map_objects.cc for the IMG_EMPTY -> -1 rationale.
+static sint32 ground_get_image(grund_t *gr)
+{
+	const image_id i = gr->get_image();
+	return i == IMG_EMPTY ? -1 : (sint32)i;
+}
+
 bool is_crossing(grund_t *gr)
 {
 	return gr->find<crossing_t>();
@@ -230,6 +237,14 @@ void export_tiles(HSQUIRRELVM vm)
 	 * @returns slope
 	 */
 	register_method(vm, &get_slope, "get_slope", true);
+
+	/**
+	 * @returns image id of the ground sprite the engine picked for this tile,
+	 *          or -1 if no image is currently set. Use for asserting that
+	 *          slope/climate/season feeds into the expected sprite.
+	 *          For per-object sprites (ways, buildings, ...) use map_object_x::get_image.
+	 */
+	register_method(vm, &ground_get_image, "get_image", true);
 
 	/**
 	 * Returns text of a sign on this tile (station sign, city name, label).

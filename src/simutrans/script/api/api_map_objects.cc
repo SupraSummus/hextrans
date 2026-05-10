@@ -28,7 +28,10 @@
 #include "../../obj/signal.h"
 #include "../../obj/tunnel.h"
 #include "../../obj/wayobj.h"
+#include "../../obj/way/weg.h"
+#include "../../obj/way/way_image_slot.h"
 #include "../../player/simplay.h"
+#include "../../utils/cbuffer.h"
 
 // for depot tools
 #include "../../simconvoi.h"
@@ -325,6 +328,33 @@ static void begin_obj_class(HSQUIRRELVM vm, const char* name, const char* base =
 	// now functions can be registered
 }
 
+// image_id is uint32 with IMG_EMPTY = 0xFFFFFFFF; round-tripping that
+// through Squirrel's SQInteger (32-bit in this build) loses the
+// sentinel. Map IMG_EMPTY -> -1 so scripts can test `>= 0` for "engine
+// picked a sprite" without caring about SQInteger width.
+static sint32 obj_get_image(obj_t* o)
+{
+	const image_id i = o->get_image();
+	return i == IMG_EMPTY ? -1 : (sint32)i;
+}
+
+static sint32 obj_get_front_image(obj_t* o)
+{
+	const image_id i = o->get_front_image();
+	return i == IMG_EMPTY ? -1 : (sint32)i;
+}
+
+// Canonical label for the image-table slot the renderer picked for a
+// way -- e.g. "slope:south_narrow" or "flat:south".  See
+// way_image_slot_t::to_label for the format.  Tests assert on this
+// to express renderer intent without depending on pakset numbering.
+static plainstring way_get_image_slot_id(weg_t* w)
+{
+	cbuffer_t buf;
+	w->pick_image_slot().to_label(buf);
+	return plainstring((const char*)buf);
+}
+
 // mark objects
 static void mark_object(obj_t* obj)
 {
@@ -540,6 +570,17 @@ void export_map_objects(HSQUIRRELVM vm)
 	 * @returns whether object is highlighted.
 	 */
 	register_method(vm, &object_is_marked, "is_marked", true);
+	/**
+	 * @returns image id of the sprite the engine picked for this object,
+	 *          or -1 if no image is currently set (e.g. invisible / underground).
+	 *          Intended for tests asserting on sprite selection (ribi -> way image, slope -> ground image, ...).
+	 */
+	register_method(vm, &obj_get_image, "get_image", true);
+	/**
+	 * @returns image id of the foreground overlay sprite (drawn after all back sprites
+	 *          on this tile), or -1 if none. Most objects have no foreground image.
+	 */
+	register_method(vm, &obj_get_front_image, "get_front_image", true);
 	end_class(vm);
 
 
@@ -693,6 +734,16 @@ void export_map_objects(HSQUIRRELVM vm)
 	 * @returns max speed in kmh.
 	 */
 	register_method(vm, &weg_t::get_max_speed, "get_max_speed");
+	/**
+	 * Canonical label for the image-table slot the engine picked for
+	 * this way under its current ribi / slope / snow / placement state.
+	 * Format: "slope:<slope_name>" or "flat:<ribi_name>" with optional
+	 * "@snow" suffix; "none" for tunnel mouths, missing ground, or
+	 * bridges (where bruecke_t draws). Tests assert on this label to
+	 * express renderer intent without depending on pakset numbering.
+	 * @returns slot label, e.g. "slope:south_narrow", "flat:south"
+	 */
+	register_method(vm, &way_get_image_slot_id, "get_image_slot_id", true);
 	/**
 	 * Get monthly statistics of goods transported on this way.
 	 * @returns array, index [0] corresponds to current month

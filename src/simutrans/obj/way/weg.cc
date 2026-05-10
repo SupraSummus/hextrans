@@ -372,31 +372,101 @@ void weg_t::count_sign()
 }
 
 
-void weg_t::set_slope_images(slope_t::type slope, bool snow)
+void weg_t::apply_image_slot(const way_image_slot_t& slot)
 {
-	set_image( desc->get_slope_image_id( slope, snow ) );
-	set_foreground_image( desc->get_slope_image_id( slope, snow, true ) );
+	// `none` means the way's image is not owned by way slot logic
+	// right now (first way on a bridge -> bruecke_t draws; tunnel
+	// mouth -> tunnel_t draws the portal sprite into the way's
+	// image_id field).  Leave image / foreground_image alone for the
+	// external owner; do NOT clear them here, that would erase the
+	// portal / bridge sprite the borrower just wrote.
+	if (slot.kind() == way_image_slot_t::kind_t::none) {
+		return;
+	}
+	set_image           ( slot.resolve(desc, false) );
+	set_foreground_image( slot.resolve(desc, true ) );
 }
 
 
-void weg_t::set_images(image_type typ, ribi_t::ribi ribi, bool snow, bool switch_nw)
+// Replicates `calc_image()`'s dispatch without the snow-flag refresh,
+// foreground suppression or dirty marking.  Reads the cached IS_SNOW
+// flag, the ground's slope, and `ribi`.  River fallback (rivers with
+// no slope sprite render as flat) is folded in here so the returned
+// slot is the one whose image is actually visible.
+//
+// Caller must have updated the IS_SNOW flag for the new tile state
+// before calling -- `calc_image()` and `check_season()` both do so
+// inline.
+way_image_slot_t weg_t::pick_image_slot() const
 {
-	switch(typ) {
-		case image_flat:
-		default:
-			set_image( desc->get_image_id( ribi, snow ) );
-			set_foreground_image( desc->get_image_id( ribi, snow, true ) );
-			break;
-		case image_switch:
-			// Switched / un-switched 3-way junctions used to pick from
-			// an extended 5-entry sprite table; under hex that table
-			// doesn't span the 20 hex 3-way patterns and was retired.
-			// `switch_nw` is a vestigial flag from `schiene_t::reserve`
-			// that no longer affects rendering.
-			(void)switch_nw;
-			set_image( desc->get_image_id( ribi, snow ) );
-			set_foreground_image( desc->get_image_id( ribi, snow, true ) );
-			break;
+	const grund_t* from = welt->lookup(get_pos());
+	if (from == NULL || desc == NULL) {
+		return way_image_slot_t::for_none();
+	}
+	// Tunnel mouth seen from above ground: the tunnel object draws
+	// the way image on the kartenboden, so this way leaves its own
+	// images as set by the tunnel building path (or IMG_EMPTY).
+	if (from->ist_tunnel() && from->ist_karten_boden()
+		&& (grund_t::underground_mode == grund_t::ugm_none
+			|| (grund_t::underground_mode == grund_t::ugm_level
+				&& from->get_hoehe() < grund_t::underground_level))) {
+		return way_image_slot_t::for_none();
+	}
+	// First way on a bridge: bruecke_t is responsible for the image.
+	if (from->ist_bruecke() && from->obj_bei(0) == this) {
+		return way_image_slot_t::for_none();
+	}
+
+	const bool snow = is_snow();
+	const slope_t::type hang = from->get_weg_hang();
+
+	if (hang != slope_t::flat && !slope_allows_flat_way_chord(hang, ribi)) {
+		const way_image_slot_t slope_slot = way_image_slot_t::for_slope(hang, snow);
+		// River fallback: rivers without slope sprites render flat,
+		// matching the surface under the slope.  The fallback is part
+		// of the slot pick (not a post-resolve fixup) so the returned
+		// slot describes the image actually shown.
+		if (get_waytype() == water_wt
+			&& desc->get_styp() == type_river
+			&& slope_slot.resolve(desc, false) == IMG_EMPTY) {
+			return way_image_slot_t::for_flat(ribi, snow);
+		}
+		return slope_slot;
+	}
+	return way_image_slot_t::for_flat(ribi, snow);
+}
+
+
+// Halt / depot foreground suppression.  When the way's body sits along
+// a single edge (single-bit ribi) or a single hex axis (twoway
+// straight), the building visual takes precedence and the way's
+// foreground sprite would clutter the silhouette.  Bends, junctions
+// and slope-image rendering keep their foreground.  Threeway
+// junctions historically went through a degenerate `image_switch`
+// path that skipped suppression entirely; preserve that contract by
+// gating on ribi shape rather than letting halt presence override.
+static bool tile_has_building(const grund_t* gr)
+{
+	for (uint8 i = 1; i < gr->obj_count(); i++) {
+		if (dynamic_cast<gebaeude_t*>(gr->obj_bei(i))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+
+static void apply_foreground_suppression(weg_t* w, const grund_t* from, const way_image_slot_t& slot)
+{
+	if (w->get_front_image() == IMG_EMPTY)                          return;
+	if (slot.kind() != way_image_slot_t::kind_t::flat)              return;
+	if (ribi_t::is_threeway(slot.get_ribi()))                       return;
+
+	const ribi_t::ribi r = slot.get_ribi();
+	const bool axial_for_building = ribi_t::is_twoway(r) ? ribi_t::is_straight(r) : ribi_t::is_single(r);
+
+	if (from->is_halt() || (axial_for_building && tile_has_building(from))) {
+		w->set_foreground_image(IMG_EMPTY);
 	}
 }
 
@@ -433,37 +503,9 @@ bool weg_t::check_season(const bool calc_only_season_change)
 		flags |= IS_SNOW;
 	}
 
-	slope_t::type hang = gr->get_weg_hang();
-	if(  hang != slope_t::flat  &&  !slope_allows_flat_way_chord(hang, ribi)  ) {
-		set_slope_images( hang, snow );
-		return true;
-	}
-
-	if(  ribi_t::is_threeway( ribi )  &&  desc->get_waytype()!=road_wt  ) {
-		set_images(image_switch, ribi, snow, has_switched());
-	}
-	else {
-		// level track
-		set_images( image_flat, ribi, snow );
-		if(foreground_image != IMG_EMPTY  &&  ribi_t::is_straight(ribi)) {
-			// on straight level tracks may be stations or depots => no foreground then
-			if (gr->is_halt()) {
-				// no foreground in stations
-				set_foreground_image(IMG_EMPTY);
-			}
-			else {
-				// check for any building on this tile
-				for (  uint8 i = 1;  i < gr->obj_count();  i++  ) {
-					if (dynamic_cast<gebaeude_t *>(gr->obj_bei(i))) {
-						// no foreground in depots
-						set_foreground_image(IMG_EMPTY);
-						break;
-					}
-				}
-			}
-		}
-	}
-
+	const way_image_slot_t slot = pick_image_slot();
+	apply_image_slot(slot);
+	apply_foreground_suppression(this, gr, slot);
 	return true;
 }
 
@@ -488,91 +530,41 @@ void weg_t::calc_image()
 	pthread_mutex_lock( &weg_calc_image_mutex );
 #endif
 	grund_t *from = welt->lookup(get_pos());
-	image_id old_image = image;
+	const image_id old_image = image;
 
-	if(  from==NULL  ||  desc==NULL  ) {
-		// no ground, in tunnel
+	if (from == NULL || desc == NULL) {
+		// Malformed state: way without a tile (enlargement) or without
+		// a descriptor.  Clear directly; the slot abstraction's `none`
+		// is reserved for legitimate borrowed-rendering paths and
+		// must NOT clear, or it would erase tunnel / bridge sprites.
+		if (from == NULL) {
+			dbg->error("weg_t::calc_image()", "Own way at %s not found!", get_pos().get_str());
+		}
 		set_image(IMG_EMPTY);
 		set_foreground_image(IMG_EMPTY);
-		if(  from==NULL  ) {
-			dbg->error( "weg_t::calc_image()", "Own way at %s not found!", get_pos().get_str() );
+		if (from == NULL) {
+#ifdef MULTI_THREAD
+			pthread_mutex_unlock(&weg_calc_image_mutex);
+#endif
+			return;
 		}
-#ifdef MULTI_THREAD
-		pthread_mutex_unlock( &weg_calc_image_mutex );
-#endif
-		return; // otherwise crashing during enlargement
-	}
-	else if(  from->ist_tunnel() &&  from->ist_karten_boden()  &&  (grund_t::underground_mode==grund_t::ugm_none || (grund_t::underground_mode==grund_t::ugm_level && from->get_hoehe()<grund_t::underground_level))  ) {
-		// handled by tunnel mouth, no underground mode
-//		set_image(IMG_EMPTY);
-//		set_foreground_image(IMG_EMPTY);
-	}
-	else if(  from->ist_bruecke()  &&  from->obj_bei(0)==this  ) {
-		// first way on a bridge (bruecke_t will set the image)
-#ifdef MULTI_THREAD
-		pthread_mutex_unlock( &weg_calc_image_mutex );
-#endif
-		return;
 	}
 	else {
-		// use snow image if above snowline and above ground
-		bool snow = (from->ist_karten_boden()  ||  !from->ist_tunnel())  &&  (get_pos().z + from->get_weg_yoff()/TILE_HEIGHT_STEP >= welt->get_snowline() || welt->get_climate( get_pos().get_2d() ) == arctic_climate  );
+		// Refresh the IS_SNOW flag from snowline / climate so
+		// `pick_image_slot()` reads consistent state.
+		const bool snow = (from->ist_karten_boden() || !from->ist_tunnel())
+			&& (get_pos().z + from->get_weg_yoff()/TILE_HEIGHT_STEP >= welt->get_snowline()
+			    || welt->get_climate(get_pos().get_2d()) == arctic_climate);
 		flags &= ~IS_SNOW;
-		if(  snow  ) {
-			flags |= IS_SNOW;
-		}
+		if (snow) flags |= IS_SNOW;
 
-		slope_t::type hang = from->get_weg_hang();
-		if(hang != slope_t::flat  &&  !slope_allows_flat_way_chord(hang, ribi)) {
-			// on slope
-			set_slope_images(hang, snow);
-			if(  image == IMG_EMPTY  &&  get_waytype() == water_wt  &&  desc->get_styp() == type_river  ) {
-				set_images(image_flat, ribi, snow, false);
-			}
-		}
-		else if (ribi_t::is_threeway(ribi)) {
-			set_images(image_switch, ribi, snow, has_switched());
-		}
-		else if (!ribi_t::is_twoway(ribi)) {
-			set_images(image_flat, ribi, snow);
-			// nide foreground in stations and depots
-			if (foreground_image != IMG_EMPTY) {
-				if (from->is_halt()) {
-					// no foreground in stations
-					set_foreground_image(IMG_EMPTY);
-				}
-				else if (ribi_t::is_single(ribi)  &&  from->obj_count() > 1) {
-					// check for any building on this tile
-					for (uint8 i = 1; i < from->obj_count(); i++) {
-						if (dynamic_cast<gebaeude_t*>(from->obj_bei(i))) {
-							// no foreground in depots
-							set_foreground_image(IMG_EMPTY);
-							break;
-						}
-					}
-				}
-			}
-		}
-		else {
-			set_images(image_flat, ribi, snow);
-
-			if (foreground_image != IMG_EMPTY) {
-				if (from->is_halt()) {
-					// no foreground in stations
-					set_foreground_image(IMG_EMPTY);
-				}
-				else if (ribi_t::is_straight(ribi) && from->obj_count() > 1) {
-					// check for any building on this tile
-					for (uint8 i = 1; i < from->obj_count(); i++) {
-						if (dynamic_cast<gebaeude_t*>(from->obj_bei(i))) {
-							// no foreground in depots
-							set_foreground_image(IMG_EMPTY);
-							break;
-						}
-					}
-				}
-			}
-		}
+		// Single dispatch through the slot.  `pick_image_slot` returns
+		// `none` for tunnel mouths and bridge first-way; for those
+		// `apply_image_slot(none)` is a no-op and the borrower's
+		// (bruecke_t / tunnel_t) image stays in place.
+		const way_image_slot_t slot = pick_image_slot();
+		apply_image_slot(slot);
+		apply_foreground_suppression(this, from, slot);
 	}
 	if(  image!=old_image  ) {
 		mark_image_dirty(old_image, from->get_weg_yoff());
