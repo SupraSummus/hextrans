@@ -345,9 +345,12 @@ static sint32 obj_get_front_image(obj_t* o)
 }
 
 // Canonical label for the image-table slot the renderer picked for a
-// way -- e.g. "slope:south_narrow" or "flat:south".  See
-// way_image_slot_t::to_label for the format.  Tests assert on this
-// to express renderer intent without depending on pakset numbering.
+// way -- mirrors the pakset .dat key vocabulary: `image[<ribi>]` for
+// flat slots, `imageup[<slope>]` for slope slots, `none` for borrowed
+// rendering, with an optional `@snow` suffix.  See
+// way_image_slot_t::to_label for the full format.  Tests assert on
+// this to express renderer intent without depending on pakset
+// numbering.
 static plainstring way_get_image_slot_id(weg_t* w)
 {
 	cbuffer_t buf;
@@ -737,11 +740,12 @@ void export_map_objects(HSQUIRRELVM vm)
 	/**
 	 * Canonical label for the image-table slot the engine picked for
 	 * this way under its current ribi / slope / snow / placement state.
-	 * Format: "slope:<slope_name>" or "flat:<ribi_name>" with optional
+	 * Mirrors the pakset .dat key vocabulary: "image[<ribi>]" for flat
+	 * slots, "imageup[<slope>]" for slope slots, with an optional
 	 * "@snow" suffix; "none" for tunnel mouths, missing ground, or
 	 * bridges (where bruecke_t draws). Tests assert on this label to
 	 * express renderer intent without depending on pakset numbering.
-	 * @returns slot label, e.g. "slope:south_narrow", "flat:south"
+	 * @returns slot label, e.g. "image[s]", "imageup[s_double]", "image[s_n]@snow", "none"
 	 */
 	register_method(vm, &way_get_image_slot_id, "get_image_slot_id", true);
 	/**
