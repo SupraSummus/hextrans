@@ -4049,6 +4049,8 @@ bool stadt_t::test_and_build_cityroad(koord start, koord end)
 		// was a diagonal
 		return false;
 	}
+	const way_desc_t *city_road = welt->get_city_road();
+	const sint8 max_step = city_road && city_road->has_double_slopes() ? 2 : 1;
 	minivec_tpl<sint8>heights(length);
 	for (sint8 i = 0; i <= length; i++) {
 		grund_t* gr = welt->lookup_kartenboden(start + dir * i);
@@ -4056,22 +4058,26 @@ bool stadt_t::test_and_build_cityroad(koord start, koord end)
 			return false;
 		}
 		heights.append(gr->get_hoehe());
-		if (i > 0 && abs(heights[i - 1] - heights[i]) > 2) {
+		if (i > 0 && abs(heights[i - 1] - heights[i]) > max_step) {
 			return false;
 		}
 	}
 	// now we have to planarise the slopes to have a way
 	for (sint8 i = 0; i <= length; i++) {
-		grund_t* gr = welt->lookup_kartenboden(start +dir*i);
+		grund_t* gr = welt->lookup_kartenboden(start + dir*i);
 		if (i < length && heights[i] < heights[i + 1]) {
-			gr->set_grund_hang(slope_type(dir)*(heights[i+1]- heights[i]));
+			slope_t::type s = slope_type(dir);
+			if (heights[i+1] - heights[i] == 2) s = slope_t::narrow_to_double(s);
+			gr->set_grund_hang(s);
 			gr->calc_image();
 		}
 		else if (i > 0 && heights[i - 1] > heights[i]) {
-			gr->set_grund_hang(slope_type(-dir)*(heights[i-1] - heights[i]));
+			slope_t::type s = slope_type(-dir);
+			if (heights[i-1] - heights[i] == 2) s = slope_t::narrow_to_double(s);
+			gr->set_grund_hang(s);
 			gr->calc_image();
 		}
-		else if(gr->get_grund_hang()) {
+		else if (gr->get_grund_hang()) {
 			// any other tile: just planarise it
 			gr->set_grund_hang(slope_t::flat);
 			gr->calc_image();

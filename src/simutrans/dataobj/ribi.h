@@ -235,8 +235,11 @@ public:
 	/// Does an axis crossing edges (a0, a1) entering and (b0, b1) exiting
 	/// admit a way?  The four corners are the axis's two edges' endpoints,
 	/// in hex_corner_t order.  Two cases:
-	///   1. Ramp: both edges internally level, height delta 0 or 1.  The
-	///      way slopes uniformly between them.
+	///   1. Ramp: both edges internally level, height delta 0 or 1, or
+	///      delta 2 when @p x is a planar double-edge slope (the side
+	///      corners off this axis sit at the intermediate height, so the
+	///      ramp body is uniform).  The way slopes uniformly between
+	///      the two edges.
 	///   2. Flat chord at some height H: each edge has at least one corner
 	///      at H, i.e. the edges' height intervals
 	///      [min(a0,a1)..max(a0,a1)] and [min(b0,b1)..max(b0,b1)] overlap.
@@ -248,8 +251,13 @@ public:
 	/// The chord rule is symmetric in the two corners of each edge, so
 	/// mirror-symmetric configurations get the same answer.
 	static bool is_way_axis(type x, uint8 a0, uint8 a1, uint8 b0, uint8 b1) {
-		if (a0 == a1 && b0 == b1 && (a0 == b0 || a0 + 1 == b0 || b0 + 1 == a0)) {
-			return true; // ramp
+		if (a0 == a1 && b0 == b1) {
+			if (a0 == b0 || a0 + 1 == b0 || b0 + 1 == a0) {
+				return true; // narrow ramp (delta 0 or 1)
+			}
+			if ((a0 + 2 == b0 || b0 + 2 == a0) && is_planar_double_edge(x)) {
+				return true; // planar double ramp (delta 2)
+			}
 		}
 		return chord_h_axis(x, a0, a1, b0, b1) >= 0;
 	}
@@ -287,6 +295,25 @@ public:
 				return true;
 			default:
 				return false;
+		}
+	}
+
+	/// Map a `*_narrow` ramp slope to its matching `*_double` planar
+	/// ramp on the same axis with the same low edge.  Replaces the
+	/// upstream square-era `slope_type(...) * 2` arithmetic, which
+	/// under hex's base-4 corner encoding produces a kinked-cliff
+	/// shape (`south_narrow * 2 == 2560` vs `south_double == 2625`)
+	/// that violates the terrain delta-≤-1 invariant and has no
+	/// sprite.  Returns `flat` for inputs that aren't a narrow ramp.
+	static type narrow_to_double(type narrow) {
+		switch (narrow) {
+			case north_narrow:     return north_double;
+			case northeast_narrow: return northeast_double;
+			case southeast_narrow: return southeast_double;
+			case south_narrow:     return south_double;
+			case southwest_narrow: return southwest_double;
+			case northwest_narrow: return northwest_double;
+			default: return flat;
 		}
 	}
 };

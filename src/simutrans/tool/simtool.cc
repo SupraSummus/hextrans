@@ -1318,6 +1318,15 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 				// has the wrong tilt
 				return NOTICE_TILE_FULL;
 			}
+			// Direct setslope to a `*_double` planar ramp under an
+			// existing way needs the same `has_double_slopes()` opt-in
+			// as the staircase ALL_UP path below.
+			if(  slope_t::is_planar_double_edge(new_slope)  &&  (
+			       (gr1->get_weg_nr(0)  &&  !gr1->get_weg_nr(0)->get_desc()->has_double_slopes())
+			    ||  (gr1->get_weg_nr(1)  &&  !gr1->get_weg_nr(1)->get_desc()->has_double_slopes())
+			    ||  (gr1->get_leitung()  &&  !gr1->get_leitung()->get_desc()->has_double_slopes())  )  ) {
+				return NOTICE_TILE_FULL;
+			}
 			// reverse ribis: up to here was direction leaving the tile,
 			// now it will be the direction on the tile when moving onto the slope
 			ribis = ribi_t::reverse_single(ribis);
@@ -1336,9 +1345,9 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 					  ||  (gr1->get_leitung()  &&  !gr1->get_leitung()->get_desc()->has_double_slopes())  ) {
 						return NOTICE_TILE_FULL;
 					}
-					new_slope = slope_type(ribis) * 2;
+					new_slope = slope_t::narrow_to_double(slope_type(ribis));
 				}
-				else if(  gr1->get_weg_hang() == slope_type( ribi_t::backward(ribis) ) * 2  ) {
+				else if(  gr1->get_weg_hang() == slope_t::narrow_to_double(slope_type( ribi_t::backward(ribis) ))  ) {
 					new_pos.z++;
 					if(  welt->lookup(new_pos)  ) {
 						return NOTICE_TILE_FULL;
@@ -1356,7 +1365,7 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 						return NOTICE_TILE_FULL;
 					}
 				}
-				else if(  gr1->get_grund_hang() == slope_type(ribis) * 2  ) {
+				else if(  gr1->get_grund_hang() == slope_t::narrow_to_double(slope_type(ribis))  ) {
 					if(  pos.z == water_hgt  &&  !gr1->ist_tunnel()  ) {
 						return NOTICE_TILE_FULL;
 					}
@@ -1376,7 +1385,7 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 					  ||  (gr1->get_leitung()  &&  !gr1->get_leitung()->get_desc()->has_double_slopes())  ) {
 						return NOTICE_TILE_FULL;
 					}
-					new_slope = slope_type( ribi_t::backward(ribis) ) * 2;
+					new_slope = slope_t::narrow_to_double(slope_type( ribi_t::backward(ribis) ));
 					new_pos.z--;
 					if(  welt->lookup(new_pos)  ) {
 						return NOTICE_TILE_FULL;
