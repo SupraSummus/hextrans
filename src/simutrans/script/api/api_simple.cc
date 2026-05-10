@@ -393,15 +393,10 @@ void export_simple(HSQUIRRELVM vm)
 	 */
 	STATIC register_method(vm, &slope_allows_ribi_export, "allows_ribi", false, true);
 	/**
-	 * Whether a way with this ribi sits at constant height (flat chord)
-	 * on this slope rather than ramping.  Drives the renderer's choice
-	 * between the flat-ribi sprite and the slope-shape sprite.  Per-edge
-	 * rather than per-axis: a half-chord stub on the flat half of a
-	 * sloped tile (e.g. ribi S on a slope with the N edge half-raised)
-	 * also reports flat.  Mirrors `slope_allows_flat_way_chord` in
+	 * True iff a way with ribi @p r sits at constant height on slope @p s.
+	 * Single-bit ribi on a ramp slope (`*_narrow` / `*_wide` / `*_double`)
+	 * always returns false.  Mirrors `slope_allows_flat_way_chord` in
 	 * `dataobj/ribi.h`.
-	 * @param s slope
-	 * @param r ribi (multi-bit allowed for bends and junctions)
 	 */
 	STATIC register_method(vm, &slope_allows_flat_way_chord_export, "allows_flat_way_chord", false, true);
 	end_class(vm);
