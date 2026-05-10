@@ -89,7 +89,10 @@ bool schiene_t::reserve(convoihandle_t c, ribi_t::ribi dir  )
 			mark_image_dirty( get_image(), 0 );
 			mark_image_dirty( get_front_image(), 0 );
 			set_switched(dir == ribi_t::northeast || dir == ribi_t::southwest);
-			set_images(image_switch, get_ribi_unmasked(), is_snow(), has_switched() );
+			// `image_switch` collapsed into `flat` during the hex port
+			// (the 3-way switch sprite table didn't survive 6-edge ribi);
+			// re-resolve under the current ribi to refresh the image.
+			apply_image_slot(way_image_slot_t::for_flat(get_ribi_unmasked(), is_snow()));
 			set_flag( obj_t::dirty );
 		}
 		if(schiene_t::show_reservations) {

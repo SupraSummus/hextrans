@@ -12,6 +12,7 @@
 #include "../../obj/simobj.h"
 #include "../../descriptor/way_desc.h"
 #include "../../dataobj/koord3d.h"
+#include "way_image_slot.h"
 
 
 class karte_t;
@@ -140,18 +141,22 @@ public:
 	 */
 	void calc_image() OVERRIDE;
 
-	enum image_type {
-		image_flat,
-		image_switch
-	};
+	/**
+	 * Pick the slot the engine would use for this way under its
+	 * current ribi / slope / snow / placement state.  Single source
+	 * of truth for the dispatch in `calc_image()` and `check_season()`,
+	 * and read by the script API to assert renderer intent in tests.
+	 */
+	way_image_slot_t pick_image_slot() const;
 
 	/**
-	 * initializes both front and back images
-	 * switch images are set in schiene_t::reserve
-	 * needed by tunnel mouths
+	 * Resolve the slot to image_ids and write them into this way.
+	 * Tunnel mouths, schiene reservation and the build tool use this
+	 * to set images out-of-line without rerunning calc_image's full
+	 * dispatch (e.g. tunnel mouth always wants flat regardless of
+	 * the actual slope under the way).
 	 */
-	void set_images(image_type typ, ribi_t::ribi ribi, bool snow, bool switch_nw = false);
-	void set_slope_images(slope_t::type slope, bool snow);
+	void apply_image_slot(const way_image_slot_t& slot);
 
 	/**
 	 * Called whenever the season or snowline height changes

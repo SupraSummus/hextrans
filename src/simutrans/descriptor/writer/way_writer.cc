@@ -9,6 +9,7 @@
 #include "obj_node.h"
 #include "obj_pak_exception.h"
 #include "../way_desc.h"
+#include "../way_image_keys.h"
 #include "text_writer.h"
 #include "imagelist_writer.h"
 #include "skin_writer.h"
@@ -22,40 +23,10 @@ using std::string;
  */
 void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 {
-	// Hex-ribi flat imagelist: one slot per hex ribi value, indexed
-	// directly by the 6-bit ribi.  Bit positions match
-	// `ribi_t::_ribi`: SE=1, S=2, SW=4, NW=8, N=16, NE=32.  Each
-	// slot's .dat key joins the bit names low-to-high with `_` —
-	// e.g. ribi=18 → bits {S, N} → `s_n`.  Slot 0 (no connection)
-	// is keyed as `-`.  `_` is mandatory because `,` and `-`
-	// inside `[…]` trigger
-	// `tabfile_t::find_parameter_expansion`'s parameter-list mode.
-	static const char* const hex_dir_name[6] = {
-		"se", "s", "sw", "nw", "n", "ne"
-	};
-	auto hex_ribi_code = [&](uint8 r) -> std::string {
-		if (r == 0) return "-";
-		std::string s;
-		for (uint8 b = 0; b < 6; b++) {
-			if (!(r & (1 << b))) continue;
-			if (!s.empty()) s += '_';
-			s += hex_dir_name[b];
-		}
-		return s;
-	};
-
-	// Slope-up image slot order.  6 narrow (2-corner) hex edge slopes
-	// clockwise from north, then their 6 wide (4-corner) variants in
-	// the same order, then their 6 double-height (012210) variants in
-	// the same order.  Order matches way_desc_t::get_slope_image_id;
-	// square diagonals are no longer way-buildable.  `_` separates
-	// suffix because `,` and `-` inside `[…]` trigger
-	// tabfile_t::find_parameter_expansion's parameter-list mode.
-	static const char* const slope_keys[18] = {
-		"n", "ne", "se", "s", "sw", "nw",
-		"n_wide", "ne_wide", "se_wide", "s_wide", "sw_wide", "nw_wide",
-		"n_double", "ne_double", "se_double", "s_double", "sw_double", "nw_double"
-	};
+	// Slot-key vocabulary (`image[<ribi_key>]`, `imageup[<slope_key>]`)
+	// lives in `way_image_keys` — shared with `way_image_slot_t`'s
+	// runtime label generator so the writer's emission order and the
+	// engine's slot label can't drift.
 	static const char* const image_type[] = { "", "front" };
 
 	const sint64 price       = obj.get_int64("cost",        100);
@@ -130,7 +101,7 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 		for (uint8 season = 0; season <= number_of_seasons; season++) {
 			// Flat per-ribi sprites — one slot per hex ribi value.
 			for (uint8 r = 0; r < ribi_t::all + 1; r++) {
-				keys.append(get_keyed(prefix + "image[" + hex_ribi_code(r) + "]", season));
+				keys.append(get_keyed(prefix + "image[" + way_image_keys::ribi_key(r) + "]", season));
 			}
 			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
 			keys.clear();
@@ -138,8 +109,8 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 			// Slope-up sprites — 18 fixed slots, indexed by slope value
 			// in way_desc_t::get_slope_image_id.  Empty entries become
 			// IMG_EMPTY so indices stay aligned.
-			for (uint32 i = 0; i < lengthof(slope_keys); ++i) {
-				keys.append(get_keyed(prefix + "imageup[" + slope_keys[i] + "]", season));
+			for (uint32 i = 0; i < 18; ++i) {
+				keys.append(get_keyed(prefix + "imageup[" + way_image_keys::slope_slot_keys[i] + "]", season));
 			}
 			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
 			keys.clear();

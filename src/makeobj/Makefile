@@ -100,6 +100,7 @@ SOLO_SOURCES += ../simutrans/descriptor/writer/good_writer.cc
 SOLO_SOURCES += ../simutrans/descriptor/writer/groundobj_writer.cc
 SOLO_SOURCES += ../simutrans/descriptor/writer/ground_writer.cc
 SOLO_SOURCES += ../simutrans/descriptor/writer/hex_keys.cc
+SOLO_SOURCES += ../simutrans/descriptor/way_image_keys.cc
 SOLO_SOURCES += ../simutrans/descriptor/writer/image_writer.cc
 SOLO_SOURCES += ../simutrans/descriptor/writer/imagelist2d_writer.cc
 SOLO_SOURCES += ../simutrans/descriptor/writer/imagelist_writer.cc

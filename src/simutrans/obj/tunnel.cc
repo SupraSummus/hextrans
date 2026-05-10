@@ -103,7 +103,7 @@ void tunnel_t::calc_image()
 					w->set_foreground_image(IMG_EMPTY);
 				}
 				else {
-					w->set_images(weg_t::image_flat, w->get_ribi_unmasked(), false);
+					w->apply_image_slot(way_image_slot_t::for_flat(w->get_ribi_unmasked(), false));
 				}
 			}
 			set_image(IMG_EMPTY);

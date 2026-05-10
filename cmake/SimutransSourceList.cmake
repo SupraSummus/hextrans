@@ -37,6 +37,7 @@ target_sources(simutrans PRIVATE
 		src/simutrans/descriptor/ground_desc.cc
 		src/simutrans/descriptor/image.cc
 		src/simutrans/descriptor/obj_base_desc.cc
+		src/simutrans/descriptor/way_image_keys.cc
 		src/simutrans/descriptor/reader/bridge_reader.cc
 		src/simutrans/descriptor/reader/building_reader.cc
 		src/simutrans/descriptor/reader/citycar_reader.cc
@@ -238,6 +239,7 @@ target_sources(simutrans PRIVATE
 		src/simutrans/obj/way/runway.cc
 		src/simutrans/obj/way/schiene.cc
 		src/simutrans/obj/way/strasse.cc
+		src/simutrans/obj/way/way_image_slot.cc
 		src/simutrans/obj/way/weg.cc
 		src/simutrans/obj/wayobj.cc
 		src/simutrans/obj/wolke.cc

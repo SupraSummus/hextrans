@@ -215,6 +215,7 @@ all_tests <- [
 	test_way_road_build_single_tile,
 	test_way_road_build_straight,
 	test_way_road_build_ne_sw,
+	test_way_road_image_slot_dispatch,
 	test_way_rail_build_through_partial_slope,
 	test_way_rail_terminate_on_slope_off_gradient,
 	test_way_rail_terminate_on_slope_chord_stub,

@@ -9,6 +9,8 @@
  *
  * @section api-trunk Current trunk
  *
+ * - Added @ref tile_x::get_image, @ref map_object_x::get_image, @ref map_object_x::get_front_image to inspect picked sprites (returns -1 for IMG_EMPTY)
+ * - Added @ref way_x::get_image_slot_id returning the engine's image-table slot label (e.g. "image[s]", "imageup[s_double]") -- canonical .dat key, shared with the makeobj writer's vocabulary
  * - Added @ref command_x::grid_lower, @ref command_x::grid_raise
  * - Added @ref settings::has_double_slopes, @ref settings::get_way_height_clearance
  * - Added @ref tile_x::is_crossing

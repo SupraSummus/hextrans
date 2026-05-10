@@ -5259,7 +5259,10 @@ const char *tool_rotate_building_t::work( player_t *player, koord3d pos )
 				if (w->get_waytype()!=road_wt  &&  ribi_t::is_threeway(w->get_ribi_unmasked())) {
 					bool sw = w->has_switched();
 					w->set_switched(!sw);
-					w->set_images(weg_t::image_switch, w->get_ribi_unmasked(), w->is_snow(), !sw);
+					// `image_switch` collapsed into `flat` during the hex
+					// port; the switched-bit toggle still rotates which
+					// state-bearing sprite the desc returns for this ribi.
+					w->apply_image_slot(way_image_slot_t::for_flat(w->get_ribi_unmasked(), w->is_snow()));
 					gr->mark_image_dirty();
 				}
 			}
