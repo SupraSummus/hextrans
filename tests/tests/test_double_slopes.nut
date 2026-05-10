@@ -33,6 +33,7 @@ function test_double_slopes_setslope_gate()
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 2, 0), coord3d(3, 3, 0), road, true), null)
 		ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.all_up_slope), null)
 		ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.all_up_slope), has_double ? null : "Tile not empty.")
+		ASSERT_EQUAL(tile_x(3, 2, 0).get_slope(), has_double ? slope.south_double : slope.south_narrow)
 
 		// Undo every slope step we actually took, then remove the way.
 		ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.all_down_slope), null)

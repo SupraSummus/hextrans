@@ -72,13 +72,15 @@ block in `test_depot_build_on_bridge_end` and the matching block in
 `test_halt_build_on_bridge_end`, `test_powerline_remove_powerbridge`)
 migrated to `slope.southeast_narrow` / `slope.northwest_narrow`, the hex axis they were
 already projecting onto.  `test_scenario_rules_allow_forbid_way_tool_cube`
-still uses `2*slope.east`; left untouched because the function is
-already HEX-PORT PENDING and needs a holistic rewrite (square ribi
-values in `ASSERT_WAY_PATTERN` throughout, plus 2× way slopes are
-gone).  `test_terraform_climate_from_water` observes terrain restoring
-to `2*slope.east` after a water-height round trip; that is terrain /
-water-table fallout, not a direction-conversion contract, and should
-move to a planar hex double slope when that path is ported.
+and `test_terraform_climate_from_water` both still use `2*slope.east`;
+left untouched because both functions are already HEX-PORT PENDING
+and need holistic rewrites.  Note the literal `2*slope.east` no
+longer denotes a real terrain slope under hex's base-4 encoding —
+square-era `2 * narrow == double` is gone, replaced by named
+`*_double` constants and the `slope_t::narrow_to_double()` helper —
+so when these tests come back, the `2*slope.east` literals migrate
+to `slope.southeast_double` / `slope.northwest_double` (whichever
+the hex axis intent is).
 
 **Powerline 3rd hex axis.**  `test_powerline_connect /
 _build_transformer_multiple / _ways` each expect crossings /
