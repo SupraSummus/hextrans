@@ -654,16 +654,19 @@ static inline sint8 slope_level_edge_h(slope_t::type sl, ribi_t::ribi r)
 	return c0 == c1 ? (sint8)c0 : (sint8)-1;
 }
 
-/// Convenience: the way's body sits at constant height (flat chord)
-/// rather than ramping.  Drives "render this slope's way / wayobj
-/// as flat".  Accepts multi-bit ribi (bends, junctions): every set
-/// edge must be internally level and at the same height.  Per-edge
-/// rather than per-axis, so a half-chord stub on the flat half of a
-/// sloped tile (e.g. ribi S on a slope with the N edge half-raised)
-/// also reports flat — matching the chord branch of
-/// `slope_allows_ribi` that admitted the build.
+/// True iff the way's body sits at a single height on this slope
+/// (renders flat) rather than ramping with the surface.  Multi-bit
+/// ribis pass when every set edge is internally level at the same
+/// height — genuine side-chords across saddles, peaks.  Single-bit
+/// ribi on a ramp slope (`*_narrow` / `*_wide` / `*_double`) always
+/// fails: the stub body extends to the tile centre where the surface
+/// has ramped past the edge height.
 static inline bool slope_allows_flat_way_chord(slope_t::type sl, ribi_t::ribi r)
 {
+	if (ribi_t::is_single(r)
+	    && (slope_t::is_axis_slope(sl) || slope_t::is_planar_double_edge(sl))) {
+		return false;
+	}
 	sint8 h = -1;
 	for (uint8 b = 0; b < 6; b++) {
 		const ribi_t::ribi dir = (ribi_t::ribi)(1u << b);

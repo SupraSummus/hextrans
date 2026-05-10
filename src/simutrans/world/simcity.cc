@@ -3632,6 +3632,16 @@ void stadt_t::generate_private_cars(koord pos, koord target)
  * built/extends a road and maybe changes the neighbouring tile to continue it as far as possible
  * @param k Bauposition
  */
+// Edge-ramp slope ascending in @p r by @p delta steps.  flat / narrow
+// / planar `*_double` for delta 0 / 1 / 2; higher fatals in
+// `narrow_to_double`, so callers cap to the way's `has_double_slopes`.
+static inline slope_t::type ramp_slope(ribi_t::ribi r, sint8 delta)
+{
+	if (delta == 0) return slope_t::flat;
+	return delta == 2 ? slope_t::narrow_to_double(slope_type(r)) : slope_type(r);
+}
+
+
 bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 {
 	grund_t* bd = welt->lookup_kartenboden(k);
@@ -3640,6 +3650,9 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 		// not on water, monorails, foundations, tunnel or bridges
 		return false;
 	}
+
+	// Artificial-slope cap: opted-in roads do delta-2 (planar double), rest delta-1.
+	const sint8 max_step = welt->get_city_road() && welt->get_city_road()->has_double_slopes() ? 2 : 1;
 
 	// we must not built on water or runways etc.
 	if (bd->hat_wege() && !bd->hat_weg(road_wt)) {
@@ -3749,7 +3762,7 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 								if (gr2->get_grund_hang() == slope_t::flat || ribi_t::is_straight(ribi_t::doubles(ribi_t::nesw[r]) | gr2->get_weg_ribi_unmasked(road_wt))) {
 									// we want also to connect to this target slope since it can go in our direction
 									sint8 target_h2 = gr2->get_vmove(ribi_t::nesw[r]);
-									if (abs(target_h - target_h2) > 2) {
+									if (abs(target_h - target_h2) > max_step) {
 										// too big difference => no road ending at slope please
 										continue;
 									}
@@ -3765,14 +3778,11 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 									}
 									else {
 										// slope and height
-										if (target_h > target_h2) {
-											bd->set_pos(koord3d(k, target_h2));
-											bd->set_grund_hang(slope_type(ribi_t::nesw[r]) * (target_h - target_h2));
-										}
-										else {
-											bd->set_pos(koord3d(k, target_h));
-											bd->set_grund_hang(slope_type(ribi_t::backward(ribi_t::nesw[r])) * (target_h2 - target_h));
-										}
+										const sint8 base  = min(target_h, target_h2);
+										const sint8 delta = abs(target_h - target_h2);
+										const ribi_t::ribi up = target_h > target_h2 ? ribi_t::nesw[r] : ribi_t::backward(ribi_t::nesw[r]);
+										bd->set_pos(koord3d(k, base));
+										bd->set_grund_hang(ramp_slope(up, delta));
 									}
 								}
 								else {
@@ -3803,7 +3813,7 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 									bd = welt->lookup_kartenboden(k); // since ground has changed
 								}
 								// now we try articial slopes
-								else if (abs(bd->get_hoehe() - target_h) > 2) {
+								else if (abs(bd->get_hoehe() - target_h) > max_step) {
 									// ground too deep => give up
 									continue;
 								}
@@ -3821,7 +3831,7 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 									}
 									else {
 										// we make a down slope
-										bd->set_grund_hang(slope_type(ribi_t::nesw[r]) * (target_h - bd->get_hoehe()));
+										bd->set_grund_hang(ramp_slope(ribi_t::nesw[r], target_h - bd->get_hoehe()));
 									}
 								}
 								else if (bd->get_hoehe() == target_h) {
@@ -3830,21 +3840,19 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 									if (grund_t* gr2 = welt->lookup_kartenboden(k - koord::neighbours[r])) {
 										next_h = gr2->get_hoehe();
 									}
-									if (next_h>=bd->get_hoehe()) {
+									if (next_h >= bd->get_hoehe()) {
 										// at least three raised corners => up slope
-										bd->set_grund_hang(slope_type(ribi_t::backward(ribi_t::nesw[r]))* min(next_h - bd->get_hoehe(), 2));
+										bd->set_grund_hang(ramp_slope(ribi_t::backward(ribi_t::nesw[r]), min(next_h - bd->get_hoehe(), max_step)));
 									}
 									else {
 										bd->set_grund_hang(slope_t::flat);
 									}
 								}
 								else {
-									// bd height higher than target
-									// lower with up slope
-									sint8 max_h = bd->get_hoehe() + slope_t::max_diff(bd->get_grund_hang());
-									// in between, so we raise the entire tile
+									// bd height higher than target — lower with up slope
+									const sint8 max_h = bd->get_hoehe() + slope_t::max_diff(bd->get_grund_hang());
 									bd->set_pos(koord3d(k, target_h));
-									bd->set_grund_hang(slope_type(ribi_t::backward(ribi_t::nesw[r])) * min(max_h - target_h, 2));
+									bd->set_grund_hang(ramp_slope(ribi_t::backward(ribi_t::nesw[r]), min(max_h - target_h, max_step)));
 									for (int i = 0; i < bd->obj_count(); i++) {
 										bd->obj_bei(i)->set_pos(bd->get_pos());
 									}

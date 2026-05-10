@@ -220,6 +220,25 @@ function test_way_rail_render_bend_around_se_on_nw_high_tile()
 }
 
 
+// Single-bit ribi on a ramp slope must reject flat-chord rendering:
+// the stub body extends to the tile centre, past where the edge is
+// level.  Negative companion to the bend-on-narrow predicate test
+// above.
+function test_way_rail_render_stub_on_ramp_uses_slope_image()
+{
+	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_double, dir.south))
+	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_double, dir.north))
+	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_narrow, dir.south))
+	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_wide,   dir.south))
+
+	// Pre-existing mismatched-edge-heights case still rejects.
+	ASSERT_FALSE(slope.allows_flat_way_chord(slope.south_double, dir.northsouth))
+
+	// Predicate contract on flat (renderer short-circuits before this).
+	ASSERT_TRUE(slope.allows_flat_way_chord(slope.flat, dir.south))
+}
+
+
 // Raising a single shared vertex lifts a corner on each of the three
 // tiles around it.  T = (5, 5), SW neighbour = (4, 6); they share the
 // W vertex of T (= NE vertex of (4, 6) = SE vertex of (4, 5)).  After
