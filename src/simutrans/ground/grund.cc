@@ -1025,10 +1025,9 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 
 
 // Resolve the way's hex axis from the tile's first way + slope, or
-// return false if the tile has no way wall to draw (no way, flat tile,
-// non-axis ribi).  Shared by the Back pre-vehicle and Front
-// post-vehicle draw passes so they iterate the same gate.
-static bool resolve_way_wall(grund_t const* gr, uint8& axis_out, slope_t::type& slope_out)
+// return false if the tile has no way-bearing ground to overlay (no
+// way, flat tile, non-axis ribi).
+static bool resolve_way_ground(grund_t const* gr, uint8& axis_out, slope_t::type& slope_out)
 {
 	weg_t const* w = gr->get_weg_nr(0);
 	if(  !w  ) {
@@ -1061,51 +1060,22 @@ static bool resolve_way_wall(grund_t const* gr, uint8& axis_out, slope_t::type& 
 
 
 #ifdef MULTI_THREAD
-void grund_t::display_way_walls(sint16 xpos, sint16 ypos, sint8 clip_num) const
+void grund_t::display_way_ground(sint16 xpos, sint16 ypos, sint8 clip_num) const
 #else
-void grund_t::display_way_walls(sint16 xpos, sint16 ypos) const
+void grund_t::display_way_ground(sint16 xpos, sint16 ypos) const
 #endif
 {
-	// Cheapest NULL-pakset gate: pak64 ships no WayWallBack.
-	if(  !ground_desc_t::way_wall_back  ) {
+	// Cheapest NULL-pakset gate: pak64 ships no WayGround.
+	if(  !ground_desc_t::way_ground  ) {
 		return;
 	}
 	uint8 axis;
 	slope_t::type sl;
-	if(  !resolve_way_wall(this, axis, sl)  ) {
+	if(  !resolve_way_ground(this, axis, sl)  ) {
 		return;
 	}
 	const climate cl = welt->get_climate(get_pos().get_2d());
-	const image_id img = ground_desc_t::get_way_wall_back_image(axis, sl, cl);
-	if(  img == IMG_EMPTY  ) {
-		return;
-	}
-	const bool dirty = get_flag(grund_t::dirty);
-	gfx->draw_normal( img, xpos, ypos, 0, true, dirty CLIP_NUM_PAR );
-}
-
-
-#ifdef MULTI_THREAD
-void grund_t::display_way_walls_front(sint16 xpos, sint16 ypos, sint8 clip_num) const
-#else
-void grund_t::display_way_walls_front(sint16 xpos, sint16 ypos) const
-#endif
-{
-	// Front-layer pass: drawn from `display_obj_fg` AFTER
-	// `display_obj_vh` paints vehicles, so the camera-near cliff face
-	// of a cut wall correctly overlays the train.  Companion Back
-	// pass (`display_way_walls`) drew the chord-strip top + the
-	// camera-far cliff before the way sprite.
-	if(  !ground_desc_t::way_wall_front  ) {
-		return;
-	}
-	uint8 axis;
-	slope_t::type sl;
-	if(  !resolve_way_wall(this, axis, sl)  ) {
-		return;
-	}
-	const climate cl = welt->get_climate(get_pos().get_2d());
-	const image_id img = ground_desc_t::get_way_wall_front_image(axis, sl, cl);
+	const image_id img = ground_desc_t::get_way_ground_image(axis, sl, cl);
 	if(  img == IMG_EMPTY  ) {
 		return;
 	}
@@ -1339,15 +1309,14 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 			return;
 		}
 	}
-	// Intra-tile cut walls bracketing the off-axis corners of a way's
-	// chord (e.g. a road through a saddle).  Drawn between ground and
-	// way so the way sprite sits on top — visually the cut walls are
-	// the earth face the way bites into.
+	// Way-bearing ground: chord-strip + off-axis corner triangles
+	// slanting to natural ground.  Drawn over the natural-ground
+	// tile, before the way sprite so the way sits on top.
 	if(  visible  ) {
 #ifdef MULTI_THREAD
-		display_way_walls( xpos, ypos, clip_num );
+		display_way_ground( xpos, ypos, clip_num );
 #else
-		display_way_walls( xpos, ypos );
+		display_way_ground( xpos, ypos );
 #endif
 	}
 
@@ -1803,16 +1772,6 @@ uint8 grund_t::display_obj_vh(const sint16 xpos, const sint16 ypos, const uint8 
 void grund_t::display_obj_fg(const sint16 xpos, const sint16 ypos, const bool is_global, const uint8 start_offset CLIP_NUM_DEF ) const
 {
 	const bool dirty = get_flag(grund_t::dirty);
-	// Intra-tile cut/nasyp Front layer: the off-axis cliff that
-	// faces the camera, drawn AFTER `display_obj_vh` painted
-	// vehicles so a cut wall on the camera side correctly occludes
-	// the train.  Companion Back layer drew the chord-strip top +
-	// camera-far cliff in `display_boden` before the way sprite.
-#ifdef MULTI_THREAD
-	display_way_walls_front( xpos, ypos, clip_num );
-#else
-	display_way_walls_front( xpos, ypos );
-#endif
 #ifdef MULTI_THREAD
 	objlist.display_obj_fg( xpos, ypos, start_offset CLIP_NUM_PAR );
 #else
