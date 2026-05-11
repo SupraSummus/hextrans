@@ -235,7 +235,7 @@ public:
 	// allowed slope?
 	bool check_slope( const grund_t *from, const grund_t *to );
 
-	bool check_terraforming( const grund_t *from, const grund_t *to, uint8* new_from_slope=NULL, uint8* new_to_slope=NULL) const;
+	bool check_terraforming( const grund_t *from, const grund_t *to, slope_t::type* new_from_slope=NULL, slope_t::type* new_to_slope=NULL) const;
 	void do_terraforming();
 
 	void build();
