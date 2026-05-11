@@ -491,7 +491,7 @@ bool air_vehicle_t::block_reserver( uint32 start, uint32 end, bool reserve ) con
 			if(reserve) {
 				start_now = true;
 				sch1->add_convoi_reservation(cnv->self);
-				if(  !sch1->reserve(cnv->self,ribi_t::none)  ) {
+				if(  !sch1->reserve(cnv->self)  ) {
 					// unsuccessful => must un-reserve all
 					success = false;
 					end = i;

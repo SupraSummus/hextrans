@@ -144,12 +144,10 @@ public:
 
 	/// Pakset imagelist is sized to `ribi_t::all + 1` slots, indexed
 	/// by the full 6-bit hex ribi.  Missing slots return IMG_EMPTY
-	/// and render blank.  3-way junctions used to dispatch through
-	/// a separate `get_switch_image_id` against an extended 5-entry
-	/// table; under hex that table doesn't span the 20 three-way
-	/// patterns, so junctions now reuse the same per-ribi slot as
-	/// every other connectivity until hex switch art lands
-	/// (TODO.md → "ribi_t — audit surfaces").
+	/// and render blank.  3-way junctions reuse the same per-ribi
+	/// slot as every other connectivity (the upstream extended
+	/// 5-entry switch-image table didn't span the 20 hex three-way
+	/// patterns and is gone).
 	image_id get_image_id(ribi_t::ribi ribi, uint8 season, bool front = false) const
 	{
 		if (front  &&  !front_images) {
@@ -220,10 +218,6 @@ public:
 	/// slope sprites the pakset shipped.  Stored on-disk from
 	/// `way_desc` save version 9; older nodes default to `false`.
 	bool has_double_slopes() const { return double_slopes; }
-
-	/// Switched / un-switched 3-way junction sprites — gone under hex,
-	/// see `get_image_id` and TODO.md → "ribi_t — audit surfaces".
-	bool has_switch_image() const { return false; }
 
 	/* true, if this tile is to be drawn as a normal thing */
 	bool is_draw_as_obj() const { return draw_as_obj; }

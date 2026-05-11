@@ -57,7 +57,7 @@ public:
 	/**
 	* true, then this rail was reserved
 	*/
-	bool reserve(convoihandle_t c, ribi_t::ribi dir);
+	bool reserve(convoihandle_t c);
 
 	/**
 	* releases previous reservation
