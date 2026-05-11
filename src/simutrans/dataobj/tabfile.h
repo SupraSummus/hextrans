@@ -124,6 +124,10 @@ private:
 	bool get_x_y( const char *key, I &x, I &y );
 
 public:
+	typedef stringhashtable_tpl<obj_info_t>::const_iterator const_iterator;
+	const_iterator begin() const { return objinfo.begin(); }
+	const_iterator end()   const { return objinfo.end(); }
+
 	tabfileobj_t() { }
 	~tabfileobj_t() { clear(); }
 

@@ -1076,9 +1076,9 @@ static bool resolve_way_wall(grund_t const* gr, uint8& axis_out, slope_t::type& 
 
 
 #ifdef MULTI_THREAD
-void grund_t::display_way_walls(sint16 xpos, sint16 ypos, sint16 raster_tile_width, sint8 clip_num) const
+void grund_t::display_way_walls(sint16 xpos, sint16 ypos, sint8 clip_num) const
 #else
-void grund_t::display_way_walls(sint16 xpos, sint16 ypos, sint16 raster_tile_width) const
+void grund_t::display_way_walls(sint16 xpos, sint16 ypos) const
 #endif
 {
 	// Cheapest NULL-pakset gate: pak64 ships no WayWallBack.
@@ -1100,9 +1100,9 @@ void grund_t::display_way_walls(sint16 xpos, sint16 ypos, sint16 raster_tile_wid
 
 
 #ifdef MULTI_THREAD
-void grund_t::display_way_walls_front(sint16 xpos, sint16 ypos, sint16 raster_tile_width, sint8 clip_num) const
+void grund_t::display_way_walls_front(sint16 xpos, sint16 ypos, sint8 clip_num) const
 #else
-void grund_t::display_way_walls_front(sint16 xpos, sint16 ypos, sint16 raster_tile_width) const
+void grund_t::display_way_walls_front(sint16 xpos, sint16 ypos) const
 #endif
 {
 	// Front-layer pass: drawn from `display_obj_fg` AFTER
@@ -1358,9 +1358,9 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 	// the earth face the way bites into.
 	if(  visible  ) {
 #ifdef MULTI_THREAD
-		display_way_walls( xpos, ypos, raster_tile_width, clip_num );
+		display_way_walls( xpos, ypos, clip_num );
 #else
-		display_way_walls( xpos, ypos, raster_tile_width );
+		display_way_walls( xpos, ypos );
 #endif
 	}
 
@@ -1821,11 +1821,10 @@ void grund_t::display_obj_fg(const sint16 xpos, const sint16 ypos, const bool is
 	// vehicles so a cut wall on the camera side correctly occludes
 	// the train.  Companion Back layer drew the chord-strip top +
 	// camera-far cliff in `display_boden` before the way sprite.
-	const sint16 raster_tile_width = gfx->get_current_tile_raster_width();
 #ifdef MULTI_THREAD
-	display_way_walls_front( xpos, ypos, raster_tile_width, clip_num );
+	display_way_walls_front( xpos, ypos, clip_num );
 #else
-	display_way_walls_front( xpos, ypos, raster_tile_width );
+	display_way_walls_front( xpos, ypos );
 #endif
 #ifdef MULTI_THREAD
 	objlist.display_obj_fg( xpos, ypos, start_offset CLIP_NUM_PAR );

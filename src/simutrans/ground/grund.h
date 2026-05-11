@@ -248,12 +248,12 @@ protected:
 	// camera-near cliff, drawn from `display_obj_fg` after vehicles
 	// so a cut on the camera side overlays the train.  Both render
 	// nothing under paksets without the matching WayWall descriptor.
-	void display_way_walls(sint16 xpos, sint16 ypos, sint16 raster_tile_width
+	void display_way_walls(sint16 xpos, sint16 ypos
 #ifdef MULTI_THREAD
 	                       , sint8 clip_num
 #endif
 	                       ) const;
-	void display_way_walls_front(sint16 xpos, sint16 ypos, sint16 raster_tile_width
+	void display_way_walls_front(sint16 xpos, sint16 ypos
 #ifdef MULTI_THREAD
 	                             , sint8 clip_num
 #endif
