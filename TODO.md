@@ -530,19 +530,6 @@ any pre-port saved game survives a round-trip.  See also the
 vehicle-direction compound-displacement note above — 18 distinct
 visual states under hex, 8 slots in the current dir enum.
 
-Three slope locals still narrow to `uint8` outside the wegbauer
-cluster: `builder/hausbauer.cc:441` (`recalc_natural_slope` return),
-`builder/tunnelbauer.cc:246` (`get_grund_hang()`), and
-`ground/grund.cc:1617` (`get_disp_way_slope()`).  Same truncation
-hazard the `check_terraforming` widening fixed in wegbauer — any
-slope with NW or NE corners raised loses those bits (256 / 1024
-overflow uint8).  Audit each: widen to `slope_t::type` when the
-value feeds slope arithmetic / `encode_corners` / `set_grund_hang`
-comparisons; leave as-is when it's just an array / sprite-table
-index.  `ground_desc.h:105` looks intentional (the `uint8 slope`
-there is the projected sprite key after `project_to_square_sprite`)
-but flag while in the area.
-
 `do_terraforming` in `wegbauer.cc` has an
 `if (from_slope > slope_t::all_up_one  &&  is_axis_slope(from_slope -
 slope_t::all_up_one))` branch (and its `to_slope` twin) that was
@@ -868,9 +855,16 @@ terraforming — including a regression test for the
 `check_terraforming` widening + corner-index fixes that currently
 have no end-to-end coverage.
 
-`corner_height(slope_t::type, hex_corner_t::type)` is duplicated:
-file-static at `ground/grund.cc:783`, and reimplemented as a local
-`corner_at` lambda in `wegbauer.cc::check_terraforming`.  Promote
-to a free function in `dataobj/ribi.h` (next to
-`slope_corners_along_axis` / `slope_level_edge_h`) and delete both.
-Pure tidy-up; lands when next refactoring slope / corner accessors.
+Selection-marker rendering in `tool/simtool.cc::mark_tiles` and
+`tool/simtool-script-generator.cc::mark_tiles` is square-era: it
+builds a base-3 4-corner sprite key (`27 * corner_nw + 9 *
+corner_ne + 3 * corner_se + corner_sw`) and indexes into
+`ground_desc_t::marker` with `% 27`.  Under hex's base-4 6-corner
+encoding the formula is wrong and the `uint8 grund_hang` locals
+also truncate any slope with NW (256) or NE (1024) raised.
+Widening alone wouldn't help — the marker sprite-key scheme needs
+the same square-projection treatment as
+`ground_desc_t::get_marker_image` (which calls
+`project_to_square_sprite` first).  Lands together with the
+broader renderer-port marker / minimap work; see "Renderer port"
+above.

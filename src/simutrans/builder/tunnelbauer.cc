@@ -243,7 +243,7 @@ koord3d tunnel_builder_t::find_end_pos(player_t *player, koord3d pos, koord zv, 
 					return koord3d::invalid;
 				}
 			}
-			const uint8 slope = gr->get_grund_hang();
+			const slope_t::type slope = gr->get_grund_hang();
 			const slope_t::type new_slope = slope_type(-zv) * welt->get_settings().get_way_height_clearance();
 
 			if(  gr->ist_karten_boden()  &&  ( slope!=new_slope  ||  pos.z!=gr->get_pos().z )  ) {

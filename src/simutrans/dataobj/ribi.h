@@ -15,6 +15,36 @@
 class koord;
 class koord3d;
 
+
+/**
+ * Hex vertex topology.
+ *
+ * Flat-top hex tiles have 6 CORNERS (vertices), indexed 0..5 clockwise
+ * from due-east. Flat-top hexes have NO due-N or due-S corner; the 6
+ * vertices sit at angles 0°, 60°, 120°, 180°, 240°, 300° from the tile
+ * centre. See AGENTS.md → "Direction naming convention".
+ *
+ * Every world vertex is shared by exactly 3 tiles (vs 4 for a square
+ * corner), so 3 distinct (tile, corner) pairs refer to the same vertex;
+ * use vertex_owners() (in koord.h) to enumerate the canonical set.
+ *
+ * These primitives are the foundation that per-vertex height storage,
+ * the slope_t rewrite (to 6-corner encoding) and the viewport
+ * projection all build on.
+ */
+struct hex_corner_t {
+	enum type : uint8 {
+		E  = 0,
+		SE = 1,
+		SW = 2,
+		W  = 3,
+		NW = 4,
+		NE = 5,
+		count = 6
+	};
+};
+
+
 /**
  * Slopes of tiles.  Base-4 6-corner encoding: each corner holds
  * height 0, 1, 2 or 3; digit positions follow hex_corner_t (E=mult 1,
@@ -604,6 +634,15 @@ public:
 	/// Counter-clockwise companion to `rotate_perpendicular`.
 	static ribi rotate_perpendicular_l(ribi x) { return rotate60l(x); }
 };
+
+/// Height (0..3) at hex corner @p c on slope @p sl — the base-4 digit at
+/// position c in the encoding.  Digit positions follow hex_corner_t (E=0,
+/// SE=1, ...), so this is just `(sl >> (2*c)) & 3`.
+static inline uint8 corner_height(slope_t::type sl, hex_corner_t::type c)
+{
+	return (uint8)((sl >> (2 * c)) & 3);
+}
+
 
 /// Resolve the four crossed corners for the axis through @p r.  Both
 /// ribis on the same axis yield the same corners; non-axis ribis (none,

@@ -26,7 +26,7 @@ class wayobj_t : public obj_no_info_t
 private:
 	const way_obj_desc_t *desc;
 
-	uint8 hang;
+	slope_t::type hang;
 
 	// direction of this wayobj
 	uint8 nw:1;

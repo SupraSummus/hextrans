@@ -124,35 +124,6 @@ public:
 };
 
 
-/**
- * Hex vertex topology.
- *
- * Flat-top hex tiles have 6 CORNERS (vertices), indexed 0..5 clockwise
- * from due-east. Flat-top hexes have NO due-N or due-S corner; the 6
- * vertices sit at angles 0°, 60°, 120°, 180°, 240°, 300° from the tile
- * centre. See AGENTS.md → "Direction naming convention".
- *
- * Every world vertex is shared by exactly 3 tiles (vs 4 for a square
- * corner), so 3 distinct (tile, corner) pairs refer to the same vertex;
- * use vertex_owners() to enumerate the canonical set.
- *
- * These primitives are the foundation that per-vertex height storage,
- * the slope_t rewrite (to 6-corner encoding) and the viewport
- * projection all build on.
- */
-struct hex_corner_t {
-	enum type : uint8 {
-		E  = 0,
-		SE = 1,
-		SW = 2,
-		W  = 3,
-		NW = 4,
-		NE = 5,
-		count = 6
-	};
-};
-
-
 /// A tile-corner name for a world vertex. Since each hex vertex is
 /// shared by 3 tiles, 3 distinct (tile, corner) pairs refer to the same
 /// world vertex — see vertex_owners().

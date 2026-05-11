@@ -567,7 +567,7 @@ static void            simgraph16_draw_filled_circle         (scr_coord_val, scr
 static void            simgraph16_draw_bezier                (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, const PIXVAL, scr_coord_val, scr_coord_val);
 static void            simgraph16_draw_right_triangle        (scr_coord_val, scr_coord_val, scr_coord_val, const PIXVAL, const bool);
 static bool            simgraph16_take_screenshot            (const scr_rect &);
-static void            simgraph16_draw_signal_direction      (scr_coord_val, scr_coord_val, uint8, uint8, PIXVAL, PIXVAL, uint8);
+static void            simgraph16_draw_signal_direction      (scr_coord_val, scr_coord_val, uint8, uint8, PIXVAL, PIXVAL, sint16);
 static void            simgraph16_set_clip_rect              (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val  CLIP_NUM_DEF, bool fit);
 static clip_dimension  simgraph16_get_clip_rect              (CLIP_NUM_DEF_NOUSE0);
 static void            simgraph16_push_clip_rect             (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val  CLIP_NUM_DEF_NOUSE);
@@ -4328,7 +4328,7 @@ static void simgraph16_signal_dir_wedge_lower(scr_coord_val cx, scr_coord_val y,
 }
 
 
-static void simgraph16_draw_signal_direction(scr_coord_val x, scr_coord_val y, uint8 /*way_dir*/, uint8 sig_dir, PIXVAL col1, PIXVAL col1_dark, uint8 slope)
+static void simgraph16_draw_signal_direction(scr_coord_val x, scr_coord_val y, uint8 /*way_dir*/, uint8 sig_dir, PIXVAL col1, PIXVAL col1_dark, sint16 slope)
 {
 	const uint8 width     = g_simgraph16.current_tile_raster_width/6;
 	const uint8 height    = g_simgraph16.current_tile_raster_width/12;

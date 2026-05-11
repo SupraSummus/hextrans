@@ -779,21 +779,6 @@ static const back_wall_geometry_t back_wall_geometry[grund_t::BACK_WALL_COUNT] =
 };
 
 
-// Slope corner height by hex-corner index.
-static inline uint8 corner_height(slope_t::type s, hex_corner_t::type c)
-{
-	switch (c) {
-		case hex_corner_t::E:  return (uint8)corner_e(s);
-		case hex_corner_t::SE: return (uint8)corner_se(s);
-		case hex_corner_t::SW: return (uint8)corner_sw(s);
-		case hex_corner_t::W:  return (uint8)corner_w(s);
-		case hex_corner_t::NW: return (uint8)corner_nw(s);
-		case hex_corner_t::NE: return (uint8)corner_ne(s);
-		default: return 0;
-	}
-}
-
-
 // with double height ground tiles!
 // can also happen with single height tiles
 static inline uint8 get_back_image_from_diff(sint8 h1, sint8 h2)
@@ -1616,7 +1601,7 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 	// ships might be large and could be clipped by vertical walls on our tile
 	const bool ontile_se = back_imageid  &&  is_water();
 	// get slope of way as displayed
-	const uint8 slope = get_disp_way_slope();
+	const slope_t::type slope = get_disp_way_slope();
 	// tunnel portals need special clipping
 	bool tunnel_portal = ist_tunnel()  &&  ist_karten_boden();
 	if (tunnel_portal) {
