@@ -26,18 +26,23 @@
  * Functions required by both Simutrans and Nettool
  */
 
-// Parse a Content-Length header value. Returns -1 on missing/invalid/out-of-range
-// so the caller can distinguish a malformed header from a legitimate zero body.
-static sint32 parse_content_length(const char *value)
+
+#ifndef NETTOOL
+/// Parses a Content-Length header value.
+/// @returns a non-negative value on success, or -1 on error (e.g. missing/invalid/out-of-range value)
+static inline sint32 parse_content_length(const char *content_length_str)
 {
 	char *endp = NULL;
 	errno = 0;
-	long parsed = strtol(value, &endp, 10);
-	if (endp == value  ||  errno != 0  ||  parsed < 0  ||  parsed > INT32_MAX) {
+	const long parsed = strtol(content_length_str, &endp, 10);
+	if (endp == content_length_str || errno != 0 || parsed < 0 || parsed > INT32_MAX) {
 		return -1;
 	}
+
 	return (sint32)parsed;
 }
+#endif
+
 
 const char *network_receive_file(const SOCKET src_sock, const char *const save_as, sint32 const length, sint32 const timeout )
 {
@@ -477,15 +482,10 @@ const char* network_http_get(const char* address, const char* name, cbuffer_t& l
 			}
 		}
 
-		if (length < 0) {
+		if (length < 0 || length > UINT16_MAX) {
+			// network_receive_data takes a uint16 length; bigger bodies would need chunking.
 			network_close_socket(my_client_socket);
 			return "Error: missing or invalid Content-Length";
-		}
-		if (length > 0xFFFF) {
-			// network_receive_data takes a uint16 length; bigger bodies would need chunking.
-			// No real responder hits this today; revisit if one does.
-			network_close_socket(my_client_socket);
-			return "Error: Content-Length exceeds buffer limit";
 		}
 
 		char* buffer = new char[(size_t)length + 1];
