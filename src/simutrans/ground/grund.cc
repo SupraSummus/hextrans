@@ -1090,7 +1090,8 @@ void grund_t::display_way_walls(sint16 xpos, sint16 ypos) const
 	if(  !resolve_way_wall(this, axis, sl)  ) {
 		return;
 	}
-	const image_id img = ground_desc_t::get_way_wall_back_image(axis, sl);
+	const climate cl = welt->get_climate(get_pos().get_2d());
+	const image_id img = ground_desc_t::get_way_wall_back_image(axis, sl, cl);
 	if(  img == IMG_EMPTY  ) {
 		return;
 	}
@@ -1118,7 +1119,8 @@ void grund_t::display_way_walls_front(sint16 xpos, sint16 ypos) const
 	if(  !resolve_way_wall(this, axis, sl)  ) {
 		return;
 	}
-	const image_id img = ground_desc_t::get_way_wall_front_image(axis, sl);
+	const climate cl = welt->get_climate(get_pos().get_2d());
+	const image_id img = ground_desc_t::get_way_wall_front_image(axis, sl, cl);
 	if(  img == IMG_EMPTY  ) {
 		return;
 	}

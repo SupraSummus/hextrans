@@ -302,6 +302,24 @@ image_id ground_desc_t::image_offset = IMG_EMPTY;
 static const uint8 number_of_climates = 7;
 static slist_tpl<image_t *> ground_image_list;
 static image_id climate_image[32], water_image;
+
+// Way-wall composited atlas.  `way_wall_back` / `way_wall_front` ship
+// as Lambert lightmaps (per-face grey in RGB, coverage in alpha); at
+// startup we compose each populated `(layer, axis, slope)` against
+// every climate texture via `create_textured_tile`, so each cut /
+// embankment reads as the local biome's earth.  Lookup mirrors the
+// ground tile pattern: `way_wall_image_base[layer][axis][climate_nr]`
+// is the base image_id of the contiguous (slope-ordered) run,
+// `way_wall_slope_to_imgnr[layer][axis][slope]` is the per-slope
+// offset within that run, or `WAY_WALL_NO_SLOPE` for absent cells.
+// The slope→offset map is shared across climates because every
+// climate registers the same set of slopes in the same canonical
+// order.
+static const int N_WAY_WALL_LAYERS = 2; // 0=back, 1=front
+static const int N_WAY_WALL_AXES   = 3; // 0=NS, 1=NE_SW, 2=NW_SE
+static const uint16 WAY_WALL_NO_SLOPE = 0xFFFFu;
+static uint16 way_wall_slope_to_imgnr[N_WAY_WALL_LAYERS][N_WAY_WALL_AXES][totalslopes];
+static image_id way_wall_image_base[N_WAY_WALL_LAYERS][N_WAY_WALL_AXES][number_of_climates];
 // SlopeTrans alpha images now live in the pakset descriptor itself
 // — the bake under `landscape/grounds/texture-slope/` ships one
 // `Image[<slope_t>][<corner_mask>]` cell per `(slope, mask)` against
@@ -530,8 +548,90 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 		}
 	}
 
+	// Way-wall lightmaps × climate texture.  Both Back and Front
+	// descriptors are optional (pak64 ships neither); skipping leaves
+	// every `way_wall_image_base` slot at IMG_EMPTY and every per-slope
+	// slot at `WAY_WALL_NO_SLOPE`, which `get_way_wall_*_image` returns
+	// as IMG_EMPTY.  For each (layer, axis) we fill the slope→offset
+	// table once, then register one contiguous run per climate against
+	// that climate's `boden_texture` — same shape as the climate_image
+	// loop just above.
+	for(int layer = 0; layer < N_WAY_WALL_LAYERS; layer++) {
+		for(int axis = 0; axis < N_WAY_WALL_AXES; axis++) {
+			for(int cl_nr = 0; cl_nr < number_of_climates; cl_nr++) {
+				way_wall_image_base[layer][axis][cl_nr] = IMG_EMPTY;
+			}
+			for(int slope = 0; slope < totalslopes; slope++) {
+				way_wall_slope_to_imgnr[layer][axis][slope] = WAY_WALL_NO_SLOPE;
+			}
+		}
+	}
+	const ground_desc_t* const way_wall_desc[N_WAY_WALL_LAYERS] = {
+		ground_desc_t::way_wall_back, ground_desc_t::way_wall_front
+	};
+	for(int layer = 0; layer < N_WAY_WALL_LAYERS; layer++) {
+		const ground_desc_t* const desc = way_wall_desc[layer];
+		if(!desc) {
+			continue;
+		}
+		for(int axis = 0; axis < N_WAY_WALL_AXES; axis++) {
+			uint16 idx = 0;
+			for(int slope = 0; slope < totalslopes; slope++) {
+				if(desc->get_image_ptr((uint16)axis, (uint16)slope)) {
+					way_wall_slope_to_imgnr[layer][axis][slope] = idx++;
+				}
+			}
+			for(int cl_nr = 0; cl_nr < number_of_climates; cl_nr++) {
+				way_wall_image_base[layer][axis][cl_nr] = gfx->get_image_count();
+				const image_t* const climate_texture = boden_texture->get_image_ptr(cl_nr + 1);
+				for(int slope = 0; slope < totalslopes; slope++) {
+					const image_t* const lightmap = desc->get_image_ptr((uint16)axis, (uint16)slope);
+					if(!lightmap) {
+						continue;
+					}
+					image_t* composed = create_textured_tile(lightmap, climate_texture);
+					ground_image_list.append(composed);
+				}
+			}
+		}
+	}
+
 	//dbg->message("ground_desc_t::calc_water_level()", "Last image nr %u", final_tile->get_pic()->imageid);
 	DBG_DEBUG("ground_desc_t::init_ground_textures()", "Init ground textures successful");
+}
+
+
+static image_id pick_way_wall_image(int layer, uint8 axis, slope_t::type slope, climate cl)
+{
+	slope = slope_t::lower_min_corner(slope);
+	if(  slope < 0  ||  slope >= totalslopes  ||  axis >= N_WAY_WALL_AXES  ) {
+		return IMG_EMPTY;
+	}
+	const uint16 idx = way_wall_slope_to_imgnr[layer][axis][slope];
+	if(  idx == WAY_WALL_NO_SLOPE  ) {
+		return IMG_EMPTY;
+	}
+	// Map climate enum (water=0, desert=1, …, arctic=7) to climate_nr
+	// (desert=0, …, arctic=6) the same way `get_climate_tile` does.
+	// Water can't carry a way, but clamp defensively so a misrouted
+	// lookup degrades to the desert texture rather than indexing OOB.
+	const int cl_nr = (cl <= 0) ? 0 : (cl - 1);
+	if(  cl_nr >= number_of_climates  ) {
+		return IMG_EMPTY;
+	}
+	return way_wall_image_base[layer][axis][cl_nr] + idx;
+}
+
+
+image_id ground_desc_t::get_way_wall_back_image(uint8 axis, slope_t::type slope, climate cl)
+{
+	return pick_way_wall_image(0, axis, slope, cl);
+}
+
+
+image_id ground_desc_t::get_way_wall_front_image(uint8 axis, slope_t::type slope, climate cl)
+{
+	return pick_way_wall_image(1, axis, slope, cl);
 }
 
 
