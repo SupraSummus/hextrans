@@ -1066,16 +1066,11 @@ bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, 
 		const hex_corner_t::type to_near_a   = (hex_corner_t::type)((e_dir + 3) % 6);
 		const hex_corner_t::type to_near_b   = (hex_corner_t::type)((e_dir + 4) % 6);
 
-		// Hex slope corner extractor (base-4 digit at position c).
-		auto corner_at = [](slope_t::type s, hex_corner_t::type c) -> uint8 {
-			return (uint8)((s >> (2 * c)) & 3);
-		};
-
 		// 3 heights: start (from's far edge), middle (shared edge),
 		// end (to's far edge), all in 1/2-tile units.
-		sint8 start  = from_hgt * 2 + corner_at(from_slope, to_near_a)   + corner_at(from_slope, to_near_b);
-		sint8 middle = from_hgt * 2 + corner_at(from_slope, from_near_a) + corner_at(from_slope, from_near_b);
-		sint8 end    = to_hgt * 2   + corner_at(to_slope, from_near_a)   + corner_at(to_slope, from_near_b);
+		sint8 start  = from_hgt * 2 + corner_height(from_slope, to_near_a)   + corner_height(from_slope, to_near_b);
+		sint8 middle = from_hgt * 2 + corner_height(from_slope, from_near_a) + corner_height(from_slope, from_near_b);
+		sint8 end    = to_hgt * 2   + corner_height(to_slope, from_near_a)   + corner_height(to_slope, from_near_b);
 
 		// work out intermediate height:
 		if (end == start) {

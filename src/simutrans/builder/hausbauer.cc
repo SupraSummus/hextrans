@@ -438,7 +438,7 @@ void hausbauer_t::remove( player_t *player, gebaeude_t *gb )
 		// the grid height might not be fully appropriate, so now we checlk for superflous walls
 		const koord newk = gr->get_pos().get_2d();
 		sint8 new_hgt = gr->get_pos().z;
-		const uint8 new_slope = welt->recalc_natural_slope(newk, new_hgt);
+		const slope_t::type new_slope = welt->recalc_natural_slope(newk, new_hgt);
 
 		if (new_hgt < welt->get_water_hgt(newk) || (new_hgt == welt->get_water_hgt(newk) && new_slope == slope_t::flat)) {
 			wasser_t* sea = new wasser_t(koord3d(newk, new_hgt));
