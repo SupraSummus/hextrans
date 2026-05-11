@@ -530,17 +530,31 @@ any pre-port saved game survives a round-trip.  See also the
 vehicle-direction compound-displacement note above — 18 distinct
 visual states under hex, 8 slots in the current dir enum.
 
-`way_builder_t::check_terraforming` (`wegbauer.cc:1004-1010` and the
-symmetric write block at 1064-1078) handles the 4 cardinal step
-directions (N, SE, S, NW) explicitly with per-corner height arithmetic.
-NE and SW (the third hex axis) fall through the if-chain un-handled —
-the in-code `HEX-PORT` comment names this — and `*new_from_slope` /
-`*new_to_slope` are left at their default values, so a way-builder
-terraform step on the NE-SW axis is a silent no-op.  The fix needs
-the corner indices for the NE / SW shared edge under hex (which two
-corners of tile A correspond to which corners of tile B across the
-NE/SW edge); pure mechanical extension once those indices are pinned.
-Tied to the wider hex-aware terraform / vertex-sharing cluster.
+Three slope locals still narrow to `uint8` outside the wegbauer
+cluster: `builder/hausbauer.cc:441` (`recalc_natural_slope` return),
+`builder/tunnelbauer.cc:246` (`get_grund_hang()`), and
+`ground/grund.cc:1617` (`get_disp_way_slope()`).  Same truncation
+hazard the `check_terraforming` widening fixed in wegbauer — any
+slope with NW or NE corners raised loses those bits (256 / 1024
+overflow uint8).  Audit each: widen to `slope_t::type` when the
+value feeds slope arithmetic / `encode_corners` / `set_grund_hang`
+comparisons; leave as-is when it's just an array / sprite-table
+index.  `ground_desc.h:105` looks intentional (the `uint8 slope`
+there is the projected sprite key after `project_to_square_sprite`)
+but flag while in the area.
+
+`do_terraforming` in `wegbauer.cc` has an
+`if (from_slope > slope_t::all_up_one  &&  is_axis_slope(from_slope -
+slope_t::all_up_one))` branch (and its `to_slope` twin) that was
+unreachable while slopes were stored in `uint8` (`all_up_one ==
+1365 > 255`).  After the widening in this branch it can fire for
+the first time under hex.  The semantic — "shifted-up axis slope
+means raise tile by 1 and unshift" — is geometrically plausible
+under the hex 6-corner encoding (axis slopes still subtract
+cleanly when both layers' corners are at the same height), but
+hasn't been exercised by a concrete trace.  Run one through and
+either confirm or replace with a hex-aware lift; lands alongside
+the first real-gameplay surfacing of city / AI terraforming.
 
 `schiene_t::reserve` (`obj/way/schiene.cc:91`) computes
 `set_switched(dir == ribi_t::northeast || dir == ribi_t::southwest)`.
@@ -842,3 +856,21 @@ Save-format feature gates now have names in `simversion.h` rather
 than floating against `SIM_SAVE_MINOR`.  Continue that convention for
 future on-disk changes so later fork-version bumps do not silently
 change the meaning of old readers.
+
+`command_x.build_way` in the Squirrel API has no `terraform=` flag,
+so the `terraform_flag` paths in `way_builder_t` (set by city / AI
+builders via `simcity.cc` and `ai*.cc`) have no scenario-test
+coverage.  Add a `terraform` bool mirroring `straight` /
+`keep_city_roads`; wire through the `TOOL_BUILD_WAY` param
+encoding in `script/api/api_command.cc:308-316`.  Lands alongside
+the first scenario test that exercises AI / city-shape
+terraforming — including a regression test for the
+`check_terraforming` widening + corner-index fixes that currently
+have no end-to-end coverage.
+
+`corner_height(slope_t::type, hex_corner_t::type)` is duplicated:
+file-static at `ground/grund.cc:783`, and reimplemented as a local
+`corner_at` lambda in `wegbauer.cc::check_terraforming`.  Promote
+to a free function in `dataobj/ribi.h` (next to
+`slope_corners_along_axis` / `slope_level_edge_h`) and delete both.
+Pure tidy-up; lands when next refactoring slope / corner accessors.

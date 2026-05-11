@@ -614,7 +614,7 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 
 		// try terraforming
 		if (!ok_slope) {
-			uint8 dummy,to_slope;
+			slope_t::type dummy, to_slope;
 			if (  (bautyp & terraform_flag) != 0  &&  from->ist_natur()  &&  to->ist_natur()  &&  check_terraforming(from,to,&dummy,&to_slope) ) {
 				to_flat = to_slope == slope_t::flat;
 			}
@@ -1021,7 +1021,7 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 }
 
 
-bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, uint8* new_from_slope, uint8* new_to_slope) const
+bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, slope_t::type* new_from_slope, slope_t::type* new_to_slope) const
 {
 	// only for normal green tiles
 	const slope_t::type from_slope = from->get_weg_hang();
@@ -1050,84 +1050,60 @@ bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, 
 			return true;
 		}
 		// now calculate new slopes
-		assert(new_from_slope);
 		assert(new_to_slope);
-		// direction of way.  HEX-PORT: the 4 cardinal displacements
-		// below still cover the N, S, SE (was E), NW (was W)
-		// neighbours under the rename; the 2 hex-only neighbours
-		// (NE=(1,-1), SW=(-1,1)) fall through the if-chain un-handled.
-		// Terraforming a hex-only-direction way step is therefore a
-		// no-op at this site — tracked in the building/terraforming
-		// cluster follow-up.
+		// Hex edge from `from` to `to`, indexed in koord::neighbours order.
+		// Edge e runs between hex_corner_t indices (e, (e+1) % 6) in from's
+		// frame; the same world vertices sit at ((e+3) % 6, (e+4) % 6) in
+		// to's frame.
 		const koord dir = (to->get_pos() - from->get_pos()).get_2d();
-		sint8 start  = from_hgt * 2;
-		sint8 middle = from_hgt * 2;
-		sint8 end    = to_hgt * 2;
-		// get 3 heights - start (min start from, but should be same), middle (average end from/average start to), end (min end to)
-		if(  dir == koord::step(ribi_t::north)  ) {
-			start  += corner_sw(from_slope) + corner_se(from_slope);
-			middle += corner_ne(from_slope) + corner_nw(from_slope);
-			end    += corner_ne(to_slope) + corner_nw(to_slope);
+		uint8 e_dir = 0;
+		while (e_dir < 6  &&  koord::neighbours[e_dir] != dir) {
+			++e_dir;
 		}
-		else if(  dir == koord::step(ribi_t::southeast)  ) {
-			start  += corner_sw(from_slope) + corner_nw(from_slope);
-			middle += corner_se(from_slope) + corner_ne(from_slope);
-			end    += corner_se(to_slope) + corner_ne(to_slope);
-		}
-		else if(  dir == koord::step(ribi_t::south)  ) {
-			start  += corner_ne(from_slope) + corner_nw(from_slope);
-			middle += corner_sw(from_slope) + corner_se(from_slope);
-			end    += corner_sw(to_slope) + corner_se(to_slope);
-		}
-		else if(  dir == koord::step(ribi_t::northwest)  ) {
-			start  += corner_se(from_slope) + corner_ne(from_slope);
-			middle += corner_sw(from_slope) + corner_nw(from_slope);
-			end    += corner_sw(to_slope) + corner_nw(to_slope);
-		}
+		assert(e_dir < 6);
+		const hex_corner_t::type from_near_a = (hex_corner_t::type)e_dir;
+		const hex_corner_t::type from_near_b = (hex_corner_t::type)((e_dir + 1) % 6);
+		const hex_corner_t::type to_near_a   = (hex_corner_t::type)((e_dir + 3) % 6);
+		const hex_corner_t::type to_near_b   = (hex_corner_t::type)((e_dir + 4) % 6);
+
+		// Hex slope corner extractor (base-4 digit at position c).
+		auto corner_at = [](slope_t::type s, hex_corner_t::type c) -> uint8 {
+			return (uint8)((s >> (2 * c)) & 3);
+		};
+
+		// 3 heights: start (from's far edge), middle (shared edge),
+		// end (to's far edge), all in 1/2-tile units.
+		sint8 start  = from_hgt * 2 + corner_at(from_slope, to_near_a)   + corner_at(from_slope, to_near_b);
+		sint8 middle = from_hgt * 2 + corner_at(from_slope, from_near_a) + corner_at(from_slope, from_near_b);
+		sint8 end    = to_hgt * 2   + corner_at(to_slope, from_near_a)   + corner_at(to_slope, from_near_b);
+
 		// work out intermediate height:
-		if(  end == start  ) {
+		if (end == start) {
 			middle = start;
 		}
-		else {
-			//  end < start   to ist wegbar?assert from ist_wegbar:middle = end + 1
-			//  end > start   to ist wegbar?assert from ist_wegbar:middle = end - 1
-			if(  !slope_t::is_way( to_slope )  ) {
-				middle = (start + end) / 2;
-			}
+		else if (!slope_t::is_way(to_slope)) {
+			middle = (start + end) / 2;
 		}
 		// prevent middle being invalid
-		if(  middle >> 1 > from_hgt + 2  ) {
-			middle = (from_hgt + 2) * 2;
-		}
-		if(  middle >> 1 > to_hgt + 2  ) {
-			middle = (to_hgt + 2) * 2;
-		}
-		if(  middle >> 1 < from_hgt  ) {
-			middle = from_hgt * 2;
-		}
-		if(  middle >> 1 < to_hgt  ) {
-			middle = to_hgt * 2;
-		}
+		if (middle >> 1 > from_hgt + 2)  middle = (from_hgt + 2) * 2;
+		if (middle >> 1 > to_hgt + 2)    middle = (to_hgt + 2) * 2;
+		if (middle >> 1 < from_hgt)      middle = from_hgt * 2;
+		if (middle >> 1 < to_hgt)        middle = to_hgt * 2;
 		const uint8 m_from = (middle >> 1) - from_hgt;
-		const uint8 m_to = (middle >> 1) - to_hgt;
+		const uint8 m_to   = (middle >> 1) - to_hgt;
 
-		// write middle heights
-		if(  dir == koord::step(ribi_t::north)  ) {
-			*new_from_slope = encode_corners(corner_sw(from_slope), corner_se(from_slope), m_from, m_from);
-			*new_to_slope =   encode_corners(m_to, m_to, corner_ne(to_slope), corner_nw(to_slope));
-		}
-		else if(  dir == koord::step(ribi_t::southeast)  ) {
-			*new_from_slope = encode_corners(corner_sw(from_slope), m_from, m_from, corner_nw(from_slope));
-			*new_to_slope =   encode_corners(m_to, corner_se(to_slope), corner_ne(to_slope), m_to);
-		}
-		else if(  dir == koord::step(ribi_t::south)  ) {
-			*new_from_slope = encode_corners(m_from, m_from, corner_ne(from_slope), corner_nw(from_slope));
-			*new_to_slope =   encode_corners(corner_sw(to_slope), corner_se(to_slope), m_to, m_to);
-		}
-		else if(  dir == koord::step(ribi_t::northwest)  ) {
-			*new_from_slope = encode_corners(m_from, corner_se(from_slope), corner_ne(from_slope), m_from);
-			*new_to_slope =   encode_corners(corner_sw(to_slope), m_to, m_to, corner_nw(to_slope));
-		}
+		// Replace the slope's two named corners with a new height; keep others.
+		auto set_edge = [](slope_t::type orig, uint8 height, hex_corner_t::type a, hex_corner_t::type b) -> slope_t::type {
+			uint8 c[6] = {
+				(uint8)corner_e(orig),  (uint8)corner_se(orig), (uint8)corner_sw(orig),
+				(uint8)corner_w(orig),  (uint8)corner_nw(orig), (uint8)corner_ne(orig)
+			};
+			c[a] = height;
+			c[b] = height;
+			return (slope_t::type)encode_corners_hex(c[0], c[1], c[2], c[3], c[4], c[5]);
+		};
+		*new_from_slope = set_edge(from_slope, m_from, from_near_a, from_near_b);
+		*new_to_slope   = set_edge(to_slope,   m_to,   to_near_a,   to_near_b);
 		return true;
 	}
 
@@ -1141,10 +1117,10 @@ void way_builder_t::do_terraforming()
 
 	for(uint32 const i : terraform_index) { // index in route
 		grund_t *from = welt->lookup(route[i]);
-		uint8 from_slope = from->get_grund_hang();
+		slope_t::type from_slope = from->get_grund_hang();
 
 		grund_t *to = welt->lookup(route[i+1]);
-		uint8 to_slope = to->get_grund_hang();
+		slope_t::type to_slope = to->get_grund_hang();
 		// calculate new slopes
 		check_terraforming(from, to, &from_slope, &to_slope);
 		bool changed = false;
@@ -2522,10 +2498,10 @@ sint64 way_builder_t::calc_costs()
 
 	for(uint32 const i : terraform_index) { // index in route
 		grund_t *from = welt->lookup(route[i]);
-		uint8 from_slope = from->get_grund_hang();
+		slope_t::type from_slope = from->get_grund_hang();
 
 		grund_t *to = welt->lookup(route[i+1]);
-		uint8 to_slope = to->get_grund_hang();
+		slope_t::type to_slope = to->get_grund_hang();
 		// calculate new slopes
 		check_terraforming(from, to, &from_slope, &to_slope);
 		// change slope of from
