@@ -648,6 +648,61 @@ double-height notch shape that the pakset renderer at
 `hextrans-pak128/landscape/grounds/back_wall/render.py` doesn't yet
 model; revisit if stacked terraforming reads wrong.
 
+Way embankment / cutting walls inside a tile are not rendered.
+`weg_t::pick_image_slot` (`weg.cc:400`) draws the way at
+`get_weg_hang()`, and `calc_back_image` (`grund.cc:844`) only covers
+inter-tile cliffs, so the earth face between way-surface and
+natural ground when `W != G` on the same tile (flat chord crossing
+a hill, ramp body, tunnel-mouth flat) renders empty — the way
+floats or sinks into the hill with no supporting geometry. No new
+storage is needed: `slope_way_h_at_edge` (`ribi.h:693`) pins
+`W == G` at every corner of every edge the way's ribi touches, so
+only the two off-axis corners can differ, and each is bracketed by
+two off-axis edges whose endpoint deltas have the pinched form
+(0, Δ) — exactly the shape `back_wall/slopes.{png,dat}` already
+encodes via `get_back_image_from_diff(h1, h2)` with one operand
+zero. The wall is earth, not way-type-specific, so cost stays
+`O(slopes × 2 sign × 6 walls)` and the existing `back_wall` baker
+generalises rather than multiplying by road / rail / tram.
+
+The work splits into an engine piece and a pakset piece that
+must land together to render anything (independently mergeable,
+either order), plus a retirement audit downstream.
+
+*Engine.* Add `grund_t::calc_way_wall_image` alongside
+`calc_back_image`, iterating 6 hex edges and packing a
+`way_wall_imageid` (sign bit = embankment vs cutting). Hook
+`display_way_walls` into `display_boden` as two passes
+bracketing the existing way draw (cutting before, embankment
+after) so occlusion resolves without per-pixel z. Assert on
+every non-zero entry that exactly one endpoint delta is zero —
+the pinched-wall invariant the design rests on, made a live
+tripwire rather than a planning-stage probe. Renders `IMG_EMPTY`
+until the pakset entries land.
+
+*Pakset.* Re-run `landscape/grounds/back_wall/render.py` with
+rotated cameras to bake the SE / S / SW orientations the
+existing 3-wall atlas omits, then bake a sibling cutting-variant
+atlas (shadow side, exposed strata — geometrically a mirror but
+visually distinct). Independent payoff for the SE / S / SW bake:
+closes the inter-tile wall-2 gaps the fence and hide-test
+paragraphs above already flag, useful even if the way-wall
+feature later stalls.
+
+*Retirement audit, triggers on the first correctly-rendered ramp
+or portal tile.* `brueckenboden_t` ramps and `tunnelboden_t`
+portals already exercise `W != G` and may carry ramp art the new
+path obviates; either retire that art or document why both
+coexist.
+
+If the engine assertion fires, the bug is upstream
+(`slope_allows_ribi` or the way-edge-height contract) and that's
+the fix — the wall renderer caught a wrong thing on its way in,
+it hasn't shipped one. The architecture (per-edge walls,
+sign-bit-encoded direction, `back_wall` atlas reuse) is robust
+to that case; at worst the index encoding widens from (0, Δ) to
+(h1, h2), which the atlas already supports.
+
 Fence sprites (`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
 `ground_desc_t::fences`) still use `tile_raster_scale_y` for the
 `corner_nw` offset and have only 3 pakset combos for walls 0+1; the 4
