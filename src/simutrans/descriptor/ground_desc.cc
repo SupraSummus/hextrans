@@ -254,6 +254,7 @@ const ground_desc_t *ground_desc_t::fences = NULL;
 const ground_desc_t *ground_desc_t::marker = NULL;
 const ground_desc_t *ground_desc_t::borders = NULL;
 const ground_desc_t *ground_desc_t::sidewalk = NULL;
+const ground_desc_t *ground_desc_t::way_wall = NULL;
 const ground_desc_t *ground_desc_t::sea = NULL;
 const ground_desc_t *ground_desc_t::outside = NULL;
 
@@ -262,11 +263,15 @@ const ground_desc_t *ground_desc_t::outside = NULL;
 // paksets without an `Obj=ground Sidewalk` block (their old
 // `Obj=misc Sidewalk` is silently shelved) keep loading; sidewalks
 // just don't render under city-road tiles in that case — see the
-// NULL guard in `get_sidewalk_image`.
-static const int N_OPTIONAL_GROUNDS = 2;
+// NULL guard in `get_sidewalk_image`.  WayWall is optional so pak64
+// (which ships no intra-tile way-cut atlas) keeps loading; the
+// per-edge cut walls just don't render under that pakset — see the
+// NULL guard in `get_way_wall_image`.
+static const int N_OPTIONAL_GROUNDS = 3;
 static special_obj_tpl<ground_desc_t> const grounds[] = {
 	{ &ground_desc_t::shore,     "Shore"          },
 	{ &ground_desc_t::sidewalk,  "Sidewalk"       },
+	{ &ground_desc_t::way_wall,  "WayWall"        },
 	{ &boden_texture,            "ClimateTexture" },
 	{ &hex_light_map,            "LightTexture"   },
 	{ &transition_water_texture, "ShoreTrans"     },

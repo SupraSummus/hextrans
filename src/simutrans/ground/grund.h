@@ -242,6 +242,15 @@ protected:
 	// calculates the slope image and sets the draw_as_obj flag correctly
 	void calc_back_image(const sint8 hgt,const slope_t::type slope_this);
 
+	// draws the intra-tile way-cut walls bracketing the off-axis
+	// corners.  Called from `display_boden` after the ground tile.
+	// Renders nothing under paksets without a WayWall descriptor.
+	void display_way_walls(sint16 xpos, sint16 ypos, sint16 raster_tile_width
+#ifdef MULTI_THREAD
+	                       , sint8 clip_num
+#endif
+	                       ) const;
+
 	// this is the real image calculation, called for the actual ground image
 	virtual void calc_image_internal(const bool calc_only_snowline_change) = 0;
 
