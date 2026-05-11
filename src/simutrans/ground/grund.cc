@@ -1057,6 +1057,9 @@ static bool resolve_way_wall(grund_t const* gr, uint8& axis_out, slope_t::type& 
 	if(  sl == slope_t::flat  ) {
 		return false;
 	}
+	if(  !slope_allows_ribi(sl, rib)  ) {
+		return false;
+	}
 	// `straight_axis` folds a 6-edge ribi onto its 3-axis equivalence
 	// class (north / northeast / northwest); multi-axis ribis (bends,
 	// junctions) return `none` and we skip — bends on slopes need a

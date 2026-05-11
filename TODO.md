@@ -665,6 +665,10 @@ layered single-axis cells — and the bend's chord-plane geometry
 isn't a single straight strip.  Triggers when a city builder
 places a junction on a slope and the player notices the embankment
 vanishing.
+`resolve_way_wall` skips save-state slope/ribi pairs rejected by
+`slope_allows_ribi`, so legacy or transitional saves with forbidden
+ways do not abort while drawing.  A load-time validator remains the
+proper cleanup move when save migration gets a dedicated pass.
 
 Fence sprites (`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
 `ground_desc_t::fences`) still use `tile_raster_scale_y` for the
