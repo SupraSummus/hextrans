@@ -166,21 +166,17 @@ function test_way_rail_terminate_on_slope_chord_stub()
 }
 
 
-// 60° bend around the SE corner of an NW-high tile must render as a
-// flat way, not as the tile's NW-SE gradient ramp.  Setup: raise T's
-// NW and W vertices (gradient NW high → SE low, S/SE/E corners flat
-// at 0).  Build S → T (chord stub on the S edge) and T → SE (chord
-// stub on the SE edge), so T carries ribi S + SE = 3 — both crossed
-// edges level at z=0, body sits flat on the chord.
-//
-// `slope.allows_flat_way_chord(slope, ribi)` is the predicate the
-// renderer's gate in `weg_t::calc_image` consults when picking
-// between the flat-ribi sprite and the slope-shape sprite.  True
-// means flat — the bend is drawn from ribi as a flat chord at z=0.
-// The renderer regression had the predicate rejecting half-axis
-// chord stubs; the fix is per-edge level checks rather than
-// per-axis.  Pak-independent — the test never resolves an image_id.
-function test_way_rail_render_bend_around_se_on_nw_high_tile()
+// Bend rejected on a ramp slope, around the low corner.  T's NW and W
+// vertices are raised: gradient NW high → SE low, SE corner at 0.
+// Build S → T succeeds as a chord stub on T's flat half (S edge
+// `{SE=0, SW=0}` level at 0).  The follow-up T → SE would OR an SE
+// bit, giving ribi = S + SE = 3.  Both edges sit at 0 but the NW-SE
+// axis has no flat chord (`chord_h_axis = -1`), so the bend body
+// can't render flat at 0 across the touched axes.  Companion to
+// `test_way_rail_terminate_on_slope_off_gradient`, which rejects the
+// high-edge bend variant — ramp slopes don't host bends regardless
+// of which corner the bend wraps.
+function test_way_rail_reject_bend_around_se_on_nw_high_tile()
 {
 	local pl      = player_x(0)
 	local rail    = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
@@ -197,22 +193,20 @@ function test_way_rail_render_bend_around_se_on_nw_high_tile()
 	local hang = HEX_SLOPE(0, 0, 0, 1, 1, 0)
 	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_slope(), hang)
 
-	ASSERT_EQUAL(command_x.build_way(pl, S,  T,  rail, true), null)
-	ASSERT_EQUAL(command_x.build_way(pl, T,  SE, rail, true), null)
+	ASSERT_EQUAL(command_x.build_way(pl, S, T, rail, true), null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail), 2) // S only
 
-	// Data sanity: SE bit (1) + S bit (2) = 3.
-	local ribi = tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail)
-	ASSERT_EQUAL(ribi, 3)
+	// Bend onto the same tile: rejected.
+	ASSERT_TRUE(command_x.build_way(pl, T, SE, rail, true) != null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail), 2) // still S only
 
-	// Renderer flat-chord predicate — drives the choice between the
-	// flat-ribi sprite and the slope-shape sprite in
-	// `weg_t::calc_image`.  Pre-fix this returned false (per-axis
-	// check) and the renderer fell into the slope-image branch,
-	// drawing the NW-SE gradient ramp instead of the bend.
-	ASSERT_TRUE(slope.allows_flat_way_chord(hang, ribi))
+	// Predicate matches: the bend ribi (S + SE = 3) doesn't render
+	// flat on this slope.  N axis chord_h = 0 but NW axis chord_h
+	// = -1, so the multi-axis chord placement is inadmissible.
+	ASSERT_FALSE(slope.allows_flat_way_chord(hang, 3))
 
 	// cleanup
-	ASSERT_EQUAL(remover.work(pl, tile_x(S.x, S.y, S.z), SE, "" + wt_rail), null)
+	ASSERT_EQUAL(remover.work(pl, tile_x(S.x, S.y, S.z), T, "" + wt_rail), null)
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.NW), null)
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.W),  null)
 

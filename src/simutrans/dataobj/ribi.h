@@ -655,27 +655,35 @@ static inline sint8 slope_level_edge_h(slope_t::type sl, ribi_t::ribi r)
 }
 
 /// True iff the way's body sits at a single height on this slope
-/// (renders flat) rather than ramping with the surface.  Multi-bit
-/// ribis pass when every set edge is internally level at the same
-/// height — genuine side-chords across saddles, peaks.  Single-bit
-/// ribi on a ramp slope (`*_narrow` / `*_wide` / `*_double`) always
-/// fails: the stub body extends to the tile centre where the surface
-/// has ramped past the edge height.
+/// (renders flat) rather than ramping with the surface.  Every set
+/// edge must be internally level at the same height H, AND every
+/// touched axis must independently admit a chord at H (per
+/// `chord_h_axis`).  The axis check rules out bends that fit "around
+/// the low corner" of a ramp slope: the body would be locally at H=0
+/// on the touched edges, but the slope's interior ramps past H=0
+/// across the tile centre, so a flat-rendered way would float over
+/// or sink into the ramped half.  Single-bit stubs on ramp slopes
+/// (`*_narrow` / `*_wide` / `*_double` and 3-corner-arc shapes) fall
+/// out of this rule too: the only axis they touch is the slope's
+/// ramp axis, whose `chord_h_axis` is -1.
 static inline bool slope_allows_flat_way_chord(slope_t::type sl, ribi_t::ribi r)
 {
-	if (ribi_t::is_single(r)
-	    && (slope_t::is_axis_slope(sl) || slope_t::is_planar_double_edge(sl))) {
-		return false;
-	}
-	sint8 h = -1;
+	sint8        h    = -1;
+	ribi_t::ribi axes = ribi_t::none;
 	for (uint8 b = 0; b < 6; b++) {
 		const ribi_t::ribi dir = (ribi_t::ribi)(1u << b);
 		if (!(r & dir)) continue;
 		const sint8 eh = slope_level_edge_h(sl, dir);
 		if (eh < 0) return false;
-		if (h < 0) h = eh; else if (h != eh) return false;
+		if (h < 0)       h = eh;
+		else if (h != eh) return false;
+		axes |= ribi_t::straight_axis(dir);
 	}
-	return h >= 0;
+	if (h < 0) return false;
+	for (ribi_t::ribi axis : { ribi_t::north, ribi_t::northeast, ribi_t::northwest }) {
+		if ((axes & axis) && slope_chord_h_along_axis(sl, axis) != h) return false;
+	}
+	return true;
 }
 
 /// Height delta (above tile base) at which a way sits at the edge in
@@ -692,34 +700,30 @@ static inline sint8 slope_way_h_at_edge(slope_t::type sl, ribi_t::ribi r)
 }
 
 /// Whether a tile with this slope can geometrically support a way with
-/// this ribi.  Each set ribi bit names an exit edge; that edge must be
-/// internally level (a half-raised edge runs the slope sideways across
-/// the rail).  The collected edge heights must form either a chord
-/// (all equal — the body sits flat) or a single-axis ramp (two adjacent
-/// heights differing by 1, all touched bits on one axis — the body
-/// slopes uniformly along that axis).
+/// this ribi.  Single-axis ribi (all bits on one of the three hex
+/// axes) admits the chord-or-ramp body decided by
+/// `slope_allows_way_axis` — a stub follows a ramp axis, a flat chord
+/// works on a saddle / peak slope.  Multi-axis ribi (bend / junction)
+/// must render as a single flat chord, the same rule
+/// `slope_allows_flat_way_chord` checks: every touched axis admits
+/// `chord_h_axis == H` at one common H.  That rejects bends on ramp
+/// slopes, where the body would either ramp on multiple axes (no
+/// consistent placement) or sit flat at a height the slope's interior
+/// has ramped past.
 static inline bool slope_allows_ribi(slope_t::type sl, ribi_t::ribi r)
 {
 	if (sl == slope_t::flat) return true;
 
-	sint8        hmin  = 127;
-	sint8        hmax  = -1;
-	ribi_t::ribi axes  = ribi_t::none;
-
+	ribi_t::ribi axes = ribi_t::none;
 	for (uint8 b = 0; b < 6; b++) {
 		const ribi_t::ribi dir = (ribi_t::ribi)(1u << b);
 		if (!(r & dir)) continue;
-		const sint8 h = slope_level_edge_h(sl, dir);
-		if (h < 0) return false;
-		if (h < hmin) hmin = h;
-		if (h > hmax) hmax = h;
+		if (slope_level_edge_h(sl, dir) < 0) return false;
 		axes |= ribi_t::straight_axis(dir);
 	}
-
-	if (hmax < 0)        return true;            // no bits — vacuous
-	if (hmin == hmax)    return true;            // chord across all touched edges
-	return hmax - hmin == 1                      // ramp on a single axis
-	    && (axes & (axes - 1)) == 0;
+	if (axes == ribi_t::none) return true;                     // no bits — vacuous
+	if ((axes & (axes - 1)) == 0) return slope_allows_way_axis(sl, r);
+	return slope_allows_flat_way_chord(sl, r);
 }
 
 /**

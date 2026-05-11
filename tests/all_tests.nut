@@ -215,11 +215,12 @@ all_tests <- [
 	test_way_road_build_single_tile,
 	test_way_road_build_straight,
 	test_way_road_build_ne_sw,
+	test_way_road_build_bend_on_3corner_ramp,
 	test_way_road_image_slot_dispatch,
 	test_way_rail_build_through_partial_slope,
 	test_way_rail_terminate_on_slope_off_gradient,
 	test_way_rail_terminate_on_slope_chord_stub,
-	test_way_rail_render_bend_around_se_on_nw_high_tile,
+	test_way_rail_reject_bend_around_se_on_nw_high_tile,
 	test_way_rail_render_stub_on_ramp_uses_slope_image,
 	test_way_rail_build_across_half_raised_edge,
 	// test_way_road_build_parallel: HEX-PORT PENDING.
