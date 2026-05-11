@@ -43,6 +43,7 @@ public:
 	static const ground_desc_t *marker;
 	static const ground_desc_t *borders;
 	static const ground_desc_t *sidewalk; // city-road pavement, keyed by raw slope_t
+	static const ground_desc_t *way_wall; // intra-tile cut walls, keyed (wall, index); optional
 	static const ground_desc_t *sea;     // different water depth
 	static const ground_desc_t *outside;
 
@@ -137,6 +138,18 @@ public:
 	static image_id get_back_wall_extension_image(uint8 wall, bool two_step, bool artificial)
 	{
 		return get_back_wall_image(two_step ? 8 : 4, artificial, wall);
+	}
+
+	/// Cut-face sprite for way-wall @p wall (0 = NW edge, 1 = N, 2 = NE,
+	/// 3 = SE, 4 = S, 5 = SW) with per-wall image @p index (0..10) under
+	/// the same `(h1, h2)` encoding as back-wall (`index = h1 + 3*h2`,
+	/// 9..10 for the double-height notch placeholder).  Returns
+	/// IMG_EMPTY when the pakset ships no `WayWall` descriptor (pak64
+	/// today, until an intra-tile cut atlas lands) — the engine's
+	/// `display_way_walls` pass is a no-op under that pakset.
+	static image_id get_way_wall_image(uint16 index, uint8 wall)
+	{
+		return way_wall ? way_wall->get_image(wall, index) : IMG_EMPTY;
 	}
 
 	static image_id get_border_image(slope_t::type slope_in)
