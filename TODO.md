@@ -238,14 +238,7 @@ connectivity except `Image[-]`.  Migrate per family, repointing
 existing pak cells onto the matching hex direction by onscreen
 heading (pak `N` = upper-right = hex NE; pak `E` = lower-right =
 hex SE; pak `S` = lower-left = hex SW; pak `W` = upper-left = hex
-NW).  Extended switch sprites (3-way junction art) are gone with
-the same change: `way_desc::has_switch_image` is hardcoded to
-`false`, `image_switch` in `weg_t::set_images` now routes through
-`get_image_id`, and the upstream 5-entry `ribi_to_extra` table is
-deleted.  `schiene_t::reserve` still toggles a `HAS_SWITCHED` flag
-that no longer affects rendering — vestigial, retire alongside
-the hex-aware vehicle-direction work in "ribi_t — audit
-surfaces".
+NW).
 
 River ways have a narrow engine-side visibility fallback:
 `way_desc_t::get_image_id` maps missing `type_river` multi-ribi
@@ -350,9 +343,9 @@ The simulation should speak full 6-way hex directions everywhere
 (the 6-bit `ribi_t`), without narrowing for the benefit of legacy
 4-direction art.  Sim-side code pattern-matching on square-era ribi
 values (`leitung2.cc` magic 3/6 in the crossing-image picker) or
-bound-checking with `ribi < 16` (`way_desc.h` switch sprites,
-`way_obj_desc.h` crossings) is residual square-grid assumption to
-clean up, not a sim/art compromise to ratify.
+bound-checking with `ribi < 16` (`way_obj_desc.h` crossings) is
+residual square-grid assumption to clean up, not a sim/art
+compromise to ratify.
 
 The current working hypothesis for where the seam between hex-aware
 sim and 4-direction pakset art lives is the descriptor API
@@ -542,21 +535,6 @@ cleanly when both layers' corners are at the same height), but
 hasn't been exercised by a concrete trace.  Run one through and
 either confirm or replace with a hex-aware lift; lands alongside
 the first real-gameplay surfacing of city / AI terraforming.
-
-`schiene_t::reserve` (`obj/way/schiene.cc:91`) computes
-`set_switched(dir == ribi_t::northeast || dir == ribi_t::southwest)`.
-The square upstream this was ported from used the old
-2-bit `northeast` / `southwest` *bend* constants (N|E and S|W); the
-hex rename made those single-bit values, but `reserve` is gated on
-`is_bend(dir)` which only fires for 2-bit ribis, so the equality
-test can never match and `set_switched` is always false — every
-3-way rail switch shows the unswitched sprite regardless of which
-leg the convoy takes.  Visual-only, but tied to the
-"Vehicle direction enum — compound 2-step displacements" cluster
-above: `dir` arrives via `ribi_type(prev_pos, next_pos)` whose
-2-step compound semantics are the same surface the rest of that
-cluster waits on.  Lands together with the hex-aware vehicle
-direction model.
 
 ## Renderer port
 

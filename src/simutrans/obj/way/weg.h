@@ -52,7 +52,6 @@ public:
 
 	enum {
 		HAS_SIDEWALK   = 1 << 0, // only roads
-		HAS_SWITCHED   = 1 << 0, // only rails
 		IS_ELECTRIFIED = 1 << 1,
 		HAS_SIGN       = 1 << 2,
 		HAS_SIGNAL     = 1 << 3,
@@ -270,9 +269,6 @@ public:
 	/* flag query routines */
 	void set_gehweg(const bool yesno) { flags = (yesno ? flags | HAS_SIDEWALK : flags & ~HAS_SIDEWALK); }
 	inline bool hat_gehweg() const { return flags & HAS_SIDEWALK; }
-
-	void set_switched(const bool yesno) { flags = (yesno ? flags | HAS_SWITCHED : flags & ~HAS_SWITCHED); }
-	inline bool has_switched() const { return flags & HAS_SWITCHED; }
 
 	void set_electrify(bool janein) {janein ? flags |= IS_ELECTRIFIED : flags &= ~IS_ELECTRIFIED;}
 	inline bool is_electrified() const {return flags&IS_ELECTRIFIED; }

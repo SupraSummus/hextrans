@@ -285,7 +285,7 @@ void convoi_t::reserve_route()
 		for(  route_t::index_t idx = back()->get_route_index();  idx < next_reservation_index  /*&&  idx < route.get_count()*/;  idx++  ) {
 			if(  grund_t *gr = welt->lookup( route.at(idx) )  ) {
 				if(  schiene_t *sch = (schiene_t *)gr->get_weg( front()->get_waytype() )  ) {
-					sch->reserve( self, ribi_type( route.at(max(1u,idx)-1u), route.at(min(route.get_count()-1u,idx+1u)) ) );
+					sch->reserve( self );
 				}
 			}
 		}
@@ -504,7 +504,7 @@ DBG_MESSAGE("convoi_t::finish_rd()","next_stop_index=%d", next_stop_index );
 				grund_t *gr=welt->lookup(v->get_pos());
 				// airplanes may have no ground ...
 				if (schiene_t* const sch0 = obj_cast<schiene_t>(gr->get_weg(fahr[i]->get_waytype()))) {
-					sch0->reserve(self,ribi_t::none);
+					sch0->reserve(self);
 				}
 			}
 			fahr[0]->set_leading(true);
@@ -2183,7 +2183,7 @@ void convoi_t::vorfahren()
 			// eventually reserve this
 			vehicle_t const& v = *fahr[i];
 			if (schiene_t* const sch0 = obj_cast<schiene_t>(welt->lookup(v.get_pos())->get_weg(v.get_waytype()))) {
-				sch0->reserve(self,ribi_t::none);
+				sch0->reserve(self);
 			}
 			else {
 				break;
@@ -2399,7 +2399,7 @@ void convoi_t::rdwr(loadsave_t *file)
 				}
 				// add to blockstrecke
 				if(schiene_t* sch = dynamic_cast<schiene_t*>(gr->get_weg(v->get_waytype()))) {
-					sch->reserve(self,ribi_t::none);
+					sch->reserve(self);
 				}
 				// add to crossing
 				if(crossing_t *cr = gr->get_crossing()) {
