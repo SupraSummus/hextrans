@@ -221,12 +221,6 @@ public:
 	/// `way_desc` save version 9; older nodes default to `false`.
 	bool has_double_slopes() const { return double_slopes; }
 
-	/// Diagonal (smooth out-of-axis bend) sprites — gone under hex,
-	/// every direction lies on an axis.  The imagelist node is still
-	/// emitted empty by `way_writer` to preserve the `+2` offset in
-	/// `image_list_base_index`.
-	bool has_diagonal_image() const { return false; }
-
 	/// Switched / un-switched 3-way junction sprites — gone under hex,
 	/// see `get_image_id` and TODO.md → "ribi_t — audit surfaces".
 	bool has_switch_image() const { return false; }

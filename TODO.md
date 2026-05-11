@@ -447,21 +447,14 @@ per-site review, some may want both 60° and 120° (test both
 adjacent axes), some may redesign the check entirely for hex
 3-axis geometry.
 
-**Diagonal way-image selection.**  Square-era code detected a
-smooth 45° diagonal way (a bend whose CW-endpoint neighbour
-carried the reverse bend) and switched to a `_diagonal` sprite
-variant.  Flat-top hex has 3 axes (N-S, NE-SW, NW-SE) — every
-direction lies on an axis, so there is no out-of-axis diagonal
-to detect.  Engine-side bookkeeping, the placement-preview
-diagonal branches in `simtool.cc`, and the unused
-`way_obj_desc_t::*_diagonal_image_id` accessors are deleted.
-`way_writer` now emits the diagonal imagelist node always-empty
-(the `+2` offset in `image_list_base_index` keeps it for layout
-compatibility) and `way_desc_t::has_diagonal_image` is hardcoded
-to `false`; `get_diagonal_image_id` consequently returns
-IMG_EMPTY for every input.  `leitung2.cc`'s old square-era combo
-casts into this lookup are now dead code waiting to be deleted
-in the "Powerline 3rd hex axis" cluster.
+**Diagonal way-image selection.**  Hex has no out-of-axis diagonal
+direction — every direction lies on an axis.  The `+2` offset for the
+diagonal slot in `way_desc_t::image_list_base_index` is preserved for
+save/load layout compatibility; `way_writer` emits an empty imagelist
+into it.  `leitung2.cc`'s 4 surviving `get_diagonal_image_id` calls
+on old 4-bit combo values (3, 6, 9, 12) are dead-end residue; delete
+together with the "Powerline 3rd hex axis" cluster's gameplay
+redesign.
 
 **Old-east→hex-SE, old-west→hex-NW rename convention.**  ~30+ sites
 in rendering, signs, and leaf files mechanically renamed
