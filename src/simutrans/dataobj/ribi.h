@@ -738,6 +738,29 @@ slope_t::type slope_type(koord dir);
  */
 slope_t::type slope_type(ribi_t::ribi);
 
+
+/// Canonical slope_t for image lookup when a way crosses @p sl along @p r.
+/// Pass-through for the 18 named slopes (narrow / wide / double).  For
+/// a "3-corner-arc" hex slope (three adjacent corners raised at h=1,
+/// e.g. encoded 000111) the rail rises 0→1 along the axis through @p r
+/// the same as the matching `*_narrow`, only the off-axis terrain
+/// inflection differs — the pakset already collapses narrow / wide
+/// onto one slope cell on that basis, so reusing it for arcs too keeps
+/// the rail visible without new art.  Returns @p sl unchanged when the
+/// axis isn't a clean 0→1 ramp; the slot label retains `raw_<int>` and
+/// `get_slope_image_id` returns `IMG_EMPTY` for those.
+static inline slope_t::type axis_slope_for_image(slope_t::type sl, ribi_t::ribi r)
+{
+	if (slope_t::is_axis_slope(sl) || slope_t::is_planar_double_edge(sl)) {
+		return sl;
+	}
+	uint8 a0, a1, b0, b1;
+	if (!slope_corners_along_axis(sl, r, a0, a1, b0, b1)) return sl;
+	if (a0 != a1 || b0 != b1 || a0 == b0)                 return sl;
+	const ribi_t::ribi axis = ribi_t::straight_axis(r);
+	return slope_type(a0 < b0 ? ribi_t::reverse_single(axis) : axis);
+}
+
 /**
  * Check if the slope is upwards, relative to the direction @p from.
  * @returns 1 for single upwards and 2 for double upwards

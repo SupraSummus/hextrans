@@ -421,7 +421,7 @@ way_image_slot_t weg_t::pick_image_slot() const
 	const slope_t::type hang = from->get_weg_hang();
 
 	if (hang != slope_t::flat && !slope_allows_flat_way_chord(hang, ribi)) {
-		const way_image_slot_t slope_slot = way_image_slot_t::for_slope(hang, snow);
+		const way_image_slot_t slope_slot = way_image_slot_t::for_slope(axis_slope_for_image(hang, ribi), snow);
 		// River fallback: rivers without slope sprites render flat,
 		// matching the surface under the slope.  The fallback is part
 		// of the slot pick (not a post-resolve fixup) so the returned

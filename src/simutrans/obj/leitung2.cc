@@ -266,7 +266,7 @@ void leitung_t::calc_image()
 	image_id old_image = get_image();
 	slope_t::type hang = gr->get_weg_hang();
 	if(hang != slope_t::flat) {
-		set_image( desc->get_slope_image_id(hang, snow));
+		set_image( desc->get_slope_image_id(axis_slope_for_image(hang, ribi), snow));
 	}
 	else {
 		if(gr->hat_wege()) {
