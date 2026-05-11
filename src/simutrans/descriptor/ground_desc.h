@@ -43,7 +43,8 @@ public:
 	static const ground_desc_t *marker;
 	static const ground_desc_t *borders;
 	static const ground_desc_t *sidewalk; // city-road pavement, keyed by raw slope_t
-	static const ground_desc_t *way_wall; // intra-tile cut walls, keyed (wall, index); optional
+	static const ground_desc_t *way_wall_back;  ///< intra-tile nasyp / cut walls — Back half, drawn before vehicles; optional
+	static const ground_desc_t *way_wall_front; ///< intra-tile nasyp / cut walls — Front half, drawn after vehicles; optional
 	static const ground_desc_t *sea;     // different water depth
 	static const ground_desc_t *outside;
 
@@ -140,16 +141,31 @@ public:
 		return get_back_wall_image(two_step ? 8 : 4, artificial, wall);
 	}
 
-	/// Cut-face sprite for way-wall @p wall (0 = NW edge, 1 = N, 2 = NE,
-	/// 3 = SE, 4 = S, 5 = SW) with per-wall image @p index (0..10) under
-	/// the same `(h1, h2)` encoding as back-wall (`index = h1 + 3*h2`,
-	/// 9..10 for the double-height notch placeholder).  Returns
-	/// IMG_EMPTY when the pakset ships no `WayWall` descriptor (pak64
-	/// today, until an intra-tile cut atlas lands) — the engine's
-	/// `display_way_walls` pass is a no-op under that pakset.
-	static image_id get_way_wall_image(uint16 index, uint8 wall)
+	/// Intra-tile nasyp / way-cut sprite for the way's chord block,
+	/// split along the hex depth-clip plane.  Keyed by way @p axis
+	/// (`hex_way_axis_t::NS`, `NE_SW`, `NW_SE`) and tile @p slope (raw
+	/// `slope_t` value, normalised via `slope_t::lower_min_corner`
+	/// before lookup).
+	///
+	/// Back atlas carries the chord-strip top quad + the camera-far
+	/// off-axis side cliff; drawn from `grund_t::display_boden` before
+	/// the way sprite and before vehicles.  Front atlas carries only
+	/// the camera-near off-axis cliff; drawn from
+	/// `grund_t::display_way_walls_front` (hooked off
+	/// `display_obj_fg`) AFTER vehicles so cuts on the camera side
+	/// correctly occlude the train.
+	///
+	/// Returns IMG_EMPTY when the pakset ships no `WayWallBack` /
+	/// `WayWallFront` descriptor (pak64), or for `(axis, slope)`
+	/// configurations the atlas omits — the matching draw pass is
+	/// then a no-op.
+	static image_id get_way_wall_back_image(uint8 axis, slope_t::type slope)
 	{
-		return way_wall ? way_wall->get_image(wall, index) : IMG_EMPTY;
+		return way_wall_back ? way_wall_back->get_image(axis, slope_t::lower_min_corner(slope)) : IMG_EMPTY;
+	}
+	static image_id get_way_wall_front_image(uint8 axis, slope_t::type slope)
+	{
+		return way_wall_front ? way_wall_front->get_image(axis, slope_t::lower_min_corner(slope)) : IMG_EMPTY;
 	}
 
 	static image_id get_border_image(slope_t::type slope_in)

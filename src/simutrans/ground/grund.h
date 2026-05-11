@@ -242,14 +242,22 @@ protected:
 	// calculates the slope image and sets the draw_as_obj flag correctly
 	void calc_back_image(const sint8 hgt,const slope_t::type slope_this);
 
-	// draws the intra-tile way-cut walls bracketing the off-axis
-	// corners.  Called from `display_boden` after the ground tile.
-	// Renders nothing under paksets without a WayWall descriptor.
+	// draws the intra-tile nasyp / way-cut walls split along the hex
+	// depth-clip plane.  Back: chord-strip top + camera-far cliff,
+	// drawn from `display_boden` before the way sprite.  Front:
+	// camera-near cliff, drawn from `display_obj_fg` after vehicles
+	// so a cut on the camera side overlays the train.  Both render
+	// nothing under paksets without the matching WayWall descriptor.
 	void display_way_walls(sint16 xpos, sint16 ypos, sint16 raster_tile_width
 #ifdef MULTI_THREAD
 	                       , sint8 clip_num
 #endif
 	                       ) const;
+	void display_way_walls_front(sint16 xpos, sint16 ypos, sint16 raster_tile_width
+#ifdef MULTI_THREAD
+	                             , sint8 clip_num
+#endif
+	                             ) const;
 
 	// this is the real image calculation, called for the actual ground image
 	virtual void calc_image_internal(const bool calc_only_snowline_change) = 0;

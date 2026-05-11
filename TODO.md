@@ -648,40 +648,23 @@ double-height notch shape that the pakset renderer at
 `hextrans-pak128/landscape/grounds/back_wall/render.py` doesn't yet
 model; revisit if stacked terraforming reads wrong.
 
-Way embankment / cutting walls inside a tile are partially rendered.
-The cutting case (way below natural ground) lands as
-`grund_t::display_way_walls` reading the pakset's `WayWall`
-descriptor (`landscape/grounds/way_wall/`), called from
-`display_boden` before the way draw with a `dbg->fatal`
-pinched-wall tripwire.  Two pieces still missing:
+Way wall trapezoid sides approximate the natural ground along the
+chord strip's long edge as a constant equal to the off-axis corner
+height (`landscape/grounds/way_wall/build_pakset.py::_add_side_quad`).
+The real surface interpolates piecewise-linearly across the slope's
+coplanar regions, so the trapezoid undershoots when the long edge
+crosses through a tile region whose interior height differs from
+the off-axis corner.  Triggers when a cut's silhouette visibly
+clips through the natural ground at high half-width; replace with
+a polyline fan keyed off `hex_synth.iter_region_polygons`.
 
-*Embankment direction, triggers on the first save-state tile with
-`h_way > h_corner` on an off-axis vertex.*  `display_way_walls`
-clamps `delta = max(0, h_corner - h_way)`, so embankments render
-empty today.  Sign-bit packing in `get_way_wall_image` plus a
-second draw pass after the way (currently the way draws inside
-`display_boden`, line ~1383 — needs lifting into pre- / post- way
-phases) cover this; the `WayWall` atlas already encodes both
-directions geometrically and only the palette and engine-side
-plumbing are missing.  `brueckenboden_t` ramps and
-`tunnelboden_t` portals are the typical embankment sites — retire
-any ramp art they ship if the new path covers it.
-
-*Ramp body, triggers when the first ramp tile fires the v1 short
-circuit and the user notices.*  Today the
-`if (h_way != h) return` early-exit silently skips ramp ways
-(where `slope_way_h_at_edge` returns the level-corner height,
-which differs per touched edge).  Replace with per-corner `h_way`
-reasoning: each of the 6 corners belongs to one or two of the way's
-axis edges, and `h_way` at that corner is the relevant edge's
-level-corner height (or the ramp midpoint interpolated, if both
-axis edges touch).  Lands with the embankment direction above;
-both share the per-corner restructure.
-
-If the engine fatal fires, the bug is upstream
-(`slope_allows_ribi` or the way-edge-height contract) and that's
-the fix — the wall renderer caught a wrong thing on its way in,
-it hasn't shipped one.
+Way wall on bend / junction ribis returns early in
+`display_way_walls` (any ribi where `straight_axis` is `none`).
+The atlas key would have to widen — possibly `(ribi, slope)` or
+layered single-axis cells — and the bend's chord-plane geometry
+isn't a single straight strip.  Triggers when a city builder
+places a junction on a slope and the player notices the embankment
+vanishing.
 
 Fence sprites (`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
 `ground_desc_t::fences`) still use `tile_raster_scale_y` for the
