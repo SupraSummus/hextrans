@@ -155,18 +155,23 @@ public:
 	/// `display_obj_fg`) AFTER vehicles so cuts on the camera side
 	/// correctly occlude the train.
 	///
+	/// The pakset cells are Lambert lightmaps; `init_ground_textures`
+	/// composes each populated `(axis, slope)` against every climate's
+	/// `boden_texture` via `create_textured_tile`, and these accessors
+	/// return the composited image_id for the caller's @p cl — so the
+	/// wall surface shows the same terrain texture as the surrounding
+	/// ground tile, Lambert-shaded by face normal.  @p cl is the
+	/// climate enum (water_climate..arctic_climate); the lookup picks
+	/// the desert variant for `water_climate` (which can't carry a way
+	/// anyway) so a misrouted call degrades to a visible sprite rather
+	/// than IMG_EMPTY.
+	///
 	/// Returns IMG_EMPTY when the pakset ships no `WayWallBack` /
 	/// `WayWallFront` descriptor (pak64), or for `(axis, slope)`
 	/// configurations the atlas omits — the matching draw pass is
 	/// then a no-op.
-	static image_id get_way_wall_back_image(uint8 axis, slope_t::type slope)
-	{
-		return way_wall_back ? way_wall_back->get_image(axis, slope_t::lower_min_corner(slope)) : IMG_EMPTY;
-	}
-	static image_id get_way_wall_front_image(uint8 axis, slope_t::type slope)
-	{
-		return way_wall_front ? way_wall_front->get_image(axis, slope_t::lower_min_corner(slope)) : IMG_EMPTY;
-	}
+	static image_id get_way_wall_back_image(uint8 axis, slope_t::type slope, climate cl);
+	static image_id get_way_wall_front_image(uint8 axis, slope_t::type slope, climate cl);
 
 	static image_id get_border_image(slope_t::type slope_in)
 	{
