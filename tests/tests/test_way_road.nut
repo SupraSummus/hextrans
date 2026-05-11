@@ -245,6 +245,50 @@ function test_way_road_build_ne_sw()
 }
 
 
+// Bend rejected on a 3-corner ramp slope.  (3,2) has SW, SE, E raised:
+// the NW-SE axis is a clean ramp (low NW edge `{W=0, NW=0}`, high SE
+// edge `{E=1, SE=1}`), the N-S axis also passes the 4-axis-corner
+// test but `chord_h_axis = -1` on both axes.
+//
+// Step 1: stub from (2,2) → (3,2) follows the NW-SE ramp axis,
+// drawn as a slope-up way.
+//
+// Step 2: stub from (3,1) → (3,2) would OR an N bit onto the existing
+// NW ribi.  Touched axes (N and NW) both have `chord_h_axis = -1`, so
+// the bend has no flat-chord placement — engine refuses.  Mirrors
+// `test_way_rail_reject_bend_around_se_on_nw_high_tile` on a different
+// ramp shape.
+function test_way_road_build_bend_on_3corner_ramp()
+{
+	local pl      = player_x(0)
+	local desc    = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local remover = command_x(tool_remove_way)
+
+	// Raise SW, SE, E of (3,2).  Per-vertex propagation gives (3,3) a
+	// south_narrow, (4,2) a southeast_narrow, plus single-corner side
+	// slopes on (4,1) and (2,3); (2,2) and (3,1) stay flat.
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(3, 3, 0)), null)                  // (3,2).SW
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(3, 2, 0), 1), null)     // (3,2).SE
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 2, 0)), null)                  // (3,2).E
+
+	// Build 1: NW->SE stub along the ramp axis.  Succeeds.
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(3, 2, 0), desc, true), null)
+	ASSERT_EQUAL(tile_x(3, 2, 0).get_way_dirs(wt_road), 8)  // NW only
+
+	// Build 2: N->S stub onto the same tile.  Must be refused.
+	ASSERT_TRUE(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 2, 0), desc, true) != null)
+	ASSERT_EQUAL(tile_x(3, 2, 0).get_way_dirs(wt_road), 8)  // still NW only
+
+	// Tear down: remove the road, restore terrain.
+	ASSERT_EQUAL(remover.work(pl, tile_x(2, 2, 0), coord3d(3, 2, 0), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 2, 1)), null)                  // (3,2).E
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(3, 2, 1), 1), null)     // (3,2).SE
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(3, 3, 1)), null)                  // (3,2).SW
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // test_way_road_build_parallel: HEX-PORT PENDING.
 function test_way_road_build_parallel()
 {

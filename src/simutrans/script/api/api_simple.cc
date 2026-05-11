@@ -383,20 +383,21 @@ void export_simple(HSQUIRRELVM vm)
 	 * Whether a tile with this slope can geometrically support a way
 	 * with this ribi.  Each set ribi bit names an exit edge; that edge
 	 * must be internally level (a half-raised edge runs the slope
-	 * sideways across the way body).  The collected edge heights must
-	 * form either a flat chord (all equal — the body sits flat) or a
-	 * single-axis ramp (two adjacent heights differing by 1, all
-	 * touched bits on one axis — the body slopes uniformly along that
-	 * axis).  Mirrors `slope_allows_ribi` in `dataobj/ribi.h`.
+	 * sideways across the way body).  Single-axis ribi admits chord
+	 * or single-axis ramp body; multi-axis ribi (bends / junctions)
+	 * admits only flat-chord placements where every touched axis
+	 * agrees on the chord height.  Mirrors `slope_allows_ribi` in
+	 * `dataobj/ribi.h`.
 	 * @param s slope
 	 * @param r ribi (multi-bit allowed for bends and junctions)
 	 */
 	STATIC register_method(vm, &slope_allows_ribi_export, "allows_ribi", false, true);
 	/**
 	 * True iff a way with ribi @p r sits at constant height on slope @p s.
-	 * Single-bit ribi on a ramp slope (`*_narrow` / `*_wide` / `*_double`)
-	 * always returns false.  Mirrors `slope_allows_flat_way_chord` in
-	 * `dataobj/ribi.h`.
+	 * False whenever any touched axis has no flat chord at the
+	 * required height — single-bit stubs on ramp slopes and bends
+	 * around the low corner of a ramp slope both fall out.  Mirrors
+	 * `slope_allows_flat_way_chord` in `dataobj/ribi.h`.
 	 */
 	STATIC register_method(vm, &slope_allows_flat_way_chord_export, "allows_flat_way_chord", false, true);
 	end_class(vm);
