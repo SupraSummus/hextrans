@@ -1039,26 +1039,37 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 }
 
 
-// Per-wall geometry for `display_way_walls`: the 6 hex edges of a
-// tile in the order the WayWall atlas keys them (matches the pakset's
-// `landscape/grounds/way_wall/way_wall.py::WALL_ENDPOINTS`).  Each
-// entry names the ribi bit through this edge (so we can ask "does the
-// way touch this edge?") and the two `hex_corner_t` endpoints in
-// screen-CW order (`a` = screen-up / left vertex, `b` = the next one
-// CW around the hex outline).  Walls 0..2 mirror `back_wall_geometry`
-// above; walls 3..5 cover the screen-down edges that back-wall omits.
-struct way_wall_geometry_t {
-	ribi_t::ribi edge_ribi;
-	hex_corner_t::type corner_a, corner_b;
-};
-static const way_wall_geometry_t way_wall_geometry[6] = {
-	{ ribi_t::northwest, hex_corner_t::W,  hex_corner_t::NW }, // wall 0: NW edge
-	{ ribi_t::north,     hex_corner_t::NW, hex_corner_t::NE }, // wall 1: N  edge
-	{ ribi_t::northeast, hex_corner_t::NE, hex_corner_t::E  }, // wall 2: NE edge
-	{ ribi_t::southeast, hex_corner_t::E,  hex_corner_t::SE }, // wall 3: SE edge
-	{ ribi_t::south,     hex_corner_t::SE, hex_corner_t::SW }, // wall 4: S  edge
-	{ ribi_t::southwest, hex_corner_t::SW, hex_corner_t::W  }, // wall 5: SW edge
-};
+// Resolve the way's hex axis from the tile's first way + slope, or
+// return false if the tile has no way wall to draw (no way, flat tile,
+// non-axis ribi).  Shared by the Back pre-vehicle and Front
+// post-vehicle draw passes so they iterate the same gate.
+static bool resolve_way_wall(grund_t const* gr, uint8& axis_out, slope_t::type& slope_out)
+{
+	weg_t const* w = gr->get_weg_nr(0);
+	if(  !w  ) {
+		return false;
+	}
+	const ribi_t::ribi rib = w->get_ribi_unmasked();
+	if(  rib == ribi_t::none  ) {
+		return false;
+	}
+	const slope_t::type sl = gr->get_disp_slope();
+	if(  sl == slope_t::flat  ) {
+		return false;
+	}
+	// `straight_axis` folds a 6-edge ribi onto its 3-axis equivalence
+	// class (north / northeast / northwest); multi-axis ribis (bends,
+	// junctions) return `none` and we skip — bends on slopes need a
+	// per-corner treatment the v1 atlas doesn't cover yet.
+	switch(  ribi_t::straight_axis(rib)  ) {
+		case ribi_t::north:     axis_out = hex_way_axis_t::NS;    break;
+		case ribi_t::northeast: axis_out = hex_way_axis_t::NE_SW; break;
+		case ribi_t::northwest: axis_out = hex_way_axis_t::NW_SE; break;
+		default:                return false;
+	}
+	slope_out = sl;
+	return true;
+}
 
 
 #ifdef MULTI_THREAD
@@ -1067,78 +1078,49 @@ void grund_t::display_way_walls(sint16 xpos, sint16 ypos, sint16 raster_tile_wid
 void grund_t::display_way_walls(sint16 xpos, sint16 ypos, sint16 raster_tile_width) const
 #endif
 {
-	// Cheapest possible NULL-pakset gate: pak64 ships no WayWall, so
-	// every call below short-circuits before any per-edge work.
-	if(  !ground_desc_t::way_wall  ) {
+	// Cheapest NULL-pakset gate: pak64 ships no WayWallBack.
+	if(  !ground_desc_t::way_wall_back  ) {
 		return;
 	}
-
-	weg_t const* w = get_weg_nr(0);
-	if(  !w  ) {
+	uint8 axis;
+	slope_t::type sl;
+	if(  !resolve_way_wall(this, axis, sl)  ) {
 		return;
 	}
-	const ribi_t::ribi rib = w->get_ribi_unmasked();
-	if(  rib == ribi_t::none  ) {
+	const image_id img = ground_desc_t::get_way_wall_back_image(axis, sl);
+	if(  img == IMG_EMPTY  ) {
 		return;
 	}
-
-	const slope_t::type sl = get_disp_slope();
-	if(  sl == slope_t::flat  ) {
-		return;
-	}
-
-	// Way chord height — taken at the first touched edge.  For flat-chord
-	// ways every touched edge agrees (slope_allows_flat_way_chord); for
-	// ramp ways h_way varies along the axis and this is wrong, so skip
-	// the ramp case for v1 by checking all touched edges agree.
-	sint8 h_way = -1;
-	for(  uint8 b = 0;  b < 6;  b++  ) {
-		const ribi_t::ribi dir = (ribi_t::ribi)(1u << b);
-		if(  !(rib & dir)  ) continue;
-		const sint8 h = slope_way_h_at_edge(sl, dir);
-		if(  h < 0  ) return; // non-axis ribi or flat slope (slope_t::flat already rejected)
-		if(  h_way < 0  ) {
-			h_way = h;
-		}
-		else if(  h_way != h  ) {
-			return; // ramp body — v1 only handles flat chord
-		}
-	}
-	if(  h_way < 0  ) {
-		return;
-	}
-
 	const bool dirty = get_flag(grund_t::dirty);
-	const sint16 yoff = hex_height_raster_scale_y( -TILE_HEIGHT_STEP * h_way, raster_tile_width );
+	gfx->draw_normal( img, xpos, ypos, 0, true, dirty CLIP_NUM_PAR );
+}
 
-	for(  uint8 wall = 0;  wall < 6;  wall++  ) {
-		const way_wall_geometry_t &g = way_wall_geometry[wall];
-		const sint8 h_a = (sint8)corner_height(sl, g.corner_a);
-		const sint8 h_b = (sint8)corner_height(sl, g.corner_b);
-		const sint8 d_a = (sint8)max(0, h_a - h_way);
-		const sint8 d_b = (sint8)max(0, h_b - h_way);
-		if(  d_a == 0 && d_b == 0  ) continue;
 
-		// Pinched-wall invariant: exactly one endpoint at zero.  The
-		// design rests on this — `slope_way_h_at_edge` pins `W == G`
-		// at every corner of every edge the way's ribi touches, so
-		// only the two off-axis corners can differ, and each is
-		// bracketed by two off-axis edges with the pinched form.  If
-		// this fires the bug is upstream of the wall renderer.
-		if(  d_a != 0 && d_b != 0  ) {
-			dbg->fatal("grund_t::display_way_walls",
-				"pinched-wall invariant violated at %s "
-				"(wall=%u slope=%u ribi=%u h_way=%d corners=(%d, %d))",
-				get_pos().get_str(), wall, (uint16)sl, (uint8)rib,
-				(int)h_way, (int)d_a, (int)d_b);
-		}
-
-		const uint16 index = (uint16)(d_a + 3 * d_b);
-		const image_id img = ground_desc_t::get_way_wall_image(index, wall);
-		if(  img != IMG_EMPTY  ) {
-			gfx->draw_normal( img, xpos, ypos + yoff, 0, true, dirty CLIP_NUM_PAR );
-		}
+#ifdef MULTI_THREAD
+void grund_t::display_way_walls_front(sint16 xpos, sint16 ypos, sint16 raster_tile_width, sint8 clip_num) const
+#else
+void grund_t::display_way_walls_front(sint16 xpos, sint16 ypos, sint16 raster_tile_width) const
+#endif
+{
+	// Front-layer pass: drawn from `display_obj_fg` AFTER
+	// `display_obj_vh` paints vehicles, so the camera-near cliff face
+	// of a cut wall correctly overlays the train.  Companion Back
+	// pass (`display_way_walls`) drew the chord-strip top + the
+	// camera-far cliff before the way sprite.
+	if(  !ground_desc_t::way_wall_front  ) {
+		return;
 	}
+	uint8 axis;
+	slope_t::type sl;
+	if(  !resolve_way_wall(this, axis, sl)  ) {
+		return;
+	}
+	const image_id img = ground_desc_t::get_way_wall_front_image(axis, sl);
+	if(  img == IMG_EMPTY  ) {
+		return;
+	}
+	const bool dirty = get_flag(grund_t::dirty);
+	gfx->draw_normal( img, xpos, ypos, 0, true, dirty CLIP_NUM_PAR );
 }
 
 
@@ -1831,6 +1813,17 @@ uint8 grund_t::display_obj_vh(const sint16 xpos, const sint16 ypos, const uint8 
 void grund_t::display_obj_fg(const sint16 xpos, const sint16 ypos, const bool is_global, const uint8 start_offset CLIP_NUM_DEF ) const
 {
 	const bool dirty = get_flag(grund_t::dirty);
+	// Intra-tile cut/nasyp Front layer: the off-axis cliff that
+	// faces the camera, drawn AFTER `display_obj_vh` painted
+	// vehicles so a cut wall on the camera side correctly occludes
+	// the train.  Companion Back layer drew the chord-strip top +
+	// camera-far cliff in `display_boden` before the way sprite.
+	const sint16 raster_tile_width = gfx->get_current_tile_raster_width();
+#ifdef MULTI_THREAD
+	display_way_walls_front( xpos, ypos, raster_tile_width, clip_num );
+#else
+	display_way_walls_front( xpos, ypos, raster_tile_width );
+#endif
 #ifdef MULTI_THREAD
 	objlist.display_obj_fg( xpos, ypos, start_offset CLIP_NUM_PAR );
 #else
