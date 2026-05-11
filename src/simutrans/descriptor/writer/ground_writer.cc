@@ -22,7 +22,7 @@ void ground_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& obj)
 
 	// Either axis can be a raw slope_t — sidewalk / borders / ShoreTrans
 	// put slope on the outer axis with a small inner (stage / mask),
-	// way_wall flips it (axis outer, slope inner).  Read the populated
+	// way_ground flips it (axis outer, slope inner).  Read the populated
 	// keys directly and emit a dense 2D table over their bounding box;
 	// in-range holes become "-" (the empty-image marker
 	// `image_writer_t` understands), trailing outer / inner gaps trim.

@@ -43,8 +43,7 @@ public:
 	static const ground_desc_t *marker;
 	static const ground_desc_t *borders;
 	static const ground_desc_t *sidewalk; // city-road pavement, keyed by raw slope_t
-	static const ground_desc_t *way_wall_back;  ///< intra-tile nasyp / cut walls — Back half, drawn before vehicles; optional
-	static const ground_desc_t *way_wall_front; ///< intra-tile nasyp / cut walls — Front half, drawn after vehicles; optional
+	static const ground_desc_t *way_ground;  ///< per-(axis, slope) ground lightmap for tiles carrying a way; replaces the natural-ground lookup for those tiles. Optional.
 	static const ground_desc_t *sea;     // different water depth
 	static const ground_desc_t *outside;
 
@@ -141,37 +140,31 @@ public:
 		return get_back_wall_image(two_step ? 8 : 4, artificial, wall);
 	}
 
-	/// Intra-tile nasyp / way-cut sprite for the way's chord block,
-	/// split along the hex depth-clip plane.  Keyed by way @p axis
-	/// (`hex_way_axis_t::NS`, `NE_SW`, `NW_SE`) and tile @p slope (raw
-	/// `slope_t` value, normalised via `slope_t::lower_min_corner`
-	/// before lookup).
-	///
-	/// Back atlas carries the chord-strip top quad + the camera-far
-	/// off-axis side cliff; drawn from `grund_t::display_boden` before
-	/// the way sprite and before vehicles.  Front atlas carries only
-	/// the camera-near off-axis cliff; drawn from
-	/// `grund_t::display_way_walls_front` (hooked off
-	/// `display_obj_fg`) AFTER vehicles so cuts on the camera side
-	/// correctly occlude the train.
+	/// Full-tile ground sprite for tiles carrying a way along @p axis
+	/// (`hex_way_axis_t::NS`, `NE_SW`, `NW_SE`) on tile @p slope (raw
+	/// `slope_t`, normalised via `slope_t::lower_min_corner` before
+	/// lookup).  The central chord strip is at the way's chord
+	/// height; the two off-axis corner triangles slant from the
+	/// chord plane up/down to the slope's natural corner heights —
+	/// reads as a *cut* when the corner rises above the chord, a
+	/// *nasyp* (embankment) when it sinks below.
 	///
 	/// The pakset cells are Lambert lightmaps; `init_ground_textures`
 	/// composes each populated `(axis, slope)` against every climate's
-	/// `boden_texture` via `create_textured_tile`, and these accessors
-	/// return the composited image_id for the caller's @p cl — so the
-	/// wall surface shows the same terrain texture as the surrounding
-	/// ground tile, Lambert-shaded by face normal.  @p cl is the
-	/// climate enum (water_climate..arctic_climate); the lookup picks
-	/// the desert variant for `water_climate` (which can't carry a way
-	/// anyway) so a misrouted call degrades to a visible sprite rather
-	/// than IMG_EMPTY.
+	/// `boden_texture` via `create_textured_tile`, and this accessor
+	/// returns the composited image_id for the caller's @p cl — so
+	/// the tile shows the same earth/grass texture as a normal ground
+	/// tile, Lambert-shaded by face normal.  @p cl is the climate
+	/// enum (water_climate..arctic_climate); the lookup picks the
+	/// desert variant for `water_climate` (which can't carry a way
+	/// anyway) so a misrouted call degrades to a visible sprite
+	/// rather than IMG_EMPTY.
 	///
-	/// Returns IMG_EMPTY when the pakset ships no `WayWallBack` /
-	/// `WayWallFront` descriptor (pak64), or for `(axis, slope)`
-	/// configurations the atlas omits — the matching draw pass is
-	/// then a no-op.
-	static image_id get_way_wall_back_image(uint8 axis, slope_t::type slope, climate cl);
-	static image_id get_way_wall_front_image(uint8 axis, slope_t::type slope, climate cl);
+	/// Returns IMG_EMPTY when the pakset ships no `WayGround`
+	/// descriptor (pak64) or for `(axis, slope)` configurations the
+	/// atlas omits — the caller falls back to the natural-ground
+	/// `LightTexture` lookup.
+	static image_id get_way_ground_image(uint8 axis, slope_t::type slope, climate cl);
 
 	static image_id get_border_image(slope_t::type slope_in)
 	{

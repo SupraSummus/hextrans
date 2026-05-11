@@ -642,24 +642,16 @@ double-height notch shape that the pakset renderer at
 `hextrans-pak128/landscape/grounds/back_wall/render.py` doesn't yet
 model; revisit if stacked terraforming reads wrong.
 
-Way wall trapezoid sides approximate the natural ground along the
-chord strip's long edge as a constant equal to the off-axis corner
-height (`landscape/grounds/way_wall/build_pakset.py::_add_side_quad`).
-The real surface interpolates piecewise-linearly across the slope's
-coplanar regions, so the trapezoid undershoots when the long edge
-crosses through a tile region whose interior height differs from
-the off-axis corner.  Triggers when a cut's silhouette visibly
-clips through the natural ground at high half-width; replace with
-a polyline fan keyed off `hex_synth.iter_region_polygons`.
-
-Way wall on bend / junction ribis returns early in
-`display_way_walls` (any ribi where `straight_axis` is `none`).
-The atlas key would have to widen — possibly `(ribi, slope)` or
-layered single-axis cells — and the bend's chord-plane geometry
-isn't a single straight strip.  Triggers when a city builder
-places a junction on a slope and the player notices the embankment
-vanishing.
-`resolve_way_wall` skips save-state slope/ribi pairs rejected by
+Way-ground on bend / junction ribis returns early in
+`display_way_ground` (any ribi where `straight_axis` is `none`),
+so the natural-ground tile is drawn unmodified — the way sprite
+then renders against unfilled corner triangles and the embankment
+visually vanishes.  The atlas key would have to widen
+(`(ribi, slope)` or layered single-axis cells), and the bend's
+chord plane isn't a single straight strip so the
+`way_ground/build_pakset.py` geometry needs a second case.
+Triggers when a city builder places a junction on a slope.
+`resolve_way_ground` skips save-state slope/ribi pairs rejected by
 `slope_allows_ribi`, so legacy or transitional saves with forbidden
 ways do not abort while drawing.  A load-time validator remains the
 proper cleanup move when save migration gets a dedicated pass.
