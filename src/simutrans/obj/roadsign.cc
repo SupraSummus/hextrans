@@ -250,6 +250,8 @@ void roadsign_t::calc_image()
 	const slope_t::type full_hang = gr->get_weg_hang();
 	const sint8 hang_diff = slope_t::max_diff(full_hang);
 	const ribi_t::ribi hang_dir = ribi_t::backward( ribi_type(full_hang) );
+	const weg_t *sign_way = gr->get_weg(desc->get_wtyp()!=tram_wt ? desc->get_wtyp() : track_wt);
+	const bool flat_way_body = sign_way && (full_hang == slope_t::flat  ||  slope_allows_flat_way_chord(full_hang, sign_way->get_ribi_unmasked()));
 
 	// private way have also closed/open states
 	if(  desc->is_private_way()  ) {
@@ -260,7 +262,10 @@ void roadsign_t::calc_image()
 		}
 		set_image( desc->get_image_id(image) );
 		set_yoff( 0 );
-		if(  hang_diff  ) {
+		if(  flat_way_body  ) {
+			set_yoff( sign_way->get_yoff() );
+		}
+		else if(  hang_diff  ) {
 				set_yoff( -(TILE_HEIGHT_STEP*hang_diff)/2 );
 		}
 		else {
@@ -270,8 +275,8 @@ void roadsign_t::calc_image()
 		return;
 	}
 
-	if(  hang_diff == 0  ) {
-		yoff = -gr->get_weg_yoff();
+	if(  flat_way_body  ) {
+		yoff = sign_way->get_yoff();
 		after_yoffset = yoff;
 	}
 	else {

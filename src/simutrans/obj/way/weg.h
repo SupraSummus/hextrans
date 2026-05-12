@@ -158,6 +158,13 @@ public:
 	void apply_image_slot(const way_image_slot_t& slot);
 
 	/**
+	 * Vertical sprite offset for a way body on @p hang with @p slot.
+	 * Flat chord slots may sit above the tile base; slope / borrowed
+	 * slots keep their existing placement.
+	 */
+	static sint8 calc_render_yoff(slope_t::type hang, const way_image_slot_t& slot, sint8 current_yoff = 0);
+
+	/**
 	 * Called whenever the season or snowline height changes
 	 * return false and the obj_t will be deleted
 	 */

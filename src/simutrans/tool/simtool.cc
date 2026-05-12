@@ -2943,12 +2943,13 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 			const slope_t::type hang = gr->get_weg_hang();
 			if (hang != slope_t::flat  &&  !slope_allows_flat_way_chord(hang, zeige)) {
 				way->set_image(desc->get_slope_image_id(axis_slope_for_image(hang, zeige), 0));
+				way->set_yoff(0);
 			}
 			else {
 				way->set_image(desc->get_image_id(zeige, 0));
+				way->set_yoff(weg_t::calc_render_yoff(hang, way_image_slot_t::for_flat(zeige, false)));
 			}
 			gr->obj_add(way);
-			way->set_yoff(-gr->get_weg_yoff());
 			marked.insert(way);
 			way->mark_image_dirty(way->get_image(), 0);
 		}
@@ -3448,9 +3449,11 @@ void tool_build_tunnel_t::mark_tiles(  player_t *player, const koord3d &start, c
 			const slope_t::type hang = gr->get_weg_hang();
 			if(hang != slope_t::flat  &&  !slope_allows_flat_way_chord(hang, zeige)) {
 				way->set_image( wb->get_slope_image_id(axis_slope_for_image(hang, zeige), 0) );
+				way->set_yoff(0);
 			}
 			else {
 				way->set_image( wb->get_image_id(zeige,0) );
+				way->set_yoff(weg_t::calc_render_yoff(hang, way_image_slot_t::for_flat(zeige, false)));
 			}
 			gr->obj_add( way );
 			marked.insert( way );

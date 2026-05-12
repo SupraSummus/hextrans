@@ -705,7 +705,10 @@ static inline sint8 slope_level_edge_h(slope_t::type sl, ribi_t::ribi r)
 /// (`*_narrow` / `*_wide` / `*_double` and 3-corner-arc shapes) fall
 /// out of this rule too: the only axis they touch is the slope's
 /// ramp axis, whose `chord_h_axis` is -1.
-static inline bool slope_allows_flat_way_chord(slope_t::type sl, ribi_t::ribi r)
+///
+/// Returns the common height delta for that flat chord, or -1 when no
+/// such chord exists.
+static inline sint8 slope_flat_way_chord_h(slope_t::type sl, ribi_t::ribi r)
 {
 	sint8        h    = -1;
 	ribi_t::ribi axes = ribi_t::none;
@@ -713,16 +716,21 @@ static inline bool slope_allows_flat_way_chord(slope_t::type sl, ribi_t::ribi r)
 		const ribi_t::ribi dir = (ribi_t::ribi)(1u << b);
 		if (!(r & dir)) continue;
 		const sint8 eh = slope_level_edge_h(sl, dir);
-		if (eh < 0) return false;
+		if (eh < 0) return -1;
 		if (h < 0)       h = eh;
-		else if (h != eh) return false;
+		else if (h != eh) return -1;
 		axes |= ribi_t::straight_axis(dir);
 	}
-	if (h < 0) return false;
+	if (h < 0) return -1;
 	for (ribi_t::ribi axis : { ribi_t::north, ribi_t::northeast, ribi_t::northwest }) {
-		if ((axes & axis) && slope_chord_h_along_axis(sl, axis) != h) return false;
+		if ((axes & axis) && slope_chord_h_along_axis(sl, axis) != h) return -1;
 	}
-	return true;
+	return h;
+}
+
+static inline bool slope_allows_flat_way_chord(slope_t::type sl, ribi_t::ribi r)
+{
+	return slope_flat_way_chord_h(sl, r) >= 0;
 }
 
 /// Height delta (above tile base) at which a way sits at the edge in

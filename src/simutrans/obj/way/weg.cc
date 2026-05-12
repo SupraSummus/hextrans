@@ -471,6 +471,27 @@ static void apply_foreground_suppression(weg_t* w, const grund_t* from, const wa
 }
 
 
+sint8 weg_t::calc_render_yoff(slope_t::type hang, const way_image_slot_t& slot, sint8 current_yoff)
+{
+	if (slot.kind() == way_image_slot_t::kind_t::none) {
+		return current_yoff;
+	}
+	if (slot.kind() == way_image_slot_t::kind_t::flat) {
+		const sint8 chord_h = slope_flat_way_chord_h(hang, slot.get_ribi());
+		if (chord_h > 0) {
+			return (sint8)(-TILE_HEIGHT_STEP * chord_h);
+		}
+	}
+	return 0;
+}
+
+
+static void apply_way_render_yoff(weg_t* w, const grund_t* from, const way_image_slot_t& slot)
+{
+	w->set_yoff(weg_t::calc_render_yoff(from->get_weg_hang(), slot, w->get_yoff()));
+}
+
+
 // much faster recalculation of season image
 bool weg_t::check_season(const bool calc_only_season_change)
 {
@@ -505,6 +526,7 @@ bool weg_t::check_season(const bool calc_only_season_change)
 
 	const way_image_slot_t slot = pick_image_slot();
 	apply_image_slot(slot);
+	apply_way_render_yoff(this, gr, slot);
 	apply_foreground_suppression(this, gr, slot);
 	return true;
 }
@@ -531,6 +553,7 @@ void weg_t::calc_image()
 #endif
 	grund_t *from = welt->lookup(get_pos());
 	const image_id old_image = image;
+	const sint8 old_yoff = get_yoff();
 
 	if (from == NULL || desc == NULL) {
 		// Malformed state: way without a tile (enlargement) or without
@@ -564,11 +587,12 @@ void weg_t::calc_image()
 		// (bruecke_t / tunnel_t) image stays in place.
 		const way_image_slot_t slot = pick_image_slot();
 		apply_image_slot(slot);
+		apply_way_render_yoff(this, from, slot);
 		apply_foreground_suppression(this, from, slot);
 	}
-	if(  image!=old_image  ) {
-		mark_image_dirty(old_image, from->get_weg_yoff());
-		mark_image_dirty(image, from->get_weg_yoff());
+	if(  image!=old_image  ||  get_yoff()!=old_yoff  ) {
+		mark_image_dirty(old_image, old_yoff);
+		mark_image_dirty(image, get_yoff());
 	}
 #ifdef MULTI_THREAD
 	pthread_mutex_unlock( &weg_calc_image_mutex );

@@ -358,6 +358,11 @@ static plainstring way_get_image_slot_id(weg_t* w)
 	return plainstring((const char*)buf);
 }
 
+static sint8 way_get_render_yoff(weg_t* w)
+{
+	return w->get_yoff();
+}
+
 // mark objects
 static void mark_object(obj_t* obj)
 {
@@ -748,6 +753,12 @@ void export_map_objects(HSQUIRRELVM vm)
 	 * @returns slot label, e.g. "image[s]", "imageup[s_double]", "image[s_n]@snow", "none"
 	 */
 	register_method(vm, &way_get_image_slot_id, "get_image_slot_id", true);
+	/**
+	 * Raw vertical sprite offset in object offset units. Intended for
+	 * tests asserting renderer placement of flat way chords on slopes.
+	 * @returns y offset applied when drawing this way's sprite.
+	 */
+	register_method(vm, &way_get_render_yoff, "get_render_yoff", true);
 	/**
 	 * Get monthly statistics of goods transported on this way.
 	 * @returns array, index [0] corresponds to current month

@@ -280,7 +280,7 @@ void wayobj_t::calc_image()
 			}
 		}
 
-		set_yoff( -gr->get_weg_yoff() );
+		set_yoff( w->get_yoff() );
 		set_xoff( 0 );
 		dir &= (w->get_ribi_unmasked() | sec_way_ribi_unmasked);
 

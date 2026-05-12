@@ -215,6 +215,34 @@ function test_way_road_image_slot_dispatch()
 }
 
 
+// Five-high, one-low slope: the S edge is a flat chord at height 1.
+// The renderer still uses the flat way sprite, but must lift the
+// object y-offset so the road sits on the raised chord instead of the
+// tile base.
+function test_way_road_flat_chord_render_yoff()
+{
+	local pl    = player_x(0)
+	local road  = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local here  = coord3d(11, 2, 0)
+	local south = coord3d(11, 3, 1)
+
+	ASSERT_TRUE(road != null)
+
+	ASSERT_EQUAL(command_x.set_slope(pl, here, HEX_SLOPE(0, 1, 1, 1, 1, 1)), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(11, 3, 0), slope.all_up_slope), null)
+	ASSERT_EQUAL(command_x.build_way(pl, here, south, road, true), null)
+	ASSERT_EQUAL(tile_x(here.x, here.y, here.z).get_way(wt_road).get_image_slot_id(), "image[s]")
+	ASSERT_TRUE(tile_x(here.x, here.y, here.z).get_way(wt_road).get_render_yoff() < 0)
+
+	local remover = command_x(tool_remove_way)
+	ASSERT_EQUAL(remover.work(pl, tile_x(here.x, here.y, here.z), tile_x(south.x, south.y, south.z), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, here, slope.all_down_slope), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, south, slope.all_down_slope), null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // (0,1) and (1,0) are direct NE-SW hex neighbours.  The straight-route
 // builder steps along all 3 hex axes, so this builds a single NE edge
 // rather than detouring through (1,1).  No pakset has NE-SW sprites

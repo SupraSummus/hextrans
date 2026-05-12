@@ -71,8 +71,8 @@ void signal_t::calc_image()
 			}
 
 			// vertical offset of the signal positions
-			if(full_hang==slope_t::flat) {
-				yoff = -gr->get_weg_yoff();
+			if(full_hang==slope_t::flat  ||  slope_allows_flat_way_chord(full_hang, sch->get_ribi_unmasked())) {
+				yoff = sch->get_yoff();
 				after_yoffset = yoff;
 			}
 			else {
