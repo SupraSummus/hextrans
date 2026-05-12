@@ -148,13 +148,24 @@ def try_decode_header(data: bytes) -> None:
     )
 
 
-def recv_all(sock: socket.socket, timeout: float) -> bytes:
-    """Drain whatever the server sends until idle for `timeout` seconds
-    or it closes the socket."""
+def recv_all(
+    sock: socket.socket, idle_timeout: float, max_time: float, max_bytes: int
+) -> bytes:
+    """Drain bytes until idle for `idle_timeout`s, or `max_time`s wall
+    clock has passed, or `max_bytes` accumulated, or the socket closes."""
     sock.setblocking(False)
     buf = b""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    start = time.monotonic()
+    idle_deadline = start + idle_timeout
+    hard_deadline = start + max_time
+    while True:
+        now = time.monotonic()
+        if now >= hard_deadline:
+            print(f"  hit max-recv-time ({max_time}s)")
+            break
+        if now >= idle_deadline:
+            print(f"  idle for {idle_timeout}s, stopping")
+            break
         try:
             chunk = sock.recv(4096)
         except BlockingIOError:
@@ -167,8 +178,10 @@ def recv_all(sock: socket.socket, timeout: float) -> bytes:
             print("  server closed connection")
             break
         buf += chunk
-        # extend deadline a bit each time we get data
-        deadline = time.monotonic() + timeout
+        idle_deadline = time.monotonic() + idle_timeout
+        if len(buf) >= max_bytes:
+            print(f"  hit max-bytes ({max_bytes})")
+            break
     return buf
 
 
@@ -215,7 +228,12 @@ def main() -> int:
         default="",
         help="hex bytes appended after the fixed tool fields",
     )
-    p.add_argument("--recv-timeout", type=float, default=3.0)
+    p.add_argument("--recv-timeout", type=float, default=3.0,
+                   help="idle timeout: stop after this many seconds without data")
+    p.add_argument("--max-recv-time", type=float, default=10.0,
+                   help="wall-clock cap on total receive duration")
+    p.add_argument("--max-recv-bytes", type=int, default=65536,
+                   help="cap on bytes accumulated before stopping")
     p.add_argument("--connect-timeout", type=float, default=5.0)
     p.add_argument(
         "--dry-run",
@@ -274,9 +292,14 @@ def main() -> int:
         except OSError as e:
             print(f"send failed: {e}")
             return 1
-        print(f"sent {len(pkt)} bytes, waiting up to {args.recv_timeout}s for reply...")
+        print(
+            f"sent {len(pkt)} bytes, draining (idle={args.recv_timeout}s "
+            f"max={args.max_recv_time}s cap={args.max_recv_bytes}B)..."
+        )
 
-        reply = recv_all(sock, args.recv_timeout)
+        reply = recv_all(
+            sock, args.recv_timeout, args.max_recv_time, args.max_recv_bytes
+        )
         if not reply:
             print("no data received before timeout/close")
             return 0
