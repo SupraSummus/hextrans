@@ -285,10 +285,9 @@ function test_way_road_build_ne_sw()
 // rail would draw blank — "rail 60 slopes not drawn on 000111").
 //
 // Step 2: stub from (3,1) → (3,2) would OR an N bit onto the
-// existing NW ribi.  Touched axes (N and NW) both have
-// `chord_h_axis = -1`, so the bend has no flat-chord placement —
-// engine refuses.  Mirrors `test_way_rail_reject_bend_around_se_on_nw_high_tile`
-// on a different ramp shape.
+// existing NW ribi.  The touched N and NW edges are both level at the
+// low height, but this is a 3-corner arc ramp, not a named edge ramp,
+// so the bend has no flat plateau placement — engine refuses.
 function test_way_road_build_bend_on_3corner_ramp()
 {
 	local pl      = player_x(0)
@@ -301,7 +300,9 @@ function test_way_road_build_bend_on_3corner_ramp()
 	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(3, 3, 0)), null)                  // (3,2).SW
 	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(3, 2, 0), 1), null)     // (3,2).SE
 	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 2, 0)), null)                  // (3,2).E
-	ASSERT_EQUAL(tile_x(3, 2, 0).get_slope(), HEX_SLOPE(1, 1, 1, 0, 0, 0))           // raw E+SE+SW raised; not in the named-slope table
+	local arc_ramp = HEX_SLOPE(1, 1, 1, 0, 0, 0)                                    // raw E+SE+SW raised; not in the named-slope table
+	ASSERT_EQUAL(tile_x(3, 2, 0).get_slope(), arc_ramp)
+	ASSERT_FALSE(slope.allows_flat_way_chord(arc_ramp, 24))                         // N + NW is not a canonical edge-ramp plateau
 
 	// Build 1: NW->SE stub along the ramp axis.  Succeeds.
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(3, 2, 0), desc, true), null)

@@ -697,13 +697,14 @@ static inline sint8 slope_level_edge_h(slope_t::type sl, ribi_t::ribi r)
 /// (renders flat) rather than ramping with the surface.  Every set
 /// edge must be internally level at the same height H.  A full axis
 /// must independently admit a chord at H (per `chord_h_axis`); a real
-/// two-edge bend also admits a plateau shape where both touched edges
-/// lie on the slope's minimum or maximum height.  That lets a bent way
-/// wrap around either end of an edge ramp without being treated as a
-/// ramp itself.  Single-bit stubs on ramp slopes (`*_narrow` / `*_wide`
-/// / `*_double` and 3-corner-arc shapes) fall out of this rule too: the
-/// only axis they touch is the slope's ramp axis, whose `chord_h_axis`
-/// is -1.
+/// two-edge bend also admits a plateau shape on canonical edge ramps
+/// (`*_narrow` / `*_wide` / `*_double`) where both touched edges lie on
+/// the slope's minimum or maximum height.  That lets a bent way wrap
+/// around either end of an edge ramp without being treated as a ramp
+/// itself, while 3-corner-arc shapes still need the stricter full-axis
+/// chord rule.  Single-bit stubs on ramp slopes fall out of this rule
+/// too: the only axis they touch is the slope's ramp axis, whose
+/// `chord_h_axis` is -1.
 ///
 /// Returns the common height delta for that flat chord, or -1 when no
 /// such chord exists.
@@ -729,10 +730,12 @@ static inline sint8 slope_flat_way_chord_h(slope_t::type sl, ribi_t::ribi r)
 	}
 	if (all_axes_chord_at_h) return h;
 
-	// A two-edge bend on either end plateau of a slope is a flat way
-	// body: it touches only level same-height edges.  Keep junctions on
-	// the stricter full-axis rule until their geometry is audited.
-	if (ribi_t::is_bend(r) && (h == slope_t::min_corner_height(sl) || h == slope_t::max_diff(sl))) return h;
+	// A two-edge bend on either end plateau of a named edge ramp is a
+	// flat way body: it touches only level same-height edges.  Keep
+	// junctions and non-axis arc ramps on the stricter full-axis rule.
+	const bool edge_ramp_plateau = slope_t::is_axis_slope(sl) || slope_t::is_planar_double_edge(sl);
+	const bool end_height = h == slope_t::min_corner_height(sl) || h == slope_t::max_diff(sl);
+	if (edge_ramp_plateau && ribi_t::is_bend(r) && end_height) return h;
 	return -1;
 }
 
