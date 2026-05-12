@@ -166,17 +166,13 @@ function test_way_rail_terminate_on_slope_chord_stub()
 }
 
 
-// Bend rejected on a ramp slope, around the low corner.  T's NW and W
-// vertices are raised: gradient NW high → SE low, SE corner at 0.
+// Bend admitted on a ramp slope, around the low corner.  T's NW and W
+// vertices are raised: gradient NW high -> SE low, SE corner at 0.
 // Build S → T succeeds as a chord stub on T's flat half (S edge
 // `{SE=0, SW=0}` level at 0).  The follow-up T → SE would OR an SE
-// bit, giving ribi = S + SE = 3.  Both edges sit at 0 but the NW-SE
-// axis has no flat chord (`chord_h_axis = -1`), so the bend body
-// can't render flat at 0 across the touched axes.  Companion to
-// `test_way_rail_terminate_on_slope_off_gradient`, which rejects the
-// high-edge bend variant — ramp slopes don't host bends regardless
-// of which corner the bend wraps.
-function test_way_rail_reject_bend_around_se_on_nw_high_tile()
+// bit, giving ribi = S + SE = 3.  Both edges sit at 0, so the way
+// should become a flat low-plateau bend rather than a ramp.
+function test_way_rail_build_bend_around_se_on_nw_high_tile()
 {
 	local pl      = player_x(0)
 	local rail    = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
@@ -196,20 +192,71 @@ function test_way_rail_reject_bend_around_se_on_nw_high_tile()
 	ASSERT_EQUAL(command_x.build_way(pl, S, T, rail, true), null)
 	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail), 2) // S only
 
-	// Bend onto the same tile: rejected.
-	ASSERT_TRUE(command_x.build_way(pl, T, SE, rail, true) != null)
-	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail), 2) // still S only
+	// Bend onto the same tile: accepted.
+	ASSERT_EQUAL(command_x.build_way(pl, T, SE, rail, true), null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail), 3) // S + SE
 
-	// Predicate matches: the bend ribi (S + SE = 3) doesn't render
-	// flat on this slope.  N axis chord_h = 0 but NW axis chord_h
-	// = -1, so the multi-axis chord placement is inadmissible.
-	ASSERT_FALSE(slope.allows_flat_way_chord(hang, 3))
+	// Predicate matches: the bend ribi (S + SE = 3) renders as a flat
+	// low-plateau chord even though the full NW axis is a ramp.
+	ASSERT_TRUE(slope.allows_flat_way_chord(hang, 3))
 
 	// cleanup
 	ASSERT_EQUAL(remover.work(pl, tile_x(S.x, S.y, S.z), T, "" + wt_rail), null)
+	ASSERT_EQUAL(remover.work(pl, tile_x(T.x, T.y, T.z), SE, "" + wt_rail), null)
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.NW), null)
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.W),  null)
 
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// Lowering T's SE and E vertices creates a low SE edge / high NW-side
+// slope.  Building N -> T first produces a high-side chord stub.  The
+// follow-up NW -> T should join that stub as a same-height bend on the
+// high side of the tile, not try to reinterpret the tile as a NW-SE
+// ramp and reject because a way already exists.
+function test_way_rail_build_bend_on_lowered_se_edge_order_independent()
+{
+	local pl      = player_x(0)
+	local rail    = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local remover = command_x(tool_remove_way)
+	ASSERT_TRUE(rail != null)
+
+	local T  = coord3d(8, 8, 0)
+	local T0 = coord3d(8, 8, -1)
+	local N  = coord3d(8, 7, 0) // T + neighbours[4]
+	local NW = coord3d(7, 8, 0) // T + neighbours[3]
+
+	local cleanup = function() {
+		remover.work(pl, N, T0, "" + wt_rail)
+		remover.work(pl, NW, T0, "" + wt_rail)
+		ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T0, hex_corner.E),  null)
+		ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T0, hex_corner.SE), null)
+	}
+
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.SE), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.E),  null)
+	local hang = HEX_SLOPE(0, 0, 1, 1, 1, 1)
+	ASSERT_EQUAL(tile_x(T0.x, T0.y, T0.z).get_slope(), hang)
+	ASSERT_TRUE(slope.allows_flat_way_chord(hang, 24))
+
+	ASSERT_EQUAL(command_x.build_way(pl, N, T0, rail, true), null)
+	ASSERT_EQUAL(tile_x(T0.x, T0.y, T0.z).get_way_dirs(wt_rail), 16) // N only
+	ASSERT_EQUAL(command_x.build_way(pl, NW, T0, rail, true), null)
+	ASSERT_EQUAL(tile_x(T0.x, T0.y, T0.z).get_way_dirs(wt_rail), 24) // N + NW
+
+	cleanup()
+
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.SE), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.E),  null)
+	ASSERT_EQUAL(tile_x(T0.x, T0.y, T0.z).get_slope(), hang)
+
+	ASSERT_EQUAL(command_x.build_way(pl, NW, T0, rail, true), null)
+	ASSERT_EQUAL(tile_x(T0.x, T0.y, T0.z).get_way_dirs(wt_rail), 8) // NW only
+	ASSERT_EQUAL(command_x.build_way(pl, N, T0, rail, true), null)
+	ASSERT_EQUAL(tile_x(T0.x, T0.y, T0.z).get_way_dirs(wt_rail), 24) // N + NW
+
+	cleanup()
 	RESET_ALL_PLAYER_FUNDS()
 }
 

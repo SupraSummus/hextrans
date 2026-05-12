@@ -695,16 +695,15 @@ static inline sint8 slope_level_edge_h(slope_t::type sl, ribi_t::ribi r)
 
 /// True iff the way's body sits at a single height on this slope
 /// (renders flat) rather than ramping with the surface.  Every set
-/// edge must be internally level at the same height H, AND every
-/// touched axis must independently admit a chord at H (per
-/// `chord_h_axis`).  The axis check rules out bends that fit "around
-/// the low corner" of a ramp slope: the body would be locally at H=0
-/// on the touched edges, but the slope's interior ramps past H=0
-/// across the tile centre, so a flat-rendered way would float over
-/// or sink into the ramped half.  Single-bit stubs on ramp slopes
-/// (`*_narrow` / `*_wide` / `*_double` and 3-corner-arc shapes) fall
-/// out of this rule too: the only axis they touch is the slope's
-/// ramp axis, whose `chord_h_axis` is -1.
+/// edge must be internally level at the same height H.  A full axis
+/// must independently admit a chord at H (per `chord_h_axis`); a real
+/// two-edge bend also admits a plateau shape where both touched edges
+/// lie on the slope's minimum or maximum height.  That lets a bent way
+/// wrap around either end of an edge ramp without being treated as a
+/// ramp itself.  Single-bit stubs on ramp slopes (`*_narrow` / `*_wide`
+/// / `*_double` and 3-corner-arc shapes) fall out of this rule too: the
+/// only axis they touch is the slope's ramp axis, whose `chord_h_axis`
+/// is -1.
 ///
 /// Returns the common height delta for that flat chord, or -1 when no
 /// such chord exists.
@@ -722,10 +721,19 @@ static inline sint8 slope_flat_way_chord_h(slope_t::type sl, ribi_t::ribi r)
 		axes |= ribi_t::straight_axis(dir);
 	}
 	if (h < 0) return -1;
+	bool all_axes_chord_at_h = true;
 	for (ribi_t::ribi axis : { ribi_t::north, ribi_t::northeast, ribi_t::northwest }) {
-		if ((axes & axis) && slope_chord_h_along_axis(sl, axis) != h) return -1;
+		if ((axes & axis) && slope_chord_h_along_axis(sl, axis) != h) {
+			all_axes_chord_at_h = false;
+		}
 	}
-	return h;
+	if (all_axes_chord_at_h) return h;
+
+	// A two-edge bend on either end plateau of a slope is a flat way
+	// body: it touches only level same-height edges.  Keep junctions on
+	// the stricter full-axis rule until their geometry is audited.
+	if (ribi_t::is_bend(r) && (h == slope_t::min_corner_height(sl) || h == slope_t::max_diff(sl))) return h;
+	return -1;
 }
 
 static inline bool slope_allows_flat_way_chord(slope_t::type sl, ribi_t::ribi r)
