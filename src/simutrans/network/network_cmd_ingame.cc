@@ -65,6 +65,15 @@ network_command_t* network_command_t::read_from_packet(packet_t *p)
 			delete nwc;
 			nwc = NULL;
 		}
+		else if (env_t::server) {
+			// The wire-supplied our_client_id is attacker-controlled.
+			// Identify the sender by its socket instead, so any later
+			// auth check (nwc_auth_player_t, nwc_chg_player_t,
+			// nwc_tool_t) reads the real slot and cannot be tricked
+			// into looking up someone else's player_unlocked bitmap
+			// or indexing past the socket list.
+			nwc->our_client_id = socket_list_t::get_client_id(p->get_sender());
+		}
 	}
 	return nwc;
 }
@@ -1174,7 +1183,14 @@ network_broadcast_world_command_t* nwc_tool_t::clone(karte_t *welt)
 			}
 		}
 
-		// check whether player is authorized do this
+		// check whether player is authorized do this. our_client_id has
+		// been overridden to the sender's socket-derived id in
+		// read_from_packet, but a slot can still go inactive between
+		// receive and execute — match the bounds check the other
+		// world commands already do (nwc_chg_player_t::clone).
+		if (!socket_list_t::is_valid_client_id(our_client_id)) {
+			return NULL;
+		}
 		socket_info_t const& info = socket_list_t::get_client(our_client_id);
 		if ( player_nr < PLAYER_UNOWNED  &&  !info.is_player_unlocked(player_nr) ) {
 			if (tool_id == (TOOL_ADD_MESSAGE | GENERAL_TOOL)) {
