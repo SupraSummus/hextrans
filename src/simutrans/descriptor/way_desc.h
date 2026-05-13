@@ -10,6 +10,7 @@
 #include "image_list.h"
 #include "obj_base_desc.h"
 #include "skin_desc.h"
+#include "way_image_keys.h"
 #include "../dataobj/ribi.h"
 
 class checksum_t;
@@ -162,14 +163,14 @@ public:
 		return get_river_fallback_image_id(imglist, ribi);
 	}
 
-	/// Slope-up sprite lookup.  Pakset imagelist holds 18 slots, one
-	/// per way-buildable hex slope: 6 narrow (2-corner) edge slopes
-	/// 0..5 in clockwise order from north, then their 6 wide (4-corner)
-	/// variants 6..11 in the same order, then their 6 double-height
-	/// (012210) variants 12..17 in the same order.  Anything else
-	/// (flat, all_up sentinels, non-buildable values) returns IMG_EMPTY.
-	/// Pre-double-slope paksets ship a 12-entry imagelist; slots
-	/// 12..17 fall through to image_list_t::get_image_id's
+	/// Slope-up sprite lookup.  Pakset imagelist holds 54 slots: first
+	/// 18 are full-axis crossings (6 narrow, 6 wide, 6 double, each
+	/// clockwise from north); next 18 are low-half stubs (way terminates
+	/// on the slope's low edge, sprite covers only the half of the tile
+	/// near that edge); last 18 are high-half stubs in the same order.
+	/// Anything else (flat, all_up sentinels, non-buildable values)
+	/// returns IMG_EMPTY.  Pre-half-slope paksets ship 12 or 18 entries;
+	/// the extra slots fall through to image_list_t::get_image_id's
 	/// out-of-range IMG_EMPTY return, same as a pak that ships the
 	/// keys but leaves them blank.
 	image_id get_slope_image_id(slope_t::type slope, uint8 season, bool front = false) const
@@ -202,6 +203,23 @@ public:
 				return IMG_EMPTY;
 		}
 		return get_child<image_list_t>(n)->get_image_id(nr);
+	}
+
+	/// Half-slope sprite lookup.  When a way ends on an axis slope —
+	/// single-bit ribi on the slope's ramp axis — the renderer picks
+	/// this slot instead of the full crossing sprite.  @p high_half
+	/// selects whether the stub sits on the slope's high or low edge.
+	image_id get_slope_half_image_id(slope_t::type slope, bool high_half, uint8 season, bool front = false) const
+	{
+		if (front  &&  !front_images) {
+			return IMG_EMPTY;
+		}
+		const int slot = way_image_keys::slope_half_slot(slope, high_half);
+		if (slot < 0) {
+			return IMG_EMPTY;
+		}
+		const uint16 n = image_list_base_index(season, front) + 1;
+		return get_child<image_list_t>(n)->get_image_id((uint16)slot);
 	}
 
 	image_id get_diagonal_image_id(ribi_t::ribi ribi, uint8 season, bool front = false) const

@@ -157,17 +157,18 @@ function test_way_road_build_straight()
 
 
 // End-to-end coverage of `weg_t::pick_image_slot`'s slope-vs-flat
-// dispatch via `way_x.get_image_slot_id`.  Regression guard for the
-// renderer bug where `slope_allows_flat_way_chord(south_narrow,
-// dir.south)` wrongly admitted the flat path: the south_narrow stub
-// would have come back as `image[s]` (the flat sprite) instead of
-// `imageup[s]` (the slope sprite).  Asserting on the slot label keeps
+// dispatch via `way_x.get_image_slot_id`.  Four subcases drive the
+// four branches: flat tile + ribi -> `image[s]`; axis-slope ramp
+// with stub on the low edge -> `imageup[s_low_half]`; same on the
+// high edge -> `imageup[n_high_half]` (north_narrow + ribi=S puts
+// the stub on the slope's high side); double-height ramp ->
+// `imageup[s_double_low_half]`.  Asserting on the slot label keeps
 // this independent of pakset numbering -- the tests/test-pak road's
-// `image[-]=-` (no real sprites) is enough to drive the south_double
-// case, because the slot label is the engine's intent, not the
-// resolved image_id.  Pure-predicate guards for slopes that don't
-// have a clean way-build path (south_wide) live in test_way_rail
-// as test_way_rail_render_stub_on_ramp_uses_slope_image.
+// `image[-]=-` (no real sprites) is enough to drive every case,
+// because the slot label is the engine's intent, not the resolved
+// image_id.  Pure-predicate guards for slopes that don't have a
+// clean way-build path (south_wide) live in test_way_rail as
+// test_way_rail_render_stub_on_ramp_uses_slope_image.
 function test_way_road_image_slot_dispatch()
 {
 	local pl     = player_x(0)
@@ -185,23 +186,45 @@ function test_way_road_image_slot_dispatch()
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 2, 0), coord3d(5, 3, 0), stock, true), null)
 	ASSERT_EQUAL(tile_x(5, 2, 0).get_way(wt_road).get_image_slot_id(), "image[s]")
 
-	// south_narrow ramp under a single-S-ribi stub: slot must be the
-	// slope row keyed on the narrow ramp.  This is the original bug
-	// repro: pre-fix the engine would have written `image[s]` here.
+	// south_narrow ramp under a single-S-ribi stub: way terminates on
+	// the slope's low (south) edge, slot must be the low-half row.
+	// This is the original bug repro: pre-fix the engine would have
+	// written `image[s]` here (flat sprite at z=0).  The intermediate
+	// fix wrote `imageup[s]` (full crossing), still wrong because the
+	// stub covers only half the tile; half-slope dispatch writes
+	// `imageup[s_low_half]`.
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 3, 0), coord3d(3, 4, 0), stock, true), null)
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(3, 3, 0), slope.south_narrow), null)
-	ASSERT_EQUAL(tile_x(3, 3, 0).get_way(wt_road).get_image_slot_id(), "imageup[s]")
+	ASSERT_EQUAL(tile_x(3, 3, 0).get_way(wt_road).get_image_slot_id(), "imageup[s_low_half]")
+
+	// north_narrow ramp with the same single-S-ribi stub: now the
+	// stub's edge is the slope's HIGH side, so the slot must be the
+	// high-half row keyed on the canonical narrow slope.  Pairs with
+	// the south_narrow case above to cover both ends of the {low,
+	// high} half dispatch.  Pre-raise the two S corners BEFORE laying
+	// the way -- set_slope on an already-built ramp fails when raising
+	// shared corners that the partner's way wouldn't admit at the new
+	// height, so the order matters.  After the raise the partner
+	// partner (9, 4, 0) inherits a south_narrow from the shared
+	// vertices (the slope axes oppose across the shared edge).
+	local T = coord3d(9, 3, 0)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.SE), null)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.SW), null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_slope(), slope.north_narrow)
+	ASSERT_EQUAL(command_x.build_way(pl, T, coord3d(9, 4, 0), stock, true), null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_way(wt_road).get_image_slot_id(), "imageup[n_high_half]")
 
 	// south_double: the planar 2-step ridge that sparked PR #143's
 	// repro.  Build with the has_double_slopes-opted-in test-pak road
 	// and ramp twice -- the way's image_id resolves to IMG_EMPTY
 	// because the test-pak ships no sprites, but the slot label is
-	// the engine's intent and reads `imageup[s_double]` regardless.
+	// the engine's intent and reads `imageup[s_double_low_half]`
+	// regardless.
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(7, 3, 0), coord3d(7, 4, 0), double, true), null)
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(7, 3, 0), slope.all_up_slope), null)
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(7, 3, 0), slope.all_up_slope), null)
 	ASSERT_EQUAL(tile_x(7, 3, 0).get_slope(), slope.south_double)
-	ASSERT_EQUAL(tile_x(7, 3, 0).get_way(wt_road).get_image_slot_id(), "imageup[s_double]")
+	ASSERT_EQUAL(tile_x(7, 3, 0).get_way(wt_road).get_image_slot_id(), "imageup[s_double_low_half]")
 
 	local remover = command_x(tool_remove_way)
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(3, 3, 0), slope.all_down_slope), null)
@@ -210,6 +233,9 @@ function test_way_road_image_slot_dispatch()
 	ASSERT_EQUAL(remover.work(pl, tile_x(3, 3, 0), tile_x(3, 4, 0), "" + wt_road), null)
 	ASSERT_EQUAL(remover.work(pl, tile_x(5, 2, 0), tile_x(5, 3, 0), "" + wt_road), null)
 	ASSERT_EQUAL(remover.work(pl, tile_x(7, 3, 0), tile_x(7, 4, 0), "" + wt_road), null)
+	ASSERT_EQUAL(remover.work(pl, tile_x(T.x, T.y, T.z), tile_x(9, 4, 0), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.SE), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.SW), null)
 
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -304,10 +330,12 @@ function test_way_road_build_bend_on_3corner_ramp()
 	ASSERT_EQUAL(tile_x(3, 2, 0).get_slope(), arc_ramp)
 	ASSERT_FALSE(slope.allows_flat_way_chord(arc_ramp, 24))                         // N + NW is not a canonical edge-ramp plateau
 
-	// Build 1: NW->SE stub along the ramp axis.  Succeeds.
+	// Build 1: NW->SE stub along the ramp axis.  Succeeds.  Single-bit
+	// ribi on a (rewritten-to-narrow) ramp axis means the way ends on
+	// the slope; slot resolves to the low-half stub variant.
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(3, 2, 0), desc, true), null)
 	ASSERT_EQUAL(tile_x(3, 2, 0).get_way_dirs(wt_road), 8)  // NW only
-	ASSERT_EQUAL(tile_x(3, 2, 0).get_way(wt_road).get_image_slot_id(), "imageup[nw]")  // rewritten to canonical narrow
+	ASSERT_EQUAL(tile_x(3, 2, 0).get_way(wt_road).get_image_slot_id(), "imageup[nw_low_half]")  // rewritten to canonical narrow, low-edge stub
 
 	// Build 2: N->S stub onto the same tile.  Must be refused.
 	ASSERT_TRUE(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 2, 0), desc, true) != null)

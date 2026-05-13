@@ -106,10 +106,12 @@ void way_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& obj)
 			imagelist_writer_t::instance()->write_obj(outfp, node, keys);
 			keys.clear();
 
-			// Slope-up sprites — 18 fixed slots, indexed by slope value
-			// in way_desc_t::get_slope_image_id.  Empty entries become
+			// Slope-up sprites — 54 fixed slots: 18 full-axis crossings
+			// indexed by slope value (see way_desc_t::get_slope_image_id),
+			// 18 low-half stubs and 18 high-half stubs (see
+			// way_desc_t::get_slope_half_image_id).  Empty entries become
 			// IMG_EMPTY so indices stay aligned.
-			for (uint32 i = 0; i < 18; ++i) {
+			for (uint32 i = 0; i < way_image_keys::SLOPE_SLOTS_TOTAL; ++i) {
 				keys.append(get_keyed(prefix + "imageup[" + way_image_keys::slope_slot_keys[i] + "]", season));
 			}
 			imagelist_writer_t::instance()->write_obj(outfp, node, keys);

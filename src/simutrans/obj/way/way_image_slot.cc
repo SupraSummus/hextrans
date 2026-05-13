@@ -16,9 +16,10 @@ image_id way_image_slot_t::resolve(const way_desc_t* desc, bool front) const
 		return IMG_EMPTY;
 	}
 	switch (kind_) {
-		case kind_t::flat:  return desc->get_image_id      ((ribi_t::ribi)(uint8)key_, snow_, front);
-		case kind_t::slope: return desc->get_slope_image_id((slope_t::type)     key_, snow_, front);
-		case kind_t::none:  break;
+		case kind_t::flat:       return desc->get_image_id           ((ribi_t::ribi)(uint8)key_, snow_, front);
+		case kind_t::slope:      return desc->get_slope_image_id     ((slope_t::type)     key_, snow_, front);
+		case kind_t::slope_half: return desc->get_slope_half_image_id((slope_t::type)     key_, high_half_, snow_, front);
+		case kind_t::none:       break;
 	}
 	return IMG_EMPTY;
 }
@@ -46,6 +47,17 @@ void way_image_slot_t::to_label(cbuffer_t& buf) const
 			}
 			else {
 				buf.printf("imageup[raw_%d]", (int)sl);
+			}
+			break;
+		}
+		case kind_t::slope_half: {
+			const slope_t::type sl = (slope_t::type)key_;
+			const int slot = way_image_keys::slope_half_slot(sl, high_half_);
+			if (slot >= 0) {
+				buf.printf("imageup[%s]", way_image_keys::slope_slot_keys[slot]);
+			}
+			else {
+				buf.printf("imageup[raw_%d_%s]", (int)sl, high_half_ ? "high_half" : "low_half");
 			}
 			break;
 		}
