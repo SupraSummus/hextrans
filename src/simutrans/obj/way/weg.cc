@@ -421,7 +421,25 @@ way_image_slot_t weg_t::pick_image_slot() const
 	const slope_t::type hang = from->get_weg_hang();
 
 	if (hang != slope_t::flat && !slope_allows_flat_way_chord(hang, ribi)) {
-		const way_image_slot_t slope_slot = way_image_slot_t::for_slope(axis_slope_for_image(hang, ribi), snow);
+		const slope_t::type img_slope = axis_slope_for_image(hang, ribi);
+		// Single-bit ribi on the slope's ramp axis -> half-slope stub.
+		// The way occupies the half of the tile nearest its terminus edge;
+		// the sprite covers just that half so the surface is visibly
+		// "track ends on slope" instead of a full-axis crossing.  Selecting
+		// by edge height (vs. min / max corner of the slope) admits both
+		// narrow / wide (delta 1) and double (delta 2) ramps uniformly.
+		// Engine intent is pakset-independent: a pak missing half art
+		// renders blank for these stubs, the same way a missing flat
+		// ribi cell does, until the pakset ships matching sprites.
+		if (ribi_t::is_single(ribi)
+			&& (slope_t::is_axis_slope(img_slope) || slope_t::is_planar_double_edge(img_slope))) {
+			const sint8 edge_h = slope_level_edge_h(hang, ribi);
+			if (edge_h >= 0) {
+				const bool high_half = (edge_h == (sint8)slope_t::max_diff(img_slope));
+				return way_image_slot_t::for_slope_half(img_slope, high_half, snow);
+			}
+		}
+		const way_image_slot_t slope_slot = way_image_slot_t::for_slope(img_slope, snow);
 		// River fallback: rivers without slope sprites render flat,
 		// matching the surface under the slope.  The fallback is part
 		// of the slot pick (not a post-resolve fixup) so the returned

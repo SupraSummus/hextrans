@@ -263,13 +263,22 @@ once the migration is worth a hard fail, or rebuild the CI pak from
 source against the new makeobj when one becomes available.
 
 The same migration story applies to slope-up keys.  `way_writer.cc`
-now expects 12 keys (`ImageUp[n]`, `ImageUp[ne]`, ..., `ImageUp[nw]`,
-plus `_wide` variants) routed by `way_desc_t::get_slope_image_id`.
-The legacy `ImageUp[3/6/9/12]` and `imageup2[*]` keys are gone.
-Only `rail_060_tracks` is migrated; every other way .dat that
-declared slope sprites under the old keys now silently drops them
-on rebake (slope rendering falls through to IMG_EMPTY).  Migrate
-per family alongside the flat-image migration above.
+now expects 54 keys: 18 full-axis crossings (`ImageUp[n]` …
+`ImageUp[nw]` plus `_wide` and `_double` variants) routed by
+`way_desc_t::get_slope_image_id`, and 36 half-slope stubs
+(`ImageUp[n_low_half]` / `ImageUp[n_high_half]` and the matching
+`_wide_*` / `_double_*` forms) routed by
+`way_desc_t::get_slope_half_image_id` — picked when a way's
+single-bit ribi terminates on a ramp's low or high edge.  The
+legacy `ImageUp[3/6/9/12]` and `imageup2[*]` keys are gone.
+`rail_060_tracks` and the eight hex-migrated road tiers
+(cityroad_030, highway_110, road_030..road_090) ship the full set
+including half-slope cells via `road_params.make_tier()`'s
+`bake_pakset`; every other way .dat (rail_080..rail_400, trams,
+runways, kanals, narrowgauge, monorail, maglev, plus
+catenary / elevated variants) compiles cleanly but draws blank
+for slope and half-slope sprites.  Migrate per family alongside
+the flat-image migration above.
 
 ## Per-vertex height storage — remaining writer-side ports
 
