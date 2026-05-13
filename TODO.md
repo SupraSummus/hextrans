@@ -637,6 +637,21 @@ canonical edge ramp (plateau-chord rule in
 ways do not abort while drawing.  A load-time validator remains the
 proper cleanup move when save migration gets a dedicated pass.
 
+`display_boden` / `display_obj_all` per-edge clip activation
+covers only 4 of the 6 hex edges (NW, N, SE, S — the inheritors
+of the legacy 4-direction diamond clip).  NE and SW are
+unclipped; sprite content that reaches into either back / front
+wedge bleeds onto the NE / SW neighbour without a boundary cut.
+Pak128-hex's current ribi sprite library doesn't seem to land in
+those wedges in practice, so this is latent rather than visible
+today.  Next move when a leak surfaces: add `add_poly_clip` for
+the hex NE edge `(W, 3W/4) → (3W/4, W/2)` and SW edge
+`(W/4, W) → (0, 3W/4)` at both sites, activate them via the same
+per-ribi mask the existing four use, and audit the `non_convex`
+corner-extension which still assumes the 2-back-edge layout
+(`both_back = N | NW`) and would need recasting around the
+3-back-edge hex perimeter (`N | NW | NE`).
+
 Fence sprites (`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
 `ground_desc_t::fences`) still use `tile_raster_scale_y` for the
 `corner_nw` offset and have only 3 pakset combos for walls 0+1; the 4

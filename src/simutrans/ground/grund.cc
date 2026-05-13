@@ -1339,11 +1339,11 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 				const uint8 non_convex = (way_ribi & both_back) == both_back ? 0 : 64;
 				if(  way_ribi & ribi_t::northwest  ) {
 					const int dh = corner_nw(get_disp_way_slope()) * hgt_step;
-					gfx->add_poly_clip( xpos + raster_tile_width / 2 - 1, ypos + raster_tile_width / 2 - dh, xpos - 1, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::northwest | non_convex CLIP_NUM_PAR );
+					gfx->add_poly_clip( xpos + raster_tile_width / 4 - 1, ypos + raster_tile_width / 2 - dh, xpos - 1, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::northwest | non_convex CLIP_NUM_PAR );
 				}
 				if(  way_ribi & ribi_t::north  ) {
 					const int dh = corner_nw(get_disp_way_slope()) * hgt_step;
-					gfx->add_poly_clip( xpos + raster_tile_width, ypos + 3 * raster_tile_width / 4 - dh, xpos + raster_tile_width / 2, ypos + raster_tile_width / 2 - dh, ribi_t::north | non_convex CLIP_NUM_PAR );
+					gfx->add_poly_clip( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, xpos + raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, ribi_t::north | non_convex CLIP_NUM_PAR );
 				}
 				gfx->activate_ribi_clip( (way_ribi & both_back) | non_convex  CLIP_NUM_PAR );
 			}
@@ -1588,19 +1588,19 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 	const uint8 non_convex = ((ribi & both_back) == both_back)  &&  back_imageid ? 0 : 64;
 	if(  ribi & ribi_t::northwest  ) {
 		const int dh = corner_nw(slope) * hgt_step;
-		gfx->add_poly_clip( xpos + raster_tile_width / 2 - 1, ypos + raster_tile_width / 2 - dh, xpos - 1, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::northwest | non_convex CLIP_NUM_PAR );
+		gfx->add_poly_clip( xpos + raster_tile_width / 4 - 1, ypos + raster_tile_width / 2 - dh, xpos - 1, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::northwest | non_convex CLIP_NUM_PAR );
 	}
 	if(  ribi & ribi_t::north  ) {
 		const int dh = corner_nw(slope) * hgt_step;
-		gfx->add_poly_clip( xpos + raster_tile_width, ypos + 3 * raster_tile_width / 4 - dh, xpos + raster_tile_width / 2, ypos + raster_tile_width / 2 - dh, ribi_t::north | non_convex CLIP_NUM_PAR );
+		gfx->add_poly_clip( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, xpos + raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, ribi_t::north | non_convex CLIP_NUM_PAR );
 	}
 	if(  ribi & ribi_t::southeast  ) {
 		const int dh = corner_se(slope) * hgt_step;
-		gfx->add_poly_clip( xpos + raster_tile_width / 2, ypos + raster_tile_width - dh, xpos + raster_tile_width, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::southeast|64 CLIP_NUM_PAR );
+		gfx->add_poly_clip( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width - dh, xpos + raster_tile_width, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::southeast|64 CLIP_NUM_PAR );
 	}
 	if(  ribi & ribi_t::south  ) {
 		const int dh = corner_se(slope) * hgt_step;
-		gfx->add_poly_clip( xpos- 1, ypos + 3 * raster_tile_width / 4  - dh, xpos + raster_tile_width / 2 - 1, ypos + raster_tile_width  - dh, ribi_t::south|64 CLIP_NUM_PAR );
+		gfx->add_poly_clip( xpos + raster_tile_width / 4 - 1, ypos + raster_tile_width - dh, xpos + 3 * raster_tile_width / 4 - 1, ypos + raster_tile_width - dh, ribi_t::south|64 CLIP_NUM_PAR );
 	}
 
 	// display background
@@ -1624,7 +1624,7 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 		grund_t *gr;
 		if(  get_neighbour( gr, invalid_wt, ribi_t::northwest )  ) {
 			if (!tunnel_portal  ||  gr->is_visible()) {
-				gr->display_obj_vh( xpos - raster_tile_width / 2, ypos - raster_tile_width / 4 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::northwest, false CLIP_NUM_PAR );
+				gr->display_obj_vh( xpos - 3 * raster_tile_width / 4, ypos - raster_tile_width / 4 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::northwest, false CLIP_NUM_PAR );
 			}
 			if(  ribi & ribi_t::south  ) {
 				gr->get_neighbour( gr_nw, invalid_wt, ribi_t::north );
@@ -1638,7 +1638,7 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 		grund_t *gr;
 		if(  get_neighbour( gr, invalid_wt, ribi_t::north )  ) {
 			if (!tunnel_portal  ||  gr->is_visible()) {
-				gr->display_obj_vh( xpos + raster_tile_width / 2, ypos - raster_tile_width / 4 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::north, false CLIP_NUM_PAR );
+				gr->display_obj_vh( xpos, ypos - raster_tile_width / 2 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::north, false CLIP_NUM_PAR );
 			}
 			if(  (ribi & ribi_t::southeast)  &&  (gr_nw == NULL)  ) {
 				gr->get_neighbour( gr_nw, invalid_wt, ribi_t::northwest );
@@ -1649,7 +1649,7 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 		}
 	}
 	if(  (ribi & ribi_t::northwest)  &&  gr_nw  ) {
-		gr_nw->display_obj_vh( xpos, ypos - raster_tile_width / 2 - tile_raster_scale_y( (gr_nw->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::northwest, false CLIP_NUM_PAR );
+		gr_nw->display_obj_vh( xpos - 3 * raster_tile_width / 4, ypos - 3 * raster_tile_width / 4 - tile_raster_scale_y( (gr_nw->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::northwest, false CLIP_NUM_PAR );
 	}
 	// display background s/e
 	if(  ribi & ribi_t::southeast  ) {
@@ -1657,7 +1657,7 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 		if(  get_neighbour( gr, invalid_wt, ribi_t::southeast )  ) {
 			const bool draw_other_ways = (flags&draw_as_obj)  ||  (gr->flags&draw_as_obj)  ||  !gr->ist_karten_boden();
 			gfx->activate_ribi_clip( ribi_t::southeast|64 CLIP_NUM_PAR );
-			gr->display_obj_bg( xpos + raster_tile_width / 2, ypos + raster_tile_width / 4 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), is_global, draw_other_ways, true CLIP_NUM_PAR );
+			gr->display_obj_bg( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width / 4 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), is_global, draw_other_ways, true CLIP_NUM_PAR );
 		}
 	}
 	if(  ribi & ribi_t::south  ) {
@@ -1665,7 +1665,7 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 		if(  get_neighbour( gr, invalid_wt, ribi_t::south )  ) {
 			const bool draw_other_ways = (flags&draw_as_obj)  ||  (gr->flags&draw_as_obj)  ||  !gr->ist_karten_boden();
 			gfx->activate_ribi_clip( ribi_t::south|64 CLIP_NUM_PAR );
-			gr->display_obj_bg( xpos - raster_tile_width / 2, ypos + raster_tile_width / 4 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), is_global, draw_other_ways, true CLIP_NUM_PAR );
+			gr->display_obj_bg( xpos, ypos + raster_tile_width / 2 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), is_global, draw_other_ways, true CLIP_NUM_PAR );
 		}
 	}
 	// display our vehicles
@@ -1675,7 +1675,7 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 	if(  ribi & ribi_t::southeast  ) {
 		grund_t *gr;
 		if(  get_neighbour( gr, invalid_wt, ribi_t::southeast )  ) {
-			gr->display_obj_vh( xpos + raster_tile_width / 2, ypos + raster_tile_width / 4 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::southeast, ontile_se CLIP_NUM_PAR );
+			gr->display_obj_vh( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width / 4 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::southeast, ontile_se CLIP_NUM_PAR );
 			if(  (ribi & ribi_t::south)  &&  (gr_ne == NULL)  ) {
 				gr->get_neighbour( gr_ne, invalid_wt, ribi_t::north );
 			}
@@ -1687,7 +1687,7 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 	if(  ribi & ribi_t::south  ) {
 		grund_t *gr;
 		if(  get_neighbour( gr, invalid_wt, ribi_t::south )  ) {
-			gr->display_obj_vh( xpos - raster_tile_width / 2, ypos + raster_tile_width / 4 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::south, ontile_se CLIP_NUM_PAR );
+			gr->display_obj_vh( xpos, ypos + raster_tile_width / 2 - tile_raster_scale_y( (gr->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::south, ontile_se CLIP_NUM_PAR );
 			if(  (ribi & ribi_t::southeast)  &&  (gr_sw == NULL)) {
 				gr->get_neighbour( gr_sw, invalid_wt, ribi_t::northwest );
 			}
@@ -1697,13 +1697,13 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 		}
 	}
 	if(  (ribi & ribi_t::northeast)  &&  gr_ne  ) {
-		gr_ne->display_obj_vh( xpos + raster_tile_width, ypos - tile_raster_scale_y( (gr_ne->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::northeast, ontile_se CLIP_NUM_PAR );
+		gr_ne->display_obj_vh( xpos + 3 * raster_tile_width / 4, ypos - raster_tile_width / 4 - tile_raster_scale_y( (gr_ne->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::northeast, ontile_se CLIP_NUM_PAR );
 	}
 	if(  (ribi & ribi_t::southwest)  &&  gr_sw  ) {
-		gr_sw->display_obj_vh( xpos - raster_tile_width, ypos - tile_raster_scale_y( (gr_sw->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::southwest, ontile_se CLIP_NUM_PAR );
+		gr_sw->display_obj_vh( xpos - 3 * raster_tile_width / 4, ypos + raster_tile_width / 4 - tile_raster_scale_y( (gr_sw->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::southwest, ontile_se CLIP_NUM_PAR );
 	}
 	if(  (ribi & ribi_t::southeast)  &&  gr_se  ) {
-		gr_se->display_obj_vh( xpos, ypos + raster_tile_width / 2 - tile_raster_scale_y( (gr_se->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::southeast, ontile_se CLIP_NUM_PAR );
+		gr_se->display_obj_vh( xpos + 3 * raster_tile_width / 4, ypos + 3 * raster_tile_width / 4 - tile_raster_scale_y( (gr_se->get_hoehe() - pos.z) * TILE_HEIGHT_STEP, raster_tile_width ), 0, ribi_t::southeast, ontile_se CLIP_NUM_PAR );
 	}
 
 	// foreground
