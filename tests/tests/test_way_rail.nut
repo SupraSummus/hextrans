@@ -210,6 +210,48 @@ function test_way_rail_build_bend_around_se_on_nw_high_tile()
 }
 
 
+// Same fixture as the bend test above: T's NW and W vertices raised,
+// low plateau covers 4 corners (E, SE, SW, NE) with 3 adjacent level
+// h=0 edges (NE, SE, S).  Building all 3 converges into a Y junction
+// (ribi = NE + SE + S = 35) — the plateau has room for the Y body to
+// sit flat on the low side without touching the NW-W ramp.
+function test_way_rail_build_threeway_on_se_low_plateau()
+{
+	local pl      = player_x(0)
+	local rail    = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local remover = command_x(tool_remove_way)
+	ASSERT_TRUE(rail != null)
+
+	local T  = coord3d(10, 10, 0)
+	local SE = coord3d(11, 10, 0) // T + neighbours[0]
+	local S  = coord3d(10, 11, 0) // T + neighbours[1]
+	local NE = coord3d(11,  9, 0) // T + neighbours[5]
+
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.NW), null)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, T, hex_corner.W),  null)
+
+	local hang = HEX_SLOPE(0, 0, 0, 1, 1, 0)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_slope(), hang)
+	ASSERT_TRUE(slope.allows_flat_way_chord(hang, 35))
+
+	ASSERT_EQUAL(command_x.build_way(pl, S, T, rail, true), null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail), 2)  // S only
+	ASSERT_EQUAL(command_x.build_way(pl, T, SE, rail, true), null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail), 3)  // S + SE
+	ASSERT_EQUAL(command_x.build_way(pl, T, NE, rail, true), null)
+	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_way_dirs(wt_rail), 35) // S + SE + NE
+
+	// cleanup
+	ASSERT_EQUAL(remover.work(pl, tile_x(S.x,  S.y,  S.z),  T, "" + wt_rail), null)
+	ASSERT_EQUAL(remover.work(pl, tile_x(T.x,  T.y,  T.z),  SE, "" + wt_rail), null)
+	ASSERT_EQUAL(remover.work(pl, tile_x(T.x,  T.y,  T.z),  NE, "" + wt_rail), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.NW), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, T, hex_corner.W),  null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // Lowering T's SE and E vertices creates a low SE edge / high NW-side
 // slope.  Building N -> T first produces a high-side chord stub.  The
 // follow-up NW -> T should join that stub as a same-height bend on the

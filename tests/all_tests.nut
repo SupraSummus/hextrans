@@ -222,6 +222,7 @@ all_tests <- [
 	test_way_rail_terminate_on_slope_off_gradient,
 	test_way_rail_terminate_on_slope_chord_stub,
 	test_way_rail_build_bend_around_se_on_nw_high_tile,
+	test_way_rail_build_threeway_on_se_low_plateau,
 	test_way_rail_build_bend_on_lowered_se_edge_order_independent,
 	test_way_rail_render_stub_on_ramp_uses_slope_image,
 	test_way_rail_build_across_half_raised_edge,
