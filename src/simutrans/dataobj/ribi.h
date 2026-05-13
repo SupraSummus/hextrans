@@ -693,18 +693,42 @@ static inline sint8 slope_level_edge_h(slope_t::type sl, ribi_t::ribi r)
 	return c0 == c1 ? (sint8)c0 : (sint8)-1;
 }
 
+/// True iff every hex axis bit set in @p axes admits a flat chord at
+/// height @p h on this slope (per `chord_h_axis`).  Folded over the
+/// 3 canonical axes (N, NE, NW); vacuously true when @p axes is none.
+static inline bool slope_axes_all_chord_at_h(slope_t::type sl, ribi_t::ribi axes, sint8 h)
+{
+	for (ribi_t::ribi axis : { ribi_t::north, ribi_t::northeast, ribi_t::northwest }) {
+		if ((axes & axis) && slope_chord_h_along_axis(sl, axis) != h) return false;
+	}
+	return true;
+}
+
+/// Plateau-chord admission rule on canonical edge ramps (`*_narrow` /
+/// `*_wide`): a multi-edge ribi @p r (bend or Y junction) whose edges
+/// are all level at the slope's min or max corner height @p h sits on
+/// the low / high plateau without crossing the ramp interior.
+/// Single-bit stubs are rejected: their body extends into the tile
+/// interior, which is partway up the ramp.  3-corner-arc shapes are
+/// excluded because they have no straight ramp axis, so the interior
+/// isn't piecewise-linear from a plateau edge — admission would need
+/// a per-shape audit.
+static inline bool slope_admits_plateau_chord(slope_t::type sl, ribi_t::ribi r, sint8 h)
+{
+	if (!slope_t::is_axis_slope(sl))   return false;
+	if (ribi_t::get_numways(r) < 2)    return false;
+	return h == slope_t::min_corner_height(sl) || h == slope_t::max_diff(sl);
+}
+
 /// True iff the way's body sits at a single height on this slope
 /// (renders flat) rather than ramping with the surface.  Every set
-/// edge must be internally level at the same height H.  A full axis
-/// must independently admit a chord at H (per `chord_h_axis`); a real
-/// two-edge bend also admits a plateau shape on canonical edge ramps
-/// (`*_narrow` / `*_wide` / `*_double`) where both touched edges lie on
-/// the slope's minimum or maximum height.  That lets a bent way wrap
-/// around either end of an edge ramp without being treated as a ramp
-/// itself, while 3-corner-arc shapes still need the stricter full-axis
-/// chord rule.  Single-bit stubs on ramp slopes fall out of this rule
-/// too: the only axis they touch is the slope's ramp axis, whose
-/// `chord_h_axis` is -1.
+/// edge must be internally level at the same height H, and one of
+/// two admission rules must hold: every touched axis independently
+/// chords at H (per `chord_h_axis`), or the ribi sits on the slope's
+/// low / high plateau (per `slope_admits_plateau_chord`).  Single-bit
+/// stubs on ramp slopes fall out of both rules: the only axis they
+/// touch is the slope's ramp axis, whose `chord_h_axis` is -1, and
+/// the plateau rule rejects all single-bit ribi explicitly.
 ///
 /// Returns the common height delta for that flat chord, or -1 when no
 /// such chord exists.
@@ -722,20 +746,8 @@ static inline sint8 slope_flat_way_chord_h(slope_t::type sl, ribi_t::ribi r)
 		axes |= ribi_t::straight_axis(dir);
 	}
 	if (h < 0) return -1;
-	bool all_axes_chord_at_h = true;
-	for (ribi_t::ribi axis : { ribi_t::north, ribi_t::northeast, ribi_t::northwest }) {
-		if ((axes & axis) && slope_chord_h_along_axis(sl, axis) != h) {
-			all_axes_chord_at_h = false;
-		}
-	}
-	if (all_axes_chord_at_h) return h;
-
-	// A two-edge bend on either end plateau of a named edge ramp is a
-	// flat way body: it touches only level same-height edges.  Keep
-	// junctions and non-axis arc ramps on the stricter full-axis rule.
-	const bool edge_ramp_plateau = slope_t::is_axis_slope(sl) || slope_t::is_planar_double_edge(sl);
-	const bool end_height = h == slope_t::min_corner_height(sl) || h == slope_t::max_diff(sl);
-	if (edge_ramp_plateau && ribi_t::is_bend(r) && end_height) return h;
+	if (slope_axes_all_chord_at_h(sl, axes, h)) return h;
+	if (slope_admits_plateau_chord(sl, r, h))   return h;
 	return -1;
 }
 
@@ -762,12 +774,10 @@ static inline sint8 slope_way_h_at_edge(slope_t::type sl, ribi_t::ribi r)
 /// axes) admits the chord-or-ramp body decided by
 /// `slope_allows_way_axis` — a stub follows a ramp axis, a flat chord
 /// works on a saddle / peak slope.  Multi-axis ribi (bend / junction)
-/// must render as a single flat chord, the same rule
-/// `slope_allows_flat_way_chord` checks: every touched axis admits
-/// `chord_h_axis == H` at one common H.  That rejects bends on ramp
-/// slopes, where the body would either ramp on multiple axes (no
-/// consistent placement) or sit flat at a height the slope's interior
-/// has ramped past.
+/// must render as a single flat chord; the admission rule lives in
+/// `slope_flat_way_chord_h` (every touched axis chords at a common H,
+/// or a canonical edge-ramp plateau chord — bend or Y — sits on the
+/// low / high plateau).
 static inline bool slope_allows_ribi(slope_t::type sl, ribi_t::ribi r)
 {
 	if (sl == slope_t::flat) return true;

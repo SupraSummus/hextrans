@@ -628,7 +628,10 @@ visually vanishes.  The atlas key would have to widen
 (`(ribi, slope)` or layered single-axis cells), and the bend's
 chord plane isn't a single straight strip so the
 `way_ground/build_pakset.py` geometry needs a second case.
-Triggers when a city builder places a junction on a slope.
+Triggers when a city builder places a junction on a slope, and now
+also when a player builds a 2-edge bend or 3-edge Y junction on a
+canonical edge ramp (plateau-chord rule in
+`slope_admits_plateau_chord`).
 `resolve_way_ground` skips save-state slope/ribi pairs rejected by
 `slope_allows_ribi`, so legacy or transitional saves with forbidden
 ways do not abort while drawing.  A load-time validator remains the
