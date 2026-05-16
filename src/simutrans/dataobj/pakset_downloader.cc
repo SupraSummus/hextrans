@@ -199,7 +199,18 @@ bool pak_download(vector_tpl<paksetinfo_t*>paks)
 	int j = 0;
 	for (paksetinfo_t* pi : paks) {
 		ls.set_info(pi->name);
-		if (strncmp(pi->url, "https://", 6) == 0) {
+#ifdef USE_CURL
+		// libcurl handles http and https uniformly, including redirects
+		strcpy(outfilename, "temp.zip");
+		if (const char *err = network_curl_download_url(pi->url, outfilename)) {
+			dbg->warning("pak_download()", "Failed to download %s: %s", pi->url, err);
+			j += 2;
+			ls.set_progress(j);
+			all_good = false;
+			continue;
+		}
+#else
+		if (strncmp(pi->url, "https://", 8) == 0) {
 #ifdef _WIN32
 #ifndef USE_URLMON
 			sprintf(outfilename, "powershell \"(New-Object System.Net.WebClient).DownloadFile('%s', 'temp.zip')\"", pi->url);
@@ -248,6 +259,7 @@ bool pak_download(vector_tpl<paksetinfo_t*>paks)
 				continue;
 			}
 		}
+#endif // USE_CURL
 
 		ls.set_progress(++j);
 		DBG_DEBUG(__FUNCTION__, "pak target %s", pi->name);

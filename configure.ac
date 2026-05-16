@@ -42,6 +42,11 @@ AC_SEARCH_LIBS(ZSTD_CStreamInSize, zstd,
 	[AC_SUBST(zstd, 1)],
 	[AC_SUBST(zstd, 0)] )
 
+# optional libcurl (HTTP/HTTPS for server announce, list, external IP, pakset download)
+AC_SEARCH_LIBS(curl_easy_init, curl,
+	[AC_SUBST(curl, 1)],
+	[AC_SUBST(curl, 0)] )
+
 # hackish detection of OS ...
 if test "$ac_cv_header_windows_h" == yes
 then

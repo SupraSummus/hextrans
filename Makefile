@@ -228,6 +228,13 @@ ifdef USE_ZSTD
   endif
 endif
 
+ifdef USE_CURL
+  ifeq ($(shell expr $(USE_CURL) \>= 1), 1)
+    CFLAGS  += -DUSE_CURL
+    LDFLAGS += -lcurl
+  endif
+endif
+
 ifdef USE_FLUIDSYNTH_MIDI
   ifeq ($(shell expr $(USE_FLUIDSYNTH_MIDI) \>= 1), 1)
     CFLAGS  += -DUSE_FLUIDSYNTH_MIDI

@@ -265,6 +265,11 @@ if (SIMUTRANS_USE_UPNP)
 	target_link_libraries(simutrans PRIVATE MiniUPNP::MiniUPNP)
 endif (SIMUTRANS_USE_UPNP)
 
+if (SIMUTRANS_USE_CURL)
+	target_compile_definitions(simutrans PRIVATE USE_CURL=1)
+	target_link_libraries(simutrans PRIVATE CURL::libcurl)
+endif (SIMUTRANS_USE_CURL)
+
 if (SIMUTRANS_USE_ZSTD)
 	target_sources(simutrans PRIVATE src/simutrans/io/rdwr/zstd_file_rdwr_stream.cc)
 	target_include_directories(simutrans PRIVATE ${ZSTD_INCLUDE_DIRS})
