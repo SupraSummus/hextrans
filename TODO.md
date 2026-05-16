@@ -839,7 +839,8 @@ with the other items here when crossroads design lands.
 Replace the in-house HTTP code with libcurl across the four call
 sites (pakset download, server announce, server list, external IP).
 Plan and breakage matrix in `documentation/libcurl-port.md`.  E2e
-suite lives under `tools/http_fixture/`; it drives announce
+suite lives under `tools/http_fixture/` and runs in CI under the
+existing clang+ASAN+UBSAN job; it drives announce
 (`-server -announce`) and external-IP (`-easyserver`) through real
 production CLI flags — `-listserver` and `-ip_query_host` —
 backed by `env_t::listserver` / `env_t::ip_query_host` and matching
@@ -848,11 +849,10 @@ download (GUI-only) aren't covered, by design — extending the
 suite to them needs an honest production CLI seam (e.g. a pakset
 install from the command line), not a test-only flag.  Three
 in-house bugs in `network_http_get_file` are documented for retirement
-at migration time but uncovered today for the same reason.  Next
-move: decide the IPv4/IPv6 preference policy for external-IP
-detection (libcurl will return whichever the OS prefers — see
-"Open questions" in the plan doc), then start the migration with
-that call site since it's the smallest surface.
+at migration time but uncovered today for the same reason.  Proxy
+and address-family decisions are resolved in the plan doc — both
+take libcurl's defaults.  Next move: start the migration with
+external-IP detection (smallest surface, covered by `test_external_ip`).
 
 Save-format feature gates now have names in `simversion.h` rather
 than floating against `SIM_SAVE_MINOR`.  Continue that convention for

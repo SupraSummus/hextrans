@@ -34,6 +34,7 @@ apt-get install -y --no-install-recommends \
     libzstd-dev \
     libminiupnpc-dev \
     libfluidsynth-dev \
+    libcurl4-openssl-dev \
     moreutils
 
 echo "session-start.sh: configuring CMake build dir (build/)..."

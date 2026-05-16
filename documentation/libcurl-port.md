@@ -122,8 +122,9 @@ wrapper inherits both call sites unchanged.
     the legacy code if a regression slips out.
   - `cmake/SimutransSourceList.cmake` — adjust if file layout
     changes.
-  - `tools/session-start.sh` — add `libcurl4-openssl-dev` to the
-    apt-get list.
+  - `.claude/hooks/session-start.sh` — already adds
+    `libcurl4-openssl-dev` to the apt-get list ahead of the
+    migration; CI runners (ubuntu-24.04) ship libcurl by default.
   - `.github/workflows/run-tests.yml` — confirm libcurl is on the
     runner image (it is, by default); add a job that exercises the
     fixture suite below.
@@ -251,21 +252,26 @@ Commits: one per call-site migration, in the order above.  Old
 symbols stay as fatal tripwires until all four are migrated and a
 release has shipped.
 
+## Resolved decisions
+
+*Proxy policy.*  Take libcurl's default — respect `http_proxy` /
+`HTTPS_PROXY` / `NO_PROXY`.  Zero lines of code, matches corporate
+user expectations, and the current "ignore proxies" behaviour falls
+out of using raw sockets rather than being a documented contract.
+Users who didn't set the env var see no change.
+
+*Address family for external-IP detection.*  Take libcurl's default
+— do not set `CURLOPT_IPRESOLVE`.  `get_external_IP` already
+handles dual-stack at the *server* side: it calls `QUERY_ADDR_IP`
+(dual-stack DNS record) and, when the response contains a colon
+(v6), follows up with `QUERY_ADDR_IPv4_ONLY` (A-only record) to
+also get the v4 address.  Whichever family libcurl picks for the
+socket is orthogonal — the server's record set determines what
+gets returned.  Forcing `CURL_IPRESOLVE_V4` would *break* the
+external-IP query on v6-only networks; the simpler default is also
+the correct one.
+
 ## Open questions
-
-Proxy policy.  libcurl respects `http_proxy` / `HTTPS_PROXY` /
-`NO_PROXY` by default.  Do we want this, or do we want
-`CURLOPT_PROXY` set to empty to disable?  Default-respect matches
-user expectation in corporate environments; default-disable matches
-the current code (which ignores env entirely).  Decide before
-milestone 2.
-
-IPv6 preference for external-IP detection.  Today the call exists
-specifically to surface a public IPv4 to the user.  With libcurl on
-dual-stack we'll get whichever the OS prefers.  Either set
-`CURLOPT_IPRESOLVE = CURL_IPRESOLVE_V4` for that one call, or
-restructure the call site to ask for both families and present
-both.  Decide alongside the external-IP migration commit.
 
 CA bundle on Windows.  vcpkg's curl builds against Schannel by
 default which uses the Windows cert store; if a packager builds

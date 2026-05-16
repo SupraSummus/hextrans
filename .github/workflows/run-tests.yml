@@ -100,3 +100,14 @@ jobs:
         chmod +x run-automated-tests.sh
         ulimit -St 600 # 10 minutes ought to be enough for anybody.
         ./run-automated-tests.sh
+    - name: Run HTTP e2e suite
+      # Baseline coverage for the four HTTP call sites ahead of the
+      # libcurl migration (see documentation/libcurl-port.md).  Drives
+      # the in-house code today via -listserver / -ip_query_host
+      # pointed at tools/http_fixture/server.py, so a regression in
+      # either the in-house path or its libcurl replacement surfaces
+      # here under the same ASAN/UBSAN config as the scenario suite.
+      run: |
+        export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
+        export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
+        python3 tools/http_fixture/test_e2e.py
