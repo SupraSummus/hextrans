@@ -363,6 +363,193 @@ error:
 	return "Client closed connection during transfer";
 }
 
+#ifdef USE_CURL
+
+#include <curl/curl.h>
+
+#ifndef REVISION
+#	define REVISION 0
+#endif
+
+#define SIMUTRANS_CURL_USER_AGENT "Simutrans/r" QUOTEME(REVISION)
+
+// curl_global_init is not documented thread-safe before libcurl 7.84; we guard
+// it with a one-shot bool, called from the first HTTP function.  All four call
+// sites (announce, server list, external IP, pakset download) live on the main
+// thread, and no other thread reaches a curl_easy_* call, so the first-call
+// init is always main-thread.  No global_cleanup: every HTTP call site lives
+// for the process lifetime, so we'd just be racing process teardown.
+static bool curl_initialized = false;
+static void ensure_curl_global()
+{
+	if (!curl_initialized) {
+		curl_global_init(CURL_GLOBAL_DEFAULT);
+		curl_initialized = true;
+	}
+}
+
+static size_t curl_write_to_cbuffer(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	const size_t n = size * nmemb;
+	static_cast<cbuffer_t *>(userdata)->append(ptr, n);
+	return n;
+}
+
+static size_t curl_write_to_file(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	return fwrite(ptr, size, nmemb, static_cast<FILE *>(userdata));
+}
+
+// Initialise an easy handle with the options every call site shares:
+// follow redirects (with a cap), our user-agent, fail-on-HTTP-error so a
+// non-2xx aborts the transfer instead of writing the error body to disk.
+// Returns NULL if curl_easy_init fails (callers map to a static error string).
+static CURL *new_easy_handle(const char *url)
+{
+	ensure_curl_global();
+	CURL *curl = curl_easy_init();
+	if (!curl) {
+		return NULL;
+	}
+	curl_easy_setopt(curl, CURLOPT_URL, url);
+	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 10L);
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, SIMUTRANS_CURL_USER_AGENT);
+	curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+	return curl;
+}
+
+// Maps transport errors and HTTP non-2xx (via CURLE_HTTP_RETURNED_ERROR from
+// CURLOPT_FAILONERROR) to a static error string.  The GUI surfaces these
+// verbatim, in the spirit of the legacy code.
+static const char *perform_and_map_error(CURL *curl)
+{
+	static char err_str[256];
+	const CURLcode res = curl_easy_perform(curl);
+	if (res == CURLE_OK) {
+		return NULL;
+	}
+	if (res == CURLE_HTTP_RETURNED_ERROR) {
+		long http_code = 0;
+		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+		snprintf(err_str, sizeof(err_str), "HTTP server returned %ld", http_code);
+	}
+	else {
+		snprintf(err_str, sizeof(err_str), "HTTP transfer failed: %s", curl_easy_strerror(res));
+	}
+	return err_str;
+}
+
+// Compose http://address/name where `address` is "host:port" or "host" and
+// `name` is "/path".  We never produced an https URL from this seam — the
+// callers all hit plain-HTTP listservers — so prefixing http:// is correct.
+static void compose_http_url(char *out, size_t out_size, const char *address, const char *name)
+{
+	snprintf(out, out_size, "http://%s%s", address, name);
+}
+
+
+// Download an arbitrary URL (http or https) to a local file.  Used by the
+// pakset installer where the URL is shipped in paksetinfo_t::url with its
+// own scheme; the listserver / external-IP / announce call sites use the
+// host+path entry points below.
+const char *network_curl_download_url(const char *url, const char *filename)
+{
+	CURL *curl = new_easy_handle(url);
+	if (!curl) {
+		return "Failed to initialise libcurl";
+	}
+	FILE *fp = dr_fopen(filename, "wb");
+	if (!fp) {
+		curl_easy_cleanup(curl);
+		return "Cannot open download target file";
+	}
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_to_file);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+	const char *err = perform_and_map_error(curl);
+	fclose(fp);
+	if (err) {
+		dr_remove(filename);
+	}
+	curl_easy_cleanup(curl);
+	return err;
+}
+
+
+// POST a form-encoded body to host+path.
+// Optionally: receive response body to file localname.
+const char *network_http_post(const char *address, const char *name, const char *poststr, const char *localname)
+{
+	DBG_MESSAGE("network_http_post", "%s%s", address, name);
+	char url[2048];
+	compose_http_url(url, sizeof(url), address, name);
+	CURL *curl = new_easy_handle(url);
+	if (!curl) {
+		return "Failed to initialise libcurl";
+	}
+	FILE *fp = NULL;
+	if (localname && *localname) {
+		dr_remove(localname);
+		fp = dr_fopen(localname, "wb");
+		if (!fp) {
+			curl_easy_cleanup(curl);
+			return "Cannot open response file";
+		}
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_to_file);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+	}
+	struct curl_slist *hdrs = curl_slist_append(NULL, "Content-Type: application/x-www-form-urlencoded");
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, poststr ? poststr : "");
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, poststr ? (long)strlen(poststr) : 0L);
+	const char *err = perform_and_map_error(curl);
+	if (fp) {
+		fclose(fp);
+		if (err) {
+			dr_remove(localname);
+		}
+	}
+	curl_slist_free_all(hdrs);
+	curl_easy_cleanup(curl);
+	if (err) {
+		dbg->warning("network_http_post", "%s failed: %s", url, err);
+	}
+	return err;
+}
+
+
+// GET host+path into a cbuffer.
+const char *network_http_get(const char *address, const char *name, cbuffer_t &local)
+{
+	DBG_MESSAGE("network_http_get", "%s%s", address, name);
+	char url[2048];
+	compose_http_url(url, sizeof(url), address, name);
+	CURL *curl = new_easy_handle(url);
+	if (!curl) {
+		return "Failed to initialise libcurl";
+	}
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_to_cbuffer);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &local);
+	const char *err = perform_and_map_error(curl);
+	curl_easy_cleanup(curl);
+	if (err) {
+		dbg->warning("network_http_get", "%s failed: %s", url, err);
+	}
+	return err;
+}
+
+
+// GET host+path into a file (legacy entry point; the pakset installer
+// now goes through network_curl_download_url directly).
+const char *network_http_get_file(const char *address, const char *name, const char *filename)
+{
+	char url[2048];
+	compose_http_url(url, sizeof(url), address, name);
+	return network_curl_download_url(url, filename);
+}
+
+#else // USE_CURL
+
 /// POST a message (poststr) to an HTTP server at the specified address and relative path (name)
 /// Optionally: Receive response to file localname
 const char *network_http_post( const char *address, const char *name, const char *poststr, const char *localname )
@@ -627,4 +814,6 @@ const char *network_http_get_file( const char* address, const char* name, const 
 	return err;
 }
 
-#endif
+#endif // USE_CURL
+
+#endif // !NETTOOL

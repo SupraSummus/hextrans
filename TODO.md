@@ -836,23 +836,20 @@ with the other items here when crossroads design lands.
 
 ## other
 
-Replace the in-house HTTP code with libcurl across the four call
-sites (pakset download, server announce, server list, external IP).
-Plan and breakage matrix in `documentation/libcurl-port.md`.  E2e
-suite lives under `tools/http_fixture/` and runs in CI under the
-existing clang+ASAN+UBSAN job; it drives announce
-(`-server -announce`) and external-IP (`-easyserver`) through real
-production CLI flags — `-listserver` and `-ip_query_host` —
-backed by `env_t::listserver` / `env_t::ip_query_host` and matching
-`simuconf.tab` keys.  Server-list fetch (GUI-only) and pakset
-download (GUI-only) aren't covered, by design — extending the
-suite to them needs an honest production CLI seam (e.g. a pakset
-install from the command line), not a test-only flag.  Three
-in-house bugs in `network_http_get_file` are documented for retirement
-at migration time but uncovered today for the same reason.  Proxy
-and address-family decisions are resolved in the plan doc — both
-take libcurl's defaults.  Next move: start the migration with
-external-IP detection (smallest surface, covered by `test_external_ip`).
+Retire the libcurl rollback gate.  Legacy in-house HTTP socket code
+in `network_file_transfer.cc` (the `network_http_get` / `_post` /
+`_get_file` bodies and the `parse_http_url` helper, only reachable
+from those bodies now), and the desktop fan-out in
+`pakset_downloader.cc` (urlmon / PowerShell / system curl), all live
+under `#else USE_CURL` as a downstream fallback
+(`-DSIMUTRANS_USE_CURL=OFF`).  Delete the legacy branch together
+with the cmake / autoconf gate after the next release has shipped
+without a regression report against the libcurl path.  The three
+`network_http_get_file` bugs called out in
+`documentation/libcurl-port.md` (relative-redirect dropout,
+`:80`-double-append, mis-tagged error string) remain present in the
+legacy branch — fixing them there is wasted work ahead of
+retirement.
 
 Save-format feature gates now have names in `simversion.h` rather
 than floating against `SIM_SAVE_MINOR`.  Continue that convention for

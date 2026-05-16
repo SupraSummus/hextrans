@@ -47,6 +47,16 @@ const char *network_http_get ( const char *address, const char *name, cbuffer_t&
  */
 const char* network_http_get_file( const char* address, const char* name, const char *filename );
 
+#ifdef USE_CURL
+/**
+ * Download an arbitrary URL (http or https) to a local file via libcurl.
+ * Follows redirects up to a fixed cap.  Returns NULL on success or a static
+ * error string.  Available only in libcurl-enabled builds; pakset_downloader
+ * is the in-tree consumer (its URLs ship their own scheme).
+ */
+const char *network_curl_download_url(const char *url, const char *filename);
+#endif
+
 /**
  * Parse an "http://host[:port]/path" URL into a `network_http_*`-compatible
  * host (with ":80" appended if no port is given) and a path pointer

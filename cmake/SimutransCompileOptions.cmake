@@ -34,6 +34,10 @@ if (MiniUPNP_FOUND)
 	option(SIMUTRANS_USE_UPNP "Use MiniUPNP for easier server setup" ON)
 endif (MiniUPNP_FOUND)
 
+if (CURL_FOUND)
+	option(SIMUTRANS_USE_CURL "Use libcurl for HTTP/HTTPS calls (server announce, server list, external IP, pakset download)" ON)
+endif (CURL_FOUND)
+
 if (ZSTD_FOUND)
 	option(SIMUTRANS_USE_ZSTD "Enable support for zstd save file compression (larger save files than bzip2, but faster)" ON)
 endif (ZSTD_FOUND)
