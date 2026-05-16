@@ -523,8 +523,9 @@ private:
 
 	/**
 	 * Will create lakes.
+	 * @param height absolute height below which lakes will be created.
 	 */
-	void create_lakes( int xoff, int yoff, sint8 max_lake_height );
+	void create_lakes( int xoff, int yoff, sint8 height );
 
 	/**
 	 * Will create beaches.
