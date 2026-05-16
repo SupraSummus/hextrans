@@ -91,25 +91,27 @@ welt_gui_t::welt_gui_t() :
 	attraction_density = ( sets->get_tourist_attractions() ) ? sqrt((double)sets->get_size_x()*sets->get_size_y()) / sets->get_tourist_attractions() : 0.0;
 	river_density      = ( sets->get_river_number()        ) ? sqrt((double)sets->get_size_x()*sets->get_size_y()) / sets->get_river_number()        : 0.0;
 
-	// find earliest start and end date ...
-	uint16 game_start = 4999;
-	uint16 game_ends = 0;
+	// playable era: roads bound the range, townhalls intersect it when present
+	uint16 game_start = (way_builder_t::get_earliest_way(road_wt)->get_intro_year_month()+11)/12;
+	uint16 game_ends  = (way_builder_t::get_latest_way(road_wt)->get_retire_year_month()+11)/12;
 
-	// first check town halls
-	for(building_desc_t const* const desc : *hausbauer_t::get_list(building_desc_t::townhall)) {
-		uint16 intro_year = (desc->get_intro_year_month()+11)/12;
-		if(  intro_year<game_start  ) {
-			game_start = intro_year;
+	vector_tpl<const building_desc_t*> const& townhalls = *hausbauer_t::get_list(building_desc_t::townhall);
+	if(  !townhalls.empty()  ) {
+		uint16 townhall_start = (townhalls[0]->get_intro_year_month()+11)/12;
+		uint16 townhall_ends  = (townhalls[0]->get_retire_year_month()+11)/12;
+		for(building_desc_t const* const desc : townhalls) {
+			uint16 intro_year = (desc->get_intro_year_month()+11)/12;
+			if(  intro_year<townhall_start  ) {
+				townhall_start = intro_year;
+			}
+			uint16 retire_year = (desc->get_retire_year_month()+11)/12;
+			if(  retire_year>townhall_ends  ) {
+				townhall_ends = retire_year;
+			}
 		}
-		uint16 retire_year = (desc->get_retire_year_month()+11)/12;
-		if(  retire_year>game_ends  ) {
-			game_ends = retire_year;
-		}
+		game_start = max( game_start, townhall_start );
+		game_ends  = min( game_ends,  townhall_ends  );
 	}
-
-	// then streets
-	game_start = max( game_start, (way_builder_t::get_earliest_way(road_wt)->get_intro_year_month()+11)/12 );
-	game_ends  = min( game_ends,  (way_builder_t::get_latest_way(road_wt)->get_retire_year_month()+11)/12 );
 
 	loaded_heightfield = load_heightfield = false;
 	sets->heightfield = "";
