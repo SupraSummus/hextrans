@@ -923,11 +923,13 @@ bool get_external_IP( cbuffer_t &myIPaddr, cbuffer_t &altIPaddr )
 	myIPaddr.clear();
 	altIPaddr.clear();
 	// query for IP (faster than asking router using uPnP and we can get IP6 too)
-	const char *err = network_http_get( QUERY_ADDR_IP, QUERY_ADDR_URL, altIPaddr );
+	const char *query_host  = env_t::ip_query_host.empty() ? QUERY_ADDR_IP        : env_t::ip_query_host.c_str();
+	const char *query_host4 = env_t::ip_query_host.empty() ? QUERY_ADDR_IPv4_ONLY : env_t::ip_query_host.c_str();
+	const char *err = network_http_get( query_host, QUERY_ADDR_URL, altIPaddr );
 	// if we have a dual stack system, IP6 should be preferred, i.e. we have now the IP6
 	if(  err==NULL  &&  strstr(altIPaddr,":")  ) {
 		// try to get and IPv4 address too
-		if(  !network_http_get( QUERY_ADDR_IPv4_ONLY, QUERY_ADDR_URL, myIPaddr )  ) {
+		if(  !network_http_get( query_host4, QUERY_ADDR_URL, myIPaddr )  ) {
 			if(  strcmp( myIPaddr, altIPaddr ) == 0   ) {
 				// same, no alternative address
 				altIPaddr.clear();

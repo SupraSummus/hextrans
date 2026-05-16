@@ -288,7 +288,13 @@ bool server_frame_t::update_serverlist ()
 	cbuffer_t buf;
 	const char *err = NULL;
 
-	if ((err = network_http_get(ANNOUNCE_SERVER1, ANNOUNCE_LIST_URL, buf))) {
+	if (!env_t::listserver.empty()) {
+		if ((err = network_http_get(env_t::listserver.c_str(), ANNOUNCE_LIST_URL, buf))) {
+			dbg->error("server_frame_t::update_serverlist", "Could not download server list from %s: %s", env_t::listserver.c_str(), err);
+			return false;
+		}
+	}
+	else if ((err = network_http_get(ANNOUNCE_SERVER1, ANNOUNCE_LIST_URL, buf))) {
 		dbg->warning("server_frame_t::update_serverlist", "Could not download server list from %s: %s", ANNOUNCE_SERVER1, err);
 #ifdef ANNOUNCE_SERVER2
 		if ((err = network_http_get(ANNOUNCE_SERVER2, ANNOUNCE_LIST_URL, buf))) {

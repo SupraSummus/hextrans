@@ -6695,7 +6695,12 @@ void karte_t::announce_server(server_announce_type_t status)
 		buf.append(p);
 #endif
 
-		if (network_http_post(ANNOUNCE_SERVER1, ANNOUNCE_URL, buf, NULL)) {
+		if (!env_t::listserver.empty()) {
+			if (network_http_post(env_t::listserver.c_str(), ANNOUNCE_URL, buf, NULL)) {
+				dbg->warning("announce_server", "Announce to %s failed", env_t::listserver.c_str());
+			}
+		}
+		else if (network_http_post(ANNOUNCE_SERVER1, ANNOUNCE_URL, buf, NULL)) {
 #ifdef ANNOUNCE_SERVER2
 			if (network_http_post(ANNOUNCE_SERVER2, ANNOUNCE_URL, buf, NULL))
 #ifdef ANNOUNCE_SERVER3
@@ -6703,8 +6708,6 @@ void karte_t::announce_server(server_announce_type_t status)
 #endif
 #endif
 					dbg->warning("announce_server", "All announce servers down!");
-			
-
 		}
 
 		// Record time of this announce

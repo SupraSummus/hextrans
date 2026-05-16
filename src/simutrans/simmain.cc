@@ -415,6 +415,9 @@ void print_help()
 		" -server_dns FQDN/IP FQDN or IP address of server for announcements\n"
 		" -server_name NAME   Name of server for announcements\n"
 		" -server_admin_pw PW password for server administration\n"
+		" -listserver HOST    Override the listserver address used for announce/server-list\n"
+		"                     (host[:port]; default uses ANNOUNCE_SERVER1 with fallback chain)\n"
+		" -ip_query_host HOST Override the external-IP query host used in easy_server mode\n"
 		" -heavy NUM          enables heavy-mode debugging for network games. VERY SLOW!\n"
 		" -set_basedir WD     Use WD as directory containing all constant data.\n"
 		" -set_installdir WD  Use WD as directory for pakset download.\n"
@@ -753,6 +756,15 @@ int simu_main(int argc, char** argv)
 	}
 
 	dr_chdir( env_t::base_dir );
+
+	// Listserver/IP-query overrides must be applied before -easyserver,
+	// which calls get_external_IP() during prepare_for_server.
+	if(  const char *ref_str = args.gimme_arg("-listserver", 1)  ) {
+		env_t::listserver = ref_str;
+	}
+	if(  const char *ref_str = args.gimme_arg("-ip_query_host", 1)  ) {
+		env_t::ip_query_host = ref_str;
+	}
 
 	// starting a server?
 	if(  args.has_arg("-easyserver")  ) {
