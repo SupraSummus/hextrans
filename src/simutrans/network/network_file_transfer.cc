@@ -27,6 +27,32 @@
  */
 
 
+const char *parse_http_url(const char *url, char *host, size_t host_size,
+                           const char **path)
+{
+	if (strncmp(url, "http://", 7) != 0) {
+		return "URL must start with http://";
+	}
+	const char *after_scheme = url + 7;
+	const char *slash = strchr(after_scheme, '/');
+	if (slash == NULL) {
+		return "URL must contain a path";
+	}
+	size_t hostlen = (size_t)(slash - after_scheme);
+	if (hostlen + 4 >= host_size) {  // room for ":80\0"
+		return "host too long";
+	}
+	memcpy(host, after_scheme, hostlen);
+	host[hostlen] = 0;
+	// network_http_* expects host:port; default to :80 when no port given.
+	if (strchr(host, ':') == NULL) {
+		strcat(host, ":80");
+	}
+	*path = slash;
+	return NULL;
+}
+
+
 #ifndef NETTOOL
 /// Parses a Content-Length header value.
 /// @returns a non-negative value on success, or -1 on error (e.g. missing/invalid/out-of-range value)

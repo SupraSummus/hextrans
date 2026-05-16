@@ -146,6 +146,14 @@ public:
 	static std::string server_infurl;
 	/// Text to be show on startup; can be formatted like helpfiles
 	static std::string server_motd_filename;
+	/// Listserver host the client/server announces to and fetches the server
+	/// list from; empty means use ANNOUNCE_SERVER1 (and the fallback chain
+	/// to ANNOUNCE_SERVER2/3) in simversion.h.
+	static std::string listserver;
+	/// External-IP-query host used in easy_server mode to discover the
+	/// machine's public address; empty means use QUERY_ADDR_IP /
+	/// QUERY_ADDR_IPv4_ONLY in simversion.h.
+	static std::string ip_query_host;
 	/// @} end of Information about server
 
 

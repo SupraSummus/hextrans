@@ -911,6 +911,12 @@ void settings_t::parse_simuconf( tabfile_t& simuconf, sint16& disp_width, sint16
 	if( *contents.get( "server_motd_filename" ) ) {
 		env_t::server_motd_filename = ltrim( contents.get( "server_motd_filename" ) );
 	}
+	if( *contents.get( "listserver" ) ) {
+		env_t::listserver = ltrim( contents.get( "listserver" ) );
+	}
+	if( *contents.get( "ip_query_host" ) ) {
+		env_t::ip_query_host = ltrim( contents.get( "ip_query_host" ) );
+	}
 
 	// listen directive is a comma separated list of IP addresses to listen on
 	if( *contents.get( "listen" ) ) {

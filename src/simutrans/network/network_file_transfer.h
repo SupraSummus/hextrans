@@ -47,5 +47,15 @@ const char *network_http_get ( const char *address, const char *name, cbuffer_t&
  */
 const char* network_http_get_file( const char* address, const char* name, const char *filename );
 
+/**
+ * Parse an "http://host[:port]/path" URL into a `network_http_*`-compatible
+ * host (with ":80" appended if no port is given) and a path pointer
+ * aliased into the input string.  Returns NULL on success, or a static
+ * error string on malformed input.  The path pointer points into `url`
+ * at the leading '/' of the path component; the input is not modified.
+ */
+const char *parse_http_url(const char *url, char *host, size_t host_size,
+                           const char **path);
+
 
 #endif

@@ -320,6 +320,21 @@ keeps producing — vertex topology, ribi widening, slope encoding.
 Those are the problems where a long internal chain is most tempting
 and least reliable.
 
+## Design docs
+
+Longer-form design and planning docs live under `documentation/`:
+
+  - `documentation/libcurl-port.md` — plan, breakage matrix and
+    test plan for replacing the in-house HTTP code with libcurl.
+    Pre-implementation but with an e2e baseline suite already in
+    `tools/http_fixture/`; open items are flagged in the doc and
+    pointed to from `TODO.md` → "other".  Read this before changing
+    HTTP, pakset download, server announce or list-server code —
+    work is in flight and shapes how to fix nearby bugs.
+  - `documentation/hex-vertex-storage.md` — per-vertex height
+    storage on the hex grid, canonical ownership rule and storage
+    layout.  Describes live behaviour.
+
 ## Working notes
 
 Compile from the repo root: `cmake --build build -j "$(nproc)"`. The

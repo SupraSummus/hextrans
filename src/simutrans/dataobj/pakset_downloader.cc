@@ -233,18 +233,13 @@ bool pak_download(vector_tpl<paksetinfo_t*>paks)
 		else {
 			// download using our simutrans code
 			sprintf(outfilename, "%s.zip", pi->name);
-			const char* url = pi->url + 7; // minus http://
 
 			char site_ip[1024];
-			tstrncpy(site_ip, url, lengthof(site_ip));
-
-			const char* site_path = strchr(url, '/');
-			site_ip[site_path - url] = 0;
-			strcat(site_ip, ":80");
-
-			const char* err = NULL;
-
-			err = network_http_get_file(site_ip, site_path, outfilename);
+			const char *site_path = NULL;
+			const char *err = parse_http_url(pi->url, site_ip, lengthof(site_ip), &site_path);
+			if (err == NULL) {
+				err = network_http_get_file(site_ip, site_path, outfilename);
+			}
 			if (err) {
 				dbg->warning("Pakset download failed with", "%s", err);
 				j += 2;

@@ -80,6 +80,8 @@ std::string env_t::server_pakurl;
 std::string env_t::server_infurl;
 std::string env_t::server_admin_pw;
 std::string env_t::server_motd_filename;
+std::string env_t::listserver;
+std::string env_t::ip_query_host;
 uint8 env_t::chat_unread_public = 0;
 uint8 env_t::chat_unread_company = 0;
 uint8 env_t::chat_unread_whisper = 0;
