@@ -4095,7 +4095,8 @@ bool stadt_t::test_and_build_cityroad(koord start, koord end)
 	way_builder_t bauigel(NULL);
 	bauigel.init_builder(way_builder_t::strasse | way_builder_t::terraform_flag, welt->get_city_road(), NULL, NULL);
 	bauigel.set_build_sidewalk(true);
-	if (bauigel.calc_straight_route(welt->lookup_kartenboden(start)->get_pos(), welt->lookup_kartenboden(end)->get_pos())) {
+	bauigel.calc_straight_route(welt->lookup_kartenboden(start)->get_pos(), welt->lookup_kartenboden(end)->get_pos());
+	if (bauigel.get_count() < 2) {
 		return false;
 	}
 	bauigel.build();
