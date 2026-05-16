@@ -2,7 +2,7 @@
 # End-to-end test driver for the simutrans HTTP call sites.
 #
 # Spawns tools/http_fixture/server.py on a random local port, points
-# simutrans at it via SIMUTRANS_HTTP_TEST_HOST=127.0.0.1:<port>,
+# simutrans at it via the -listserver / -ip_query_host CLI flags,
 # launches a headless simutrans configured to exercise one HTTP
 # call site, then scrapes the fixture's stderr log to assert the
 # request actually arrived in the shape we expected.
@@ -12,10 +12,9 @@
 #   tools/http_fixture/test_e2e.py announce   # name-substring filter
 #
 # Requires:
-#   - build-headless/simutrans/simutrans (or build/simutrans/simutrans)
-#     built from this tree; see documentation/libcurl-port.md for
-#     why the headless build is preferred (no SDL2, faster startup,
-#     no display needed).
+#   - A built simutrans binary from this tree, found via one of:
+#     build-headless/simutrans/simutrans, build/simutrans/simutrans
+#     (cmake), or ./sim (autoconf, as built by CI).
 #   - simutrans/pak/ populated with a pak64 (or compatible).
 #     Run `cd simutrans && ../tools/get_pak.sh pak64` once if missing.
 
@@ -40,10 +39,11 @@ def find_simutrans() -> Path:
     for candidate in [
         ROOT / "build-headless" / "simutrans" / "simutrans",
         ROOT / "build" / "simutrans" / "simutrans",
+        ROOT / "sim",
     ]:
         if candidate.is_file() and os.access(candidate, os.X_OK):
             return candidate
-    sys.exit("no simutrans binary found; build with cmake first")
+    sys.exit("no simutrans binary found; build with cmake or autoconf first")
 
 
 def require_pakset():
@@ -110,8 +110,15 @@ class Fixture:
 
 
 def run_simutrans(fixture: Fixture, extra_args: list[str], *,
-                  timeout: float = 12.0) -> subprocess.CompletedProcess:
-    """Launch simutrans with -listserver and -ip_query_host pointed at the fixture."""
+                  timeout: float = 12.0) -> str | None:
+    """Launch simutrans with -listserver and -ip_query_host at the fixture.
+
+    Returns None on the expected outcome — our `timeout` fires and we
+    SIGTERM the server-mode process.  A clean or non-zero exit *before*
+    the timeout means simutrans crashed or a sanitizer fired; returns
+    the stderr tail so the test can surface it instead of silently
+    grading the fixture log against a half-run binary.
+    """
     sim = find_simutrans()
     require_pakset()
     userdir = Path(tempfile.mkdtemp(prefix="sim-e2e-"))
@@ -131,14 +138,11 @@ def run_simutrans(fixture: Fixture, extra_args: list[str], *,
     try:
         proc = subprocess.run(args, env=env, capture_output=True,
                               text=True, timeout=timeout)
-        return proc
-    except subprocess.TimeoutExpired as exc:
-        # Expected outcome for tests that hold simutrans open until the
-        # request fires.  Convert to a CompletedProcess for uniform handling.
-        return subprocess.CompletedProcess(
-            args=exc.cmd, returncode=-signal.SIGTERM,
-            stdout=exc.stdout or "", stderr=exc.stderr or "",
-        )
+        tail = (proc.stderr or "")[-2000:]
+        return (f"simutrans exited rc={proc.returncode} before timeout; "
+                f"stderr tail:\n{tail}")
+    except subprocess.TimeoutExpired:
+        return None
     finally:
         shutil.rmtree(userdir, ignore_errors=True)
 
@@ -149,8 +153,10 @@ def run_simutrans(fixture: Fixture, extra_args: list[str], *,
 def test_announce():
     """karte_t::announce_server posts to /announce with the expected keys."""
     with Fixture() as fx:
-        run_simutrans(fx, ["-server", "13353", "-announce", "-debug", "2"],
-                      timeout=10.0)
+        err = run_simutrans(fx, ["-server", "13353", "-announce", "-debug", "2"],
+                            timeout=10.0)
+        if err:
+            return err
         if not fx.wait_for(lambda lines: any("POST /announce" in l for l in lines),
                            timeout=1.0):
             return "no POST /announce seen; fixture log: " + repr(fx.lines)
@@ -168,7 +174,9 @@ def test_announce():
 def test_external_ip():
     """get_external_IP() hits /get_IP.php under -easyserver."""
     with Fixture() as fx:
-        run_simutrans(fx, ["-easyserver", "-debug", "2"], timeout=10.0)
+        err = run_simutrans(fx, ["-easyserver", "-debug", "2"], timeout=10.0)
+        if err:
+            return err
         if not any("GET /get_IP.php" in l for l in fx.lines):
             return f"no GET /get_IP.php seen; log: {fx.lines}"
 
