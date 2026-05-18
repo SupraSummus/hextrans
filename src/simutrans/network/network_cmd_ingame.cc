@@ -1125,6 +1125,16 @@ void nwc_tool_t::rdwr()
 }
 
 
+// Pre-auth parse surface: clone() calls this with attacker-controlled
+// tool_id before any player / client_id auth check has run. The four
+// current rdwr_custom_data overrides all consume only fixed-size
+// primitives (two_click_tool_t: 6 B, tool_raise_lower_base_t: 1 B,
+// tool_build_bridge_t: 7 B, tool_build_roadsign_t: 9 B) and the base
+// is empty; custom_data_buf is hard-capped at 256 B and
+// memory_rw_t::rdwr clamps writes. A new override that reads
+// variable-length data, rdwr_str into a fixed buffer, or any int*int
+// size math re-opens a pre-auth corruption surface here and needs a
+// security review before landing.
 void nwc_tool_t::init_tool()
 {
 	delete tool;
