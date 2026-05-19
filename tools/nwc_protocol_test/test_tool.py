@@ -1,35 +1,21 @@
 #!/usr/bin/env python3
-# NWC_TOOL wire pin + D8 wire-supplied-client-id regression tripwire.
-#
-# nwc_tool_t::clone (src/simutrans/network/network_cmd_ingame.cc) used
-# to feed the wire-supplied our_client_id straight into
-# socket_list_t::get_client.  A peer-supplied 0xFFFFFFFF crashed the
-# server on vector_tpl bounds; any in-use slot number let the sender
-# impersonate that client and inherit its player_unlocked bitmap.
-#
-# Two fixes landed together:
-#
-#   1. network_command_t::read_from_packet now overrides our_client_id
-#      with the socket-derived id on the server side, so the wire value
-#      is informational only.
-#   2. nwc_tool_t::clone bounds-checks our_client_id before indexing
-#      (defense-in-depth — slot can go inactive between receive and
-#      execute).
-#
-# The wire pin here exercises (1) directly: a forged 0xFFFFFFFF on the
-# wire must not crash the server, and the post-fix server keeps
-# emitting its NWC_STEP heartbeat as if nothing happened.
+# NWC_TOOL wire pin + tripwire for the forged-our_client_id crash in
+# nwc_tool_t::clone (src/simutrans/network/network_cmd_ingame.cc).
+# Pre-fix the wire-supplied our_client_id was fed straight into
+# socket_list_t::get_client; 0xFFFFFFFF tripped vector_tpl bounds,
+# any valid-other-slot id let the sender impersonate that client.
+# The fix in network_command_t::read_from_packet now overrides
+# our_client_id with the socket-derived id on the server side, so
+# the wire value is informational only.
 
 import struct
+import unittest
 
 from . import wire
 
 
-# nwc_tool_t wire layout (NETWORK_VERSION=1), as built by
-# src/simutrans/network/network_cmd_ingame.cc:nwc_tool_t::rdwr.
-# Used here only to forge well-shaped packets — no inbound NWC_TOOL
-# parser is needed because the server doesn't reply with NWC_TOOL on
-# the malicious paths the test exercises.
+# nwc_tool_t wire layout (NETWORK_VERSION=1), built per
+# network_cmd_ingame.cc:nwc_tool_t::rdwr.
 def build(*,
           our_client_id: int,
           tool_id: int = 0x1000,
@@ -67,45 +53,15 @@ def build(*,
     return wire.pack_header(wire.NWC_TOOL, body)
 
 
-# ---- Test cases --------------------------------------------------------
+class ToolTest(wire.ServerTestCase, unittest.TestCase):
 
+    def test_forged_client_id_does_not_crash(self):
+        """Pre-auth NWC_TOOL with our_client_id=0xFFFFFFFF: server
+        must absorb the packet and keep ticking, not trip vector_tpl
+        bounds in socket_list_t::get_client."""
+        wire.assert_heartbeat(self.srv, build(our_client_id=0xFFFFFFFF))
 
-def test_tool_forged_client_id_does_not_crash():
-    """D8: pre-auth NWC_TOOL with our_client_id=0xFFFFFFFF must not
-    crash the server.  Pre-fix, nwc_tool_t::clone fed the bogus id
-    into socket_list_t::get_client and tripped vector_tpl's bounds
-    fatal on the server.  Post-fix, read_from_packet overrides
-    our_client_id with the socket-derived id before any consumer
-    reads it, so the wire value is informational only — and the
-    server keeps emitting its NWC_STEP heartbeat.
-
-    The same path also closed an impersonation primitive (any
-    valid-other-slot id let a peer inherit that slot's
-    player_unlocked bitmap).  We can't observe the impersonation
-    flag externally without a fully authenticated peer in the same
-    test, so the crash-and-keep-ticking pin is what's enforced here;
-    the impersonation half is covered by the network_cmd_ingame.cc
-    override itself."""
-    with wire.Server() as srv:
-        pkt = build(our_client_id=0xFFFFFFFF)
-        return wire.expect_heartbeat(srv, pkt)
-
-
-def test_tool_zero_client_id_does_not_crash():
-    """Negative control: the same forged packet shape with
-    our_client_id=0 (the legitimate "no client" sentinel many clients
-    send before the first NWC_READY) must also leave the server
-    ticking.  Catches a regression that over-aggressively rejects
-    legitimate pre-auth NWC_TOOL framing while still trying to plug
-    the D8 path."""
-    with wire.Server() as srv:
-        pkt = build(our_client_id=0)
-        return wire.expect_heartbeat(srv, pkt)
-
-
-TESTS = {
-    "test_tool_forged_client_id_does_not_crash":
-        test_tool_forged_client_id_does_not_crash,
-    "test_tool_zero_client_id_does_not_crash":
-        test_tool_zero_client_id_does_not_crash,
-}
+    def test_zero_client_id_does_not_crash(self):
+        """Negative control: our_client_id=0 is the legitimate "no
+        client" sentinel many clients send before NWC_READY."""
+        wire.assert_heartbeat(self.srv, build(our_client_id=0))
