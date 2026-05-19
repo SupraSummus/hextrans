@@ -111,7 +111,7 @@ jobs:
       run: |
         export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
         export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
-        python3 -m tools.nwc_protocol_test.test_e2e
+        python3 -m unittest discover -v -s tools/nwc_protocol_test -t .
     - name: Run HTTP e2e suite
       # Baseline coverage for the four HTTP call sites ahead of the
       # libcurl migration (see documentation/libcurl-port.md).  Drives

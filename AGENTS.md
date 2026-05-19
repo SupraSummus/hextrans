@@ -353,6 +353,15 @@ when reproducing a sanitizer-class CI failure. Real-game GUI play is
 still not testable in this env; flag assumptions that depend on a
 human at the keyboard.
 
+`tools/nwc_protocol_test/` is the multiplayer wire-protocol suite —
+black-box tests that spawn a headless server, send one hand-rolled
+NWC_* packet, and assert on the parsed reply. Plain `unittest`,
+discovered from the package root: `python3 -m unittest discover -s
+tools/nwc_protocol_test -t .` (add `-k <pattern>` to filter, or name a
+module like `tools.nwc_protocol_test.test_auth_player` to run one
+group). The same step in CI also runs under ASAN/UBSAN; sanitizer
+hits on forged packets fail loudly.
+
 Claude Code on the web checks out a shallow clone — `git log` only
 reaches back a handful of commits and `git blame` on older lines
 returns "(grafted)". Run `git fetch --unshallow origin` when the
