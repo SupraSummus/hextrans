@@ -30,6 +30,7 @@ public:
 	obj_type get_type() const OVERRIDE { return obj_imagelist; }
 	const char* get_type_name() const OVERRIDE { return "imagelist"; }
 
+	using obj_writer_t::write_obj;
 	void write_obj(FILE* fp, obj_node_t& parent, const slist_tpl<std::string>& keys);
 };
 

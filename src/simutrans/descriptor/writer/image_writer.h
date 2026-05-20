@@ -39,6 +39,7 @@ public:
 	obj_type get_type() const OVERRIDE { return obj_image; }
 	const char* get_type_name() const OVERRIDE { return "image"; }
 
+	using obj_writer_t::write_obj;
 	void write_obj(FILE* fp, obj_node_t& parent, std::string imagekey, uint32 index);
 
 private:

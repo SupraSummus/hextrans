@@ -53,7 +53,7 @@ const char *parse_http_url(const char *url, char *host, size_t host_size,
 }
 
 
-#ifndef NETTOOL
+#if !defined(NETTOOL) && !defined(USE_CURL)
 /// Parses a Content-Length header value.
 /// @returns a non-negative value on success, or -1 on error (e.g. missing/invalid/out-of-range value)
 static inline sint32 parse_content_length(const char *content_length_str)

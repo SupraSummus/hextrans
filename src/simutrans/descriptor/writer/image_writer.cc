@@ -471,7 +471,7 @@ void image_writer_t::write_obj(FILE* outfp, obj_node_t& parent, std::string an_i
 		node.write_data_at(outfp, pixdata, 12, image.len * sizeof(PIXVAL));
 		delete [] pixdata;
 	}
-#elif IMG_VERSION2
+#elif defined(IMG_VERSION2)
 	// version 1 or 2
 	obj_node_t node(this, 10 + (image.len * sizeof(uint16)), &parent);
 

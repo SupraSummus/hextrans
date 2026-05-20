@@ -364,7 +364,16 @@ Longer-form design and planning docs live under `documentation/`:
 ## Working notes
 
 Compile from the repo root: `cmake --build build -j "$(nproc)"`. The
-session-start hook configures `build/` for you.
+session-start hook configures `build/` for you.  Makeobj is
+`EXCLUDE_FROM_ALL` so it needs an explicit `--target makeobj`.
+
+The cmake build's default warning flags are narrower than the
+`src/makeobj/Makefile` set (which adds `-Wall -Wextra
+-Wcast-align`).  CI builds makeobj via the Makefile path
+(`run-tests.yml` → `make -C src/makeobj`), so lint that's quiet
+locally under cmake can fail CI.  Reproduce with `autoconf &&
+./configure && CC=clang CXX=clang++ make -C src/makeobj` after a
+clean.
 
 `tools/test.py` runs the scenario suite end-to-end against pak64 — it
 fetches pak64 on first invocation (~30 MB, cached) and skips setup it

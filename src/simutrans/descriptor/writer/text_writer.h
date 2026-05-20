@@ -29,6 +29,7 @@ public:
 	const char* get_type_name() const OVERRIDE { return "text"; }
 
 	bool dump_node(FILE *infp, const obj_node_info_t& node) OVERRIDE;
+	using obj_writer_t::write_obj;
 	void write_obj(FILE *fp, obj_node_t& parent, const char* text);
 };
 

@@ -24,6 +24,7 @@ private:
 public:
 	static tile_writer_t *instance() { return &the_instance; }
 
+	using obj_writer_t::write_obj;
 	virtual void write_obj(FILE* fp, obj_node_t &parent, int index, int seasons,
 		slist_tpl<slist_tpl<slist_tpl<std::string> > >& backkeys,
 		slist_tpl<slist_tpl<slist_tpl<std::string> > >& frontkeys
