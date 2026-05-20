@@ -147,27 +147,17 @@ first.  Needs a real policy choice in `suche_fab_neighbour` (prefer
 producers?  prefer nearest?), not a test edit.
 
 **Hill-with-sloped-neighbours test setup.**
-`test_depot_build_on_tunnel_entrance`, `test_halt_build_on_tunnel_entrance`
-and `test_halt_make_public_underground` each build their terrain by
-raising the 4 corners of a 2x2 grid-point square — which under
-square-terraformer propagation produced one raised tile plus 4
-cardinal single-slope neighbours.  Under hex's 3-way vertex sharing
-that pattern raises only 3 corners of the centre tile and misses
-the hex-only edges on the neighbours.  Migrating via
-`setslope(all_up_slope) + setslope(single_edge)` produces the right
-grund_t slopes but leaves the per-vertex height storage inconsistent.
-Now that the NW-corner-only writers are ported, restoration
-needs a hex-aware test scaffold that raises the right vertices
-directly rather than 4 corners of a 2x2 square.
-`test_way_tunnel_build_straight` is the worked example for the
-single-raised-tile case: 3 `grid_raise` + 3 `grid_raise_at_corner`
-calls hit all 6 vertices of the centre tile, and the surrounding
-6 hex neighbours pick up clean 2-corner edge slopes for free via
-shared vertices.  The 2-tile-hill cases above need the same
-recipe extended to cover both tiles' vertices.
 `test_powerline_build_underground_transformer_on_powerline` holds
 the underground-tunnel subcase that used to live inside
-`test_powerline_build_transformer`; same trigger.
+`test_powerline_build_transformer`; restore by switching its
+4-corner 2x2 scaffold to `raise_hex_tile{,_pair_S}` from
+`test_helpers.nut` (worked examples: `test_way_tunnel_make_public`
+for a 1-tile hill, `test_way_tunnel_build_up_down` for the S-pair).
+The square-era scaffold raises only 3 of 6 vertices on the centre
+tile under hex's 3-way vertex sharing and misses the hex-only
+neighbour edges; the hex helpers raise all 6 vertices directly so
+the surrounding 6 hex neighbours pick up clean 2-corner edge slopes
+for free.
 
 ## Lower_to water-tile NW-only gate
 

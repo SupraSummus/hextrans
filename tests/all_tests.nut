@@ -73,7 +73,7 @@ all_tests <- [
 	test_depot_build_monorail,
 	test_depot_build_tram,
 	test_depot_build_sloped,
-	// test_depot_build_on_tunnel_entrance: HEX-PORT PENDING.
+	test_depot_build_on_tunnel_entrance,
 	test_depot_build_on_bridge_end,
 	test_depot_build_on_halt,
 	test_depot_convoy_add_normal,
@@ -126,7 +126,7 @@ all_tests <- [
 	test_halt_build_separate,
 	test_halt_build_near_factory,
 	test_halt_build_near_factories,
-	// test_halt_build_on_tunnel_entrance: HEX-PORT PENDING.
+	test_halt_build_on_tunnel_entrance,
 	test_halt_build_on_bridge_end,
 	test_halt_build_on_depot,
 	test_halt_build_station_invalid_param,
@@ -134,7 +134,7 @@ all_tests <- [
 	test_halt_upgrade_downgrade,
 	test_halt_make_public_single,
 	test_halt_make_public_multi_tile,
-	// test_halt_make_public_underground: HEX-PORT PENDING.
+	test_halt_make_public_underground,
 	test_halt_move_stop_invalid_param,
 	test_headquarters_build_flat,
 	test_label,
