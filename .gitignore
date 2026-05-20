@@ -7,6 +7,7 @@ __pycache__/
 /Release
 build
 build-headless
+build-fuzz
 /vcpkg*
 /config.*
 /makeobj/makeobj

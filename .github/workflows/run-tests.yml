@@ -18,7 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get -y update
-        sudo apt-get -ym install libbz2-dev zlib1g-dev libpng-dev libcurl4-openssl-dev autoconf clang-18 ccache moreutils
+        sudo apt-get -ym install libbz2-dev zlib1g-dev libpng-dev libcurl4-openssl-dev autoconf clang-18 libclang-rt-18-dev cmake ccache moreutils
     - name: Hex vertex self-test
       # Sanity-check the pure topology helpers in dataobj/koord before
       # the slow Simutrans build runs.  ~1 second; fails fast on any
@@ -112,6 +112,25 @@ jobs:
         export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
         export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
         python3 -m unittest discover -v -s tools/nwc_protocol_test -t .
+    - name: Replay wire-parser fuzz corpus
+      # Builds the libFuzzer harness (src/fuzz/fuzz_network.cc) and
+      # replays src/fuzz/corpus/network/ in one-shot mode (-runs=0):
+      # every file is consumed once, no mutation.  Any input that
+      # crashes / leaks / trips ASAN/UBSAN fails the job, so each
+      # committed corpus file pins one fixed bug as a regression.
+      # Active mutation fuzzing is out-of-band — the same binary takes
+      # -max_total_time=N to explore.
+      run: |
+        export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=1"
+        export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
+        cmake -S . -B build-fuzz \
+          -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 \
+          -DSIMUTRANS_BUILD_FUZZERS=ON \
+          -DSIMUTRANS_SANITIZE_ADDRESS=ON -DSIMUTRANS_SANITIZE_UNDEFINED=ON \
+          -DSIMUTRANS_BACKEND=none -DCMAKE_BUILD_TYPE=Debug
+        cmake --build build-fuzz --target svnheader
+        cmake --build build-fuzz --target fuzz_network -j$(nproc)
+        ./build-fuzz/src/fuzz/fuzz_network -runs=0 src/fuzz/corpus/network/
     - name: Run HTTP e2e suite
       # Baseline coverage for the four HTTP call sites ahead of the
       # libcurl migration (see documentation/libcurl-port.md).  Drives
