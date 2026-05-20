@@ -223,6 +223,20 @@ codebase but not this commit. Don't:
 If a body is getting long, prefer splitting the commit or moving the
 context into `TODO.md` / `AGENTS.md`.
 
+Voice — write so the maintainer reading the commit in two years
+doesn't hear the chat that produced it. Category labels and
+metaphors that come up naturally while thinking through a change
+("sink", "shape", "siblings", "footgun", "weaponise nine sites at
+once") read as author-voice on the way out; they sound like
+security research or refactoring talk rather than a description of
+the code. Strip them and say what's there: "custom_fatal calls
+syslog with an already-expanded buffer" instead of "the syslog
+format-string sink"; "the same pattern repeats in pakset, debug,
+message, warning, error" instead of "five siblings of the same
+shape". Quoted noun phrases that compress a paragraph into a
+label — `the "format is consumed once" invariant` — force the
+reader to unpack them; write the sentence instead.
+
 ## Tests and the hex port
 
 The scenario tests under `tests/` encode gameplay invariants. Many of
