@@ -26,6 +26,7 @@ public:
 	obj_type get_type() const OVERRIDE { return obj_ffldclass; }
 	const char* get_type_name() const OVERRIDE { return "factory field class"; }
 
+	using obj_writer_t::write_obj;
 	void write_obj(FILE* fp, obj_node_t& parent, const char* field_name, int snow_image, int production, int capacity, int weight);
 };
 
@@ -77,6 +78,7 @@ public:
 	obj_type get_type() const OVERRIDE { return obj_fproduct; }
 	const char* get_type_name() const OVERRIDE { return "factory product"; }
 
+	using obj_writer_t::write_obj;
 	void write_obj(FILE* outfp, obj_node_t& parent, int capacity, int factor, const char* warename);
 };
 
@@ -94,6 +96,7 @@ public:
 	obj_type get_type() const OVERRIDE { return obj_fsupplier; }
 	const char* get_type_name() const OVERRIDE { return "factory supplier"; }
 
+	using obj_writer_t::write_obj;
 	void write_obj(FILE* outfp, obj_node_t& parent, int capacity, int count, int consumption, const char* warename);
 };
 
