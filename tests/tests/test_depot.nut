@@ -416,43 +416,37 @@ function test_depot_build_sloped()
 }
 
 
-// test_depot_build_on_tunnel_entrance: HEX-PORT PENDING.
+// Depot succeeds on a tunnel mouth because `tunnelboden_t::get_weg_hang`
+// reports flat for the karten-boden surface tile, which the depot
+// tool's flat-hang gate accepts.  Cover all 6 hex axes via the
+// 6-mouth-hill scaffold.
 function test_depot_build_on_tunnel_entrance()
 {
 	local pl = player_x(0)
 	local rail_tunnel = tunnel_desc_x.get_available_tunnels(wt_rail)[0]
+	local depot = get_depot_by_wt(wt_rail)
+	local mouths = raise_hex_hill_with_six_mouths(pl, 4, 2, 0, rail_tunnel)
 
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 3, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(5, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(5, 3, 0)), null)
-
-	ASSERT_EQUAL(command_x(tool_build_tunnel).work(pl, coord3d(4, 1, 0), rail_tunnel.get_name()), null)
-	ASSERT_EQUAL(command_x(tool_build_tunnel).work(pl, coord3d(3, 2, 0), rail_tunnel.get_name()), null)
-	ASSERT_EQUAL(command_x(tool_build_tunnel).work(pl, coord3d(5, 2, 0), rail_tunnel.get_name()), null)
-
-	// Building depots on tunnel entrance works (contrary to stations)
-	{
-		for (local d = dir.north; d < dir.all; d = d*2) {
-			local p = coord3d(4, 2, 0) + dir.to_coord(d)
-
-			ASSERT_EQUAL(command_x.build_depot(pl, p, get_depot_by_wt(wt_rail)), null)
-		}
+	foreach (p in mouths) {
+		ASSERT_EQUAL(command_x.build_depot(pl, p, depot), null)
 	}
+
+	// no-way tile takes the other branch of the same error string.
+	ASSERT_EQUAL(command_x.build_depot(pl, coord3d(4, 0, 0), depot),
+	             "Depots must be built on flat dead-end way tiles!")
 
 	local remover = command_x(tool_remover)
 	remover.set_flags(2)
-	ASSERT_EQUAL(remover.work(pl, coord3d(4, 1, 0)), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(4, 1, 0)), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(5, 2, 0)), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(4, 3, 0)), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(3, 2, 0)), null)
+	foreach (p in mouths) {
+		ASSERT_EQUAL(remover.work(pl, p), null)
+	}
+	ASSERT_EQUAL(remover.work(pl, mouths[0]), null)
+	remover.set_flags(0)
+	foreach (p in mouths) {
+		ASSERT_TRUE(tile_x(p.x, p.y, 0).find_object(mo_tunnel) == null)
+	}
 
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 3, 0)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(5, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(5, 3, 0)), null)
-
+	lower_hex_tile(pl, 4, 2, 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
 

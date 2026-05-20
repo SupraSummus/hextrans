@@ -126,20 +126,11 @@ function test_way_tunnel_build_straight()
 }
 
 
-// 2-tile S-axis hill at (1,1)+(1,2) so a tunnel ctrl-dragged from
-// (1,0,0) into the hill has somewhere underground to live.  Tunnel is
-// rail (does not support double slopes — the test exercises the
-// rejection on the second consecutive all_down).  Patterns use sharp
-// 0s so any spurious ribi anywhere on the 8x8 fails the assertion.
-//
-// HEX-PORT TODO: the original test had a final sub-block that raised
-// terrain around (1,2)+(1,3) at z=1 to force a step-2 all_up at
-// (1,1,0) and verify the rejection.  Under hex `has_double_slopes()`
-// is hardcoded false (`way_desc.h:205`), so any all_up that would
-// create a 2-step slope already fails for every way type — the
-// invariant survives, but its specific scaffold needs the same
-// treatment as `_above_tunnel_slope` / `_across_tunnel_slope`.
-// Lands together with that stub's restoration.
+// 2-tile S-axis hill at (1,1)+(1,2); rail tunnel, so the second
+// consecutive all_down hits the no-double-slopes reject.  The
+// original test's final step-2-all_up sub-block needs a tunnel with
+// `has_double_slopes=1` — restores with the `_above_tunnel_slope`
+// pair (see TODO.md).
 function test_way_tunnel_build_up_down()
 {
 	local digger = command_x(tool_build_tunnel)

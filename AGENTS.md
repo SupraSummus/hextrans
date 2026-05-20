@@ -296,6 +296,19 @@ so every test-suite way answers `false` and a second consecutive
 stay disabled until pak64 sets the flag — see TODO.md → "Tunnel tests
 blocked on `has_double_slopes=1` opt-in".
 
+Multiple tunnel mouths converging on one buried tile: use
+`raise_hex_hill_with_six_mouths(pl, q, r, z, desc)` from
+`test_helpers.nut` — it raises the hill and drills 6 mouths (one
+full S-axis drill + 4 single-mouth branches that `find_end_pos`
+joins to the buried network).  The mechanic to know: a no-ctrl
+build call on a fresh hex-neighbour tile, when `find_end_pos` finds
+existing underground tunnel uphill, adds a single mouth that joins
+as a branch — *not* an isolated stub.  Ctrl-flag mouths look similar
+but create a way with `ribi = 0` and won't satisfy downstream
+single-ribi gates (depot, signal, …).  Branched networks refuse
+piecemeal removal ("This tunnel branches.  You can try Control+Click
+to remove."), so cleanup wants `set_flags(2)` throughout.
+
 ## Externalize the thinking
 
 Long internal monologue on a hard idea is brittle. A private chain

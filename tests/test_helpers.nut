@@ -132,6 +132,31 @@ function lower_hex_tile_pair_S(pl, q, r, z)
 }
 
 
+// Raise a 1-tile hex hill at (q, r, z) and surround it with 6 surface
+// tunnel mouths converging underground — one per hex axis.  Recipe:
+// one full S-axis drill creates the (q, r-1)/(q, r+1) mouth pair;
+// the four remaining hex neighbours then drill (no ctrl) and join
+// the buried network as branches via `find_end_pos`'s ist_tunnel
+// path.  See AGENTS.md "Hex test-authoring primer" for the why.
+// Returns the 6 mouth coords.
+function raise_hex_hill_with_six_mouths(pl, q, r, z, tunnel_desc)
+{
+	raise_hex_tile(pl, q, r, z)
+	local digger = command_x(tool_build_tunnel)
+	local mouths = [coord3d(q,   r-1, z), coord3d(q,   r+1, z),
+	                coord3d(q-1, r,   z), coord3d(q+1, r,   z),
+	                coord3d(q-1, r+1, z), coord3d(q+1, r-1, z)]
+	ASSERT_EQUAL(digger.work(pl, mouths[0], tunnel_desc.get_name()), null)
+	for (local i = 2; i < mouths.len(); i++) {
+		ASSERT_EQUAL(digger.work(pl, mouths[i], tunnel_desc.get_name()), null)
+	}
+	foreach (p in mouths) {
+		ASSERT_TRUE(tile_x(p.x, p.y, z).find_object(mo_tunnel) != null)
+	}
+	return mouths
+}
+
+
 // Patterns are arrays of arrays of 6-bit ribi values (see ribi_t in
 // src/simutrans/dataobj/ribi.h: SE=1, S=2, SW=4, NW=8, N=16, NE=32).
 // A cell value of -1 means "don't care" — skip the assertion entirely.
