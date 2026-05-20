@@ -389,6 +389,23 @@ module like `tools.nwc_protocol_test.test_auth_player` to run one
 group). The same step in CI also runs under ASAN/UBSAN; sanitizer
 hits on forged packets fail loudly.
 
+`src/fuzz/fuzz_network.cc` is the libFuzzer harness for the wire
+parser.  It drives the production `recv()` end to end via a
+`socketpair()` — the fuzz bytes go in one end, `packet_t(SOCKET)`
+reads them out the other and dispatches on the wire id to the
+matching `nwc_*::rdwr`.  No parallel parser; what the fuzzer
+exercises is exactly what the in-game network thread runs against a
+remote peer, including the incremental-read state machine inside
+`recv()`.  Build with clang + `-DSIMUTRANS_BUILD_FUZZERS=ON` and the
+existing sanitizer flags; the target is parser-only (nettool source
+subset, no `karte_t`).  CI replays `src/fuzz/corpus/network/` through
+it in `-runs=0` mode — each committed corpus file pins one fixed bug
+as a regression and a new crash there fails the job.  Active
+mutation is out-of-band: the same binary takes `-max_total_time=N
+corpus/` to explore, and a crash gets minimised via
+`-minimize_crash=1 -runs=... crash-input` and committed under
+`src/fuzz/corpus/network/`.
+
 Claude Code on the web checks out a shallow clone — `git log` only
 reaches back a handful of commits and `git blame` on older lines
 returns "(grafted)". Run `git fetch --unshallow origin` when the

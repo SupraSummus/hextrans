@@ -415,3 +415,15 @@ if (NOT ANDROID)
 	add_subdirectory(src/makeobj EXCLUDE_FROM_ALL)
 	add_subdirectory(src/nettool EXCLUDE_FROM_ALL)
 endif ()
+
+#
+# Fuzz harnesses (libFuzzer; opt-in, clang only).
+# Configure with -DSIMUTRANS_BUILD_FUZZERS=ON on a clang build.
+#
+option(SIMUTRANS_BUILD_FUZZERS "Build the libFuzzer wire-parser harnesses" OFF)
+if (SIMUTRANS_BUILD_FUZZERS)
+	if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+		message(FATAL_ERROR "SIMUTRANS_BUILD_FUZZERS requires clang (libFuzzer support).")
+	endif ()
+	add_subdirectory(src/fuzz EXCLUDE_FROM_ALL)
+endif ()
