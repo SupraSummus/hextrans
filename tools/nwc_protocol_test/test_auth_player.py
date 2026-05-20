@@ -76,3 +76,38 @@ class AuthPlayerTest(wire.ServerTestCase, unittest.TestCase):
         — the silent-fail shape the NULL-slot path now mirrors."""
         self.check_reply(player_nr=1, expected_unlocked=0,
                          hash20=b"\xff" * 20)
+
+    def test_forged_client_id_yields_legitimate_reply(self):
+        """nwc_auth_player_t::execute reads the override-stamped
+        our_client_id, not the wire value (b900cf7b — "never trust
+        wire-supplied our_client_id"), so every forged id must
+        reproduce the our_client_id=0 reply byte-for-byte.  The
+        baseline send_and_recv_exact also doubles as a liveness
+        check: if parse-time rejection ever swallowed AUTH_PLAYER
+        packets, the baseline would time out before any subTest ran.
+        Multiple forged values guard against one being benign by
+        coincidence."""
+        pkt = build(player_nr=1, our_client_id=0)
+        legitimate = wire.send_and_recv_exact(self.srv, pkt, PACKET_SIZE)
+        self.assertEqual(
+            len(legitimate), PACKET_SIZE,
+            f"baseline reply length {len(legitimate)} != {PACKET_SIZE}; "
+            f"raw: {legitimate.hex()}; stderr tail:\n"
+            + self.srv.read_stderr_tail(),
+        )
+        for forged in (1, 0x80000000, 0xDEADBEEF, 0xFFFFFFFF):
+            with self.subTest(our_client_id=forged):
+                pkt = build(player_nr=1, our_client_id=forged)
+                reply = wire.send_and_recv_exact(self.srv, pkt, PACKET_SIZE)
+                self.assertEqual(
+                    reply, legitimate,
+                    f"forged our_client_id={forged:#x} reply diverged "
+                    f"from the our_client_id=0 baseline; "
+                    f"forged: {reply.hex()} baseline: {legitimate.hex()}",
+                )
+                self.assertTrue(
+                    self.srv.alive(),
+                    f"reply matched but server died after forged "
+                    f"our_client_id={forged:#x}; stderr tail:\n"
+                    + self.srv.read_stderr_tail(),
+                )
