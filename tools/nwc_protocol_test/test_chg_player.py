@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# Reproduction for the memory_rw_t::rdwr_bool uninit-read UB.
-# nwc_chg_player_t's default ctor (used by read_from_packet) leaves
-# `scripted_call` uninitialised; pre-fix rdwr_bool loaded it before
-# overwriting from the wire, tripping UBSAN inside
-# network_command_t::receive before any consumer ran.  One
-# well-formed NWC_CHG_PLAYER is enough — plain-Debug builds passed
-# the bad code, clang+ASAN+UBSAN fails.
+# NWC_CHG_PLAYER wire pin.  Regression coverage for:
+#   - memory_rw_t::rdwr_bool no longer reading the uninitialised
+#     `scripted_call` field on the load path (UBSAN trip pre-fix).
+#   - nwc_chg_player_t::clone trusting the read_from_packet override
+#     of our_client_id; a regression that let the wire value through
+#     would trip socket_list_t::get_client's assert on OOR values.
 
 import struct
 import unittest
@@ -43,3 +42,17 @@ class ChgPlayerTest(wire.ServerTestCase, unittest.TestCase):
         """One well-formed NWC_CHG_PLAYER, heartbeat survives.  Under
         UBSAN the bad rdwr_bool aborts here before the consumer."""
         wire.assert_heartbeat(self.srv, build())
+
+    def test_client_id_sweep_does_not_crash(self):
+        """NWC_CHG_PLAYER has no synchronous reply; heartbeat-after
+        is all we get.  Sweep legitimate (0), in-range-impersonation
+        (1), and out-of-range forged (0xFFFFFFFF) values — if the
+        read_from_packet override regressed, the OOR value would trip
+        get_client's assert and the in-range impersonation would
+        diverge from the legitimate path's slot lookup.  Heartbeat
+        can't prove the packet reached clone(), only that nothing
+        crashed; the auth_player reply-equality test is the canary
+        for parse-time silent swallowing."""
+        for client_id in (0, 1, 0xFFFFFFFF):
+            with self.subTest(our_client_id=client_id):
+                wire.assert_heartbeat(self.srv, build(our_client_id=client_id))

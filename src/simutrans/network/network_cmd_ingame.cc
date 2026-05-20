@@ -610,50 +610,47 @@ bool nwc_auth_player_t::execute(karte_t *welt)
 
 	if(  env_t::server  &&  !(our_client_id==0  &&  player_nr==255)) {
 		// sent to server, and not sent to player playing on server
-		if (socket_list_t::is_valid_client_id(our_client_id)) {
+		// player activated for this client? or admin connection via nettool?
+		socket_info_t &info = socket_list_t::get_client(our_client_id);
+		// `player_nr` is wire-controlled; the slot may be NULL.
+		player_t *player = welt->get_player(player_nr);
+		if (info.is_player_unlocked(player_nr)  ||  info.state == socket_info_t::admin) {
+			DBG_MESSAGE("nwc_auth_player_t::execute","set pwd for plnr = %d", player_nr);
 
-			// player activated for this client? or admin connection via nettool?
-			socket_info_t &info = socket_list_t::get_client(our_client_id);
-			// `player_nr` is wire-controlled; the slot may be NULL.
-			player_t *player = welt->get_player(player_nr);
-			if (info.is_player_unlocked(player_nr)  ||  info.state == socket_info_t::admin) {
-				DBG_MESSAGE("nwc_auth_player_t::execute","set pwd for plnr = %d", player_nr);
-
-				// change password
-				if (player  &&  player->access_password_hash() != hash) {
-					player->access_password_hash() = hash;
-					// unlock all clients if new password is empty
-					// otherwise lock all
-					socket_list_t::unlock_player_all(player_nr, hash.empty(), our_client_id);
-				}
+			// change password
+			if (player  &&  player->access_password_hash() != hash) {
+				player->access_password_hash() = hash;
+				// unlock all clients if new password is empty
+				// otherwise lock all
+				socket_list_t::unlock_player_all(player_nr, hash.empty(), our_client_id);
 			}
-			else if (player_nr < PLAYER_UNOWNED  &&  player) {
-				// players with public service player access always pass password checks
-				if(  info.is_player_unlocked(1)  ) {
-					info.unlock_player(player_nr);
-				}
-				// check password
-				else if (player->access_password_hash() == hash) {
-
-					DBG_MESSAGE("nwc_auth_player_t::execute","unlock plnr = %d at our_client_id = %d", player_nr, our_client_id);
-
-					info.unlock_player(player_nr);
-				}
+		}
+		else if (player_nr < PLAYER_UNOWNED  &&  player) {
+			// players with public service player access always pass password checks
+			if(  info.is_player_unlocked(1)  ) {
+				info.unlock_player(player_nr);
 			}
+			// check password
+			else if (player->access_password_hash() == hash) {
 
-			// report back to client who sent the command
-			if (our_client_id == 0) {
-				// unlock player on the server and clear unlock_pending flag
-				if (player) {
-					player->unlock(info.is_player_unlocked(player_nr), false);
-				}
+				DBG_MESSAGE("nwc_auth_player_t::execute","unlock plnr = %d at our_client_id = %d", player_nr, our_client_id);
+
+				info.unlock_player(player_nr);
 			}
-			else {
-				// send unlock-info to player on the client (to clear unlock_pending flag)
-				nwc_auth_player_t nwc;
-				nwc.player_unlocked = info.player_unlocked;
-				nwc.send( get_sender());
+		}
+
+		// report back to client who sent the command
+		if (our_client_id == 0) {
+			// unlock player on the server and clear unlock_pending flag
+			if (player) {
+				player->unlock(info.is_player_unlocked(player_nr), false);
 			}
+		}
+		else {
+			// send unlock-info to player on the client (to clear unlock_pending flag)
+			nwc_auth_player_t nwc;
+			nwc.player_unlocked = info.player_unlocked;
+			nwc.send( get_sender());
 		}
 	}
 	else {
@@ -964,9 +961,6 @@ void nwc_chg_player_t::rdwr()
 
 network_broadcast_world_command_t* nwc_chg_player_t::clone(karte_t *welt)
 {
-	if (!socket_list_t::is_valid_client_id(our_client_id)) {
-		return NULL;
-	}
 	socket_info_t const& info = socket_list_t::get_client(our_client_id);
 
 	// scripts only run on server
@@ -1198,9 +1192,6 @@ network_broadcast_world_command_t* nwc_tool_t::clone(karte_t *welt)
 		}
 
 		// check whether player is authorized do this
-		if (!socket_list_t::is_valid_client_id(our_client_id)) {
-			return NULL;
-		}
 		socket_info_t const& info = socket_list_t::get_client(our_client_id);
 		if ( player_nr < PLAYER_UNOWNED  &&  !info.is_player_unlocked(player_nr) ) {
 			if (tool_id == (TOOL_ADD_MESSAGE | GENERAL_TOOL)) {
