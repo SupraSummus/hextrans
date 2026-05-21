@@ -667,13 +667,34 @@ is otherwise a benign missing visual.  Reactivation needs either a
 hex-aware `MapEdgeCliff` family or a rewrite of this function onto
 the new (wall, index) layout.
 
-**Phase C — flow-on.**  Minimap (`gui/minimap.cc`, square pixels
-per tile), per-step vehicle interpolation offsets
-(`vehicle_base_t::calc_set_direction` and friends, square-iso
-baked), label / halt screen-anchor positions.  The last group
-rides along on `get_screen_coord` so positions become hex-correct
-automatically; per-tile drawing under each anchor still assumes
-square geometry until phase B lands.
+**Phase C — flow-on.**  Per-step vehicle interpolation offsets
+(`vehicle_base_t::calc_set_direction` and friends), label / halt
+screen-anchor positions.  The label / halt group rides along on
+`get_screen_coord` so positions become hex-correct automatically;
+per-tile drawing under each anchor still assumes square geometry
+until phase B lands.  `vehicle_base_t::calc_set_direction` now
+enumerates 6 hex axes but the `dx,dy` magnitudes are still the
+legacy square-iso pair (`(±2, ±1)` for the four edges that survive
+the rename, `(±4, 0)` for NE/SW); under the hex lattice N/S
+neighbours are at screen distance `2u` while NE/SW are at `u·√10`
+≈ `3.16u`, so NE/SW vehicles visibly drift off-tile mid-hop on
+straight segments.  Rebase the per-edge offsets on the lattice and
+match the diagonal-step substep count to the longer hex chord.
+
+Minimap (`gui/minimap.cc`) now hex-projects in isometric mode:
+`map_to_screen_coord` / `screen_to_map_coord` use the `(3u, u)` /
+`(0, 2u)` lattice with `u = zoom_in`, and `set_map_color` paints
+the `3u × 2u` screen-aligned cell that the floor-inverse picks for
+a click in that cell — so paints and clicks stay in lockstep.  The
+schedule-overlay tint walks the sheared parallelogram outline
+scanline by scanline (slope 1/3, derived from `map_to_screen_coord`
+on the four world corners).  Plan (non-iso) mode is unchanged —
+still an axial-coordinate plot, lying about hex shape but compact.
+Residual: at `zoom_out ≥ 2` multiple tiles still collapse to one
+pixel as before — inherited from the legacy projection.  A regular
+flat-top hex view (vs. the current 2:1 stretch that matches the
+main viewport) would be a third mode, not a fix; not on the path
+unless the main view's lattice changes.
 
 **Sprite raster choice (pinned design decision).**  The lattice
 the projection runs on is a *clean integer approximation* of hex
