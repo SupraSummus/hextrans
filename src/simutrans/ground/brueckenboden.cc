@@ -41,11 +41,25 @@ void brueckenboden_t::calc_image_internal(const bool calc_only_snowline_change)
 		if(  !calc_only_snowline_change  ) {
 			grund_t::calc_back_image( get_pos().z, slope );
 			set_flag( draw_as_obj );
-			if(  (get_grund_hang() == slope_t::west  &&  abs(back_imageid) > 11)  ||  (get_grund_hang() == slope_t::north_narrow  &&  get_back_image(0) != IMG_EMPTY)  ) {
-				// must draw as obj, since there is a slop here nearby
+			// For mouths ramping uphill toward the front of the screen,
+			// force the uphill neighbour into the obj phase when the
+			// same-lateral back wall carries a hidden-cliff image —
+			// upstream did this for `slope::west` ↔ N wall and
+			// `slope::north` ↔ W wall (left↔left, right↔right); under
+			// hex the three front ramps SE / S / SW pair the same way
+			// with NE (2) / N (1) / NW (0).
+			uint8 wall = BACK_WALL_COUNT;
+			switch(  ribi_type( get_grund_hang() )  ) {
+				case ribi_t::southeast: wall = 2; break;
+				case ribi_t::south:     wall = 1; break;
+				case ribi_t::southwest: wall = 0; break;
+				default: break;
+			}
+			if(  wall < BACK_WALL_COUNT  &&  get_back_image(wall) != IMG_EMPTY  ) {
 				koord pos = get_pos().get_2d() + koord( get_grund_hang() );
-				grund_t *gr = welt->lookup_kartenboden( pos );
-				gr->set_flag( grund_t::draw_as_obj );
+				if(  grund_t *gr = welt->lookup_kartenboden( pos )  ) {
+					gr->set_flag( grund_t::draw_as_obj );
+				}
 			}
 		}
 	}

@@ -593,19 +593,19 @@ ground-lightmap path as climate ground.  Deep water still comes from
 the pakset `Water` animation block.  6-edge way / wall / ribi-keyed
 sprite tables remain 4-edge with `rotate60` stubs.
 
-**Back-wall and bridge / tunnel hide-test residuals.**  The hide-test
-loop in `calc_back_image` is still the square 3-corner sweep with
-`testdir` including the hex-invalid `(-1,-1)`; it samples W, NW, NE
-and ignores E + wall 2.  The `> 11` magic check in
-`brueckenboden_t::calc_image_internal` and `tunnelboden_t` was "is
-wall 1 non-trivial" under the old base-11 2-digit encoding; under
-the 3-digit encoding (`w0 + 11*w1 + 121*w2`) the threshold no longer
-maps cleanly, so bridge / tunnel "draw as obj" logic can misfire on
-hex-only edge slopes.  Both retire together with the hex-aware
-brueckenboden / tunnelboden rewrite.  `grund_t::get_back_image(leftback)`
-exposes only walls 0 and 1 (the two callers in brueckenboden /
-tunnelboden); replace with a `back_imageid`-direct accessor or widen
-the API when those bridge / tunnel sites get ported.
+**`calc_back_image` hide-test residual.**  The hide-test loop in
+`calc_back_image` is still the square 3-corner sweep with `testdir`
+including the hex-invalid `(-1,-1)`; it samples W, NW, NE and
+ignores E + wall 2.  Bridge / tunnel mouths under hex now drive
+their downstream "draw as obj" decision from a 3-way
+front-screen-ramp ↔ back-wall pairing (`brueckenboden_t` /
+`tunnelboden_t::calc_image_internal`), so the dead `> 11` and
+hardcoded-`slope_t::west` / `slope_t::north_narrow` magic is gone;
+what remains is widening the hide-test sweep itself.  Next move:
+extend `testdir` to the 4-corner hex perimeter (W, NW, NE, E),
+widen `corners[]` and the loop to all 4, and audit the
+`bb % WALL_IMAGE_COUNT` / `(bb / WALL_IMAGE_COUNT) % …`
+back-image-into-corner-height accounting to cover wall 2 too.
 
 Cliff back-wall middle-slope indices 9 / 10 are baked as single-step
 half-cliffs (one corner at 0, one at 1) — placeholder for the legacy

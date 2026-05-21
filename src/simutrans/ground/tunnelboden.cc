@@ -77,11 +77,20 @@ void tunnelboden_t::calc_image_internal(const bool calc_only_snowline_change)
 		}
 
 		if(  grund_t::underground_mode == grund_t::ugm_none  ) {
-			if(  (ribi_type(get_grund_hang()) == ribi_t::southeast  &&  abs(back_imageid) > 11)  ||  (ribi_type(get_grund_hang()) == ribi_t::south  &&  get_back_image(0) != IMG_EMPTY)  ) {
-				// on east or north slope: must draw as obj, since there is a slope here nearby
+			// Same same-lateral front-ramp ↔ back-wall pairing as
+			// `brueckenboden_t::calc_image_internal`.
+			uint8 wall = BACK_WALL_COUNT;
+			switch(  ribi_type( get_grund_hang() )  ) {
+				case ribi_t::southeast: wall = 2; break;
+				case ribi_t::south:     wall = 1; break;
+				case ribi_t::southwest: wall = 0; break;
+				default: break;
+			}
+			if(  wall < BACK_WALL_COUNT  &&  get_back_image(wall) != IMG_EMPTY  ) {
 				koord pos = get_pos().get_2d() + koord( get_grund_hang() );
-				grund_t *gr = welt->lookup_kartenboden( pos );
-				gr->set_flag( grund_t::draw_as_obj );
+				if(  grund_t *gr = welt->lookup_kartenboden( pos )  ) {
+					gr->set_flag( grund_t::draw_as_obj );
+				}
 			}
 		}
 	}
