@@ -33,7 +33,9 @@ protected:
 		SWITCH_AUTOMATIC = 16
 	};
 
-	uint8 state:2; // counter for steps ...
+	// HEX-PORT: was :2 bitfield; traffic lights now use 0..5 (3 axes
+	// × {green, yellow}).  Signals still use 0..2.
+	uint8 state;
 	uint8 dir:6; // 6-bit hex ribi mask (was :4 under square grid)
 
 	uint8 automatic:1;
@@ -44,10 +46,18 @@ protected:
 	 *   Traffic lights -> intended usage
 	 *   Private way signs -> bits go in ticks_ow (MSB) and ticks_iffset (LSB)
 	 *   Signals -> two_ways state goes in ticks_ns
+	 *
+	 * HEX-PORT: ticks_ow drives the NS-green phase and ticks_ns drives
+	 * SE-NW-green — upstream named these by the axis that is RED, not
+	 * green.  ticks_ne_sw / ticks_yellow_ne_sw are new and drive NE-SW
+	 * directly; renaming the legacy fields to match would silently
+	 * reinterpret old saves' custom timings, so the mismatch stays
+	 * until a coordinated rename + save migration lands.
 	 */
 	uint8 ticks_ns;
 	uint8 ticks_ow;
-	uint8 ticks_yellow_ns, ticks_yellow_ow;
+	uint8 ticks_ne_sw;
+	uint8 ticks_yellow_ns, ticks_yellow_ow, ticks_yellow_ne_sw;
 	uint8 ticks_offset;
 
 	sint8 after_yoffset, after_xoffset;
@@ -128,37 +138,45 @@ public:
 	sync_result sync_step(uint32);
 
 	// change the phases of the traffic lights
+private:
+	// Cycle sum across all 6 phases must fit in a uint8 so
+	// ticks_offset indexes without truncation.  sum_of_others widens
+	// to uint32 so summing 5 uint8 fields doesn't wrap.
+	static uint8 cap_against_other_ticks(uint8 new_val, uint32 sum_of_others) {
+		if (sum_of_others >= 255) return 0;
+		const uint8 cap = (uint8)(255 - sum_of_others);
+		return new_val > cap ? cap : new_val;
+	}
+public:
 	uint8 get_ticks_ns() const { return ticks_ns; }
 	void set_ticks_ns(uint8 ns) {
-		ticks_ns = ns;
-		// To prevent overflow in ticks_offset when rotating
-		if (ticks_ow > 256-ticks_ns - ticks_yellow_ns - ticks_yellow_ow ) {
-			ticks_ow = 256-ticks_ns-ticks_yellow_ns-ticks_yellow_ow;
-		}
+		const uint32 others = (uint32)ticks_ow + ticks_ne_sw + ticks_yellow_ns + ticks_yellow_ow + ticks_yellow_ne_sw;
+		ticks_ns = cap_against_other_ticks(ns, others);
 	}
 	uint8 get_ticks_ow() const { return ticks_ow; }
 	void set_ticks_ow(uint8 ow) {
-		ticks_ow = ow;
-		// To prevent overflow in ticks_offset when rotating
-		if (ticks_ns > 256-ticks_ow - ticks_yellow_ns-ticks_yellow_ow ) {
-			ticks_ns = 256-ticks_ow-ticks_yellow_ns-ticks_yellow_ow;
-		}
+		const uint32 others = (uint32)ticks_ns + ticks_ne_sw + ticks_yellow_ns + ticks_yellow_ow + ticks_yellow_ne_sw;
+		ticks_ow = cap_against_other_ticks(ow, others);
+	}
+	uint8 get_ticks_ne_sw() const { return ticks_ne_sw; }
+	void set_ticks_ne_sw(uint8 ne_sw) {
+		const uint32 others = (uint32)ticks_ns + ticks_ow + ticks_yellow_ns + ticks_yellow_ow + ticks_yellow_ne_sw;
+		ticks_ne_sw = cap_against_other_ticks(ne_sw, others);
 	}
 	uint8 get_ticks_yellow_ns() const { return ticks_yellow_ns; }
 	void set_ticks_yellow_ns(uint8 yellow) {
-		ticks_yellow_ns = yellow;
-		// To prevent overflow in ticks_offset when rotating
-		if (ticks_yellow_ns > 256-ticks_ns - ticks_ow - ticks_yellow_ow) {
-		  ticks_yellow_ns = 256-ticks_ns-ticks_ow-ticks_yellow_ow;
-		}
+		const uint32 others = (uint32)ticks_ns + ticks_ow + ticks_ne_sw + ticks_yellow_ow + ticks_yellow_ne_sw;
+		ticks_yellow_ns = cap_against_other_ticks(yellow, others);
 	}
 	uint8 get_ticks_yellow_ow() const { return ticks_yellow_ow; }
 	void set_ticks_yellow_ow(uint8 yellow) {
-		ticks_yellow_ow = yellow;
-		// To prevent overflow in ticks_offset when rotating
-		if (ticks_yellow_ow > 256-ticks_ns - ticks_ow - ticks_yellow_ns) {
-		  ticks_yellow_ow = 256-ticks_ns-ticks_ow-ticks_yellow_ns;
-		}
+		const uint32 others = (uint32)ticks_ns + ticks_ow + ticks_ne_sw + ticks_yellow_ns + ticks_yellow_ne_sw;
+		ticks_yellow_ow = cap_against_other_ticks(yellow, others);
+	}
+	uint8 get_ticks_yellow_ne_sw() const { return ticks_yellow_ne_sw; }
+	void set_ticks_yellow_ne_sw(uint8 yellow) {
+		const uint32 others = (uint32)ticks_ns + ticks_ow + ticks_ne_sw + ticks_yellow_ns + ticks_yellow_ow;
+		ticks_yellow_ne_sw = cap_against_other_ticks(yellow, others);
 	}
 	uint8 get_ticks_offset() const { return ticks_offset; }
 	void set_ticks_offset(uint8 offset) { ticks_offset = offset; }

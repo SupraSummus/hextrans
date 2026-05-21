@@ -7,6 +7,7 @@
 
 #include "../simunits.h"
 #include "../simdebug.h"
+#include "../simversion.h"
 #include "simobj.h"
 #include "../display/simimg.h"
 #include "../player/simplay.h"
@@ -75,9 +76,9 @@ roadsign_t::roadsign_t(player_t *player, koord3d pos, ribi_t::ribi dir, const ro
 	this->preview = preview;
 	image = foreground_image = IMG_EMPTY;
 	state = 0;
-	ticks_ns = ticks_ow = 16;
+	ticks_ns = ticks_ow = ticks_ne_sw = 16;
 	ticks_offset = 0;
-	ticks_yellow_ns = ticks_yellow_ow = 2;
+	ticks_yellow_ns = ticks_yellow_ow = ticks_yellow_ne_sw = 2;
 	set_owner( player );
 	if(  desc->is_private_way()  ) {
 		// init ownership of private ways
@@ -396,7 +397,21 @@ void roadsign_t::calc_image()
 		weg_t *str=gr->get_weg(road_wt);
 		if(str) {
 			const uint8 weg_dir = str->get_ribi_unmasked();
-			const uint8 direction = desc->get_count()>16 ? (state&2) + ((state+1) & 1) : (state+1) & 1;
+			// HEX-PORT: pakset's 4 direction slots are
+			// {SE-NW, NS} × {green, yellow}; NE-SW (states 2 / 5)
+			// projects onto the NS slot as placeholder visuals
+			// until 3-axis roadsign art ships (TODO.md →
+			// "roadsign_writer.cc").
+			static const uint8 state_to_direction[6] = {
+				/* NS green    */ 1,
+				/* SE-NW green */ 0,
+				/* NE-SW green */ 1,
+				/* NS yellow   */ 3,
+				/* SE-NW yellow*/ 2,
+				/* NE-SW yellow*/ 3,
+			};
+			const uint8 dir_full = state_to_direction[state & 7];
+			const uint8 direction = desc->get_count()>16 ? dir_full : (dir_full & 1);
 
 			// other front/back images for left side ...
 			if(  left_offsets  ) {
@@ -490,53 +505,52 @@ sync_result roadsign_t::sync_step(uint32 /*delta_t*/)
 		set_image( desc->get_image_id(image) );
 	}
 	else {
-		if (grund_t* gr = welt->lookup(get_pos())) {
-			ribi_t::ribi r = gr->get_weg_ribi_unmasked(road_wt);
-			if (  ribi_t::none==r  ||  ribi_t::is_single(r)  ||  (ribi_t::is_twoway(r)  &&  !ribi_t::is_straight(r))  ) {
-				// not at least a straight road => remove the lights
-				return SYNC_DELETE;
-			}
+		grund_t* const gr = welt->lookup(get_pos());
+		if (!gr) {
+			return SYNC_DELETE;
 		}
-		else {
+		const ribi_t::ribi weg_ribi = gr->get_weg_ribi_unmasked(road_wt);
+		if (  ribi_t::none==weg_ribi  ||  ribi_t::is_single(weg_ribi)  ||  (ribi_t::is_twoway(weg_ribi)  &&  !ribi_t::is_straight(weg_ribi))  ) {
+			// not at least a straight road => remove the lights
 			return SYNC_DELETE;
 		}
 
-		// Must not overflow if ticks_ns+ticks_ow+ticks_yellow_ns+ticks_yellow_ow=256
-        uint32 ticks = ((welt->get_ticks()>>10)+ticks_offset) % ((uint32)ticks_ns+(uint32)ticks_ow+(uint32)ticks_yellow_ns+(uint32)ticks_yellow_ow);
+		// Active axes contribute a (green, yellow) pair to the cycle;
+		// inactive axes skip.  State 0..2 = axis green, 3..5 = the
+		// matching yellow that follows.  Duration mapping inherits
+		// upstream's confusing ticks_ow→NS-green / ticks_ns→SE-NW-green
+		// naming; ticks_ne_sw is new and drives NE-SW directly.
+		static const ribi_t::ribi axis_mask[3] = {
+			(ribi_t::ribi)(ribi_t::north     | ribi_t::south),
+			(ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest),
+			(ribi_t::ribi)(ribi_t::northeast | ribi_t::southwest),
+		};
+		const uint8 green_dur[3]  = { ticks_ow,        ticks_ns,        ticks_ne_sw        };
+		const uint8 yellow_dur[3] = { ticks_yellow_ow, ticks_yellow_ns, ticks_yellow_ne_sw };
 
-		uint8 new_state = 0;
-		//traffic light transition: e-w dir -> yellow e-w -> n-s dir -> yellow n-s -> ...
-		if(  ticks < ticks_ow  ) {
-		  new_state = 0;
-		}
-		else if(  ticks < ticks_ow+ticks_yellow_ow  ) {
-		  new_state = 2;
-		}
-		else if(  ticks < (uint32)ticks_ow+ticks_yellow_ow+ticks_ns  ) {
-		  new_state = 1;
-		}
-		else {
-		  new_state = 3;
-		}
-
-		if(state!=new_state) {
-			state = new_state;
-			// HEX-PORT: 2-phase traffic light — state 0 opens the N-S
-			// axis, state 1 opens the old E-W axis (now SE-NW under
-			// the 2:1 iso rename).  Flat-top hex has a 3rd axis
-			// (NE-SW) that this FSM doesn't serve; see TODO.md →
-			// "Building / crossing cluster".
-			switch(new_state) {
-			case 0:
-			  dir = (ribi_t::ribi)(ribi_t::north | ribi_t::south);
-			  break;
-			case 1:
-			  dir = (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest);
-			  break;
-			default: // yellow state
-			  dir = ribi_t::none;
-			  break;
+		uint32 cycle_len = 0;
+		for (uint8 i = 0; i < 3; ++i) {
+			if (weg_ribi & axis_mask[i]) {
+				cycle_len += (uint32)green_dur[i] + yellow_dur[i];
 			}
+		}
+		if (cycle_len == 0) {
+			return SYNC_OK;
+		}
+
+		uint32 ticks = ((welt->get_ticks() >> 10) + ticks_offset) % cycle_len;
+		uint8 new_state = state;
+		for (uint8 i = 0; i < 3; ++i) {
+			if (!(weg_ribi & axis_mask[i])) continue;
+			if (ticks < green_dur[i])  { new_state = i;     break; }
+			ticks -= green_dur[i];
+			if (ticks < yellow_dur[i]) { new_state = i + 3; break; }
+			ticks -= yellow_dur[i];
+		}
+
+		if (state != new_state) {
+			state = new_state;
+			dir = (new_state < 3) ? axis_mask[new_state] : (ribi_t::ribi)ribi_t::none;
 			calc_image();
 		}
 	}
@@ -634,6 +648,18 @@ void roadsign_t::rdwr(loadsave_t *file)
 	}
 	else if( file->is_loading() ){
 		ticks_yellow_ns = ticks_yellow_ow = 2;
+	}
+
+	// HEX-PORT: 3rd-axis (NE-SW) durations; older saves default to
+	// the canonical 16/2 so NE-SW arms cycle sensibly after load.
+	if (file->is_version_atleast(SAVE_VERSION_HEX_TRAFFICLIGHT_3AXIS_MAJOR,
+	                             SAVE_VERSION_HEX_TRAFFICLIGHT_3AXIS_MINOR)) {
+		file->rdwr_byte(ticks_ne_sw);
+		file->rdwr_byte(ticks_yellow_ne_sw);
+	}
+	else if (file->is_loading()) {
+		ticks_ne_sw        = 16;
+		ticks_yellow_ne_sw = 2;
 	}
 
 	dummy = state;
