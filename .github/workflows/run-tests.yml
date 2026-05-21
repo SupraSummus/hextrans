@@ -31,6 +31,12 @@ jobs:
       # render-loop bijection.  ~1 second; fails fast on any
       # regression before the slow Simutrans build runs.
       run: make -C tools/hex_proj_test run
+    - name: Back-image wall-floor decoder self-test
+      # Pins the base-WALL_IMAGE_COUNT digit extraction in
+      # ground/back_image_decode.h: range gates, single-wall
+      # presence, all-wall combinations, slope clamping, and the
+      # mh == rh identity from the legacy approximation.  ~1 second.
+      run: make -C tools/hex_back_image_test run
     - name: Terrain save/load round-trip self-test
       # Verifies the hex-aware save/load round-trip: each tile's load path
       # writes E slot = pos.z + corner_e(slope) and SE slot =

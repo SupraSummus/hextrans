@@ -111,13 +111,11 @@ public:
 	 * @brief Hide-test corner count.
 	 *
 	 * Number of corners sampled by `calc_back_image`'s "is something
-	 * behind us" loop.  Square era was 3 (left/top/right corners); under
-	 * hex the same 3-direction sweep approximates the upper boundary,
-	 * even though the underlying hex has 4 screen-up corners (W, NW,
-	 * NE, E) bounding the 3 back-wall edges.  Kept at 3 — the extra
-	 * hex corner is a known hide-test approximation, see TODO.md.
+	 * behind us" loop.  Square era was 3 (left/top/right corners);
+	 * under hex the screen-up boundary has 4 corners (W, NW, NE, E)
+	 * bounding the 3 back-wall edges.  Always `BACK_WALL_COUNT + 1`.
 	 */
-	static size_t const BACK_CORNER_COUNT = 3;
+	static size_t const BACK_CORNER_COUNT = 4;
 
 	/**
 	 * @brief Back wall count.

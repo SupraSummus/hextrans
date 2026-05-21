@@ -605,20 +605,6 @@ ground-lightmap path as climate ground.  Deep water still comes from
 the pakset `Water` animation block.  6-edge way / wall / ribi-keyed
 sprite tables remain 4-edge with `rotate60` stubs.
 
-**`calc_back_image` hide-test residual.**  The hide-test loop in
-`calc_back_image` is still the square 3-corner sweep with `testdir`
-including the hex-invalid `(-1,-1)`; it samples W, NW, NE and
-ignores E + wall 2.  Bridge / tunnel mouths under hex now drive
-their downstream "draw as obj" decision from a 3-way
-front-screen-ramp ↔ back-wall pairing (`brueckenboden_t` /
-`tunnelboden_t::calc_image_internal`), so the dead `> 11` and
-hardcoded-`slope_t::west` / `slope_t::north_narrow` magic is gone;
-what remains is widening the hide-test sweep itself.  Next move:
-extend `testdir` to the 4-corner hex perimeter (W, NW, NE, E),
-widen `corners[]` and the loop to all 4, and audit the
-`bb % WALL_IMAGE_COUNT` / `(bb / WALL_IMAGE_COUNT) % …`
-back-image-into-corner-height accounting to cover wall 2 too.
-
 Cliff back-wall middle-slope indices 9 / 10 are baked as single-step
 half-cliffs (one corner at 0, one at 1) — placeholder for the legacy
 double-height notch shape that the pakset renderer at

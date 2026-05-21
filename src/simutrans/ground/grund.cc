@@ -64,6 +64,7 @@
 #include "../obj/way/strasse.h"
 #include "../obj/way/weg.h"
 
+#include "back_image_decode.h"
 #include "fundament.h"
 #include "grund.h"
 #include "tunnelboden.h"
@@ -942,18 +943,17 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 		}
 	}
 
-	// Hide-test samples 3 corners along the screen-up boundary; map them
-	// to the leftmost three hex back-wall corners (W, NW, NE).  The
-	// rightmost corner E and wall 2 (NE neighbour) are not yet covered
-	// by the hide test — known approximation, see TODO.md.
 	sint16 corners[grund_t::BACK_CORNER_COUNT] = {
 		(sint16)(wall_corners[0] + wall_corners_add[0]),
 		(sint16)(wall_corners[1] + wall_corners_add[1]),
 		(sint16)(wall_corners[2] + wall_corners_add[2]),
+		(sint16)(wall_corners[3] + wall_corners_add[3]),
 	};
 
-	// now test more tiles behind whether they are hidden by this tile
-	static const koord  testdir[grund_t::BACK_CORNER_COUNT] = { koord(-1,0), koord(-1,-1), koord(0,-1) };
+	// now test more tiles behind whether they are hidden by this tile.
+	// Each step shifts by koord(1,1) — screen back-diagonal — so the
+	// per-corner seed picks the back neighbour roughly above that corner.
+	static const koord  testdir[grund_t::BACK_CORNER_COUNT] = { koord(-1,0), koord(-1,-1), koord(0,-1), koord(1,-1) };
 	for(sint16 step = 0; step<grund_t::MAXIMUM_HIDE_TEST_DISTANCE  &&  !get_flag(draw_as_obj); step ++) {
 		sint16 test[grund_t::BACK_CORNER_COUNT];
 
@@ -971,33 +971,31 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 						s = slope_t::flat;
 					}
 				}
-				// take backimage into account, take base-height of back image as corner heights
-				sint16 bb = abs(gr->back_imageid);
-				sint8 lh = 2, rh = 2; // height of start of back image
-				if (bb  &&  bb<grund_t::BIID_ENCODE_FENCE_OFFSET) {
-					if (bb % grund_t::WALL_IMAGE_COUNT) {
-						lh = min(corner_sw(s), corner_nw(s));
-					}
-					if ((bb / grund_t::WALL_IMAGE_COUNT) % grund_t::WALL_IMAGE_COUNT) {
-						rh = min(corner_ne(s), corner_nw(s));
-					}
-				}
+				const back_image_wall_floors_t floors = decode_back_image_wall_floors(abs(gr->back_imageid), s, grund_t::WALL_IMAGE_COUNT);
+				const hide_test_contribution_t c = compute_hide_test_contribution(
+					h, s, floors, i, grund_t::BACK_CORNER_COUNT,
+					scale_z_step, scale_y_step, step);
 				if (i>0) {
-					test[i-1] = min(test[i-1], h + min(corner_sw(s),lh)*scale_z_step + (2-i)*scale_y_step + step*scale_y_step );
+					test[i-1] = min(test[i-1], c.left);
 				}
-				test[i] = min(test[i], h + min( corner_se(s)*scale_z_step, min(min(corner_nw(s),lh),rh)*scale_z_step + scale_y_step) + step*scale_y_step );
-				if (i<2) {
-					test[i+1] = min(test[i+1], h + min(corner_ne(s),rh)*scale_z_step + i*scale_y_step + step*scale_y_step);
+				test[i] = min(test[i], c.mid);
+				if (i+1<grund_t::BACK_CORNER_COUNT) {
+					test[i+1] = min(test[i+1], c.right);
 				}
 			}
 		}
-		if (test[0] < corners[0]  ||  test[1] < corners[1]  ||  test[2] < corners[2]) {
-			// we hide at least 1 thing behind
+		bool any_hidden = false, all_above = true;
+		for(uint i=0; i<grund_t::BACK_CORNER_COUNT; i++) {
+			any_hidden |= test[i] < corners[i];
+			all_above  &= test[i] > corners[i];
+		}
+		if (any_hidden) {
+			// at least one back tile is shorter than us → we hide it
 			set_flag(draw_as_obj);
 			break;
 		}
-		else if (test[0] > corners[0]  &&  test[1] > corners[1]  &&  test[2] > corners[2]) {
-			// we cannot hide anything anymore
+		if (all_above) {
+			// every back tile strictly pokes above us → nothing left to hide
 			break;
 		}
 	}
