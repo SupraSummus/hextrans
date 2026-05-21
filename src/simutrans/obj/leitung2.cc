@@ -85,15 +85,26 @@ int leitung_t::gimme_neighbours(leitung_t **conn)
 }
 
 
-fabrik_t *leitung_t::suche_fab_neighbour(const koord pos)
+// All 6 hex neighbours are equidistant, so iteration order is not a
+// meaningful tiebreaker.  Caller passes its polarity so a senke loaded
+// next to a generator + consumer pair reattaches to the consumer, not
+// the generator.
+fabrik_t *leitung_t::suche_fab_neighbour(const koord pos, bool prefer_producer)
 {
+	fabrik_t *fallback = NULL;
 	for(size_t k=0; k<lengthof(koord::neighbours); k++) {
 		fabrik_t *fab = fabrik_t::get_fab( pos+koord::neighbours[k] );
-		if(fab) {
+		if(  !fab  ) {
+			continue;
+		}
+		if(  fab->get_desc()->is_electricity_producer() == prefer_producer  ) {
 			return fab;
 		}
+		if(  !fallback  ) {
+			fallback = fab;
+		}
 	}
-	return NULL;
+	return fallback;
 }
 
 
@@ -585,7 +596,7 @@ void pumpe_t::finish_rd()
 	if(  fab==NULL  ) {
 		if(welt->lookup(get_pos())->ist_karten_boden()) {
 			// on surface, check around
-			fab = leitung_t::suche_fab_neighbour(get_pos().get_2d());
+			fab = leitung_t::suche_fab_neighbour(get_pos().get_2d(), true /*prefer_producer*/);
 		}
 		else {
 			// underground, check directly above
@@ -847,7 +858,7 @@ void senke_t::finish_rd()
 	if(  fab==NULL  ) {
 		if(welt->lookup(get_pos())->ist_karten_boden()) {
 			// on surface, check around
-			fab = leitung_t::suche_fab_neighbour(get_pos().get_2d());
+			fab = leitung_t::suche_fab_neighbour(get_pos().get_2d(), false /*prefer_producer*/);
 		}
 		else {
 			// underground, check directly above
