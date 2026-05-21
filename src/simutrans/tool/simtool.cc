@@ -9,6 +9,7 @@
 
 #include "../simdebug.h"
 #include "../simevent.h"
+#include "../simversion.h"
 #include "../world/simcity.h"
 #include "../simmesg.h"
 #include "../simconvoi.h"
@@ -7709,6 +7710,53 @@ bool tool_quit_t::init( player_t * )
 	}
 	if (env_t::networkmode) {
 		welt->network_disconnect();
+	}
+	return false;
+}
+
+
+bool tool_new_world_t::init( player_t * )
+{
+	if (env_t::default_settings.heightfield.empty()) {
+		welt->init(&env_t::default_settings, 0);
+	}
+	else {
+		welt->load_heightfield(&env_t::default_settings);
+	}
+	destroy_all_win(true);
+	welt->step_month(env_t::default_settings.get_starting_month());
+	welt->set_pause(false);
+	loadsave_t file;
+	if (file.wr_open("default.sve", loadsave_t::binary, 0, "settings only", SAVEGAME_VER_NR) == loadsave_t::FILE_STATUS_OK) {
+		env_t::default_settings.rdwr(&file);
+		env_t::default_settings.reset_after_global_settings_reload();
+		file.close();
+	}
+	welt->type_of_generation = karte_t::NEW_WORLD;
+	return false;
+}
+
+
+bool tool_load_world_t::init( player_t * )
+{
+	if (strempty(default_param)) {
+		return false;
+	}
+	int easy_server = 0;
+	const char *filename = default_param;
+	if (const char *comma = strchr(default_param, ',')) {
+		easy_server = atoi(default_param);
+		filename = comma + 1;
+	}
+	welt->switch_server(easy_server != 0, true);
+	if (!welt->load(filename)) {
+		welt->switch_server(false, true);
+	}
+	else {
+		if (env_t::server) {
+			welt->announce_server(karte_t::SERVER_ANNOUNCE_HELLO);
+		}
+		welt->type_of_generation = karte_t::LOADED_WORLD;
 	}
 	return false;
 }

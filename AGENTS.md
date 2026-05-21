@@ -360,6 +360,11 @@ Longer-form design and planning docs live under `documentation/`:
   - `documentation/hex-vertex-storage.md` — per-vertex height
     storage on the hex grid, canonical ownership rule and storage
     layout.  Describes live behaviour.
+  - `documentation/world-mutation-deferral.md` — why GUI handlers
+    can't synchronously call `welt->init()` / `welt->load()` /
+    `karte_t::destroy()` (event dispatch nests inside
+    `karte_t::step`), and the `tool_t` dispatch path that fixes
+    it.  Live coverage + one residual outlier still to migrate.
 
 ## Upstream documentation pointers
 

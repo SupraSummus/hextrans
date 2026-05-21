@@ -167,6 +167,8 @@ const char* tool_t::id_to_string(uint16 id)
 			CASE_TO_STRING(TOOL_TOGGLE_CONTROL);
 			CASE_TO_STRING(TOOL_LOAD_SCENARIO);
 			CASE_TO_STRING(TOOL_DAY_NIGHT_TOGGLE);
+			CASE_TO_STRING(TOOL_NEW_WORLD);
+			CASE_TO_STRING(TOOL_LOAD_WORLD);
 			CASE_TO_STRING(UNUSED_TOOL_ADD_MESSAGE);
 			CASE_TO_STRING(UNUSED_WKZ_PWDHASH_TOOL);
 		}
@@ -340,6 +342,8 @@ tool_t* create_simple_tool(int toolnr)
 	case TOOL_LOAD_SCENARIO:        tool = new tool_load_scenario_t();        break;
 	case TOOL_DAY_NIGHT_TOGGLE:     tool = new tool_day_night_toggle_t();     break;
 	case TOOL_SINGLE_WAY_TOOGLE:    tool = new tool_show_single_ways_t();     break;
+	case TOOL_NEW_WORLD:            tool = new tool_new_world_t();            break;
+	case TOOL_LOAD_WORLD:           tool = new tool_load_world_t();           break;
 	case UNUSED_TOOL_ADD_MESSAGE: // fall-through - intended!!!111elf
 	case UNUSED_WKZ_PWDHASH_TOOL:
 		dbg->warning("create_simple_tool()", "Deprecated tool [%i] requested", toolnr);

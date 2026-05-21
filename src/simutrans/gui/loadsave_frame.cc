@@ -25,6 +25,9 @@
 #include "../network/network_socket_list.h"
 
 #include "../utils/simstring.h"
+#include "../utils/cbuffer.h"
+
+#include "../tool/simmenu.h"
 
 
 
@@ -34,18 +37,11 @@
 bool loadsave_frame_t::item_action(const char *filename)
 {
 	if(do_load) {
-		welt->switch_server( easy_server.pressed, true );
-		long start_load = dr_time();
-		if(  !welt->load(filename)  ) {
-			welt->switch_server( false, true );
-		}
-		else {
-			if (env_t::server) {
-				welt->announce_server(karte_t::SERVER_ANNOUNCE_HELLO);
-			}
-			welt->type_of_generation = karte_t::LOADED_WORLD;
-		}
-		DBG_MESSAGE( "loadsave_frame_t::item_action", "load world %li ms", dr_time() - start_load );
+		cbuffer_t param;
+		param.printf("%i,%s", easy_server.pressed, filename);
+		tool_t::simple_tool[TOOL_LOAD_WORLD]->set_default_param(param);
+		welt->set_tool(tool_t::simple_tool[TOOL_LOAD_WORLD], NULL);
+		tool_t::simple_tool[TOOL_LOAD_WORLD]->set_default_param(0);
 	}
 	else {
 		// saving a game
