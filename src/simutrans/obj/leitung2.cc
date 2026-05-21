@@ -184,17 +184,36 @@ void leitung_t::rotate90()
  */
 void leitung_t::replace(powernet_t* new_net)
 {
-	if (get_net() != new_net) {
-		// convert myself ...
-//DBG_MESSAGE("leitung_t::replace()","My net %p by %p at (%i,%i)",new_net,current,base_pos.x,base_pos.y);
-		set_net(new_net);
+	if (get_net() == new_net) {
+		return;
 	}
 
-	leitung_t * conn[6];
-	if(gimme_neighbours(conn)>0) {
-		for(int i=0; i<6; i++) {
-			if(conn[i] && conn[i]->get_net()!=new_net) {
-				conn[i]->replace(new_net);
+	// Use an explicit stack to handle the traversal iteratively to avoid stack overflow on larger maps
+	vector_tpl<leitung_t*>todo_stack;
+	todo_stack.reserve(256); // Small optimization to avoid frequent reallocations
+
+	todo_stack.append(this);
+
+	while (!todo_stack.empty()) {
+		leitung_t* current = todo_stack.back();
+		todo_stack.pop_back();
+
+		// already processed => next
+		if (current->get_net() == new_net) {
+			continue;
+		}
+
+		// Update the network for the current segment
+		current->set_net(new_net);
+
+		// Check and gather neighbors
+		leitung_t* conn[6];
+		if (current->gimme_neighbours(conn) > 0) {
+			for (int i = 0; i < 6; i++) {
+				// Only add neighbors that actually need updating
+				if (conn[i] && conn[i]->get_net() != new_net) {
+					todo_stack.append(conn[i]);
+				}
 			}
 		}
 	}
