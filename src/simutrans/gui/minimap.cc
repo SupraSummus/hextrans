@@ -514,12 +514,13 @@ scr_coord minimap_t::map_to_screen_coord(const koord &k) const
 {
 	assert(zoom_in ==1 || zoom_out ==1 );
 	scr_coord_val x = (scr_coord_val)k.x * zoom_in;
-    scr_coord_val y = (scr_coord_val)k.y * zoom_in;
+	scr_coord_val y = (scr_coord_val)k.y * zoom_in;
 	if(isometric) {
-		// 45 rotate view
-		scr_coord_val xrot = (scr_coord_val)world->get_size().y * zoom_in + x - y - 1;
-		y = ( x + y )/2;
-		x = xrot;
+		// Flat-top hex axial: +q step (3u, u), +r step (0, 2u).
+		scr_coord_val sx = 3 * x;
+		scr_coord_val sy = x + 2 * y;
+		x = sx;
+		y = sy;
 	}
 	return scr_coord(x/zoom_out, y/zoom_out);
 }
@@ -531,9 +532,12 @@ koord minimap_t::screen_to_map_coord(const scr_coord &c) const
 	sint32 x = ((sint32)c.x*zoom_out)/zoom_in;
 	sint32 y = ((sint32)c.y*zoom_out)/zoom_in;
 	if(isometric) {
-		y *= 2;
-		x  = (x + y - world->get_size().y)/2;
-		y  = y - x;
+		// `floor` rather than C truncation so clicks above / left of
+		// the map still round into a single negative tile.
+		sint32 q = (sint32)floor((double)x / 3.0);
+		sint32 r = (sint32)floor((double)(y - q) / 2.0);
+		x = q;
+		y = r;
 	}
 	return koord(x,y);
 }
@@ -626,24 +630,13 @@ void minimap_t::set_map_color(koord k_, const PIXVAL color)
 	c -= cur_off;
 
 	if(  isometric  ) {
-		// since isometric is distorted
-		const sint32 xw = zoom_out>=2 ? 1 : 2*zoom_in;
-		// increase size at zoom_in 2, 5, 9, 11
-		const scr_coord_val mid_y = ((xw+1) / 5) + (xw / 18);
-		// center line
-		for(  int x=0;  x<xw;  x++  ) {
-			set_map_color_clip( c.x+x, c.y+mid_y, color );
-		}
-		// lines above and below
-		if(  mid_y > 0  ) {
-			scr_coord_val left = 2, right = xw-2 + ((xw>>1)&1);
-			for(  scr_coord_val y_offset = 1;  y_offset <= mid_y;  y_offset++  ) {
-				for(  int x=left;  x<right;  x++  ) {
-					set_map_color_clip( c.x+x, c.y+mid_y+y_offset, color );
-					set_map_color_clip( c.x+x, c.y+mid_y-y_offset, color );
-				}
-				left += 2;
-				right -= 2;
+		// 3u × 2u axis-aligned cell, picked so the painted region matches
+		// `screen_to_map_coord`'s floor-inverse exactly at `zoom_out = 1`.
+		const sint32 xw = max((sint32)1, (3 * zoom_in) / zoom_out);
+		const sint32 yw = max((sint32)1, (2 * zoom_in) / zoom_out);
+		for(  sint32 y = 0; y < yw; y++  ) {
+			for(  sint32 x = 0; x < xw; x++  ) {
+				set_map_color_clip( c.x + x, c.y + y, color );
 			}
 		}
 	}
@@ -1451,28 +1444,18 @@ void minimap_t::draw(scr_coord pos)
 	if(  showing_schedule  ) {
 		// lighten background
 		if(  isometric  ) {
-			// isometric => lighten in three parts
-
-			scr_coord p1 = map_to_screen_coord( koord(0,0) );
-			scr_coord p2 = map_to_screen_coord( koord( world->get_size().x, 0 ) );
-			scr_coord p3 = map_to_screen_coord( koord( world->get_size().x, world->get_size().y ) );
-			scr_coord p4 = map_to_screen_coord( koord( 0, world->get_size().y ) );
-
-			// top and bottom part
-			const int toplines = min( p4.y, p2.y );
-			for( scr_coord_val y = 0;  y < toplines;  y++  ) {
-				gfx->tint_rect( pos.x+p1.x-2*y, pos.y+y,        4*y+4, 1, gfx->palette_lookup(COL_WHITE), 75 );
-				gfx->tint_rect( pos.x+p3.x-2*y, pos.y+p3.y-y-1, 4*y+4, 1, gfx->palette_lookup(COL_WHITE), 75 );
-			}
-			// center area
-			if(  p1.x < p3.x  ) {
-				for( scr_coord_val y = toplines;  y < p3.y-toplines;  y++  ) {
-					gfx->tint_rect( pos.x+(y-toplines)*2, pos.y+y, 4*toplines+4, 1, gfx->palette_lookup(COL_WHITE), 75 );
-				}
-			}
-			else {
-				for( scr_coord_val y = toplines;  y < p3.y-toplines;  y++  ) {
-					gfx->tint_rect( pos.x+(y-toplines)*2, pos.y+p3.y-y-1, 4*toplines+4, 1, gfx->palette_lookup(COL_WHITE), 75 );
+			// Walk the sheared-parallelogram outline scanline by
+			// scanline.  Top edge runs (q,0)→(X,0) with slope 1/3,
+			// bottom edge (0,Y)→(X,Y) with the same slope offset by
+			// `p4.y`; right edge `x = p2.x`, left edge `x = 0`.
+			const scr_coord p2 = map_to_screen_coord( koord( world->get_size().x, 0 ) );
+			const scr_coord p3 = map_to_screen_coord( koord( world->get_size().x, world->get_size().y ) );
+			const scr_coord p4 = map_to_screen_coord( koord( 0, world->get_size().y ) );
+			for(  scr_coord_val sy = 0;  sy < p3.y;  sy++  ) {
+				const sint32 sx_lo = max( (sint32)0, 3 * (sy - p4.y) );
+				const sint32 sx_hi = min( (sint32)p2.x, 3 * (sint32)sy );
+				if(  sx_lo < sx_hi  ) {
+					gfx->tint_rect( pos.x + sx_lo, pos.y + sy, sx_hi - sx_lo, 1, gfx->palette_lookup(COL_WHITE), 75 );
 				}
 			}
 		}
