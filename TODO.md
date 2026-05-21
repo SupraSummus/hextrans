@@ -465,13 +465,6 @@ the wrong branch.  Bound to the "Powerline 3rd hex axis" sprite
 cluster above; retires together with that cluster (along with
 `is_straight_ns` itself).
 
-**`koord_random` / `clip_min` / `clip_max` rhombus caveat.**  These
-are rectangular in axial `(q, r)` — rhombus-shaped in world space
-under hex.  Current 11 callers all use them for map-bound clamps /
-bounding-box iteration, which matches the tile array's rhombus
-shape.  Flag so a future caller wanting a hex-circle / hex-radius
-region writes its own helper instead of overloading these.
-
 **`ribi_t::is_perpendicular` 2-axis vs 3-axis.**  Under hex there
 is no true 90° axis relation; the current predicate returns true
 when x and y together span more than one hex axis (= "different
