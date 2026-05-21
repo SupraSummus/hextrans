@@ -8538,6 +8538,12 @@ bool tool_change_traffic_light_t::init( player_t *player )
 				else if(  ns == 3  ) {
 					rs->set_ticks_yellow_ow( (uint8)ticks );
 				}
+				else if(  ns == 5  ) {
+					rs->set_ticks_ne_sw( (uint8)ticks );
+				}
+				else if(  ns == 6  ) {
+					rs->set_ticks_yellow_ne_sw( (uint8)ticks );
+				}
 				// update the window
 				if(  rs->get_desc()->is_traffic_light()  ) {
 					trafficlight_info_t* trafficlight_win = (trafficlight_info_t*)win_get_magic((ptrdiff_t)rs);

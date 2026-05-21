@@ -361,6 +361,35 @@ Longer-form design and planning docs live under `documentation/`:
     storage on the hex grid, canonical ownership rule and storage
     layout.  Describes live behaviour.
 
+## Upstream documentation pointers
+
+The upstream Simutrans wiki has development-tagged pages worth a
+look when porting unfamiliar subsystems.  The index is at
+`https://simutrans-germany.com/wiki/wiki/tiki-browse_freetags.php?tag=development`
+and currently has four entries:
+
+  - `en_Developing_Simutrans` — contribution prerequisites, coding
+    style, directory structure, debugging tips.
+  - `en_GUI_code` — gui_aligned_container_t, gui_frame_t, table
+    layout conventions used in info windows.
+  - `en_Overview_of_Simutrans_Code` — index to seven chapters
+    (world, ways, ribis, signs, vehicles, schedules, convoys).
+  - `en_Translation` — `.tab` files, `translator::translate()`,
+    the SimuTranslator workflow.
+
+The chapter pages live at `en_Code_Overview_<N>_<Topic>` URLs
+(e.g. `en_Code_Overview_4_Signs`).  In practice the chapters are
+high-level overviews — useful for "what class lives where" but
+thin on the implementation details a porter actually needs (FSMs,
+field semantics, save layout); read these as orientation, not as
+ground truth.  The code itself remains the source of truth, with
+upstream `refs/heads/simutrans` (see "Diff against the upstream
+`simutrans` branch") as the practical comparison surface.
+
+There is also an automatically-generated code-reference site at
+`https://doc.simutrans-germany.com/Simutrans-Code/` referenced by
+the wiki; not exercised here yet.
+
 ## Working notes
 
 Compile from the repo root: `cmake --build build -j "$(nproc)"`. The

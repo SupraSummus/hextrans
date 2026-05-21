@@ -15,9 +15,11 @@ void trafficlight_info_t::update_data()
 {
 	ns.set_value( roadsign->get_ticks_ns() );
 	ow.set_value( roadsign->get_ticks_ow() );
+	ne_sw.set_value( roadsign->get_ticks_ne_sw() );
 	offset.set_value( roadsign->get_ticks_offset() );
 	yellow_ns.set_value( roadsign->get_ticks_yellow_ns() );
 	yellow_ow.set_value( roadsign->get_ticks_yellow_ow() );
+	yellow_ne_sw.set_value( roadsign->get_ticks_yellow_ne_sw() );
 }
 
 
@@ -25,7 +27,9 @@ trafficlight_info_t::trafficlight_info_t(roadsign_t* s) :
 	obj_infowin_t(s),
 	roadsign(s)
 {
-	add_table(3,1);
+	// Top row: 3 axis green durations + global offset.
+	// Bottom row: 3 axis yellow durations.
+	add_table(4,1);
 	{
 	  ns.set_limits( 1, 255 );
 	  ns.wrap_mode( false );
@@ -37,6 +41,11 @@ trafficlight_info_t::trafficlight_info_t(roadsign_t* s) :
 	  ow.add_listener( this );
 	  add_component( &ow );
 
+	  ne_sw.set_limits( 1, 255 );
+	  ne_sw.wrap_mode( false );
+	  ne_sw.add_listener( this );
+	  add_component( &ne_sw );
+
 	  offset.set_limits( 0, 255 );
 	  offset.wrap_mode( false );
 	  offset.add_listener( this );
@@ -44,7 +53,7 @@ trafficlight_info_t::trafficlight_info_t(roadsign_t* s) :
 	}
 	end_table();
 
-	add_table(2,1);
+	add_table(3,1);
 	{
 	  yellow_ns.set_limits( 1, 255 );
 	  yellow_ns.wrap_mode( false );
@@ -55,6 +64,11 @@ trafficlight_info_t::trafficlight_info_t(roadsign_t* s) :
 	  yellow_ow.wrap_mode( false );
 	  yellow_ow.add_listener( this );
 	  add_component( &yellow_ow );
+
+	  yellow_ne_sw.set_limits( 1, 255 );
+	  yellow_ne_sw.wrap_mode( false );
+	  yellow_ne_sw.add_listener( this );
+	  add_component( &yellow_ne_sw );
 	}
 	end_table();
 
@@ -89,6 +103,12 @@ bool trafficlight_info_t::action_triggered( gui_action_creator_t *comp, value_t 
 	}
  	else if(comp == &yellow_ow) {
 		toolnr = 3;
+	}
+	else if(comp == &ne_sw) {
+		toolnr = 5;
+	}
+	else if(comp == &yellow_ne_sw) {
+		toolnr = 6;
 	}
 	else {
 		dbg->fatal( "trafficlight_info_t","Wrong action triggered" );

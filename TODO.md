@@ -92,15 +92,19 @@ keyed on 4 old-combo values).  Restore after the crossing-cluster /
 `leitung_t::suche_fab_neighbour`'s adjacency order — see
 "Adjacency-order policy" below.
 
-**Sign / traffic-light 2-axis FSM.**  `test_sign_build_trafficlight /
+**Sign 4-direction rotation layouts.**  `test_sign_build_trafficlight /
 _build_private_way / _build_signal / _build_signal_multiple /
-_replace_signal` bake the 2-phase traffic-light FSM (state 0 = N-S
-axis, state 1 = old-E-W) and 4-direction sign rotation layouts from
-`roadsign.cc`.  Under hex, 3 axes / 6 rotations.  Real gameplay
-design choice, not a test edit; restore when `roadsign_t` and the
-trafficlight info UI get their hex port.  `test_sign_build_oneway_at_crossing`
-holds the crossing subcases that used to live inside
-`test_sign_build_oneway`; same trigger.
+_replace_signal` bake square-era 4-direction sign rotation layouts
+from `roadsign.cc` and the square-grid coord choices around them.
+The traffic-light FSM itself is now 3-axis adaptive (T-junctions
+cycle 2 phases, Y-junctions 3 phases) — engine side is done.  What
+remains: each test's coord/asserts need rewriting to hex axes
+(`test_sign_build_trafficlight`'s W-arm read as hex NW under the
+2:1 iso rename, etc.), and the pakset-side sprite tables in
+`roadsign_writer.cc` still emit 4 rotations rather than 6 (tracked
+separately under "Engine → pakset descriptor boundary").
+`test_sign_build_oneway_at_crossing` holds the crossing subcases
+that used to live inside `test_sign_build_oneway`; same trigger.
 
 **Runway layout.**  `test_way_runway_build_rw_flat / _tw_flat /
 _mixed_flat` bake a 4-direction airport layout (runway + taxiway
@@ -395,10 +399,15 @@ pak128 today.  Engine port and pakset port land together; flag for
 design conversation before mechanical work.
 
 **`roadsign_writer.cc`** has three hardcoded direction tables
-(2/4/8 entries); the underlying 2-axis FSM is a gameplay design
-choice covered separately in "Sign / traffic-light 2-axis FSM"
-above.  Key vocabulary updates fall out of that work, not this
-cluster.
+(2/4/8 entries) and only 4 image slots for traffic lights
+({SE-NW, NS} × {green, yellow}).  The engine-side FSM is now
+3-axis adaptive; `calc_image`'s `state_to_direction[6]` table in
+`roadsign.cc` projects NE-SW (states 2 / 5) onto the NS slots as
+placeholder visuals, so 6-way intersections cycle correctly
+under the hood but render with miscoloured arms until the
+writer grows a third direction tier and pakset art ships.
+Delete the placeholder projection in the same change that
+widens the writer.
 
 **`vehicle_writer.cc:179-181`** has `dir_codes[8]` for sprite-facing
 direction; tied to the `ribi_t::_dir` widening tracked in "Vehicle
@@ -786,11 +795,12 @@ map cleanly to 6).
 Buildings and intersections that bake the square 4-axis crossroads
 into their gameplay logic, beyond the mechanical
 `rotate90`→`rotate60` rename covered by the `rotate_perpendicular`
-sweep in "ribi_t — audit surfaces".  The shared trigger is "hex
-crossroads have a real design" — what the 3-axis / 6-arm geometry
-means for collision avoidance, depot orientation, traffic-light
-phasing, and airport layouts isn't a mechanical port, it's a
-gameplay choice that hasn't been made yet.
+sweep in "ribi_t — audit surfaces".  Shared trigger is "hex
+crossroads have a real design" — the design choice is **full
+3-axis** (Y- and 6-way intersections are first-class, not
+forbidden or projected onto 2 axes).  The traffic-light FSM has
+landed under that policy; depot orientation, collision avoidance,
+and airport layout still need porting against the same choice.
 
 *Depot 3rd-axis layout.*  `tool_build_depot_t::tool_depot_aux` in
 `tool/simtool.cc` picks `layout = 0` (N-S axis) or `layout = 1`
@@ -810,13 +820,11 @@ the right-of-way table assumes two axes meeting at 90°.  The
 crossroads needs the FSM redesigned: which arms have priority,
 how is "across" defined when two arms meet at 60° vs. 120°, what
 does the "exit same side" predicate mean with three axes.
-
-*Traffic-light phase count.*  `roadsign.cc:502` cycles between
-state 0 (N-S open) and state 1 (SE-NW open); the NE-SW axis is
-never opened.  `Sign / traffic-light 2-axis FSM` in the test
-section above tracks the test fallout; the engine-side fix is a
-3-state cycle (one axis open per state) and a corresponding
-`trafficlight_info_t` UI port.
+Lights now signal Y-junctions correctly while vehicles still
+resolve right-of-way against a 2-axis model, so Y-junctions are
+a half-built case until this FSM is ported too — visible as
+unpredictable collisions when both axes go green-yellow on a
+real Y.
 
 *Airport layout.*  Tracked separately under `Runway layout` in
 the test section above — `ai_passenger.cc:499` builds a hex
