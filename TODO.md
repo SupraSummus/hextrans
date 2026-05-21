@@ -25,8 +25,8 @@ builder routes around the NE-SW axis (no sprite support there yet)
 into a 2-step path through `(q+1, r)`-style intermediate tiles.
 Affected: `test_way_bridge_build_{ground, above_way,
 at_slope, at_slope_stacked, above_runway}`,
-`test_way_road_build_{parallel, below_powerline,
-crossing, upgrade_crossing, upgrade_downgrade_across_bridge}`,
+`test_way_road_build_{parallel, below_powerline, crossing}`,
+`test_way_road_upgrade_{crossing, downgrade_across_bridge}`,
 `test_way_tram_build_{parallel, in_tunel}`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
 Several crossing cases additionally need a hex-axis pair to replace
@@ -82,15 +82,12 @@ so when these tests come back, the `2*slope.east` literals migrate
 to `slope.southeast_double` / `slope.northwest_double` (whichever
 the hex axis intent is).
 
-**Powerline 3rd hex axis.**  `test_powerline_connect /
-_build_transformer_multiple / _ways` each expect crossings /
-powerlines on the 2 square-era axes (N-S and old E-W).  Under hex
-there are 3 axes and the 3rd (NE-SW) has no powerline crossing sprite
-or connection FSM support (`leitung2.cc` diagonal-image table is
-keyed on 4 old-combo values).  Restore after the crossing-cluster /
-3rd-axis work lands.  `_transformer_multiple` additionally depends on
-`leitung_t::suche_fab_neighbour`'s adjacency order — see
-"Adjacency-order policy" below.
+**Powerline 3rd hex axis.**  `test_powerline_connect` and
+`test_powerline_ways` each expect crossings / powerlines on the 2
+square-era axes (N-S and old E-W).  Under hex there are 3 axes and
+the 3rd (NE-SW) has no powerline crossing sprite or connection FSM
+support (`leitung2.cc` diagonal-image table is keyed on 4 old-combo
+values).  Restore after the crossing-cluster / 3rd-axis work lands.
 
 **Sign 4-direction rotation layouts.**  `test_sign_build_trafficlight /
 _build_private_way / _build_signal / _build_signal_multiple /
@@ -154,6 +151,18 @@ tile under hex's 3-way vertex sharing and misses the hex-only
 neighbour edges; the hex helpers raise all 6 vertices directly so
 the surrounding 6 hex neighbours pick up clean 2-corner edge slopes
 for free.
+
+**Missing `terraform=` in `command_x.build_way`.**
+`command_x.build_way` in the Squirrel API has no `terraform=` flag,
+so the `terraform_flag` paths in `way_builder_t` (set by city / AI
+builders via `simcity.cc` and `ai*.cc`) have no scenario-test
+coverage.  Add a `terraform` bool mirroring `straight` /
+`keep_city_roads`; wire through the `TOOL_BUILD_WAY` param
+encoding in `script/api/api_command.cc:308-316`.  Lands alongside
+the first scenario test that exercises AI / city-shape
+terraforming — including a regression test for the
+`check_terraforming` widening + corner-index fixes that currently
+have no end-to-end coverage.
 
 ## Lower_to water-tile NW-only gate
 
@@ -434,11 +443,14 @@ formal removal.
 off this direction" sites — crossroads collision avoidance
 (`road_vehicle.cc`, `pedestrian.cc`, `vehicle_base.cc`),
 broad-tunnel side tiles (`tunnel.cc`, `tunnelbauer.cc`), canal
-orthogonality (`wasser.cc`).  Also stubbed to `rotate60` (the
-"one step over" axis).  Triggered by the crossing-cluster port:
-per-site review, some may want both 60° and 120° (test both
-adjacent axes), some may redesign the check entirely for hex
-3-axis geometry.
+orthogonality (`wasser.cc`), parallel-way and shore-perpendicular
+build heuristics (`simtool.cc`), and the roadsign map-rotate call
+that mis-uses `rotate_perpendicular` where the comment intends
+`rotate_for_map_rotate90` (`roadsign.cc`).  Also stubbed to
+`rotate60` (the "one step over" axis).  Triggered by the
+crossing-cluster port: per-site review, some may want both 60°
+and 120° (test both adjacent axes), some may redesign the check
+entirely for hex 3-axis geometry.
 
 **Diagonal way-image selection.**  Hex has no out-of-axis diagonal
 direction — every direction lies on an axis.  The `+2` offset for the
@@ -459,7 +471,7 @@ need sprite representations — every rename site needs re-audit.
 Grep: `HEX-PORT.*east\|HEX-PORT.*west\|\b(southeast|northwest)\b`
 inside rendering-cluster files.
 
-**`is_straight_ns` last caller.**  `leitung2.cc:298` picks one of two
+**`is_straight_ns` last caller.**  `leitung2.cc` picks one of two
 powerline diagonal sprites with the 2-axis predicate; NE-SW lands on
 the wrong branch.  Bound to the "Powerline 3rd hex axis" sprite
 cluster above; retires together with that cluster (along with
@@ -468,12 +480,12 @@ cluster above; retires together with that cluster (along with
 **`ribi_t::is_perpendicular` 2-axis vs 3-axis.**  Under hex there
 is no true 90° axis relation; the current predicate returns true
 when x and y together span more than one hex axis (= "different
-axes").  ~12 callers use this for collision avoidance, signal
-logic, crossing detection.  Each needs review: some want
-"different axis" (current semantic fits), some may want "specific
-axis pair" for crossings that only care about 2 of 3 hex axes.
-Not a silent bug today but the semantic shift from 2-axis to
-3-axis is a gameplay choice.
+axes").  Callers in `route.cc`, `wegbauer.cc`, `vehicle_base.cc`
+use this for collision avoidance and pathfinding.  Each needs
+review: some want "different axis" (current semantic fits), some
+may want "specific axis pair" for crossings that only care about
+2 of 3 hex axes.  Not a silent bug today but the semantic shift
+from 2-axis to 3-axis is a gameplay choice.
 
 **Vehicle direction enum — compound 2-step displacements.**
 `vehicle_base_t::calc_set_direction(start, end)` is called both with
@@ -629,6 +641,18 @@ canonical edge ramp (plateau-chord rule in
 `slope_allows_ribi`, so legacy or transitional saves with forbidden
 ways do not abort while drawing.  A load-time validator remains the
 proper cleanup move when save migration gets a dedicated pass.
+
+Selection-marker rendering in `tool/simtool.cc::mark_tiles` and
+`tool/simtool-script-generator.cc::mark_tiles` is square-era: it
+builds a base-3 4-corner sprite key (`27 * corner_nw + 9 *
+corner_ne + 3 * corner_se + corner_sw`) and indexes into
+`ground_desc_t::marker` with `% 27`.  Under hex's base-4 6-corner
+encoding the formula is wrong and the `uint8 grund_hang` locals
+also truncate any slope with NW (256) or NE (1024) raised.
+Widening alone wouldn't help — the marker sprite-key scheme needs
+the same square-projection treatment as
+`ground_desc_t::get_marker_image` (which calls
+`project_to_square_sprite` first).
 
 `display_boden` / `display_obj_all` per-edge clip activation
 covers only 4 of the 6 hex edges (NW, N, SE, S — the inheritors
@@ -796,6 +820,11 @@ structural changes settle, either reject old upstream saves cleanly or
 write a one-shot square→hex converter (hard because 4 corners do not
 map cleanly to 6).
 
+Save-format feature gates now have names in `simversion.h` rather
+than floating against `SIM_SAVE_MINOR`.  Continue that convention for
+future on-disk changes so later fork-version bumps do not silently
+change the meaning of old readers.
+
 ## Building / crossing cluster
 
 Buildings and intersections that bake the square 4-axis crossroads
@@ -838,7 +867,7 @@ diamond using 4 of 6 hex edges, which compiles and produces
 something playable but is not a real hex airport.  Lands together
 with the other items here when crossroads design lands.
 
-## other
+## Wire-parser hardening
 
 Wire-parser fuzzer finds an unbounded-allocation loop on the
 `nwc_service_t` SRVC_GET_CLIENT_LIST loading path (nettool /
@@ -864,36 +893,23 @@ elements before deleting the vector.  Reproduce by running the
 default sanitizer config; the OOM-shaped variant is the cheapest
 path for libFuzzer to find and surfaces within seconds.
 
-Retire the libcurl rollback gate.  Legacy in-house HTTP socket code
-in `network_file_transfer.cc` (the `network_http_get` / `_post` /
-`_get_file` bodies and the `parse_http_url` helper, only reachable
-from those bodies now), and the desktop fan-out in
-`pakset_downloader.cc` (urlmon / PowerShell / system curl), all live
-under `#else USE_CURL` as a downstream fallback
-(`-DSIMUTRANS_USE_CURL=OFF`).  Delete the legacy branch together
-with the cmake / autoconf gate after the next release has shipped
-without a regression report against the libcurl path.  The three
-`network_http_get_file` bugs called out in
-`documentation/libcurl-port.md` (relative-redirect dropout,
-`:80`-double-append, mis-tagged error string) remain present in the
-legacy branch — fixing them there is wasted work ahead of
+## libcurl rollback gate retirement
+
+Legacy in-house HTTP socket code in `network_file_transfer.cc`
+(the `network_http_get` / `_post` / `_get_file` bodies and the
+`parse_http_url` helper, only reachable from those bodies now),
+and the desktop fan-out in `pakset_downloader.cc` (urlmon /
+PowerShell / system curl), all live under `#else USE_CURL` as a
+downstream fallback (`-DSIMUTRANS_USE_CURL=OFF`).  Delete the
+legacy branch together with the cmake / autoconf gate after the
+next release has shipped without a regression report against the
+libcurl path.  The three `network_http_get_file` bugs called out
+in `documentation/libcurl-port.md` (relative-redirect dropout,
+`:80`-double-append, mis-tagged error string) remain present in
+the legacy branch — fixing them there is wasted work ahead of
 retirement.
 
-Save-format feature gates now have names in `simversion.h` rather
-than floating against `SIM_SAVE_MINOR`.  Continue that convention for
-future on-disk changes so later fork-version bumps do not silently
-change the meaning of old readers.
-
-`command_x.build_way` in the Squirrel API has no `terraform=` flag,
-so the `terraform_flag` paths in `way_builder_t` (set by city / AI
-builders via `simcity.cc` and `ai*.cc`) have no scenario-test
-coverage.  Add a `terraform` bool mirroring `straight` /
-`keep_city_roads`; wire through the `TOOL_BUILD_WAY` param
-encoding in `script/api/api_command.cc:308-316`.  Lands alongside
-the first scenario test that exercises AI / city-shape
-terraforming — including a regression test for the
-`check_terraforming` widening + corner-index fixes that currently
-have no end-to-end coverage.
+## World-mutation deferral residual
 
 `server_frame_t::action_triggered` (`gui/server_frame.cc:519,528`)
 still calls `welt->load("net:...")` synchronously from the
@@ -904,17 +920,3 @@ covers loadsave_frame's Load).  Next move: reuse
 `TOOL_LOAD_WORLD` (the `welt->load` "net:" prefix is already
 handled internally) or add a `tool_join_network_t` sibling.
 Ground truth is `documentation/world-mutation-deferral.md`.
-
-Selection-marker rendering in `tool/simtool.cc::mark_tiles` and
-`tool/simtool-script-generator.cc::mark_tiles` is square-era: it
-builds a base-3 4-corner sprite key (`27 * corner_nw + 9 *
-corner_ne + 3 * corner_se + corner_sw`) and indexes into
-`ground_desc_t::marker` with `% 27`.  Under hex's base-4 6-corner
-encoding the formula is wrong and the `uint8 grund_hang` locals
-also truncate any slope with NW (256) or NE (1024) raised.
-Widening alone wouldn't help — the marker sprite-key scheme needs
-the same square-projection treatment as
-`ground_desc_t::get_marker_image` (which calls
-`project_to_square_sprite` first).  Lands together with the
-broader renderer-port marker / minimap work; see "Renderer port"
-above.
