@@ -339,7 +339,12 @@ public:
 	/**
 	* Returns the number of an eventual foundation
 	*/
-	image_id get_back_image(int leftback) const;
+	// Per-wall accessor for the artificial back-wall sprite encoded in
+	// `back_imageid`.  `wall` is one of [0, BACK_WALL_COUNT): wall 0 =
+	// NW back edge, wall 1 = N back edge, wall 2 = NE back edge.
+	// Returns IMG_EMPTY for an empty wall slot, or when `back_imageid`
+	// encodes a fence (range above BIID_ENCODE_FENCE_OFFSET).
+	image_id get_back_image(uint8 wall) const;
 	virtual void clear_back_image() {back_imageid=0;}
 
 	/**

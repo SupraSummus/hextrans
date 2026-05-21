@@ -734,18 +734,12 @@ void grund_t::set_underground_mode(const uint8 ugm, const sint8 level)
 }
 
 
-image_id grund_t::get_back_image(int leftback) const
+image_id grund_t::get_back_image(uint8 wall) const
 {
-	if(back_imageid==0) {
+	if(  back_imageid == 0  ||  abs(back_imageid) >= grund_t::BIID_ENCODE_FENCE_OFFSET  ) {
 		return IMG_EMPTY;
 	}
-	const uint16 abs_id = (uint16)abs(back_imageid);
-	// Legacy 2-arg API: leftback selects wall 0 (NW edge) or 1 (N edge).
-	// Wall 2 (NE edge) is not exposed through this entry point; callers
-	// asking for the "back" wall under hex should consult `back_imageid`
-	// directly or extend this API to take a `wall` argument.
-	const uint8 wall = leftback ? 1 : 0;
-	uint16 v = abs_id;
+	uint16 v = (uint16)abs(back_imageid);
 	for(  uint8 j = 0;  j < wall;  j++  ) {
 		v = (uint16)(v / grund_t::WALL_IMAGE_COUNT);
 	}
