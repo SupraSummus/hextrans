@@ -36,6 +36,8 @@
 
 #include "../simcolor.h"
 
+#include "../tool/simmenu.h"
+
 #include "../display/simgraph.h"
 
 #include "../sys/simsys.h"
@@ -554,25 +556,11 @@ bool welt_gui_t::action_triggered( gui_action_creator_t *comp,value_t v)
 		translator::set_language(translator::get_language());	// reset also ingame names
 		delete sets;
 		sets = NULL;
-		if(loaded_heightfield) {
-			welt->load_heightfield(&env_t::default_settings);
-		}
-		else {
+		if (!loaded_heightfield) {
 			env_t::default_settings.heightfield = "";
-			welt->init( &env_t::default_settings, 0 );
 		}
-		destroy_all_win(true);
-		welt->step_month( env_t::default_settings.get_starting_month() );
-		welt->set_pause(false);
-		// save setting ...
-		loadsave_t file;
-		if(  file.wr_open("default.sve",loadsave_t::binary,0,"settings only",SAVEGAME_VER_NR) == loadsave_t::FILE_STATUS_OK  ) {
-			// save default setting
-			env_t::default_settings.rdwr(&file);
-			env_t::default_settings.reset_after_global_settings_reload();
-			file.close();
-		}
-		welt->type_of_generation = karte_t::NEW_WORLD;
+		// Fire init() via a tool so it runs between steps; see documentation/world-mutation-deferral.md.
+		welt->set_tool(tool_t::simple_tool[TOOL_NEW_WORLD], welt->get_active_player());
 	}
 	else if(comp==&return_menu) {
 		destroy_all_win(true);

@@ -1045,6 +1045,29 @@ public:
 	bool is_work_keeps_game_state() const OVERRIDE { return false; }
 };
 
+// Dispatch a new-world construction.  Carries no parameters: the tool reads
+// env_t::default_settings, which the GUI sets up before firing the tool.  An
+// empty default_settings.heightfield means procedural generation; non-empty
+// means load_heightfield.
+class tool_new_world_t : public tool_t {
+public:
+	tool_new_world_t() : tool_t(TOOL_NEW_WORLD | SIMPLE_TOOL) { flags = WFL_LOCAL | WFL_NO_CHK; }
+	char const* get_tooltip(player_t const*) const OVERRIDE { return NULL; }
+	bool init( player_t * ) OVERRIDE;
+	bool is_init_keeps_game_state() const OVERRIDE { return false; }
+	bool is_work_keeps_game_state() const OVERRIDE { return false; }
+};
+
+// Dispatch loading a savegame.  default_param is "<easy_server>,<filename>".
+class tool_load_world_t : public tool_t {
+public:
+	tool_load_world_t() : tool_t(TOOL_LOAD_WORLD | SIMPLE_TOOL) { flags = WFL_LOCAL | WFL_NO_CHK; }
+	char const* get_tooltip(player_t const*) const OVERRIDE { return NULL; }
+	bool init( player_t * ) OVERRIDE;
+	bool is_init_keeps_game_state() const OVERRIDE { return false; }
+	bool is_work_keeps_game_state() const OVERRIDE { return false; }
+};
+
 // step size by default_param
 class tool_fill_trees_t : public tool_t {
 public:
