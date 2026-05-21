@@ -142,14 +142,6 @@ of 6R cells at axial distance R from the centre) replaces the 4-side
 square ring, and the per-subcase coord and flood-pattern assertions
 get rewritten.
 
-**Adjacency-order policy.**
-`test_powerline_build_transformer_multiple` relies on
-`leitung_t::suche_fab_neighbour` iterating in N-first order so a
-transformer adjacent to both a power plant (N) and a coal mine (W)
-connects to the producer.  Under hex iteration the mine is found
-first.  Needs a real policy choice in `suche_fab_neighbour` (prefer
-producers?  prefer nearest?), not a test edit.
-
 **Hill-with-sloped-neighbours test setup.**
 `test_powerline_build_underground_transformer_on_powerline` holds
 the underground-tunnel subcase that used to live inside

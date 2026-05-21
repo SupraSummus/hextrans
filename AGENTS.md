@@ -195,6 +195,11 @@ the change that landed it, not here.
 The aim is for `TODO.md` to remain a useful, current map of "what
 still needs doing". A growing TODO file is fine; a stale one is not.
 
+To surface stale entries, blame `TODO.md` and sort paragraphs
+(blank-line separated) by their max `author-time`: the lowest
+non-header values are the entries no edit has touched longest.
+`git fetch --unshallow origin` first if history is grafted.
+
 ## Commit message rules
 
 Default to short. The diff already shows *what* changed; the message
@@ -236,6 +241,12 @@ message, warning, error" instead of "five siblings of the same
 shape". Quoted noun phrases that compress a paragraph into a
 label — `the "format is consumed once" invariant` — force the
 reader to unpack them; write the sentence instead.
+
+Author identity — don't guess from session context.  `git log
+--format="%an <%ae>" | sort -u | grep -i <name>` lists what the
+repo already uses for a person; pick the existing identity rather
+than inventing a new one (the GitHub `users.noreply` form is the
+usual default here).  Ask when in doubt.
 
 ## Tests and the hex port
 

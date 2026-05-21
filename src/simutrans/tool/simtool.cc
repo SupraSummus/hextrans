@@ -1806,7 +1806,7 @@ const char *tool_transformer_t::work( player_t *player, koord3d pos )
 	// search for factory
 	// must be independent of network mode
 	if (gr->get_pos().z <= pos.z) {
-		fab = leitung_t::suche_fab_neighbour(k);
+		fab = leitung_t::suche_fab_neighbour(k, true /*prefer_producer*/);
 	}
 	else if(  gr->get_pos().z == pos.z+welt->get_settings().get_way_height_clearance()  ) {
 		fab = fabrik_t::get_fab( k);

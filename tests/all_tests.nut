@@ -149,7 +149,7 @@ all_tests <- [
 	test_powerline_build_transformer,
 	// test_powerline_build_underground_transformer_on_powerline: HEX-PORT PENDING.
 	test_powerline_build_over_transformer,
-	// test_powerline_build_transformer_multiple: HEX-PORT PENDING.
+	test_powerline_build_transformer_multiple,
 	test_powerline_remove_powerbridge,
 	// test_powerline_ways: HEX-PORT PENDING.
 	test_reservation_clear_ground,
