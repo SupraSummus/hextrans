@@ -50,6 +50,27 @@ ports"). One escape-hatch name per cluster, not per call site; the
 cluster description lives in `TODO.md`, not duplicated across
 synonymous wrappers.
 
+## Engine encoding leads the pakset
+
+Engine-side encoding decisions don't wait on shipped pakset art.
+When the hex geometry calls for a wider slot count, a new keyed
+layout, or a renamed desc field, the engine takes the move and the
+paksets follow.  This is not a tradeoff against red CI: tests run
+against pak64 with the `tests/test-pak/` overlay baked on top
+(`tools/test.py::ensure_test_pak`), and any descriptor shape the
+engine needs for test coverage gets a dummy entry in `test-pak/`.
+The headless test path renders nothing (`image[-]=-`), so the
+dummies don't need real sprite art — just the .dat keys the
+engine reads.  `test_road_double.dat` is the canonical example:
+opts a single road into `has_double_slopes=1` for the double-slope
+tunnel tests, because pak64 itself does not.
+
+Visible-side gaps in real paksets (missing fence combos, missing
+cliff atlases, missing way_ground images) are downstream catch-up
+work, not engine blockers.  `FENCE_IMAGE_COUNT = 7` is a recent
+case: the engine carves the full hex back-wall mask now, and the
+visual side waits on the pakset commit that fills indices 3..13.
+
 ## Diff against the upstream `simutrans` branch
 
 The pre-port upstream is tracked on the local `simutrans` branch
