@@ -25,7 +25,7 @@ builder routes around the NE-SW axis (no sprite support there yet)
 into a 2-step path through `(q+1, r)`-style intermediate tiles.
 Affected: `test_way_bridge_build_{ground, above_way,
 at_slope, at_slope_stacked, above_runway}`,
-`test_way_road_build_{parallel, below_powerline, crossing}`,
+`test_way_road_build_{below_powerline, crossing}`,
 `test_way_road_upgrade_{crossing, downgrade_across_bridge}`,
 `test_way_tram_build_{parallel, in_tunel}`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
@@ -35,12 +35,24 @@ array-of-ints; `ASSERT_WAY_PATTERN` tripwires on string rows because
 Squirrel indexes `row[x]` to ASCII codes (so the legacy `"..5....."`
 shorthand silently produced wrong expected values), and 6-bit hex
 ribis don't fit a single digit besides.  Restored sites
-(`test_way_road_build_straight`, `test_way_road_upgrade_downgrade`,
-`test_way_tram_build_on_road`, `test_way_road_cityroad_*`,
-`test_way_tunnel_build_{straight, up_down, make_public}`) are the
-worked examples; the tunnel ones additionally demonstrate the
-6-vertex hex-hill scaffold described in "Hill-with-sloped-neighbours
-test setup" below.
+(`test_way_road_build_{straight, parallel}`,
+`test_way_road_upgrade_downgrade`, `test_way_tram_build_on_road`,
+`test_way_road_cityroad_*`, `test_way_tunnel_build_{straight, up_down,
+make_public}`) are the worked examples; the tunnel ones additionally
+demonstrate the 6-vertex hex-hill scaffold described in
+"Hill-with-sloped-neighbours test setup" below.
+
+`test_way_road_build_parallel_routefinder` is a disabled forward
+spec rather than a port of the original middle subcase.  Same coords
+as the ctrl-held subcase 1 (incremental diagonals `(0,i)→(i,i)`) but
+without ctrl, asserting the same straight SE-chord pattern.  Today
+it fails because NE/SW are 1-step moves under hex and the route
+finder jumps onto previously-built rows to reuse them as cheap
+highways instead of going straight — see "Hex route finder reuses
+adjacent rows as cheap highways" under "ribi_t — audit surfaces"
+for the diagnosis and candidate fixes.  Retires together with
+that entry: when the route finder respects parallel-rows intent,
+this test passes and re-enables.
 
 **Tunnel tests blocked on `has_double_slopes=1` opt-in.**
 `test_way_tunnel_build_above_tunnel_slope` and
@@ -443,6 +455,33 @@ that mis-uses `rotate_perpendicular` where the comment intends
 crossing-cluster port: per-site review, some may want both 60°
 and 120° (test both adjacent axes), some may redesign the check
 entirely for hex 3-axis geometry.
+
+**Hex route finder reuses adjacent rows as cheap highways.**
+Under hex, NE/SW are 1-step neighbour moves with cost
+`way_count_no_way`, the same as direct axis moves.  When a player
+runs a series of nearby parallel `build_way` calls without ctrl,
+the route finder discovers that "jump NE onto the previous row,
+travel along its existing way, drop SW back" costs less than a
+straight 3..4-tile run on fresh tiles, and produces a tangled
+network instead of parallel rows.  Under square this didn't happen
+because NE/SW were 2-step diagonals (`abs(dx)+abs(dy)==2`), so the
+jump cost twice as much.  `tool_build_way_t::calc_route` does
+detect "way exists near both endpoints" and flips
+`prefer_parallel`, but the call site checks a single perpendicular
+direction via `rotate_perpendicular(w->get_ribi_unmasked())` — a
+stub returning `rotate60` — and only fires when start is *on* an
+existing single-ribi way, not when start is one tile *next to*
+one.  Two real fixes worth considering: (a) widen the
+`prefer_parallel` detection to "any of the 6 hex neighbours of
+start has a parallel-axis way", and (b) bump the NE/SW move cost
+above the on-axis move cost in the route finder's per-step
+accounting so the route's straight-line preference is restored
+without depending on prefer_parallel.  Visible cost: city / AI
+road grids that should be a regular lattice come out as a
+zig-zagging mesh.  Disabled spec test
+`test_way_road_build_parallel_routefinder` encodes the desired
+behaviour (straight SE chord on each row) and retires with this
+entry.
 
 **Diagonal way-image selection.**  Hex has no out-of-axis diagonal
 direction — every direction lies on an axis.  The `+2` offset for the
