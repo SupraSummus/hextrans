@@ -6,6 +6,6 @@
 #include "hex_keys.h"
 
 namespace hex_keys {
-	const char* const axis_names[3] = { "ns", "ne_sw", "nw_se" };
+	const char* const axis_names[3] = { "n_s", "ne_sw", "nw_se" };
 	const char* const edge_names[6] = { "n", "s", "ne", "se", "sw", "nw" };
 }
