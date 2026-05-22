@@ -629,6 +629,76 @@ static void test_vertex_owners_neighbour_closure()
 	}
 }
 
+// Axial rotation: a 6-cycle that fixes the origin, and the 6 hex
+// neighbours map among themselves as a single 6-orbit under +1 step.
+static void test_axial_rotate_origin_and_neighbours()
+{
+	for (uint8 k = 0; k < 6; k++) {
+		assert(hex_axial_rotate(koord(0, 0), k) == koord(0, 0));
+	}
+	// Six steps is identity.
+	for (sint16 q = -3; q <= 3; q++) {
+		for (sint16 r = -3; r <= 3; r++) {
+			const koord c(q, r);
+			assert(hex_axial_rotate(c, 6) == c);
+		}
+	}
+	// Neighbour set is preserved.
+	std::set<std::pair<sint16, sint16>> neigh;
+	for (uint8 i = 0; i < 6; i++) {
+		neigh.insert({hex_neighbours_test[i].x, hex_neighbours_test[i].y});
+	}
+	for (uint8 k = 0; k < 6; k++) {
+		std::set<std::pair<sint16, sint16>> rotated;
+		for (uint8 i = 0; i < 6; i++) {
+			const koord r = hex_axial_rotate(hex_neighbours_test[i], k);
+			rotated.insert({r.x, r.y});
+		}
+		assert(rotated == neigh);
+	}
+}
+
+
+// Inverse rotates by 6 - k; the forward then inverse round-trip is the
+// identity for all (q, r, k).
+static void test_axial_rotate_inverse()
+{
+	for (uint8 k = 0; k < 6; k++) {
+		for (sint16 q = -4; q <= 4; q++) {
+			for (sint16 r = -4; r <= 4; r++) {
+				const koord c(q, r);
+				assert(hex_axial_rotate_inv(hex_axial_rotate(c, k), k) == c);
+				assert(hex_axial_rotate(hex_axial_rotate_inv(c, k), k) == c);
+			}
+		}
+	}
+}
+
+
+// End-to-end round-trip under view rotation: a world-axial delta from
+// the viewport centre projects to a screen offset, the inverse
+// projection recovers it.  Composing this with `hex_axial_rotate`
+// (the world↔view bridge) is the invariant the viewport relies on.
+static void test_rotated_projection_round_trip()
+{
+	for (uint8 k = 0; k < 6; k++) {
+		for (sint16 q = -5; q <= 5; q++) {
+			for (sint16 r = -5; r <= 5; r++) {
+				const koord world_delta(q, r);
+				const koord view_delta = hex_axial_rotate_inv(world_delta, k);
+				const sint32 sx = hex_screen_dx(view_delta.x, W);
+				const sint32 sy = hex_screen_dy(view_delta.x, view_delta.y, W);
+				double q_f, r_f;
+				hex_screen_to_fractional(sx, sy, W, q_f, r_f);
+				const koord recovered_view = hex_round_to_axial(q_f, r_f);
+				const koord recovered_world = hex_axial_rotate(recovered_view, k);
+				assert(recovered_world == world_delta);
+			}
+		}
+	}
+}
+
+
 int main()
 {
 	test_forward_unit_steps();
@@ -650,6 +720,9 @@ int main()
 	test_render_loop_bijection();
 	test_vertex_neighbours_closure();
 	test_vertex_owners_neighbour_closure();
+	test_axial_rotate_origin_and_neighbours();
+	test_axial_rotate_inverse();
+	test_rotated_projection_round_trip();
 
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;
