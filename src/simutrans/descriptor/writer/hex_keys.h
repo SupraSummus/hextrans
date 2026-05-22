@@ -8,7 +8,7 @@
 
 /*
  * Shared tabfile-key vocabulary for direction-keyed writer entries
- * (`image[ns]`, `start[n]`, `ramp[ne]`, …).
+ * (`image[n_s]`, `start[n]`, `ramp[ne]`, …).
  *
  * Pakset .dat files use parameter expansion for these keys.
  * `tabfile_t::find_parameter_expansion` treats `,` and `-` inside

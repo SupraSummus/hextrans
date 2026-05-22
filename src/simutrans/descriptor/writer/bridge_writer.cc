@@ -123,7 +123,7 @@ void bridge_writer_t::write_obj(FILE *outfp, obj_node_t &parent, tabfileobj_t &o
 	node.write_uint8 (outfp, clip_below);
 
 	char keybuf[40];
-	std::string str = obj.get("backimage[ns][0]");
+	std::string str = obj.get("backimage[n_s][0]");
 	sint8 number_of_seasons = 0;
 
 	if (str.empty()) {
@@ -133,7 +133,7 @@ void bridge_writer_t::write_obj(FILE *outfp, obj_node_t &parent, tabfileobj_t &o
 	}
 	else {
 		while(number_of_seasons < 2) {
-			sprintf(keybuf, "backimage[ns][%d]", number_of_seasons+1);
+			sprintf(keybuf, "backimage[n_s][%d]", number_of_seasons+1);
 			std::string str = obj.get(keybuf);
 			if (!str.empty()) {
 				number_of_seasons++;
