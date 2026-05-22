@@ -138,9 +138,10 @@ public:
 	 * @brief Number of fence images.
 	 *
 	 * Number of unique fence image graphics available. Unlike walls, fence
-	 * images are for an entire tile.
+	 * images are for an entire tile.  Hex has 3 back walls, so the fence
+	 * mask spans 7 non-zero combos × {natural, artificial}.
 	 */
-	static uint16 const FENCE_IMAGE_COUNT = 3;
+	static uint16 const FENCE_IMAGE_COUNT = 7;
 
 	/**
 	 * @brief Back image ID offset for encoding fences.

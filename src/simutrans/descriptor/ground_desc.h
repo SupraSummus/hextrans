@@ -118,10 +118,10 @@ public:
 	/// the fundament (man-made platform) palette; false picks the
 	/// natural-cliff palette.  Pakset-owned: hex paksets ship the
 	/// cliff faces in the legacy `Slopes` / `Basement` descriptors,
-	/// rebaked under the hex `Image[<wall>][<index>]` layout (the
-	/// upstream pak128 1D layout is gone — `display_border` was the
-	/// last consumer and is itself square-grid logic, tripwire'd
-	/// pending hex port).
+	/// rebaked under the hex `Image[<wall>][<index>]` layout.  Used
+	/// by `display_boden` for back-walls between neighbours and by
+	/// `display_border` for cliffs at the world edge (drawn as the
+	/// back-wall of the phantom missing neighbour).
 	static image_id get_back_wall_image(uint16 index, bool artificial, uint8 wall)
 	{
 		return (artificial ? fundament : slopes)->get_image(wall, index);

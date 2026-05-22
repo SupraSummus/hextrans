@@ -649,56 +649,13 @@ canonical edge ramp (plateau-chord rule in
 ways do not abort while drawing.  A load-time validator remains the
 proper cleanup move when save migration gets a dedicated pass.
 
-Selection-marker rendering in `tool/simtool.cc::mark_tiles` and
-`tool/simtool-script-generator.cc::mark_tiles` is square-era: it
-builds a base-3 4-corner sprite key (`27 * corner_nw + 9 *
-corner_ne + 3 * corner_se + corner_sw`) and indexes into
-`ground_desc_t::marker` with `% 27`.  Under hex's base-4 6-corner
-encoding the formula is wrong and the `uint8 grund_hang` locals
-also truncate any slope with NW (256) or NE (1024) raised.
-Widening alone wouldn't help — the marker sprite-key scheme needs
-the same square-projection treatment as
-`ground_desc_t::get_marker_image` (which calls
-`project_to_square_sprite` first).
-
-`display_boden` / `display_obj_all` per-edge clip activation
-covers only 4 of the 6 hex edges (NW, N, SE, S — the inheritors
-of the legacy 4-direction diamond clip).  NE and SW are
-unclipped; sprite content that reaches into either back / front
-wedge bleeds onto the NE / SW neighbour without a boundary cut.
-Pak128-hex's current ribi sprite library doesn't seem to land in
-those wedges in practice, so this is latent rather than visible
-today.  Next move when a leak surfaces: add `add_poly_clip` for
-the hex NE edge `(W, 3W/4) → (3W/4, W/2)` and SW edge
-`(W/4, W) → (0, 3W/4)` at both sites, activate them via the same
-per-ribi mask the existing four use, and audit the `non_convex`
-corner-extension which still assumes the 2-back-edge layout
-(`both_back = N | NW`) and would need recasting around the
-3-back-edge hex perimeter (`N | NW | NE`).
-
-Fence sprites (`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
-`ground_desc_t::fences`) still use `tile_raster_scale_y` for the
-`corner_nw` offset and have only 3 pakset combos for walls 0+1; the 4
-new wall-2-involving combos return IMG_EMPTY at draw time because
-`FENCE_IMAGE_COUNT = 3` in `grund.h` caps the per-set sprite count.
-Move the offset to hex z, bump `FENCE_IMAGE_COUNT` to 7, and ship
-hex-aware combos covering all seven non-zero wall masks ×
-{natural, artificial} when fences come back into scope.
-
-`grund.cc::display_border` is square-grid logic (`pos.y/x ==
-welt->size().y/x - 1` edge detection, `lookup_hgt[2+diff]`
-corner-delta arithmetic that can run OOB under base-4 slope
-encoding, reads into the legacy 1D `Slopes` 22-cell packing).  The
-new pak128 cliff bake repurposed `Slopes` / `Basement` to a 2D
-`Image[<wall>][<index>]` layout, so the legacy reads silently miss
-on hex paksets; legacy paksets like pak64 still ship the 1D layout
-but the OOB risk applies under base-4 slope encoding.  Body is a
-no-op early-return + one-time `dbg->warning` -- not a fatal, since
-the function is purely visual (no save-state effect, no
-propagation) and a fatal regresses pak64 + hex-engine boot for what
-is otherwise a benign missing visual.  Reactivation needs either a
-hex-aware `MapEdgeCliff` family or a rewrite of this function onto
-the new (wall, index) layout.
+Fence sprite library is hex-sized but pakset-empty: engine
+`FENCE_IMAGE_COUNT = 7` carves natural typ 0..6 / artificial typ
+7..13 across the 7 non-zero back-wall combos, but paksets still
+ship the 3 legacy wall-0/wall-1 combos.  Pak64's old artificial
+sprites at indices 3..5 now address natural wall-2 combos and the
+artificial slot is empty.  Ship 7 natural + 7 artificial fence
+sprites in the hex pakset and pak64 to refill.
 
 **Phase C — flow-on.**  Per-step vehicle interpolation offsets
 (`vehicle_base_t::calc_set_direction` and friends), label / halt

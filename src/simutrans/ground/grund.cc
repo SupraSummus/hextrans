@@ -774,6 +774,56 @@ static const back_wall_geometry_t back_wall_geometry[grund_t::BACK_WALL_COUNT] =
 };
 
 
+// Per-edge clip lines for the 3 hex back walls (NW, N, NE).  Two
+// call sites: `display_boden`'s way-clip block (slope = way slope,
+// `non_convex` reflects whether all 3 back ribis are active on the
+// way) and `display_obj_all`'s tile-clip block (slope = tile slope,
+// `non_convex` additionally gated on `back_imageid`).  The endpoint
+// formulas are shared; only the slope source and the non_convex
+// argument differ.
+static void add_hex_back_wall_clips(sint16 xpos, sint16 ypos, sint16 raster_tile_width,
+                                    slope_t::type slope, ribi_t::ribi ribi,
+                                    uint8 non_convex CLIP_NUM_DEF)
+{
+	const int hgt_step = tile_raster_scale_y(TILE_HEIGHT_STEP, raster_tile_width);
+	if(  ribi & ribi_t::northwest  ) {
+		const int dh = corner_nw(slope) * hgt_step;
+		gfx->add_poly_clip( xpos + raster_tile_width / 4 - 1, ypos + raster_tile_width / 2 - dh, xpos - 1, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::northwest | non_convex CLIP_NUM_PAR );
+	}
+	if(  ribi & ribi_t::north  ) {
+		const int dh = corner_nw(slope) * hgt_step;
+		gfx->add_poly_clip( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, xpos + raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, ribi_t::north | non_convex CLIP_NUM_PAR );
+	}
+	if(  ribi & ribi_t::northeast  ) {
+		const int dh = corner_ne(slope) * hgt_step;
+		gfx->add_poly_clip( xpos + raster_tile_width, ypos + 3 * raster_tile_width / 4 - dh, xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, ribi_t::northeast | non_convex CLIP_NUM_PAR );
+	}
+}
+
+
+// Per-edge clip lines for the 3 hex front walls (SE, S, SW).  Only
+// `display_obj_all` uses these; front walls always carry the
+// non_convex flag (64).
+static void add_hex_front_wall_clips(sint16 xpos, sint16 ypos, sint16 raster_tile_width,
+                                     slope_t::type slope, ribi_t::ribi ribi
+                                     CLIP_NUM_DEF)
+{
+	const int hgt_step = tile_raster_scale_y(TILE_HEIGHT_STEP, raster_tile_width);
+	if(  ribi & ribi_t::southeast  ) {
+		const int dh = corner_se(slope) * hgt_step;
+		gfx->add_poly_clip( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width - dh, xpos + raster_tile_width, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::southeast | 64 CLIP_NUM_PAR );
+	}
+	if(  ribi & ribi_t::south  ) {
+		const int dh = corner_se(slope) * hgt_step;
+		gfx->add_poly_clip( xpos + raster_tile_width / 4 - 1, ypos + raster_tile_width - dh, xpos + 3 * raster_tile_width / 4 - 1, ypos + raster_tile_width - dh, ribi_t::south | 64 CLIP_NUM_PAR );
+	}
+	if(  ribi & ribi_t::southwest  ) {
+		const int dh = corner_sw(slope) * hgt_step;
+		gfx->add_poly_clip( xpos - 1, ypos + 3 * raster_tile_width / 4 - dh, xpos + raster_tile_width / 4 - 1, ypos + raster_tile_width - dh, ribi_t::southwest | 64 CLIP_NUM_PAR );
+	}
+}
+
+
 // with double height ground tiles!
 // can also happen with single height tiles
 static inline uint8 get_back_image_from_diff(sint8 h1, sint8 h2)
@@ -1002,11 +1052,10 @@ void grund_t::calc_back_image(const sint8 hgt, const slope_t::type slope_this)
 
 	// needs a fence?
 	if(back_imageid==0) {
-		// 3-bit fence-presence mask, one bit per back-wall slot.  Pakset
-		// fence sprite lists typically only carry the 3 legacy combos
-		// (wall0, wall1, both); the 4 new combos involving wall 2 fall
-		// out of the pakset image range and get IMG_EMPTY at draw time
-		// — known gap, see TODO.md.
+		// 3-bit fence-presence mask, one bit per back-wall slot — 1..7
+		// for any non-empty combo.  Paksets that haven't shipped all 7
+		// natural + 7 artificial sprites get IMG_EMPTY for the missing
+		// slots at draw time.
 		sint8 fence_offset = (sint8)(fence[0] + 2 * fence[1] + 4 * fence[2]);
 		if(fence_offset) {
 			back_imageid = (sint16)(grund_t::BIID_ENCODE_FENCE_OFFSET + fence_offset);
@@ -1093,8 +1142,13 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 		const sint16 abs_back_imageid = abs(back_imageid);
 		const bool artificial = back_imageid < 0;
 		if(abs_back_imageid > grund_t::BIID_ENCODE_FENCE_OFFSET) {
-			// fence before a drop
-			const sint16 offset = -tile_raster_scale_y( TILE_HEIGHT_STEP*corner_nw(get_grund_hang()), raster_tile_width);
+			// fence before a drop.  Anchor at the higher of the two N-edge
+			// vertices (NW, NE) — flat-top hex has no due-N vertex, so the
+			// upstream single-`corner_nw` reference doesn't survive the
+			// rotated geometry.
+			const slope_t::type slope = get_grund_hang();
+			const uint8 back_top = max(corner_nw(slope), corner_ne(slope));
+			const sint16 offset = -tile_raster_scale_y( TILE_HEIGHT_STEP*back_top, raster_tile_width);
 			const uint16 typ = (uint16)(abs_back_imageid - grund_t::BIID_ENCODE_FENCE_OFFSET - 1 + (artificial ? grund_t::FENCE_IMAGE_COUNT : 0));
 			gfx->draw_normal( ground_desc_t::fences->get_image(typ), xpos, ypos + offset, 0, true, dirty CLIP_NUM_PAR );
 		}
@@ -1315,28 +1369,18 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 	// display ways
 	if(  visible  &&  (flags&has_way1)  ){
 		const bool clip = (  (flags&draw_as_obj)  ||  !ist_karten_boden()  )  &&  !env_t::simple_drawing;
-		const int hgt_step = tile_raster_scale_y( TILE_HEIGHT_STEP, raster_tile_width );
 		for(  uint8 i = 0;  i < offsets[flags / has_way1];  i++  ) {
 			obj_t* d = obj_bei(i);
 			// clip
-			// .. nonconvex n/w if not both n/w are active
+			// .. nonconvex back walls if not all 3 hex back ribis
+			// (NW|N|NE) are active.  Non-convex flag moved 16→64 to
+			// avoid colliding with `ribi_t::north` (=16).
 			if(  clip  ) {
 				const ribi_t::ribi way_ribi = (static_cast<const weg_t*>(d))->get_ribi_unmasked();
-				gfx->clear_all_poly_clip( CLIP_NUM_VAR );
-				// HEX-PORT: old "both back-wall bits set" was
-				// `ribi_t::northwest` as the N|W combo (=9); under hex
-				// the 2 back walls are N and NW edges.  Non-convex
-				// flag moved 16→64 to avoid ribi_t::north (=16).
-				const ribi_t::ribi both_back = (ribi_t::ribi)(ribi_t::north | ribi_t::northwest);
+				const ribi_t::ribi both_back = (ribi_t::ribi)(ribi_t::northwest | ribi_t::north | ribi_t::northeast);
 				const uint8 non_convex = (way_ribi & both_back) == both_back ? 0 : 64;
-				if(  way_ribi & ribi_t::northwest  ) {
-					const int dh = corner_nw(get_disp_way_slope()) * hgt_step;
-					gfx->add_poly_clip( xpos + raster_tile_width / 4 - 1, ypos + raster_tile_width / 2 - dh, xpos - 1, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::northwest | non_convex CLIP_NUM_PAR );
-				}
-				if(  way_ribi & ribi_t::north  ) {
-					const int dh = corner_nw(get_disp_way_slope()) * hgt_step;
-					gfx->add_poly_clip( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, xpos + raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, ribi_t::north | non_convex CLIP_NUM_PAR );
-				}
+				gfx->clear_all_poly_clip( CLIP_NUM_VAR );
+				add_hex_back_wall_clips(xpos, ypos, raster_tile_width, get_disp_way_slope(), way_ribi, non_convex CLIP_NUM_PAR);
 				gfx->activate_ribi_clip( (way_ribi & both_back) | non_convex  CLIP_NUM_PAR );
 			}
 			d->display( xpos, ypos CLIP_NUM_PAR );
@@ -1349,28 +1393,66 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 }
 
 
-void grund_t::display_border( sint16, sint16, const sint16 CLIP_NUM_DEF_NOUSE)
+void grund_t::display_border( sint16 xpos, sint16 ypos, const sint16 raster_tile_width CLIP_NUM_DEF)
 {
-	// Square-grid logic: `pos.y == size.y - 1` / `pos.x == size.x - 1` edge
-	// detection, `lookup_hgt[2+diff]` indexing into the legacy 22-cell
-	// `Slopes` 1D layout.  Doesn't translate to hex (6 world edges, not 4;
-	// `corner_sw - corner_se` under base-4 slope encoding can return values
-	// outside the 5-element `lookup_hgt`).  The new pak128 hex bake also
-	// repurposed `Slopes` / `Basement` to a 2D `Image[<wall>][<index>]`
-	// layout, so the legacy 1D reads silently miss on hex paksets.
-	//
-	// Disabled until a hex-aware map-edge cliff renderer lands.  No-op
-	// rather than fatal: the function is purely visual (no save-state
-	// effect, no propagation), and on legacy paksets like pak64 the
-	// previous body would still produce intelligible output -- a fatal
-	// would needlessly crash pak64 + hex-engine.  Visual regression on
-	// every pakset: map edges render no cliff sprite.
-	static bool warned = false;
-	if(  !warned  ) {
-		dbg->warning("grund_t::display_border",
-			"map-edge cliff rendering disabled pending hex port "
-			"(env_t::draw_earth_border = true, but body is a no-op).");
-		warned = true;
+	if(  pos.z < welt->get_groundwater()  ) {
+		// we do not display below water (yet)
+		return;
+	}
+
+	// Each map-edge cliff is the back-wall of the phantom missing
+	// neighbour, drawn at that neighbour's screen position.  Three
+	// front directions are visible: SE (q=max), S (r=max), SW (r=max
+	// or q=0).  Corner pair, wall slot and screen offsets follow
+	// `back_wall_geometry` named from the phantom's perspective.
+	const sint16 hgt_step = tile_raster_scale_y( TILE_HEIGHT_STEP, raster_tile_width);
+	const sint16 zz = pos.z - welt->min_height;
+	const slope_t::type slope = get_grund_hang();
+	const koord size = welt->get_size();
+
+	struct boundary_t {
+		bool need;
+		int dx, dy_anchor;
+		hex_corner_t::type corner_left, corner_right;
+		uint8 wall;
+	};
+	const boundary_t boundaries[3] = {
+		{ pos.x == size.x - 1,
+		  +3 * raster_tile_width / 4, raster_tile_width / 8,
+		  hex_corner_t::SE, hex_corner_t::E,  0 },
+		{ pos.y == size.y - 1,
+		  0,                          raster_tile_width / 4,
+		  hex_corner_t::SW, hex_corner_t::SE, 1 },
+		{ pos.y == size.y - 1  ||  pos.x == 0,
+		  -3 * raster_tile_width / 4, raster_tile_width / 8,
+		  hex_corner_t::W,  hex_corner_t::SW, 2 },
+	};
+
+	for(  uint8 i = 0;  i < 3;  i++  ) {
+		const boundary_t &b = boundaries[i];
+		if(  !b.need  ) {
+			continue;
+		}
+		const uint8 h_left  = corner_height(slope, b.corner_left);
+		const uint8 h_right = corner_height(slope, b.corner_right);
+		const uint8 min_h   = min(h_left, h_right);
+		const uint16 top_index = (uint16)(h_left + 3 * h_right);
+
+		const sint16 x = xpos + b.dx;
+		sint16 y = ypos + b.dy_anchor + zz * hgt_step;
+		sint16 diff = -(sint16)min_h;
+
+		if(  diff < zz  &&  ((zz - diff) & 1) == 1  ) {
+			gfx->draw_normal( ground_desc_t::get_back_wall_extension_image(b.wall, false, false), x, y, 0, true, false CLIP_NUM_PAR );
+			y -= hgt_step;
+			diff++;
+		}
+		while(  diff < zz  ) {
+			gfx->draw_normal( ground_desc_t::get_back_wall_extension_image(b.wall, true, false), x, y, 0, true, false CLIP_NUM_PAR );
+			y -= hgt_step * 2;
+			diff += 2;
+		}
+		gfx->draw_normal( ground_desc_t::get_back_wall_image(top_index, false, b.wall), x, y, 0, true, false CLIP_NUM_PAR );
 	}
 }
 
@@ -1569,31 +1651,14 @@ void grund_t::display_obj_all(const sint16 xpos, const sint16 ypos, const sint16
 		// pretend tunnel portal is connected to the inside
 		ribi |= ribi_type(get_grund_hang());
 	}
-	// clip
-	const int hgt_step = tile_raster_scale_y( TILE_HEIGHT_STEP, raster_tile_width);
-	// .. nonconvex n/nw if not both are active and if we have back
-	// image, otherwise our backwall clips into the part of our back
-	// image that is drawn by the back-wall neighbour.  HEX-PORT: old
-	// "northwest" combo (N|W) → hex (N|NW); non-convex flag moved
-	// 16→64 to avoid ribi_t::north.
-	const ribi_t::ribi both_back = (ribi_t::ribi)(ribi_t::north | ribi_t::northwest);
+	// .. nonconvex back walls if not all 3 hex back ribis (NW|N|NE)
+	// are active AND we have a back image; otherwise our back wall
+	// would clip into the back-image area drawn by the back-wall
+	// neighbour.  Front walls always non-convex.
+	const ribi_t::ribi both_back = (ribi_t::ribi)(ribi_t::northwest | ribi_t::north | ribi_t::northeast);
 	const uint8 non_convex = ((ribi & both_back) == both_back)  &&  back_imageid ? 0 : 64;
-	if(  ribi & ribi_t::northwest  ) {
-		const int dh = corner_nw(slope) * hgt_step;
-		gfx->add_poly_clip( xpos + raster_tile_width / 4 - 1, ypos + raster_tile_width / 2 - dh, xpos - 1, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::northwest | non_convex CLIP_NUM_PAR );
-	}
-	if(  ribi & ribi_t::north  ) {
-		const int dh = corner_nw(slope) * hgt_step;
-		gfx->add_poly_clip( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, xpos + raster_tile_width / 4, ypos + raster_tile_width / 2 - dh, ribi_t::north | non_convex CLIP_NUM_PAR );
-	}
-	if(  ribi & ribi_t::southeast  ) {
-		const int dh = corner_se(slope) * hgt_step;
-		gfx->add_poly_clip( xpos + 3 * raster_tile_width / 4, ypos + raster_tile_width - dh, xpos + raster_tile_width, ypos + 3 * raster_tile_width / 4 - dh, ribi_t::southeast|64 CLIP_NUM_PAR );
-	}
-	if(  ribi & ribi_t::south  ) {
-		const int dh = corner_se(slope) * hgt_step;
-		gfx->add_poly_clip( xpos + raster_tile_width / 4 - 1, ypos + raster_tile_width - dh, xpos + 3 * raster_tile_width / 4 - 1, ypos + raster_tile_width - dh, ribi_t::south|64 CLIP_NUM_PAR );
-	}
+	add_hex_back_wall_clips(xpos, ypos, raster_tile_width, slope, ribi, non_convex CLIP_NUM_PAR);
+	add_hex_front_wall_clips(xpos, ypos, raster_tile_width, slope, ribi CLIP_NUM_PAR);
 
 	// display background
 	if (!tunnel_portal  ||  slope == slope_t::flat) {

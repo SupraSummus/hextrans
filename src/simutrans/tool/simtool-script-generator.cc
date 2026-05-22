@@ -43,20 +43,9 @@ void tool_generate_script_t::mark_tiles(player_t*, const koord3d& start, const k
 					if (grund_t* gr = plan->get_boden_bei(i)) {
 						if (gr->ist_karten_boden() || gr->get_pos().z > plan->get_boden_bei(0)->get_pos().z) {
 							zeiger_t* marker = new zeiger_t(gr->get_pos(), NULL);
-							const uint8 grund_hang = gr->get_grund_hang();
-#if 0
-							// this would use the way slope, not the ground slope
-							const uint8 weg_hang = gr->get_weg_hang();
-							const uint8 hang = max(corner_sw(grund_hang), corner_sw(weg_hang)) +
-								3 * max(corner_se(grund_hang), corner_se(weg_hang)) +
-								9 * max(corner_ne(grund_hang), corner_ne(weg_hang)) +
-								27 * max(corner_nw(grund_hang), corner_nw(weg_hang));
-							uint8 back_hang = (hang % 3) + 3 * ((uint8)(hang / 9)) + 27;
-#else
-							uint8 back_hang = (grund_hang % 3) + 3 * ((uint8)(grund_hang / 9)) + 27;
-#endif
-							marker->set_foreground_image(ground_desc_t::marker->get_image(grund_hang % 27));
-							marker->set_image(ground_desc_t::marker->get_image(back_hang));
+							const slope_t::type grund_hang = gr->get_grund_hang();
+							marker->set_foreground_image(ground_desc_t::get_marker_image(grund_hang, false));
+							marker->set_image(ground_desc_t::get_marker_image(grund_hang, true));
 							marker->mark_image_dirty(marker->get_image(), 0);
 							gr->obj_add(marker);
 							marked.insert(marker);
