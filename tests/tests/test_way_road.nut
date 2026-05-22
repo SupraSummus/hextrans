@@ -400,15 +400,12 @@ function test_way_road_build_parallel()
 }
 
 
-// test_way_road_build_parallel_routefinder: HEX-PORT PENDING.
-//
-// Same coords as test_way_road_build_parallel's subcase 1 but
-// without ctrl: the route finder should pick the direct SE chord
-// (existing parallel rows are not shortcuts for a build that wants
-// to stay separate).  Currently fails because NE/SW are 1-step
-// moves under hex and the route finder jumps onto prior rows to
-// reuse them -- see TODO.md "Hex route finder reuses adjacent rows
-// as cheap highways" for the diagnosis.
+// Incremental NW chords (15,i)->(15-i,i) without ctrl.  NW chord
+// and S offset are a 120°-pair so successive tips fall on a hex
+// axis, prefer_parallel fires, and each chord builds straight.
+// The 60°-pair sibling (e.g. SE+S, tips at (1,1) = two edge-steps)
+// is a coverage gap; see TODO.md "Growing-chord overhang in
+// 60°-pair parallel builds".
 function test_way_road_build_parallel_routefinder()
 {
 	local pl   = player_x(0)
@@ -416,31 +413,31 @@ function test_way_road_build_parallel_routefinder()
 	local remover = command_x(tool_remove_way)
 
 	for (local i = 1; i < 16; ++i) {
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, i, 0), coord3d(i, i, 0), desc, false), null)
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(15, i, 0), coord3d(15-i, i, 0), desc, false), null)
 	}
 
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 		[
 			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-			[1, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-			[1, 9, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-			[1, 9, 9, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-			[1, 9, 9, 9, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-			[1, 9, 9, 9, 9, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-			[1, 9, 9, 9, 9, 9, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-			[1, 9, 9, 9, 9, 9, 9, 8, 0, 0, 0, 0, 0, 0, 0, 0],
-			[1, 9, 9, 9, 9, 9, 9, 9, 8, 0, 0, 0, 0, 0, 0, 0],
-			[1, 9, 9, 9, 9, 9, 9, 9, 9, 8, 0, 0, 0, 0, 0, 0],
-			[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8, 0, 0, 0, 0, 0],
-			[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8, 0, 0, 0, 0],
-			[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8, 0, 0, 0],
-			[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8, 0, 0],
-			[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 8],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 8],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 9, 8],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 9, 9, 8],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 9, 9, 9, 8],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 9, 9, 9, 9, 8],
+			[0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 9, 9, 9, 9, 9, 8],
+			[0, 0, 0, 0, 0, 0, 0, 1, 9, 9, 9, 9, 9, 9, 9, 8],
+			[0, 0, 0, 0, 0, 0, 1, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+			[0, 0, 0, 0, 0, 1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+			[0, 0, 0, 0, 1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+			[0, 0, 0, 1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+			[0, 0, 1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+			[0, 1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
 			[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
 		])
 
 	for (local i = 1; i < 16; ++i) {
-		ASSERT_EQUAL(remover.work(pl, coord3d(0, i, 0), coord3d(i, i, 0), "" + wt_road), null)
+		ASSERT_EQUAL(remover.work(pl, coord3d(15, i, 0), coord3d(15-i, i, 0), "" + wt_road), null)
 	}
 
 	RESET_ALL_PLAYER_FUNDS()

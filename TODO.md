@@ -42,18 +42,6 @@ make_public}`) are the worked examples; the tunnel ones additionally
 demonstrate the 6-vertex hex-hill scaffold described in
 "Hill-with-sloped-neighbours test setup" below.
 
-`test_way_road_build_parallel_routefinder` is a disabled forward
-spec rather than a port of the original middle subcase.  Same coords
-as the ctrl-held subcase 1 (incremental diagonals `(0,i)→(i,i)`) but
-without ctrl, asserting the same straight SE-chord pattern.  Today
-it fails because NE/SW are 1-step moves under hex and the route
-finder jumps onto previously-built rows to reuse them as cheap
-highways instead of going straight — see "Hex route finder reuses
-adjacent rows as cheap highways" under "ribi_t — audit surfaces"
-for the diagnosis and candidate fixes.  Retires together with
-that entry: when the route finder respects parallel-rows intent,
-this test passes and re-enables.
-
 **Tunnel tests blocked on `has_double_slopes=1` opt-in.**
 `test_way_tunnel_build_above_tunnel_slope` and
 `_across_tunnel_slope` build a 2-step underground staircase via two
@@ -456,32 +444,30 @@ crossing-cluster port: per-site review, some may want both 60°
 and 120° (test both adjacent axes), some may redesign the check
 entirely for hex 3-axis geometry.
 
-**Hex route finder reuses adjacent rows as cheap highways.**
-Under hex, NE/SW are 1-step neighbour moves with cost
-`way_count_no_way`, the same as direct axis moves.  When a player
-runs a series of nearby parallel `build_way` calls without ctrl,
-the route finder discovers that "jump NE onto the previous row,
-travel along its existing way, drop SW back" costs less than a
-straight 3..4-tile run on fresh tiles, and produces a tangled
-network instead of parallel rows.  Under square this didn't happen
-because NE/SW were 2-step diagonals (`abs(dx)+abs(dy)==2`), so the
-jump cost twice as much.  `tool_build_way_t::calc_route` does
-detect "way exists near both endpoints" and flips
-`prefer_parallel`, but the call site checks a single perpendicular
-direction via `rotate_perpendicular(w->get_ribi_unmasked())` — a
-stub returning `rotate60` — and only fires when start is *on* an
-existing single-ribi way, not when start is one tile *next to*
-one.  Two real fixes worth considering: (a) widen the
-`prefer_parallel` detection to "any of the 6 hex neighbours of
-start has a parallel-axis way", and (b) bump the NE/SW move cost
-above the on-axis move cost in the route finder's per-step
-accounting so the route's straight-line preference is restored
-without depending on prefer_parallel.  Visible cost: city / AI
-road grids that should be a regular lattice come out as a
-zig-zagging mesh.  Disabled spec test
-`test_way_road_build_parallel_routefinder` encodes the desired
-behaviour (straight SE chord on each row) and retires with this
-entry.
+**Growing-chord overhang in 60°-pair parallel builds.**
+`tool_build_way_t::calc_route` flips `prefer_parallel` when both
+endpoints have a way among their 6 hex edge-neighbours, inverting
+the cost so detours through existing ways become expensive.
+Successive chord tips of an incrementally-longer parallel build
+land at displacement `A+B` where A is the chord axis and B the
+offset axis; under hex 6-fold symmetry the (A, B) pairs split
+into two closed families: 120°-pairs where A+B is itself a hex
+axis (1 edge-step, caught by the scan) and 60°-pairs where A+B
+is between axes (2 edge-steps, outside the scan).  The 60°-pair
+family silently disables detection and the router reuses earlier
+rows as a cheap highway.  `test_way_road_build_parallel_routefinder`
+covers the 120°-family; the 60°-family is a coverage gap, not an
+axis bias — both families are closed under rotation and
+reflection.  Visible cost: half of the (chord, offset) build
+patterns zig-zag when built incrementally without ctrl.  Candidate
+fixes: widen the proximity scan to also cover the 6 "wedge-tip"
+2-step neighbours symmetrically across all three axis pairs (with
+the caveat that wider detection may over-fire when the user wants
+to join into an existing network 2 steps away), or restructure
+the cost so prefer_parallel detection isn't load-bearing (e.g.
+always treat fresh-with-way-neighbour as cheap and let curve cost
+break ties).  Move when the 60°-family pattern actually surfaces
+in gameplay or AI grids.
 
 **Diagonal way-image selection.**  Hex has no out-of-axis diagonal
 direction — every direction lies on an axis.  The `+2` offset for the
