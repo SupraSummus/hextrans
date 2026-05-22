@@ -419,17 +419,35 @@ These are the shim / stub patterns spread across the caller port
 that need a second sweep once their trigger condition lands.  Each
 is named / tagged so a global grep surfaces all sites.
 
-**Rotation cascade.**  `koord::rotate90` is `dbg->fatal` and the 6
-top-level callers (`fabrikbauer` retry loops ×4, `karte_t::destroy`
-/ `karte_t::save` retry loops, the `tool_rotate90` player tool) are
-gated so the cascade is unreachable in normal play.  The underlying
-`karte_t::rotate90` body and every `obj_t::rotate90()` override
-still compile (so the binary builds and any hex-aware rotation
-replacement can drop in cleanly), and the `ribi_t::rotate_for_map_rotate90`
-/ `rotate_perpendicular` stubs (currently `rotate60`) stay for the
-same reason.  Replace with a real design when the viewport port
-lands — either a hex 60° rotation, a viewport-only rotation, or a
-formal removal.
+**Rotation cascade.**  Viewport-only 60° rotation has landed (see
+`documentation/viewport-rotation.md`).  `koord::rotate90` is
+`dbg->fatal` and the upstream world-mutation cascade
+(`karte_t::rotate90`, every `obj_t::rotate90()` override, the
+`fabrikbauer` retry-and-rotate-back pair, the `karte_t::destroy`
+and `karte_t::save` retry loops) is unreachable in normal play
+because the viewport-only design doesn't mutate world data.  The
+`tool_rotate90_t::init` player tool now cycles `view_rotation`
+instead of refusing.
+
+Residual cleanup: delete the unreachable cascade in one pass —
+`karte_t::rotate90`'s body, every `obj_t::rotate90()` override,
+`viewport_t::rotate90`, `settings_t::rotate90`, the rotate-back
+logic in `fabrikbauer`, the retry guards in `karte_t::destroy`
+and `karte_t::save`, and the `ribi_t::rotate_for_map_rotate90` /
+`rotate_perpendicular` stubs.  The `nosave` / `nosave_warning`
+state in `karte_t` goes with them.
+
+Stage-2 read migrations: the compass widget
+(`simwin.cc`, `map_frame.cc`, `simtool.cc:tool_rotate90_t::draw_after`),
+the minimap projection, the pakset building layout selector at
+display time (`gebaeude.cc::display`), the road-vehicle direction
+sprite slot, and the schedule-rotation helpers all read
+`settings_t::get_rotation()` — frozen at 0 under viewport-only.
+Migrate to `viewport_t::get_view_rotation()` so compass /
+minimap / building orientations cycle with the view; until that
+lands, view rotation re-positions every world tile but each
+building/vehicle keeps its world-frame sprite orientation so the
+visual rotation is incomplete.
 
 **`ribi_t::rotate_perpendicular` / `_l` sweep.**  Square-era "90°
 off this direction" sites — crossroads collision avoidance

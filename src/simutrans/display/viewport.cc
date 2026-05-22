@@ -18,12 +18,17 @@
 
 static void pick_nearest_hex_vertex_global(karte_t *world, sint32 &grid_x, sint32 &grid_y,
                                            double frac_dq, double frac_dr,
+                                           uint8 view_rotation,
                                            hex_corner_t::type &corner)
 {
 	constexpr double u = 16.0; // W/4 in the 64-unit object-offset basis.
 	const double mouse_x = frac_dq * 3.0 * u;
 	const double mouse_y = (frac_dq + 2.0 * frac_dr) * u;
 
+	// View-axial offsets to the 6 hex neighbours plus centre.  The
+	// projection (`hex_screen_dx/dy`) is view-axial, so these stay
+	// constant across view rotations; the world tile lookup rotates
+	// each offset to world-axial.
 	static const koord candidates[7] = {
 		koord( 0,  0),
 		koord( 1,  0), koord( 0,  1), koord(-1,  1),
@@ -36,8 +41,9 @@ static void pick_nearest_hex_vertex_global(karte_t *world, sint32 &grid_x, sint3
 	hex_corner_t::type best_corner = corner;
 
 	for(  uint8 ti = 0;  ti < 7;  ti++  ) {
-		const sint32 tile_x = grid_x + candidates[ti].x;
-		const sint32 tile_y = grid_y + candidates[ti].y;
+		const koord world_off = hex_axial_rotate(candidates[ti], view_rotation);
+		const sint32 tile_x = grid_x + world_off.x;
+		const sint32 tile_y = grid_y + world_off.y;
 		if(  !world->is_within_limits((sint16)tile_x, (sint16)tile_y)  ) {
 			continue;
 		}
@@ -45,8 +51,14 @@ static void pick_nearest_hex_vertex_global(karte_t *world, sint32 &grid_x, sint3
 		const double tile_xoff = (double)hex_screen_dx(candidates[ti].x, 64);
 		const double tile_yoff = (double)hex_screen_dy(candidates[ti].x, candidates[ti].y, 64);
 		for(  uint8 ci = 0;  ci < hex_corner_t::count;  ci++  ) {
-			const hex_corner_t::type c = (hex_corner_t::type)ci;
-			const koord corner_off = hex_corner_centre_offset(c);
+			// `ci` is the world corner enum.  Under view rotation k
+			// CCW the world hex rotates k steps CW on screen, so
+			// world corner `ci` appears at the screen offset of
+			// enum value `(ci + k) % 6`.  Hex corner enum order is
+			// E, SE, SW, W, NW, NE — clockwise on screen.
+			const hex_corner_t::type world_c = (hex_corner_t::type)ci;
+			const uint8 view_ci = (uint8)((ci + view_rotation) % hex_corner_t::count);
+			const koord corner_off = hex_corner_centre_offset((hex_corner_t::type)view_ci);
 			const double dx = tile_xoff + corner_off.x - mouse_x;
 			const double dy = tile_yoff + corner_off.y - mouse_y;
 			const double d2 = dx * dx + dy * dy;
@@ -54,7 +66,7 @@ static void pick_nearest_hex_vertex_global(karte_t *world, sint32 &grid_x, sint3
 				best_d2 = d2;
 				best_x = tile_x;
 				best_y = tile_y;
-				best_corner = c;
+				best_corner = world_c;
 			}
 		}
 	}
@@ -65,10 +77,9 @@ static void pick_nearest_hex_vertex_global(karte_t *world, sint32 &grid_x, sint3
 }
 
 
-void viewport_t::set_viewport_ij_offset( const koord &k )
+koord viewport_t::view_axial_to_world(koord view_delta) const
 {
-	view_ij_off=k;
-	update_cached_values();
+	return hex_axial_rotate(view_delta, view_rotation);
 }
 
 
@@ -76,10 +87,10 @@ koord viewport_t::get_map2d_coord( const koord3d &viewpos ) const
 {
 	// Convert a 3D map coord to the 2D map coord that lands at the same
 	// screen position.  Z bumps the screen-y up by
-	// `hex_height_raster_scale_y(z*TILE_HEIGHT_STEP, W)`; under hex, axial +r
-	// is the only 1-tile step that adds purely to screen-y (column step
-	// also has a y component, so it can't compensate alone).  Round the
-	// elevation pixel offset to the nearest integer +r step (W/2 each).
+	// `hex_height_raster_scale_y(z*TILE_HEIGHT_STEP, W)`; under hex, view-axial
+	// +r is the only 1-tile step that adds purely to screen-y (column
+	// step also has a y component).  Under view rotation, the world-
+	// axial direction matching view-axial +r is rotated.
 	const sint16 new_yoff = hex_height_raster_scale_y(viewpos.z*TILE_HEIGHT_STEP,cached_img_size);
 	sint16 lines = 0;
 	if(new_yoff>0) {
@@ -88,23 +99,18 @@ koord viewport_t::get_map2d_coord( const koord3d &viewpos ) const
 	else {
 		lines = (new_yoff - (cached_img_size/4))/(cached_img_size/2);
 	}
-	return world->get_closest_coordinate( viewpos.get_2d() - koord(0, lines) );
-}
-
-
-koord viewport_t::get_viewport_coord( const koord& coord ) const
-{
-	return coord+cached_aggregated_off;
+	const koord r_step_world = view_axial_to_world(koord(0, 1));
+	return world->get_closest_coordinate( viewpos.get_2d() - koord(r_step_world.x * lines, r_step_world.y * lines) );
 }
 
 
 scr_coord viewport_t::get_screen_coord( const koord3d& pos, const koord& off) const
 {
-	// Hex iso projection — see display/hex_proj.h for the lattice.
-	// `scr_pos_2d` is the axial (q, r) delta from the viewport's
-	// top-left tile to the requested tile; add per-pixel raster
-	// offset, z-elevation (screen-y only), and fine pan.
-	const koord scr_pos_2d = get_viewport_coord(pos.get_2d());
+	// World-axial → view-axial around the centre, then shift to the
+	// top-left frame `hex_screen_dx/dy` expect.  See display/hex_proj.h
+	// for the view/world frame split.
+	const koord view_delta = hex_axial_rotate_inv(pos.get_2d() - ij_off, view_rotation);
+	const koord scr_pos_2d = view_delta - view_ij_off;
 
 	const sint32 x = hex_screen_dx(scr_pos_2d.x, cached_img_size)
 		+ tile_raster_scale_x(off.x, cached_img_size)
@@ -131,6 +137,11 @@ void viewport_t::change_world_position( koord new_ij, sint16 new_xoff, sint16 ne
 	const sint16 col_dy =     (cached_img_size / 4); // W/4
 	const sint16 row_dy = 2 * (cached_img_size / 4); // W/2
 
+	// View-axial (+q, 0) is the screen column step; under view
+	// rotation that maps to a world-axial direction that cycles.
+	const koord world_q_step = view_axial_to_world(koord(1, 0));
+	const koord world_r_step = view_axial_to_world(koord(0, 1));
+
 	int q_steps = 0;
 	if(new_xoff > 0) {
 		q_steps = (new_xoff + col_dx/2) / col_dx;
@@ -138,7 +149,8 @@ void viewport_t::change_world_position( koord new_ij, sint16 new_xoff, sint16 ne
 	else if(new_xoff < 0) {
 		q_steps = (new_xoff - col_dx/2) / col_dx;
 	}
-	new_ij.x -= q_steps;
+	new_ij.x -= world_q_step.x * q_steps;
+	new_ij.y -= world_q_step.y * q_steps;
 	new_xoff -= col_dx * q_steps;
 	new_yoff -= col_dy * q_steps;
 
@@ -149,7 +161,8 @@ void viewport_t::change_world_position( koord new_ij, sint16 new_xoff, sint16 ne
 	else if(new_yoff < 0) {
 		r_steps = (new_yoff - row_dy/2) / row_dy;
 	}
-	new_ij.y -= r_steps;
+	new_ij.x -= world_r_step.x * r_steps;
+	new_ij.y -= world_r_step.y * r_steps;
 	new_yoff -= row_dy * r_steps;
 
 	new_ij = world->get_closest_coordinate(new_ij);
@@ -160,7 +173,6 @@ void viewport_t::change_world_position( koord new_ij, sint16 new_xoff, sint16 ne
 		x_off = new_xoff;
 		y_off = new_yoff;
 		world->set_dirty();
-		update_cached_values();
 	}
 }
 
@@ -212,16 +224,12 @@ void viewport_t::change_world_position(const koord3d& pos, const koord& off, scr
 	const sint32 yfix = tile_raster_scale_y(off.y, cached_img_size)
 		- hex_height_raster_scale_y(pos.z*TILE_HEIGHT_STEP, cached_img_size);
 
-	// Δaxial = (target tile P) - (new view origin).  P is `pos` minus
-	// the constant `view_ij_off` (the centre→top-left offset).
-	const sint32 P_x = pos.x - view_ij_off.x;
-	const sint32 P_y = pos.y - view_ij_off.y;
-
 	const sint32 DX = sc.x - xfix;
 	const sint32 DY = sc.y - yfix;
 
-	// Solve for the integer (dq, dr) closest to the fractional answer,
-	// leaving the residual in (new_x_off, new_y_off).
+	// Solve for the integer view-axial offset-from-top-left (dq, dr)
+	// closest to the fractional inverse projection, leaving the
+	// residual in (new_x_off, new_y_off).
 	sint32 dq;
 	if(DX >= 0) {
 		dq = (DX + col_dx/2) / col_dx;
@@ -238,8 +246,11 @@ void viewport_t::change_world_position(const koord3d& pos, const koord& off, scr
 		dr = (DY_after_dq - row_dy/2) / row_dy;
 	}
 
-	const sint16 new_ij_x = P_x - dq;
-	const sint16 new_ij_y = P_y - dr;
+	// (dq, dr) is the view-axial Δ from top-left; add `view_ij_off`
+	// to re-anchor at centre, then rotate to world-axial.
+	const koord delta_world = view_axial_to_world(koord((sint16)dq, (sint16)dr) + view_ij_off);
+	const sint16 new_ij_x = pos.x - delta_world.x;
+	const sint16 new_ij_y = pos.y - delta_world.y;
 	const sint16 new_x_off = DX - dq * col_dx;
 	const sint16 new_y_off = DY - dq * col_dy - dr * row_dy;
 
@@ -258,8 +269,7 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 	screen_pos.x += - x_off - rw1/2;
 	screen_pos.y += - y_off - hex_visible_centre_y(rw1);
 
-	const sint32 view_origin_x = ij_off.x + get_viewport_ij_offset().x;
-	const sint32 view_origin_y = ij_off.y + get_viewport_ij_offset().y;
+	const koord world_top_left = ij_off + get_world_view_ij_off();
 
 	bool found = false;
 	// uncomment to: ctrl-key selects ground
@@ -290,8 +300,10 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 		double q_f, r_f;
 		hex_screen_to_fractional(screen_pos.x, screen_pos.y + z_dy, rw1, q_f, r_f);
 		const koord delta = hex_round_to_axial(q_f, r_f);
-		found_i = view_origin_x + delta.x;
-		found_j = view_origin_y + delta.y;
+		// Rotate the view-axial `delta` to world-axial.
+		const koord world_delta = view_axial_to_world(delta);
+		found_i = world_top_left.x + world_delta.x;
+		found_j = world_top_left.y + world_delta.y;
 		last_frac_dq = q_f - delta.x;
 		last_frac_dr = r_f - delta.y;
 
@@ -401,10 +413,14 @@ koord3d viewport_t::get_new_cursor_position( const scr_coord &screen_pos, bool g
 		// cursor and the tile/corner handed to the terraform tool in the
 		// same frame.
 		hex_corner_t::type corner = hex_corner_t::E;
-		pick_nearest_hex_vertex_global(world, grid_x, grid_y, frac_dq, frac_dr, corner);
+		pick_nearest_hex_vertex_global(world, grid_x, grid_y, frac_dq, frac_dr, view_rotation, corner);
 		bd = world->lookup_kartenboden_nocheck(grid_x, grid_y);
 		if (corner_out) *corner_out = corner;
-		const koord image_offset = hex_terraform_cursor_draw_offset(corner);
+		// Cursor draw offset depends on screen position of the
+		// world corner, which rotates with the view.
+		const hex_corner_t::type view_corner =
+			(hex_corner_t::type)((corner + view_rotation) % hex_corner_t::count);
+		const koord image_offset = hex_terraform_cursor_draw_offset(view_corner);
 		world->get_zeiger()->set_image_offset(image_offset);
 		groff = bd->get_hoehe(corner) - bd->get_hoehe();
 		return koord3d(grid_x, grid_y, bd->get_disp_height() + groff);
@@ -440,13 +456,23 @@ void viewport_t::metrics_updated()
 
 void viewport_t::rotate90( sint16 y_size )
 {
+	// Dead under viewport-only rotation; the body kept the
+	// `koord::rotate90` tripwire wired so the residual cascade
+	// surfaces on any reachable call.  See TODO.md.
 	ij_off.rotate90(y_size);
-	update_cached_values();
+}
+
+
+void viewport_t::rotate_view_step()
+{
+	view_rotation = (view_rotation + 1) % 6;
+	world->set_dirty();
 }
 
 
 viewport_t::viewport_t( karte_t *world, const koord ij_off , sint16 x_off , sint16 y_off )
-	: prepared_rect()
+	: prepared_rect(),
+	  view_rotation(0)
 {
 	this->world = world;
 	assert(world);
@@ -458,5 +484,4 @@ viewport_t::viewport_t( karte_t *world, const koord ij_off , sint16 x_off , sint
 	this->y_off = y_off;
 
 	metrics_updated();
-
 }

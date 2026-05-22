@@ -135,8 +135,12 @@ void main_view_t::display(bool force_dirty)
 
 	const int dpy_height = (screen.h*4)/IMG_SIZE;
 
-	const int i_off = viewport->get_world_position().x + viewport->get_viewport_ij_offset().x;
-	const int j_off = viewport->get_world_position().y + viewport->get_viewport_ij_offset().y;
+	// World-axial top-left tile.  The (q_delta, r_delta) view-axial
+	// offsets walked inside the render loop are converted to world-
+	// axial via `viewport->view_axial_to_world`.
+	const koord world_view_off = viewport->get_world_view_ij_off();
+	const int i_off = viewport->get_world_position().x + world_view_off.x;
+	const int j_off = viewport->get_world_position().y + world_view_off.y;
 	const int const_x_off = viewport->get_x_off();
 	const int const_y_off = viewport->get_y_off();
 
@@ -200,9 +204,19 @@ void main_view_t::display(bool force_dirty)
 	const int dr_max = (y_max_units - dq_min + 1) / 2;          // max y, min q
 
 	sint16 const worst_case_mountain_extra = (welt->max_height - welt->min_height) / 2;
-	koord const estimated_min(dq_min + i_off, dr_min + j_off);
-	koord const estimated_max(dq_max + i_off + worst_case_mountain_extra,
-	                          dr_max + j_off + worst_case_mountain_extra);
+
+	// The view-axial bbox rotates to a rhombus in world-axial; take
+	// the world-axial bbox over its 4 corners.
+	koord world_min = viewport->view_axial_to_world(koord(dq_min, dr_min));
+	koord world_max = world_min;
+	for (const koord c : { koord(dq_max, dr_min), koord(dq_min, dr_max), koord(dq_max, dr_max) }) {
+		const koord r = viewport->view_axial_to_world(c);
+		world_min.x = min(world_min.x, r.x);  world_max.x = max(world_max.x, r.x);
+		world_min.y = min(world_min.y, r.y);  world_max.y = max(world_max.y, r.y);
+	}
+	koord const estimated_min(world_min.x + i_off, world_min.y + j_off);
+	koord const estimated_max(world_max.x + i_off + worst_case_mountain_extra,
+	                          world_max.y + j_off + worst_case_mountain_extra);
 
 	rect_t view_rect(estimated_min, estimated_max - estimated_min + koord(1, 1));
 	view_rect.mask(world_rect);
@@ -287,8 +301,9 @@ void main_view_t::display(bool force_dirty)
 		for( sint16 x = hex_render_x_start(y); (x*(IMG_SIZE/4) + const_x_off)<clip_rr.x+clip_rr.w; x += hex_render_x_step() ) {
 			const sint16 q_delta = x / 3;
 			const sint16 r_delta = (y - q_delta) / 2;
-			const sint16 i = q_delta + i_off;
-			const sint16 j = r_delta + j_off;
+			const koord world_delta = viewport->view_axial_to_world(koord(q_delta, r_delta));
+			const sint16 i = world_delta.x + i_off;
+			const sint16 j = world_delta.y + j_off;
 			const sint16 xpos = x * (IMG_SIZE / 4) + const_x_off;
 
 			if(  xpos+IMG_SIZE>0  ) {
@@ -387,8 +402,11 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 {
 	const sint16 IMG_SIZE = gfx->get_tile_raster_width();
 
-	const int i_off = viewport->get_world_position().x + viewport->get_viewport_ij_offset().x;
-	const int j_off = viewport->get_world_position().y + viewport->get_viewport_ij_offset().y;
+	// World-axial top-left tile.  See `main_view_t::display` for the
+	// view-axial → world-axial rotation model.
+	const koord world_view_off = viewport->get_world_view_ij_off();
+	const int i_off = viewport->get_world_position().x + world_view_off.x;
+	const int j_off = viewport->get_world_position().y + world_view_off.y;
 	const int const_x_off = viewport->get_x_off();
 	const int const_y_off = viewport->get_y_off();
 
@@ -411,8 +429,9 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 		for(  sint32 x = hex_render_x_start_clipped(y, lt.x, const_x_off, IMG_SIZE);  (x * (IMG_SIZE / 4) + const_x_off) < (lt.x + wh.x);  x += hex_render_x_step()  ) {
 			const sint16 q_delta = x / 3;
 			const sint16 r_delta = (y - q_delta) / 2;
-			const sint16 i = q_delta + i_off;
-			const sint16 j = r_delta + j_off;
+			const koord world_delta = viewport->view_axial_to_world(koord(q_delta, r_delta));
+			const sint16 i = world_delta.x + i_off;
+			const sint16 j = world_delta.y + j_off;
 			const sint16 xpos = x * (IMG_SIZE / 4) + const_x_off;
 
 			if(  xpos + IMG_SIZE > lt.x  ) {
@@ -489,8 +508,9 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 		for(  sint32 x = hex_render_x_start_clipped(y, lt.x, const_x_off, IMG_SIZE);  (x * (IMG_SIZE / 4) + const_x_off) < (lt.x + wh.x);  x += hex_render_x_step()  ) {
 			const int q_delta = x / 3;
 			const int r_delta = (y - q_delta) / 2;
-			const int i = q_delta + i_off;
-			const int j = r_delta + j_off;
+			const koord world_delta = viewport->view_axial_to_world(koord((sint16)q_delta, (sint16)r_delta));
+			const int i = world_delta.x + i_off;
+			const int j = world_delta.y + j_off;
 			const int xpos = x * (IMG_SIZE / 4) + const_x_off;
 
 			if(  xpos + IMG_SIZE > lt.x  ) {

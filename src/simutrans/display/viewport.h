@@ -70,15 +70,12 @@ private:
 	sint16 y_off; //!< Fine scrolling y offset. Units in pixels.
 
 	/**
-	 * This is the current offset for getting from tile to screen.
-	 * @note Extra offset, if added to ij_off it will give us the 2D coordinate of the tile on the *BOTTOM-RIGHT* of screen.
+	 * Axial offset from the viewport centre tile to the screen
+	 * top-left tile, in the view-axial frame.  Constant across view
+	 * rotations.  Rotate by `view_rotation` to recover the world-
+	 * axial offset (see `get_world_view_ij_off`).
 	 */
 	koord view_ij_off;
-
-	/**
-	 * For performance reasons, we cache ( (0,0)-ij_off-view_ij_off ) here
-	 */
-	koord cached_aggregated_off;
 
 	/**
 	 * @}
@@ -89,9 +86,18 @@ private:
 	sint16 cached_img_size;    ///< Cached base raster image size
 
 	/**
+	 * View rotation, in units of 60° CCW around the viewport centre.
+	 * Range 0..5.  World data is not mutated; this re-labels which
+	 * world-axial tile lands at each screen position.  See
+	 * `hex_proj.h`'s `hex_axial_rotate` for the world↔view frame
+	 * conversion.
+	 */
+	uint8 view_rotation;
+
+	/**
 	 * Sets current ij offsets of this viewport, depends of its proportions and the zoom level.
 	 */
-	void set_viewport_ij_offset( const koord &k );
+	void set_viewport_ij_offset( const koord &k ) { view_ij_off = k; }
 
 	/**
 	 * The current convoi to follow.
@@ -102,18 +108,6 @@ private:
 	 * Converts map_coord to map2d_coord actually used for main view.
 	 */
 	koord get_map2d_coord( const koord3d& ) const;
-
-	/**
-	 * Returns the viewport_coord coordinates of the requested map2d_coord coordinate.
-	 */
-	koord get_viewport_coord( const koord& coord ) const;
-
-	/**
-	 * Updates the transformation vector we have cached.
-	 */
-	void update_cached_values() {
-		cached_aggregated_off = -ij_off-view_ij_off;
-	}
 
 public:
 
@@ -271,6 +265,22 @@ public:
 	 * Operations needed on map rotation.
 	 */
 	void rotate90( sint16 y_size );
+
+	/// Current view rotation (0..5).  Each step is 60° CCW around `ij_off`.
+	uint8 get_view_rotation() const { return view_rotation; }
+
+	/// Advance the view by one 60° CCW step.  Marks the world dirty.
+	void rotate_view_step();
+
+	/**
+	 * World-axial direction matching a view-axial delta.  The screen
+	 * projection (`hex_screen_dx/dy`) consumes view-axial; callers
+	 * that need the corresponding world tile rotate the delta here.
+	 */
+	koord view_axial_to_world(koord view_delta) const;
+
+	/// World-axial offset from `ij_off` to the screen top-left tile.
+	koord get_world_view_ij_off() const { return view_axial_to_world(view_ij_off); }
 
 	viewport_t( karte_t *world, const koord ij_off = koord::invalid, sint16 x_off = 0, sint16 y_off = 0 );
 };

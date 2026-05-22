@@ -7692,7 +7692,10 @@ void tool_rotate90_t::draw_after(scr_coord pos, bool dirty) const
 
 bool tool_rotate90_t::init( player_t * )
 {
-	// HEX-PORT: map rotation disabled; see TODO.md.
+	// Viewport-only 60° rotation: world data is immutable; the
+	// projection re-labels which world tile lands at each screen
+	// position.  See display/hex_proj.h `hex_axial_rotate`.
+	welt->get_viewport()->rotate_view_step();
 	return false;
 }
 

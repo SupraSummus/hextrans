@@ -365,4 +365,52 @@ struct hex_way_axis_t {
  */
 
 
+/**
+ * Axial rotation by `steps * 60°` CCW around the origin.
+ *
+ * The viewport carries a `view_rotation` (0..5) that re-labels which
+ * world-axial tile lands at each screen position.  Two coordinate
+ * frames coexist:
+ *
+ *   world-axial : actual stored world coordinates (immutable)
+ *   view-axial  : screen-projection input frame, related to world-
+ *                 axial by rotation `view_rotation` around the
+ *                 viewport centre tile (`ij_off`)
+ *
+ *   view  = rotate(world - ij_off, -view_rotation)
+ *   world = rotate(view,            +view_rotation) + ij_off
+ *
+ * The screen projection (`hex_screen_dx/dy`, `hex_screen_to_fractional`)
+ * always consumes view-axial.  Rotation 0 makes the two frames
+ * identical, so all single-frame call sites stay correct unchanged.
+ *
+ * Note: the iso 2:1 hex lattice is not 6-fold rotationally symmetric in
+ * screen pixels (neighbours sit at 0°, 71.6°, 108.4°, 180°, 251.6°,
+ * 288.4°), so the rotated view permutes which world tile lands at
+ * which of those 6 fixed screen positions rather than visually
+ * rotating the framebuffer.  Matches the upstream 90° square pattern.
+ */
+inline koord hex_axial_rotate(koord c, uint8 steps)
+{
+	// 60° CCW: (q, r) → (q+r, -q).  Unroll the 6-cycle to a
+	// switch so callers don't pay for a loop.
+	switch (steps % 6) {
+		case 0: return c;
+		case 1: return koord( c.x + c.y, -c.x         );
+		case 2: return koord(       c.y, -c.x - c.y   );
+		case 3: return koord(      -c.x,       -c.y   );
+		case 4: return koord(-c.x - c.y,  c.x         );
+		case 5: return koord(      -c.y,  c.x + c.y   );
+	}
+	return c;
+}
+
+
+/// Inverse of `hex_axial_rotate`: rotation by `steps * 60°` CW (= 6-steps CCW).
+inline koord hex_axial_rotate_inv(koord c, uint8 steps)
+{
+	return hex_axial_rotate(c, (uint8)((6u - (steps % 6u)) % 6u));
+}
+
+
 #endif

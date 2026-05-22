@@ -376,6 +376,13 @@ Longer-form design and planning docs live under `documentation/`:
     `karte_t::destroy()` (event dispatch nests inside
     `karte_t::step`), and the `tool_t` dispatch path that fixes
     it.  Live coverage + one residual outlier still to migrate.
+  - `documentation/viewport-rotation.md` — viewport-only 60° map
+    rotation.  World data is immutable; the projection re-labels
+    which world-axial tile lands at each screen position.  Stage-2
+    cleanup (delete dead `obj_t::rotate90` cascade, migrate compass
+    / minimap / pakset layout reads from `settings.rotation` to
+    `viewport_t::get_view_rotation`) tracked in `TODO.md` →
+    "Rotation cascade".
 
 ## Upstream documentation pointers
 
