@@ -2482,13 +2482,8 @@ DBG_MESSAGE( "karte_t::rotate90()", "called" );
 
 	climate_map.rotate90();
 
-	// rotate heightmap
-	// HEX-PORT TODO: a 90° rotation is meaningless on a hex grid
-	// (the symmetry step is 60°).  The rotation math below is
-	// carried through under the new doubled layout so the call
-	// site still allocates/deallocates consistent memory, but the
-	// result is geometrically wrong for hex.  Ship a real hex
-	// rotation (or a refusal) with the viewport port.
+	// rotate heightmap.  90° is geometrically wrong under hex; see
+	// TODO.md's per-vertex storage and rotation cascade entries.
 	const uint32 new_hgts_slots = vertex_slot_count(cached_grid_size.x, cached_grid_size.y);
 	sint8* new_hgts         = new sint8[new_hgts_slots];
 	sint8* new_natural_hgts = new sint8[new_hgts_slots];
