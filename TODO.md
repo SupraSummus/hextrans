@@ -277,14 +277,6 @@ the flat-image migration above.
 
 ## Per-vertex height storage — remaining writer-side ports
 
-Storage is per-hex-vertex (see `documentation/hex-vertex-storage.md`,
-`surface_t::grid_hgts`): two canonical slots (E, SE) per tile, plus
-boundary padding.  `perlin_hoehe` now samples at world-vertex
-positions and writes both canonical slots, so freshly generated
-terrain is self-consistent across shared vertices — the three owners
-of any shared vertex all resolve to the same slot and get the same
-noise value by construction.
-
 `karte_t::rotate90`'s heightmap-rotation loop is still the legacy
 90° square formula — 90° is not a hex symmetry, so the result is
 deterministic but geometrically wrong.  `perlin_hoehe`'s own
@@ -461,16 +453,6 @@ on old 4-bit combo values (3, 6, 9, 12) are dead-end residue; delete
 together with the "Powerline 3rd hex axis" cluster's gameplay
 redesign.
 
-**Old-east→hex-SE, old-west→hex-NW rename convention.**  ~30+ sites
-in rendering, signs, and leaf files mechanically renamed
-`ribi_t::east`→`ribi_t::southeast` and `ribi_t::west`→`ribi_t::northwest`.
-The rename is legitimate *under the current 2:1 isometric viewport*
-(both names refer to the same axial displacement vector).  When the
-viewport port lands and the projection changes — or if NE/SW ever
-need sprite representations — every rename site needs re-audit.
-Grep: `HEX-PORT.*east\|HEX-PORT.*west\|\b(southeast|northwest)\b`
-inside rendering-cluster files.
-
 **`is_straight_ns` last caller.**  `leitung2.cc` picks one of two
 powerline diagonal sprites with the 2-axis predicate; NE-SW lands on
 the wrong branch.  Bound to the "Powerline 3rd hex axis" sprite
@@ -527,6 +509,20 @@ any pre-port saved game survives a round-trip.  See also the
 `dir_invalid` for NE/SE/SW/NW.  Tied to sprite port.  See also the
 vehicle-direction compound-displacement note above — 18 distinct
 visual states under hex, 8 slots in the current dir enum.
+
+**Aircraft landing-circle 4-of-6 runways.**  `aircraft_t::calc_route`
+in `air_vehicle.cc:415` switches on the runway end's `get_weg_ribi`
+to pick an offset into the 16-step `circle_koord` hold-pattern
+table — N=0, NW=4, S=8, SE=12.  NE and SW runways fall through to
+the implicit `offset=0` default and put aircraft on those runways
+into the N-approach hold pattern.  The 16-step `circle_koord` table
+is itself hand-rolled for 4-direction airports — widening the
+switch alone isn't enough; the table needs new step sequences for
+the NE/SW approach geometries.  The AI airport builder lays only
+N-S and SE-NW (see "Runway layout" above), so the path is
+reachable from player-built NE/SW runways and pre-port savegames,
+not from AI gameplay.  Lands together with a hex-aware hold-pattern
+geometry — likely 6-direction symmetric circles rather than 4.
 
 `do_terraforming` in `wegbauer.cc` has an
 `if (from_slope > slope_t::all_up_one  &&  is_axis_slope(from_slope -
