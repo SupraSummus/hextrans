@@ -151,6 +151,29 @@ hexes have NO due-N or due-S corner; the 6 vertices sit at angles
 clockwise starting from the SE neighbour, matching the EDGE convention
 above.
 
+## Axial coords vs physical hex symmetry (tentative — one case so far)
+
+`koord(q, r)` is axial, not Cartesian.  `(1, 1)` is NOT a neighbour —
+it's two edge-steps (SE+S).  Square-grid intuition treats it as
+"diagonally adjacent" and that occasionally leaks into hex reasoning;
+PR #201 is the worked example, with `TODO.md` → "Growing-chord
+overhang in 60°-pair parallel builds" as the durable artifact.
+
+Tentative framing from that case: pairs of non-opposite hex axes come
+in two flavours — **60° apart** (cyclically adjacent: SE↔S, S↔SW, …)
+and **120° apart** (skew: SE↔SW, S↔NW, …).  Both classes appear to
+be closed under rotation AND reflection — a 60°-pair never maps to a
+120°-pair under any hex symmetry.  Sum of axes: `A+B` is itself a
+hex axis iff A and B are 120° apart; `A+B` is between axes (a 2-step
+"wedge-tip" displacement) iff A and B are 60° apart.  When a
+behavioural difference between two inputs looks like anisotropy,
+worth checking whether the inputs sit in the same symmetry class
+before reaching for a router/detection fix.
+
+Not validated beyond the one case — refresh from PR #201 if a
+similar question arises, and update this section if a second case
+either confirms the framing or shows it's the wrong abstraction.
+
 ## Critical findings driving priority
 
 Per-vertex height storage is the top of the critical path. A hex
