@@ -679,9 +679,11 @@ corner-extension which still assumes the 2-back-edge layout
 Fence sprites (`back_imageid > BIID_ENCODE_FENCE_OFFSET`, drawn from
 `ground_desc_t::fences`) still use `tile_raster_scale_y` for the
 `corner_nw` offset and have only 3 pakset combos for walls 0+1; the 4
-new wall-2-involving combos return IMG_EMPTY at draw time.  Move the
-offset to hex z and ship hex-aware combos when fences come back into
-scope.
+new wall-2-involving combos return IMG_EMPTY at draw time because
+`FENCE_IMAGE_COUNT = 3` in `grund.h` caps the per-set sprite count.
+Move the offset to hex z, bump `FENCE_IMAGE_COUNT` to 7, and ship
+hex-aware combos covering all seven non-zero wall masks ×
+{natural, artificial} when fences come back into scope.
 
 `grund.cc::display_border` is square-grid logic (`pos.y/x ==
 welt->size().y/x - 1` edge detection, `lookup_hgt[2+diff]`
@@ -831,6 +833,24 @@ Save-format feature gates now have names in `simversion.h` rather
 than floating against `SIM_SAVE_MINOR`.  Continue that convention for
 future on-disk changes so later fork-version bumps do not silently
 change the meaning of old readers.
+
+## Multi-tile building footprint — still 2 of 6 hex axes
+
+`building_desc_t::get_size(layout)` (`descriptor/building_desc.h`)
+keeps the square-pak `(layout & 1) ? (size.y, size.x) : size` rule
+under hex, so multi-tile cells only ever lay out along koord +x
+(even layouts) or koord +y (odd layouts) — two of the six hex axis
+directions.  The pak bakes 6 distinct rotations for asymmetric
+multi-tile buildings, but only 2 of them align the model's long
+axis with the cell axis the engine paints; the other 4 render the
+building rotated relative to its footprint.  Next move: extend
+`get_size` to recognise all 6 hex neighbour directions and lift
+the consumers in `building_tile_desc_t::get_offset` and
+`gebaeude_t::get_tile_list` to match.  Pak side then walks
+all 6 directions in `iter_building_cells` /
+`building_hex_viewpoint`'s slice generation instead of the binary
+swap.  Soft trigger — only matters once residual misalignment is
+the visible artefact in-engine.
 
 ## Building / crossing cluster
 
