@@ -898,9 +898,9 @@ retirement.
 `server_frame_t::action_triggered` (`gui/server_frame.cc:519,528`)
 still calls `welt->load("net:...")` synchronously from the
 multiplayer-browser Join handler — the one residual world-mutation
-call site that hasn't been routed through the tool framework
-(`tool_new_world_t` covers welt_gui's Start, `tool_load_world_t`
-covers loadsave_frame's Load).  Next move: reuse
-`TOOL_LOAD_WORLD` (the `welt->load` "net:" prefix is already
-handled internally) or add a `tool_join_network_t` sibling.
-Ground truth is `documentation/world-mutation-deferral.md`.
+call site that hasn't been routed through `tool_work_world_t`
+(which covers welt_gui's Start, loadsave_frame's Load and Save).
+Next move: fire `TOOL_WORK_WORLD` with `default_param =
+"l0net:..."` (the `welt->load` "net:" prefix is already handled
+internally).  Ground truth is
+`documentation/world-mutation-deferral.md`.

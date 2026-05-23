@@ -3324,12 +3324,6 @@ void karte_t::step()
 	last_step_ticks = ticks;
 	steps ++;
 
-	const bool disable_int = win_get_magic(magic_welt_gui_t);
-	if (disable_int) {
-		intr_disable();
-	}
-
-
 	// to make sure the tick counter will be updated
 	INT_CHECK("karte_t::step");
 
@@ -3451,9 +3445,6 @@ void karte_t::step()
 	}
 
 	DBG_DEBUG4("karte_t::step", "end");
-	if (disable_int) {
-		intr_enable();
-	}
 }
 
 

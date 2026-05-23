@@ -53,9 +53,8 @@ void memory_rw_t::rdwr_byte(uint8 &c)
 
 void memory_rw_t::rdwr_bool(bool &i)
 {
-	// On load, `i` is the destination and may be uninitialised — reading
-	// it as `bool` then is UB.  Source it from `i` only on save.
-	uint8 b = is_saving() ? (i ? 1 : 0) : 0;
+	// only read i on saving
+	uint8 b = is_loading()  ||  i;
 	rdwr_byte(b);
 	i = b!=0;
 }

@@ -47,21 +47,22 @@ network or gate behind scenario rules.
 dialog; it sets `finish_loop` and lets outer `simmain.cc` rebuild
 the world.  `tool_load_scenario_t` fires from
 `scenario_frame_t::load_scenario` and loads a scenario.
-`tool_new_world_t` fires from `welt_gui_t`'s Start button and
-covers both the procedural and the heightfield branches,
-discriminated by whether `env_t::default_settings.heightfield` is
-empty.  `tool_load_world_t` fires from `loadsave_frame_t`'s Load
-button with `default_param = "<easy_server>,<filename>"`.
+`tool_work_world_t` covers new map / load / save through a single
+tool, dispatching on `default_param[0]`: `'n'` (new map from
+`welt_gui_t`'s Start button, reading `env_t::default_settings`),
+`'l<easy>,<filename>'` (load via `loadsave_frame_t`'s Load button
+or in the network-join path), and `'s<filename>'` (save via
+`loadsave_frame_t`).
 
 ## Residual outlier
 
 `server_frame_t::action_triggered` (`gui/server_frame.cc:519,528`)
 calls `welt->load("net:...")` inline when the player joins a
-multiplayer server.  Same hazard, same fix shape as
-`tool_load_world_t` — either reuse it (the "net:" prefix is
-already handled inside `welt->load`) or add a sibling tool.  Lands
-when somebody touches the multiplayer join path next; gated on
-nothing else.
+multiplayer server.  Same hazard, same fix shape — route through
+`tool_work_world_t` with `default_param = "l0net:..."` (the "net:"
+prefix is already handled inside `welt->load`).  Lands when
+somebody touches the multiplayer join path next; gated on nothing
+else.
 
 ## Why a tool and not an ad-hoc deferral flag
 

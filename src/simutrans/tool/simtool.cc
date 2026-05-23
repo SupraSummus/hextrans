@@ -90,6 +90,7 @@
 #include "../tpl/vector_tpl.h"
 
 #include "../network/memory_rw.h"
+#include "../sys/simsys.h"
 #include "../utils/simrandom.h"
 #include "../utils/simstring.h"
 #include "../utils/cbuffer.h"
@@ -7723,53 +7724,6 @@ bool tool_quit_t::init( player_t * )
 }
 
 
-bool tool_new_world_t::init( player_t * )
-{
-	if (env_t::default_settings.heightfield.empty()) {
-		welt->init(&env_t::default_settings, 0);
-	}
-	else {
-		welt->load_heightfield(&env_t::default_settings);
-	}
-	destroy_all_win(true);
-	welt->step_month(env_t::default_settings.get_starting_month());
-	welt->set_pause(false);
-	loadsave_t file;
-	if (file.wr_open("default.sve", loadsave_t::binary, 0, "settings only", SAVEGAME_VER_NR) == loadsave_t::FILE_STATUS_OK) {
-		env_t::default_settings.rdwr(&file);
-		env_t::default_settings.reset_after_global_settings_reload();
-		file.close();
-	}
-	welt->type_of_generation = karte_t::NEW_WORLD;
-	return false;
-}
-
-
-bool tool_load_world_t::init( player_t * )
-{
-	if (strempty(default_param)) {
-		return false;
-	}
-	int easy_server = 0;
-	const char *filename = default_param;
-	if (const char *comma = strchr(default_param, ',')) {
-		easy_server = atoi(default_param);
-		filename = comma + 1;
-	}
-	welt->switch_server(easy_server != 0, true);
-	if (!welt->load(filename)) {
-		welt->switch_server(false, true);
-	}
-	else {
-		if (env_t::server) {
-			welt->announce_server(karte_t::SERVER_ANNOUNCE_HELLO);
-		}
-		welt->type_of_generation = karte_t::LOADED_WORLD;
-	}
-	return false;
-}
-
-
 bool tool_toggle_reservation_t::is_selected() const
 {
 	if (tool_t* t = welt->get_tool(welt->get_active_player_nr())) {
@@ -8856,6 +8810,76 @@ bool tool_load_scenario_t::init(player_t*)
 	}
 
 	// do not call work(), it's a no-op anyway
+	return false;
+}
+
+
+// create (n) load (lxfilename, x!=0 start easy server), or save (sfilename)
+bool tool_work_world_t::init(player_t*)
+{
+	if (strempty(default_param)) {
+		return false;
+	}
+	char what = default_param[0];
+	if (what == 'n') {
+		destroy_all_win(true);
+		// new map
+		translator::set_language(translator::get_language());	// reset also ingame names
+		create_win({ 200, 100 }, new news_img("Erzeuge neue Karte.\n", skinverwaltung_t::neueweltsymbol->get_image_id(0)), w_info, magic_none);
+		if (!env_t::default_settings.heightfield.empty()) {
+			welt->load_heightfield(&env_t::default_settings);
+		}
+		else {
+			env_t::default_settings.heightfield = "";
+			welt->init(&env_t::default_settings, 0);
+		}
+		welt->step_month(env_t::default_settings.get_starting_month());
+		welt->set_pause(false);
+		destroy_all_win(true);
+		welt->type_of_generation = karte_t::NEW_WORLD;
+		env_t::default_settings.reset_after_global_settings_reload();
+		return true;
+	}
+	else if (what == 'l') {
+		destroy_all_win(true);
+		int easy_server = default_param[1]!='0';
+		const char* filename = default_param + 2;
+		welt->switch_server(easy_server != 0, true);
+		dr_chdir(env_t::user_dir);
+		if (!welt->load(filename)) {
+			//  failed to load ...
+			welt->switch_server(false, true);
+			return false;
+		}
+		else {
+			if (env_t::server) {
+				welt->announce_server(karte_t::SERVER_ANNOUNCE_HELLO);
+			}
+			welt->type_of_generation = karte_t::LOADED_WORLD;
+			return true;
+		}
+	}
+	else if (what == 's') {
+		// saving a game
+		if (env_t::server  ||  socket_list_t::get_playing_clients() > 0) {
+			network_reset_server();
+#if 0
+			// TODO: saving without kicking all clients off ...
+						// we have connected clients, so we do a sync
+			const uint32 new_map_counter = welt->generate_new_map_counter();
+			nwc_sync_t* nw_sync = new nwc_sync_t(welt->get_sync_steps() + 1, welt->get_map_counter(), -1, new_map_counter);
+			network_send_all(nw_sync, false);
+			// and now we need to copy the servergame to the map ...
+#endif
+		}
+		dr_chdir(env_t::user_dir);
+		long start_save = dr_time();
+		welt->save(default_param+1, false, env_t::savegame_version_str, false);
+		DBG_MESSAGE("loadsave_frame_t::item_action", "save world %li ms", dr_time() - start_save);
+		welt->set_dirty();
+		welt->reset_timer();
+		return true;
+	}
 	return false;
 }
 

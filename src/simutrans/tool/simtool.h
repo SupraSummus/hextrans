@@ -1024,12 +1024,12 @@ public:
 	bool is_work_keeps_game_state() const OVERRIDE { return false; }
 };
 
-class tool_load_map_t : public tool_t {
+class tool_work_world_t : public tool_t {
 	// internal tool to start a scenario
 	// command i.filename
 	// if i==1, start as easyserver
 public:
-	tool_load_map_t() : tool_t(TOOL_WORK_MAP | SIMPLE_TOOL) { flags = WFL_LOCAL | WFL_NO_CHK; }
+	tool_work_world_t() : tool_t(TOOL_WORK_WORLD | SIMPLE_TOOL) { flags = WFL_LOCAL | WFL_NO_CHK; }
 	bool init(player_t*) OVERRIDE;
 	bool is_init_keeps_game_state() const OVERRIDE { return false; }
 	bool is_work_keeps_game_state() const OVERRIDE { return false; }
@@ -1051,29 +1051,6 @@ class tool_quit_t : public tool_t {
 public:
 	tool_quit_t() : tool_t(TOOL_QUIT | SIMPLE_TOOL) { flags = WFL_LOCAL | WFL_NO_CHK; }
 	char const* get_tooltip(player_t const*) const OVERRIDE { return translator::translate( (default_param && *default_param) ? "Neue Welt" : "Beenden"); }
-	bool init( player_t * ) OVERRIDE;
-	bool is_init_keeps_game_state() const OVERRIDE { return false; }
-	bool is_work_keeps_game_state() const OVERRIDE { return false; }
-};
-
-// Dispatch a new-world construction.  Carries no parameters: the tool reads
-// env_t::default_settings, which the GUI sets up before firing the tool.  An
-// empty default_settings.heightfield means procedural generation; non-empty
-// means load_heightfield.
-class tool_new_world_t : public tool_t {
-public:
-	tool_new_world_t() : tool_t(TOOL_NEW_WORLD | SIMPLE_TOOL) { flags = WFL_LOCAL | WFL_NO_CHK; }
-	char const* get_tooltip(player_t const*) const OVERRIDE { return NULL; }
-	bool init( player_t * ) OVERRIDE;
-	bool is_init_keeps_game_state() const OVERRIDE { return false; }
-	bool is_work_keeps_game_state() const OVERRIDE { return false; }
-};
-
-// Dispatch loading a savegame.  default_param is "<easy_server>,<filename>".
-class tool_load_world_t : public tool_t {
-public:
-	tool_load_world_t() : tool_t(TOOL_LOAD_WORLD | SIMPLE_TOOL) { flags = WFL_LOCAL | WFL_NO_CHK; }
-	char const* get_tooltip(player_t const*) const OVERRIDE { return NULL; }
 	bool init( player_t * ) OVERRIDE;
 	bool is_init_keeps_game_state() const OVERRIDE { return false; }
 	bool is_work_keeps_game_state() const OVERRIDE { return false; }
