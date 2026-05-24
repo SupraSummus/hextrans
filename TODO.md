@@ -23,8 +23,8 @@ actual hex-pathfinder route reasoned out — the original patterns
 assume 4-bit square-axis paths, and at least for `wt_road` the
 builder routes around the NE-SW axis (no sprite support there yet)
 into a 2-step path through `(q+1, r)`-style intermediate tiles.
-Affected: `test_way_bridge_build_{above_way, at_slope_stacked,
-above_runway}`, `test_way_road_build_{below_powerline, crossing}`,
+Affected: `test_way_bridge_build_at_slope_stacked`,
+`test_way_road_build_{below_powerline, crossing}`,
 `test_way_road_upgrade_{crossing, downgrade_across_bridge}`,
 `test_way_tram_build_{parallel, in_tunel}`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
