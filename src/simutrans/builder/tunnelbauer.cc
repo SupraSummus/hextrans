@@ -41,6 +41,23 @@ karte_ptr_t tunnel_builder_t::welt;
 static stringhashtable_tpl<tunnel_desc_t *> tunnel_by_name;
 
 
+// Acceptable mouth slope facing @p zv.  An existing axis ramp (narrow
+// always, planar double if the way opts in) needs no terraforming and
+// is preserved; otherwise fall back to a clearance-derived shape.
+static slope_t::type tunnel_mouth_slope(slope_t::type existing, koord zv, const way_desc_t* way_desc, uint8 height_clearance)
+{
+	const slope_t::type narrow = slope_type(-zv);
+	const slope_t::type planar = slope_t::narrow_to_double(narrow);
+	if (existing == narrow) {
+		return narrow;
+	}
+	if (existing == planar  &&  way_desc  &&  way_desc->has_double_slopes()) {
+		return planar;
+	}
+	return height_clearance == 2 ? planar : narrow;
+}
+
+
 void tunnel_builder_t::register_desc(tunnel_desc_t *desc)
 {
 	// avoid duplicates with same name
@@ -244,7 +261,9 @@ koord3d tunnel_builder_t::find_end_pos(player_t *player, koord3d pos, koord zv, 
 				}
 			}
 			const slope_t::type slope = gr->get_grund_hang();
-			const slope_t::type new_slope = slope_type(-zv) * welt->get_settings().get_way_height_clearance();
+			const slope_t::type new_slope = tunnel_mouth_slope(
+				slope, zv, desc->get_way_desc(),
+				welt->get_settings().get_way_height_clearance());
 
 			if(  gr->ist_karten_boden()  &&  ( slope!=new_slope  ||  pos.z!=gr->get_pos().z )  ) {
 				// lower terrain to match - most of time shouldn't need to raise
@@ -410,8 +429,12 @@ const char *tunnel_builder_t::build( player_t *player, koord pos, const tunnel_d
 
 	// Begin and end found, we can build
 
-	slope_t::type end_slope = slope_type(-zv) * welt->get_settings().get_way_height_clearance();
-	if(  full_tunnel  &&  (!end_gr  ||  end_gr->get_grund_hang()!=end_slope)  ) {
+	slope_t::type existing_end_slope = slope_t::flat;
+	if (end_gr) existing_end_slope = end_gr->get_grund_hang();
+	slope_t::type end_slope = tunnel_mouth_slope(
+		existing_end_slope, zv, desc->get_way_desc(),
+		welt->get_settings().get_way_height_clearance());
+	if(  full_tunnel  &&  existing_end_slope != end_slope  ) {
 		// end slope not at correct height - we have already checked in find_end_pos that we can change this
 		sint8 hE  = end.z + corner_e (end_slope);
 		sint8 hSE = end.z + corner_se(end_slope);

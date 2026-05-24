@@ -475,3 +475,62 @@ function test_way_tunnel_build_nw_double_axis_slope()
 }
 
 
+// A tunnel built between two planar-double mouths facing each other
+// must not terraform any tile — both mouths are valid on their own
+// (`test_tunnel_double` opts in to `has_double_slopes`).
+function test_way_tunnel_build_does_not_terraform_double_mouth()
+{
+	local digger = command_x(tool_build_tunnel)
+	local remover = command_x(tool_remover)
+	local setslope = command_x.set_slope
+	local tunnel = null
+	foreach (t in tunnel_desc_x.get_available_tunnels(wt_road)) {
+		if (t.get_name() == "test_tunnel_double") tunnel = t
+	}
+	ASSERT_TRUE(tunnel != null)
+	local pl = player_x(0)
+
+	// two adjacent S-axis tiles, each a planar 2-step ramp facing the
+	// other.  Shared edge at the centre is z=2.  setslope cascades to
+	// surrounding tiles only on the side corners (E, W at z=1), nowhere
+	// near the rest of the map.
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.north_double), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 4, 0), slope.south_double), null)
+	ASSERT_EQUAL(tile_x(3, 3, 0).get_slope(), slope.north_double)
+	ASSERT_EQUAL(tile_x(3, 4, 0).get_slope(), slope.south_double)
+
+	// snapshot the work area and the 6 hex neighbours of each mouth
+	local probes = [
+		[3, 3], [3, 4],                  // mouths
+		[2, 3], [4, 3], [2, 4], [4, 4],  // side neighbours (NW/SE/SW/NE)
+		[3, 2], [3, 5],                  // along-axis neighbours
+	]
+	local before = {}
+	foreach (p in probes) {
+		before[p[0] + "," + p[1]] <- tile_x(p[0], p[1], 0).get_slope()
+	}
+
+	// dig a 2-tile tunnel (mouth on each ramp)
+	ASSERT_EQUAL(digger.work(pl, tile_x(3, 3, 0), tunnel.get_name()), null)
+	ASSERT_TRUE(tile_x(3, 3, 0).find_object(mo_tunnel) != null)
+	ASSERT_TRUE(tile_x(3, 4, 0).find_object(mo_tunnel) != null)
+
+	// remove the network
+	remover.set_flags(2)
+	ASSERT_EQUAL(remover.work(pl, coord3d(3, 3, 0)), null)
+	remover.set_flags(0)
+
+	// every probed slope must survive the build+remove unchanged
+	foreach (p in probes) {
+		local key = p[0] + "," + p[1]
+		local now = tile_x(p[0], p[1], 0).get_slope()
+		if (now != before[key]) {
+			throw "tile (" + p[0] + "," + p[1] + ",0) slope changed: " + before[key] + " -> " + now
+		}
+	}
+
+	// teardown: setslope back to flat
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 3, 0), slope.flat), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 4, 0), slope.flat), null)
+	RESET_ALL_PLAYER_FUNDS()
+}
