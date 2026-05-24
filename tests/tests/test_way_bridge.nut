@@ -436,7 +436,9 @@ function test_way_bridge_build_at_planar_double_slope()
 }
 
 
-// test_way_bridge_build_above_way: HEX-PORT PENDING.
+// S-axis road bridge crossing a SE-axis road built first underneath.
+// The bridge ramps at y=2,5 along x=3; the road runs along y=3 on the
+// SE-NW axis.  Both axes are distinct hex axes, so the two cross at 60°.
 function test_way_bridge_build_above_way()
 {
 	local remover = command_x(tool_remove_way)
@@ -448,6 +450,31 @@ function test_way_bridge_build_above_way()
 	ASSERT_TRUE(bridge_desc != null)
 	ASSERT_TRUE(way_desc != null)
 
+	// At z=0: ramps at (3,2) S=2 and (3,5) N=16; ground road on
+	// SE axis at y=3 with SE=1 / SE|NW=9 / NW=8.
+	local ground = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  2, 0, 0, 0, 0],
+		[0, 0, 1,  9, 8, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0, 16, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
+
+	// At z=1: bridge span column x=3 from y=2..5.  S=2, N=16, N|S=18.
+	local span = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  2, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 16, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
+
 	{
 		ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.south_narrow), null)
 		ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.north_narrow), null)
@@ -455,35 +482,19 @@ function test_way_bridge_build_above_way()
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 3, 0), coord3d(4, 3, 0), way_desc, true), null)
 		ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 2, 0), bridge_desc), null)
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"...4....",
-				"..2A8...",
-				"........",
-				"...1....",
-				"........",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), ground)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), span)
 	}
 
 	{
-		// remove way, rebuild it under bridge
+		// remove way under bridge, rebuild it.  Bridge span (and its
+		// ramps) must survive the removal, and the rebuilt ground road
+		// must come back in its original shape.
 		ASSERT_EQUAL(remover.work(pl, coord3d(2, 3, 0), coord3d(4, 3, 0), "" + wt_road), null)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), span)
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 3, 0), coord3d(4, 3, 0), way_desc, true), null)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), ground)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), span)
 	}
 
 	ASSERT_EQUAL(remover.work(pl, coord3d(2, 3, 0), coord3d(4, 3, 0), "" + wt_road), null)
@@ -495,7 +506,9 @@ function test_way_bridge_build_above_way()
 }
 
 
-// test_way_bridge_build_above_runway: HEX-PORT PENDING.
+// Flat-ground SE-axis road bridge (6,8)→(8,8) crossing a S-axis
+// taxiway (7,7)→(7,9).  Then repeat with a runway in place of the
+// taxiway: bridge build refuses (no bridges over runways).
 function test_way_bridge_build_above_runway()
 {
 	local pl = player_x(0)
@@ -503,37 +516,38 @@ function test_way_bridge_build_above_runway()
 	local taxiway = way_desc_x.get_available_ways(wt_air, st_flat)[0]
 	local runway = way_desc_x.get_available_ways(wt_air, st_elevated)[0]
 	local bridge = bridge_desc_x.get_available_bridges(wt_road)[0]
-	local setslope = command_x.set_slope
 
-	// preconditions
+	// Taxiway / runway column x=7 along S axis.  S=2, N=16, N|S=18.
+	local air_column = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
 
 	// build bridge across taxiway
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(7, 7, 0), coord3d(7, 9, 0), taxiway, true), null)
 		ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(6, 8, 0), coord3d(8, 8, 0), bridge), null)
 
-		ASSERT_WAY_PATTERN(wt_air, coord3d(5, 5, 0),
-			[
-				"........",
-				"........",
-				"..4.....",
-				"..5.....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_air, coord3d(5, 5, 0), air_column)
 
+		// Bridge row y=8 along SE axis: auto-extended stubs at x=5,9,
+		// ramps at x=6,8, span at z=1 over (7,8).  SE=1, NW=8, SE|NW=9.
 		ASSERT_WAY_PATTERN(wt_road, coord3d(5, 5, 0),
 			[
-				"........",
-				"........",
-				"........",
-				"2A.A8...",
-				"........",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[1, 9, 0, 9, 8, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 
 		ASSERT_EQUAL(wayremover.work(pl, coord3d(7, 7, 0), coord3d(7, 9, 0), "" + wt_air), null)
@@ -545,17 +559,7 @@ function test_way_bridge_build_above_runway()
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(7, 7, 0), coord3d(7, 9, 0), runway, true), null)
 		ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(6, 8, 0), coord3d(8, 8, 0), bridge), "No bridges over runways!")
 
-		ASSERT_WAY_PATTERN(wt_air, coord3d(5, 5, 0),
-			[
-				"........",
-				"........",
-				"..4.....",
-				"..5.....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_air, coord3d(5, 5, 0), air_column)
 
 		ASSERT_EQUAL(wayremover.work(pl, coord3d(7, 7, 0), coord3d(7, 9, 0), "" + wt_air), null)
 	}
