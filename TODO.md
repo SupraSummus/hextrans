@@ -42,27 +42,6 @@ make_public}`) are the worked examples; the tunnel ones additionally
 demonstrate the 6-vertex hex-hill scaffold described in
 "Hill-with-sloped-neighbours test setup" below.
 
-**Tunnel tests blocked on `has_double_slopes=1` opt-in.**
-`test_way_tunnel_build_above_tunnel_slope` and
-`_across_tunnel_slope` build a 2-step underground staircase via two
-consecutive `setslope all_down`.  `has_double_slopes()` reads the
-explicit `has_double_slopes=` .dat key (way_desc save version 9);
-pak64 doesn't set it on its tunnels, so the second `all_down` fails
-with "Tile not empty".  The
-`test_way_tunnel_build_up_down` HEX-PORT TODO comment in the test
-body names the same dependency for the deferred final sub-block.
-All three retire when a tunnel descriptor with
-`has_double_slopes=1` is reachable from these tests — either pak64
-opts in (and ideally ships matching wide slope-up sprites
-`imageup[*_wide]` for rendering), or `tests/test-pak/` ships such a
-tunnel and the tests select it explicitly instead of
-`tunnel_desc_x.get_available_tunnels(wt_road)[0]` (the [0] entry's
-order across pakset and addons isn't stable, so other tunnel tests
-relying on pak64's default would have to filter likewise).  See
-`test_double_slopes.nut` for the road-side filter pattern; the
-addon-pak rig (`tools/test.py:ensure_test_pak`) already supports
-shipping more `.dat`s.
-
 **Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner
 diagonals are still admitted as way slopes by the post-slope-way
 predicate (side-chord branch with samples both at 1), but the names
