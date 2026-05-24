@@ -1,0 +1,6 @@
+obj=tunnel
+name=test_tunnel_double
+copyright=hextrans test
+waytype=road
+topspeed=120
+way=test_road_double

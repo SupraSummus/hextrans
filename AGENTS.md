@@ -358,12 +358,12 @@ leaving an alternating-corner slope.
 `way_desc_t::has_double_slopes()` reads an explicit `has_double_slopes=`
 .dat key (way_desc save version 9); paksets opt each way in or out
 independently of which slope sprites they ship.  Pak64 doesn't set it,
-so every test-suite way answers `false` and a second consecutive
+so every pak64 way answers `false` and a second consecutive
 `setslope(all_down)` on the same underground tunnel tile fails with
 "Tile not empty".  Tests that need a 2-step underground staircase
 (`test_way_tunnel_build_above_tunnel_slope`, `_across_tunnel_slope`)
-stay disabled until pak64 sets the flag — see TODO.md → "Tunnel tests
-blocked on `has_double_slopes=1` opt-in".
+select `test_tunnel_double` from `tests/test-pak/` (a road tunnel that
+lays the `test_road_double` way) rather than `tunnel_desc_x.get_available_tunnels(wt_road)[0]`.
 
 Multiple tunnel mouths converging on one buried tile: use
 `raise_hex_hill_with_six_mouths(pl, q, r, z, desc)` from

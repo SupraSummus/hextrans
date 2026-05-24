@@ -127,10 +127,7 @@ function test_way_tunnel_build_straight()
 
 
 // 2-tile S-axis hill at (1,1)+(1,2); rail tunnel, so the second
-// consecutive all_down hits the no-double-slopes reject.  The
-// original test's final step-2-all_up sub-block needs a tunnel with
-// `has_double_slopes=1` — restores with the `_above_tunnel_slope`
-// pair (see TODO.md).
+// consecutive all_down hits the no-double-slopes reject.
 function test_way_tunnel_build_up_down()
 {
 	local digger = command_x(tool_build_tunnel)
@@ -257,41 +254,51 @@ function test_way_tunnel_build_up_down()
 }
 
 
-// test_way_tunnel_build_above_tunnel_slope: HEX-PORT PENDING.
+// 2-tile S-axis hill at (1,1)+(1,2).  Picks `test_tunnel_double`
+// (tests/test-pak/) for the 2-step underground slope dive; the
+// gate at simtool.cc:1324 rejects the second consecutive
+// `setslope all_down` unless the way underneath opts into
+// has_double_slopes=1, which pak64 road tunnels don't.
 function test_way_tunnel_build_above_tunnel_slope()
 {
-	// Tests building on the tile above the top of a tunnel slope in pak64
-	// Should be allowed but, as of r11373, isn't.
-	// If way_height_clearance is >= 2, this test DOES NOT APPLY.
-	// FIXME: ignore this test if way_height_clearance >= 2 ?
+	// Building at z=0 above the top of a 2-step underground slope
+	// (z=-2 → z=-1) should be allowed.  Upstream r11373 regressed
+	// this; the test guards the fix.  If way_height_clearance is
+	// >= 2, the test DOES NOT APPLY.
 	local pl = player_x(0)
-	local default_tunnel = tunnel_desc_x.get_available_tunnels(wt_road)[0]
+	local tunnel = null
+	foreach (t in tunnel_desc_x.get_available_tunnels(wt_road)) {
+		if (t.get_name() == "test_tunnel_double") tunnel = t
+	}
+	ASSERT_TRUE(tunnel != null) // tests/test-pak ships test_tunnel_double
 	local digger = command_x(tool_build_tunnel)
 	local remover = command_x(tool_remover)
 	local setslope = command_x.set_slope
 
-	// Prepare area
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(1, 1, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 1, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(1, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(1, 3, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 3, 1)), null)
+	raise_hex_tile_pair_S(pl, 1, 1, 0)
 
 	{
 		digger.set_flags(2)
-		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), default_tunnel.get_name()), null)
-		ASSERT_EQUAL(digger.work(pl, tile_x(1, 3, 0), default_tunnel.get_name()), null)
+		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), tunnel.get_name()), null)
+		ASSERT_EQUAL(digger.work(pl, tile_x(1, 3, 0), tunnel.get_name()), null)
 		digger.set_flags(0)
 
-		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), tile_x(1, 1, 0), default_tunnel.get_name()), null)
+		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), tile_x(1, 1, 0), tunnel.get_name()), null)
 		ASSERT_EQUAL(setslope(pl, coord3d(1, 1, 0), slope.all_down_slope), null)
 		ASSERT_EQUAL(setslope(pl, coord3d(1, 1, -1), slope.all_down_slope), null)
-		ASSERT_EQUAL(digger.work(pl, tile_x(1, 1, -2), tile_x(1, 2, -2), default_tunnel.get_name()), null)
+		// guard the has_double_slopes gate beyond "setslope returned null":
+		// the way must have actually sunk two levels.
+		ASSERT_TRUE(tile_x(1, 1,  0).find_object(mo_tunnel) == null)
+		ASSERT_TRUE(tile_x(1, 1, -1).find_object(mo_tunnel) == null)
+		ASSERT_TRUE(tile_x(1, 1, -2).find_object(mo_tunnel) != null)
+
+		ASSERT_EQUAL(digger.work(pl, tile_x(1, 1, -2), tile_x(1, 2, -2), tunnel.get_name()), null)
 		ASSERT_EQUAL(setslope(pl, coord3d(1, 2, -2), slope.all_up_slope), null)
 
-		// Now for the real test: build at z=0 above simple slope from z=-2 to z=-1, should be allowed
-		ASSERT_EQUAL(digger.work(pl, tile_x(1, 3, 0), tile_x(1, 2, 0), default_tunnel.get_name()), null)
+		// The real test: build at z=0 above the slope from z=-2 to z=-1.
+		ASSERT_EQUAL(digger.work(pl, tile_x(1, 3, 0), tile_x(1, 2, 0), tunnel.get_name()), null)
+		// guard against silent no-op: a tunnel must actually be present.
+		ASSERT_TRUE(tile_x(1, 2, 0).find_object(mo_tunnel) != null)
 		ASSERT_EQUAL(remover.work(pl, coord3d(1, 2, 0)), null)
 	}
 
@@ -300,73 +307,69 @@ function test_way_tunnel_build_above_tunnel_slope()
 	ASSERT_EQUAL(remover.work(pl, coord3d(1, 2, -2)), null)
 	ASSERT_EQUAL(remover.work(pl, coord3d(1, 0,  0)), null)
 	ASSERT_EQUAL(remover.work(pl, coord3d(1, 3,  0)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(1, 1, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 1, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(1, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(1, 3, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 3, 1)), null)
+
+	lower_hex_tile_pair_S(pl, 1, 1, 0)
 
 	RESET_ALL_PLAYER_FUNDS()
 }
 
 
-// test_way_tunnel_build_across_tunnel_slope: HEX-PORT PENDING.
+// Same scaffold as `_above_tunnel_slope`: 2-tile S-axis hill,
+// 2-step underground slope dive, `test_tunnel_double` from
+// tests/test-pak/.
 function test_way_tunnel_build_across_tunnel_slope()
 {
 	local pl = player_x(0)
-	local default_tunnel = tunnel_desc_x.get_available_tunnels(wt_road)[0]
+	local tunnel = null
+	foreach (t in tunnel_desc_x.get_available_tunnels(wt_road)) {
+		if (t.get_name() == "test_tunnel_double") tunnel = t
+	}
+	ASSERT_TRUE(tunnel != null) // tests/test-pak ships test_tunnel_double
 	local digger = command_x(tool_build_tunnel)
 	local remover = command_x(tool_remover)
 	local setslope = command_x.set_slope
 
-	// Prepare area
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(1, 1, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 1, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(1, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(1, 3, 1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 3, 1)), null)
+	raise_hex_tile_pair_S(pl, 1, 1, 0)
 
 	{
 		// build lone tunnel mouths
 		digger.set_flags(2)
-		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), default_tunnel.get_name()), null)
-		ASSERT_EQUAL(digger.work(pl, tile_x(1, 3, 0), default_tunnel.get_name()), null)
+		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), tunnel.get_name()), null)
+		ASSERT_EQUAL(digger.work(pl, tile_x(1, 3, 0), tunnel.get_name()), null)
 		digger.set_flags(0)
 
 		// make double slope
-		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), tile_x(1, 1, 0), default_tunnel.get_name()), null)
+		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), tile_x(1, 1, 0), tunnel.get_name()), null)
 		ASSERT_EQUAL(setslope(pl, coord3d(1, 1, 0), slope.all_down_slope), null)
 		ASSERT_EQUAL(setslope(pl, coord3d(1, 1, -1), slope.all_down_slope), null)
+		ASSERT_TRUE(tile_x(1, 1, -2).find_object(mo_tunnel) != null) // gate worked
 
 		local net_wealth = pl.get_current_net_wealth()
 
-		// try to tunnel across
-		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), tile_x(1, 3, 0), default_tunnel.get_name()), null)
+		// tunnel builder only builds straight tunnels with no elevation
+		// change, so digging across the now-staircased underground rejects.
+		ASSERT_EQUAL(digger.work(pl, tile_x(1, 0, 0), tile_x(1, 3, 0), tunnel.get_name()), null)
 
-		// nothing should be buid here
+		// nothing built: net_wealth catches the cost side, find_object
+		// catches a silent-no-cost stub on the would-be path.
 		ASSERT_EQUAL( net_wealth, pl.get_current_net_wealth() )
+		ASSERT_TRUE(tile_x(1, 1, 0).find_object(mo_tunnel) == null)
+		ASSERT_TRUE(tile_x(1, 2, 0).find_object(mo_tunnel) == null)
 
 		// remove lone tunnel mouth
 		ASSERT_EQUAL(remover.work(pl, coord3d(1, 3,  0)), null)
 
-		// try to build across it - should fail and not build anything since the tunnel builder
-		// only builds straight tunnels with no elevation changes
-		// however, the player cannot call it like this since before the find_end_pos will return an invalid coordinate
-		local err = digger.work(pl, tile_x(1, 3, 0), default_tunnel.get_name())
+		// single-arg form: find_end_pos returns an invalid coordinate
+		// before the builder is invoked, so the error path differs.
+		local err = digger.work(pl, tile_x(1, 3, 0), tunnel.get_name())
 		ASSERT_EQUAL(err, "Tunnel must start on single way!")
 	}
+
 	// clean up
 	ASSERT_EQUAL(remover.work(pl, coord3d(1, 1, -2)), null)
 	ASSERT_EQUAL(remover.work(pl, coord3d(1, 0,  0)), null)
 
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(1, 1, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 1, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(1, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(1, 3, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 3, 1)), null)
+	lower_hex_tile_pair_S(pl, 1, 1, 0)
 
 	RESET_ALL_PLAYER_FUNDS()
 }
