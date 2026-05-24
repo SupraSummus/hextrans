@@ -9,7 +9,9 @@
 //
 
 
-// test_way_bridge_build_ground: HEX-PORT PENDING.
+// Flat-ground N-S-axis bridge: build (3,5,0)→(3,2,0), verify, remove.
+// Three square-era "should fail" subcases on overlap/clearance dropped
+// — see TODO.md → "Bridge builder height-2 ramp slope arithmetic".
 function test_way_bridge_build_ground()
 {
 	local pl          = player_x(0)
@@ -17,101 +19,50 @@ function test_way_bridge_build_ground()
 	local remover     = command_x(tool_remove_way)
 	ASSERT_TRUE(bridge_desc != null)
 
-	// build bridge on flat ground
 	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(3, 5, 0), coord3d(3, 2, 0), bridge_desc), null)
 
 	{
-		// test bridge object
 		local t = tile_x(3, 5, 0)
 		local bridge = t.find_object(mo_bridge)
 
 		ASSERT_TRUE(bridge != null)
-
 		ASSERT_EQUAL(bridge.get_desc().get_name(), bridge_desc.get_name())
 	}
+	ASSERT_TRUE(tile_x(3, 2, 0).find_object(mo_bridge) != null)
 
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-		[
-			"........",
-			"...4....",
-			"...5....",
-			"...0....",
-			"...0....",
-			"...5....",
-			"...1....",
-			"........"
-		])
-
+	// z=1 spans both endpoints and the auto-extended ramp tile beyond
+	// each end at (3,1) / (3,6).  S=2, N=16, S|N=18.
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
 		[
-			"........",
-			"...4....",
-			"...5....",
-			"...5....",
-			"...5....",
-			"...5....",
-			"...1....",
-			"........"
-		])
-
-	// build bridge over bridgehead (should fail)
-	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(2, 2, 0), coord3d(4, 2, 0), bridge_desc), "")
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-		[
-			"........",
-			"...4....",
-			"...5....",
-			"...5....",
-			"...5....",
-			"...5....",
-			"...1....",
-			"........"
-		])
-
-	// build bridgehead slope under bridge (should fail)
-	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(3, 3, 0), coord3d(5, 3, 0), bridge_desc), "")
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-		[
-			"........",
-			"...4....",
-			"...5....",
-			"...5....",
-			"...5....",
-			"...5....",
-			"...1....",
-			"........"
-		])
-
-	// build bridge crossing (should fail)
-	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), bridge_desc), "")
-	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-		[
-			"........",
-			"...4....",
-			"...5....",
-			"...5....",
-			"...5....",
-			"...5....",
-			"...1....",
-			"........"
+			[0, 0, 0,  0, 0, 0, 0, 0],
+			[0, 0, 0,  2, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 16, 0, 0, 0, 0],
+			[0, 0, 0,  0, 0, 0, 0, 0],
 		])
 
 	ASSERT_EQUAL(remover.work(pl, tile_x(3, 1, 0), tile_x(3, 6, 0), "" + wt_road), null)
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 		[
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........"
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
 		])
+	RESET_ALL_PLAYER_FUNDS()
 }
 
 
-// test_way_bridge_build_at_slope: HEX-PORT PENDING.
+// Start ramp pre-set to slope.south_narrow (low edge S, build extends
+// toward S).  Five failure subcases on the end slope, two success
+// subcases (flat-cliff at z=1, matching north_narrow ramp).
 function test_way_bridge_build_at_slope()
 {
 	local start_pos = coord3d(2, 1, 0)
@@ -121,157 +72,101 @@ function test_way_bridge_build_at_slope()
 	local pl = player_x(0)
 	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
 
-	ASSERT_EQUAL(setslope(pl, coord3d(2, 1, 0), slope.south_narrow), null)
+	local empty_8x8 = [
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
+
+	// Bridge span at z=1, column x=2.  S=2, N=16, S|N=18.
+	local span_z1 = [
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+	]
+
+	ASSERT_EQUAL(setslope(pl, start_pos, slope.south_narrow), null)
 
 	{
-		// down slope
+		// down slope: no matching ramp within range
 		local err = command_x.build_bridge_at(pl, start_pos, bridge_desc)
 		ASSERT_EQUAL(err, "Bridge is too long for this type!\n")
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), empty_8x8)
 	}
 
 	{
-		// wrong single-height slope
+		// wrong single-height slope (legacy square diagonal `west`,
+		// admitted as a way slope but not a hex axis the bridge can end on)
 		ASSERT_EQUAL(setslope(pl, end_pos, slope.west), null)
 		local err = command_x.build_bridge(pl, start_pos, end_pos, bridge_desc)
 		ASSERT_EQUAL(err, "")
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), empty_8x8)
 	}
 
 	{
-		// planar double height slope, hex corner heights 122100
+		// planar double-height slope: north_double (122100); bridge is
+		// single-height so it cannot land on a double-height ramp
 		ASSERT_EQUAL(setslope(pl, end_pos, HEX_SLOPE(1, 2, 2, 1, 0, 0)), null)
 		local err = command_x.build_bridge(pl, start_pos, end_pos, bridge_desc)
 		ASSERT_EQUAL(err, "")
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), empty_8x8)
 	}
 
 	{
-		// wrong planar double height slope, hex corner heights 012210
+		// off-axis planar double-height slope: northeast_double (012210)
 		ASSERT_EQUAL(setslope(pl, end_pos, HEX_SLOPE(0, 1, 2, 2, 1, 0)), null)
 		local err = command_x.build_bridge(pl, start_pos, end_pos, bridge_desc)
 		ASSERT_EQUAL(err, "")
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), empty_8x8)
 	}
 
 	{
-		// flat double height slope (i.e. 2 stacked flat slopes)
+		// 2-step flat cliff at end: too high for single-height bridge
 		ASSERT_EQUAL(setslope(pl, end_pos, slope.all_up_slope), null)
 		ASSERT_EQUAL(setslope(pl, end_pos + coord3d(0, 0, 1), slope.all_up_slope), null)
 		local err = command_x.build_bridge_at(pl, start_pos, bridge_desc)
 		ASSERT_EQUAL(err, "Bridge is too long for this type!\n")
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), empty_8x8)
 
 		ASSERT_EQUAL(setslope(pl, end_pos + coord3d(0, 0, 2), slope.all_down_slope), null)
 		ASSERT_EQUAL(setslope(pl, end_pos + coord3d(0, 0, 1), slope.all_down_slope), null)
 	}
 
 	{
-		// flat single height slope
+		// flat cliff at z=1: end tile sits at z=1, bridge lands on it flat
 		ASSERT_EQUAL(setslope(pl, end_pos, slope.all_up_slope), null)
 		local err = command_x.build_bridge_at(pl, start_pos, bridge_desc)
 		ASSERT_EQUAL(err, null)
+		ASSERT_TRUE(tile_x(2, 1, 0).find_object(mo_bridge) != null)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), span_z1)
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"..4.....",
-				"..5.....",
-				"..5.....",
-				"..5.....",
-				"..5.....",
-				"..1.....",
-				"........"
-			])
-
-		// remove way
-		ASSERT_EQUAL(remover.work(pl, start_pos, end_pos + coord3d(0, 0, 1), "" + wt_road), null)
-
-		// remove slope
+		ASSERT_EQUAL(remover.work(pl, tile_x(2, 1, 0), tile_x(2, 6, 1), "" + wt_road), null)
 		ASSERT_EQUAL(setslope(pl, end_pos + coord3d(0, 0, 1), slope.all_down_slope), null)
 	}
 
 	{
-		// correct slope
-		setslope(pl, end_pos, slope.north_narrow)
+		// matching ramp slope at end: north_narrow (low edge N)
+		ASSERT_EQUAL(setslope(pl, end_pos, slope.north_narrow), null)
 		local err = command_x.build_bridge_at(pl, start_pos, bridge_desc)
 		ASSERT_EQUAL(err, null)
+		ASSERT_TRUE(tile_x(2, 1, 0).find_object(mo_bridge) != null)
+		ASSERT_TRUE(tile_x(2, 6, 0).find_object(mo_bridge) != null)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), span_z1)
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"..4.....",
-				"..5.....",
-				"..5.....",
-				"..5.....",
-				"..5.....",
-				"..1.....",
-				"........"
-			])
-
-		// remove way
-		ASSERT_EQUAL(remover.work(pl, start_pos, end_pos, "" + wt_road), null)
-
-		// remove slope
+		ASSERT_EQUAL(remover.work(pl, tile_x(2, 1, 0), tile_x(2, 6, 0), "" + wt_road), null)
 		ASSERT_EQUAL(setslope(pl, end_pos, slope.flat), null)
 	}
 
-	// clean up
 	ASSERT_EQUAL(setslope(pl, start_pos, slope.flat), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
