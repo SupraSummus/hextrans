@@ -176,34 +176,21 @@ get_start switch doesn't cover).  Restore art-presence probes (or
 replace them with explicit per-slot pakset declarations) once Start2
 / Ramp2 art is shipped.
 
-## Bridge builder height-2 ramp slope arithmetic + stacked-bridge tests
+## build_bridge auto-extension misses delta-2 ramps
 
-`bridge_builder_t::build_bridge` (`brueckenbauer.cc:788`, :873) computes
-the ramp's way-hang as `slope_type(zv) * (bridge_height - start.z)`.
-Under upstream square the `* 2` produced a valid double-edge slope
-because the base-3 encoding doubled each corner digit cleanly
-(`north == 4`, `north * 2 == 8 == double`).  Under hex base-4 the
-product is kinked — e.g. `northwest_narrow * 2 == 10` decodes to
-(E=2, SE=2, rest=0), a 2-unit jump between adjacent corners — and
-`bridge_desc_t::get_ramp` returns `img_t_count`, tripping the
-`bruecke_t` constructor assertion.  Path: any `build_bridge` that
-picks `bridge_height = start.z + 2` from flat ground.  Mechanical
-fix is `slope_t::narrow_to_double(slope_type(zv))` for the
-delta-2 case.
-
-The arithmetic fix on its own shifts behaviour rather than
-restoring it: under the art-permissive double-height policy (see
-"Bridge double-height policy"), the three "should fail" subcases
-of `test_way_bridge_build_ground` (build over bridgehead, slope
-under bridge, bridge crossing) now find clearance at height 2 and
-build a stacked bridge that the square-era test had no reason to
-expect.  Restoration is therefore a two-step job: land the
-arithmetic fix and replace those subcases with stacked-bridge
-assertions (or a sibling `test_way_bridge_build_stacked` —
-matching `test_way_bridge_build_flat_ground_nw_se`'s focused
-shape) that pin the new policy directly.  Until then, the
-assertion-failure tripwire surfaces height-2-from-flat callers
-honestly.
+`bridge_builder_t::build_bridge` (`brueckenbauer.cc:905`) walks
+each endpoint after the bridge is built and, when the bridgehead's
+way ribi is single, runs a 2-tile `way_builder_t::calc_route` to
+lay a connecting road stub on the kartenboden behind the ramp.
+Under hex, delta-1 narrow ramps still get the stub but delta-2
+planar-double ramps don't — `test_way_bridge_build_stacked`'s
+asymmetric cleanup is the worked example.  Probable cause is that
+`way_builder_t::calc_route` doesn't admit a brueckenboden ramp
+tile with `weg_hang = *_double` as a valid start.  Next move is
+to either teach the planner to start on planar-double ramps, or
+short-circuit the auto-extension for those — a `way_builder` is
+overkill when one flat neighbour is the target, a direct
+`neuen_weg_bauen` would do.
 
 ## Way-object slope-up sprites — still 4 of 6 hex edges
 

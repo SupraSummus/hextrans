@@ -774,6 +774,17 @@ bool bridge_builder_t::is_start_of_bridge( const grund_t *gr )
 }
 
 
+// Way-hang for a bridge ramp climbing in direction `zv` by `delta`
+// z-steps.  Replaces the upstream square-era arithmetic
+// `slope_type(zv) * delta`, which under hex's base-4 corner encoding
+// produces a kinked-cliff shape (no sprite) at delta=2.
+static slope_t::type ramp_for_climb(koord zv, sint8 delta)
+{
+	const slope_t::type narrow = slope_type(zv);
+	return delta == 2 ? slope_t::narrow_to_double(narrow) : narrow;
+}
+
+
 void bridge_builder_t::build_bridge(player_t *player, const koord3d start, const koord3d end, koord zv, sint8 bridge_height, const bridge_desc_t *desc, const way_desc_t *way_desc)
 {
 	ribi_t::ribi ribi = ribi_type(zv);
@@ -785,7 +796,7 @@ void bridge_builder_t::build_bridge(player_t *player, const koord3d start, const
 
 	if(  slope!=slope_t::flat  ||  bridge_height > start.z  ) {
 		// needs a ramp to start on ground
-		build_ramp( player, start, ribi, slope ? 0 : slope_type(zv) * (bridge_height - start.z), desc );
+		build_ramp( player, start, ribi, slope ? 0 : ramp_for_climb(zv, bridge_height - start.z), desc );
 		if(  desc->get_waytype() != powerline_wt  ) {
 			ribi = welt->lookup(start)->get_weg_ribi_unmasked(desc->get_waytype());
 		}
@@ -870,7 +881,7 @@ void bridge_builder_t::build_bridge(player_t *player, const koord3d start, const
 	grund_t* gr = welt->lookup(end);
 	if(bridge_height > end.z) {
 		// ending at different height => needs ramp
-		build_ramp(player, end, ribi_type(-zv), gr->get_weg_hang()?0:slope_type(-zv)*(bridge_height-end.z), desc);
+		build_ramp(player, end, ribi_type(-zv), gr->get_weg_hang() ? 0 : ramp_for_climb(-zv, bridge_height - end.z), desc);
 	}
 	else {
 		// ending on a flat cliff or elevated way
