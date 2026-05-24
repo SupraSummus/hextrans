@@ -561,6 +561,10 @@ cleanly when both layers' corners are at the same height), but
 hasn't been exercised by a concrete trace.  Run one through and
 either confirm or replace with a hex-aware lift; lands alongside
 the first real-gameplay surfacing of city / AI terraforming.
+While here, consider widening the predicate to `is_axis_ramp` —
+shifted-up `*_double` slopes have corner heights up to 3 (still in
+the base-4 encoding) and currently fall through the
+single-only filter into the "leave alone" branch.
 
 ## Renderer port
 

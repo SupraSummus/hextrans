@@ -164,15 +164,13 @@ public:
 		    || corner_w(x) >= 2 || corner_nw(x) >= 2 || corner_ne(x) >= 2;
 	}
 
-	/// Compute the slope on the same axis but with the high and low
-	/// edges swapped (180° hex rotation).  Returns flat if @p x is not
-	/// a way-buildable edge slope.  Narrow → narrow, wide → wide; the
-	/// pre-hex "corner-complement" formula is gone — under the 12-slope
-	/// set it would have flipped narrow ↔ wide on the opposite axis,
-	/// which no caller wants.
+	/// Slope on the same axis with high and low edges swapped (180°
+	/// hex rotation).  Returns flat if @p x is not an axis-aligned
+	/// ramp; otherwise rotate60×3 preserves the height tier — narrow
+	/// → narrow, wide → wide, double → double.
 	static type opposite(type x)
 	{
-		if (!is_axis_slope(x)) return flat;
+		if (!is_axis_ramp(x)) return flat;
 		return rotate60(rotate60(rotate60(x)));
 	}
 
@@ -240,14 +238,12 @@ public:
 		return encode_corners(sw, se, ne, nw);
 	}
 
-	/// Edge slopes that host a way along one direction: 6 genuine hex
-	/// edges (2 adjacent corners raised) and 6 corresponding "wide"
-	/// variants (4 corners raised — same low edge but the 2
-	/// perpendicular side corners are also lifted).  All 12 are
-	/// single-height; double-height edges and square-era diagonals
-	/// (east, west) aren't here.  Other shapes can still host a way
-	/// via the more general chord rule (see `is_way` / `is_way_axis`)
-	/// — this predicate names the canonical axis-aligned ramp slopes.
+	/// Single-height axis-aligned ramps: 6 narrow (2 adjacent corners
+	/// raised) and 6 wide (4 corners — same low edge plus the 2
+	/// perpendicular side corners).  For the union over both heights
+	/// — usually what callers want — see `is_axis_ramp`.  For the
+	/// broader "can a way sit on this slope at all?" admission rule,
+	/// see `is_way`; square-era diagonals (east, west) aren't here.
 	static bool is_axis_slope(type x) {
 		switch (x) {
 			case north_narrow:     case south_narrow:
@@ -260,6 +256,14 @@ public:
 			default:
 				return false;
 		}
+	}
+
+	/// Axis-aligned ramp at any height — union of `is_axis_slope`
+	/// (12 single-height) and `is_planar_double_edge` (6 double).
+	/// Use this unless the height tier matters (plateau chords,
+	/// terraform shifted-up subtraction, sprite-slot keying).
+	static bool is_axis_ramp(type x) {
+		return is_axis_slope(x) || is_planar_double_edge(x);
 	}
 
 	/// Does an axis crossing edges (a0, a1) entering and (b0, b1) exiting
@@ -819,7 +823,7 @@ slope_t::type slope_type(ribi_t::ribi);
 /// `get_slope_image_id` returns `IMG_EMPTY` for those.
 static inline slope_t::type axis_slope_for_image(slope_t::type sl, ribi_t::ribi r)
 {
-	if (slope_t::is_axis_slope(sl) || slope_t::is_planar_double_edge(sl)) {
+	if (slope_t::is_axis_ramp(sl)) {
 		return sl;
 	}
 	uint8 a0, a1, b0, b1;

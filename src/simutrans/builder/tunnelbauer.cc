@@ -359,14 +359,7 @@ const char *tunnel_builder_t::build( player_t *player, koord pos, const tunnel_d
 			return "Tunnel must start on single way!";
 		}
 	}
-	if(  !slope_t::is_axis_slope(slope)  ) {
-		return "Tunnel muss an\neinfachem\nHang beginnen!\n";
-	}
-
-/************************************** FIX ME ***************************************************
-********************** THIS MUST BE RATHER A PROPERTY OF THE TUNNEL IN QUESTION ! ****************/
-	// for conversion factor 1, must be single height, for conversion factor 2, must be double
-	if(  (welt->get_settings().get_way_height_clearance() == 1  &&  !is_one_high(slope))  ||  (welt->get_settings().get_way_height_clearance() == 2  &&  is_one_high(slope))  ) {
+	if(  !slope_t::is_axis_ramp(slope)  ) {
 		return "Tunnel muss an\neinfachem\nHang beginnen!\n";
 	}
 

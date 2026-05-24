@@ -440,3 +440,35 @@ function test_way_tunnel_make_public()
 	lower_hex_tile(public_pl, 4, 3, 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+// A `southeast_double` (NW-axis 2-step ramp) is a valid hex tunnel
+// mouth on the same footing as the narrow / wide variants.  Ctrl-dig
+// builds an isolated single-tile mouth so cleanup is local.
+function test_way_tunnel_build_nw_double_axis_slope()
+{
+	local digger = command_x(tool_build_tunnel)
+	local remover = command_x(tool_remover)
+	local setslope = command_x.set_slope
+	local default_tunnel = tunnel_desc_x.get_available_tunnels(wt_rail)[0]
+	local pl = player_x(0)
+
+	ASSERT_TRUE(default_tunnel != null)
+
+	ASSERT_EQUAL(setslope(pl, coord3d(4, 3, 0), slope.southeast_double), null)
+	ASSERT_EQUAL(tile_x(4, 3, 0).get_slope(), slope.southeast_double)
+
+	digger.set_flags(2)
+	ASSERT_EQUAL(digger.work(pl, tile_x(4, 3, 0), default_tunnel.get_name()), null)
+	ASSERT_TRUE(tile_x(4, 3, 0).find_object(mo_tunnel) != null)
+	digger.set_flags(0)
+
+	ASSERT_EQUAL(remover.work(pl, coord3d(4, 3, 0)), null)
+	ASSERT_TRUE(tile_x(4, 3, 0).find_object(mo_tunnel) == null)
+
+	ASSERT_EQUAL(setslope(pl, coord3d(4, 3, 0), slope.flat), null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
