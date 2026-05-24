@@ -23,9 +23,8 @@ actual hex-pathfinder route reasoned out — the original patterns
 assume 4-bit square-axis paths, and at least for `wt_road` the
 builder routes around the NE-SW axis (no sprite support there yet)
 into a 2-step path through `(q+1, r)`-style intermediate tiles.
-Affected: `test_way_bridge_build_{ground, above_way,
-at_slope, at_slope_stacked, above_runway}`,
-`test_way_road_build_{below_powerline, crossing}`,
+Affected: `test_way_bridge_build_{above_way, at_slope_stacked,
+above_runway}`, `test_way_road_build_{below_powerline, crossing}`,
 `test_way_road_upgrade_{crossing, downgrade_across_bridge}`,
 `test_way_tram_build_{parallel, in_tunel}`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
@@ -177,12 +176,34 @@ get_start switch doesn't cover).  Restore art-presence probes (or
 replace them with explicit per-slot pakset declarations) once Start2
 / Ramp2 art is shipped.
 
-The disabled `test_way_bridge_build_at_slope` (HEX-PORT PENDING)
-asserts `err == ""` (build refused) for its "planar double height
-slope" subcase — that was true under the art-presence policy but is
-not under this one; restoring the test needs to flip that subcase
-to expect `null` and add a `find_object(mo_bridge)` check, the way
-`test_way_bridge_build_at_planar_double_slope` does.
+## Bridge builder height-2 ramp slope arithmetic + stacked-bridge tests
+
+`bridge_builder_t::build_bridge` (`brueckenbauer.cc:788`, :873) computes
+the ramp's way-hang as `slope_type(zv) * (bridge_height - start.z)`.
+Under upstream square the `* 2` produced a valid double-edge slope
+because the base-3 encoding doubled each corner digit cleanly
+(`north == 4`, `north * 2 == 8 == double`).  Under hex base-4 the
+product is kinked — e.g. `northwest_narrow * 2 == 10` decodes to
+(E=2, SE=2, rest=0), a 2-unit jump between adjacent corners — and
+`bridge_desc_t::get_ramp` returns `img_t_count`, tripping the
+`bruecke_t` constructor assertion.  Path: any `build_bridge` that
+picks `bridge_height = start.z + 2` from flat ground.  Mechanical
+fix is `slope_t::narrow_to_double(slope_type(zv))` for the
+delta-2 case.
+
+The arithmetic fix on its own shifts behaviour rather than
+restoring it: under the art-permissive double-height policy (see
+"Bridge double-height policy"), the three "should fail" subcases
+of `test_way_bridge_build_ground` (build over bridgehead, slope
+under bridge, bridge crossing) now find clearance at height 2 and
+build a stacked bridge that the square-era test had no reason to
+expect.  Restoration is therefore a two-step job: land the
+arithmetic fix and replace those subcases with stacked-bridge
+assertions (or a sibling `test_way_bridge_build_stacked` —
+matching `test_way_bridge_build_flat_ground_nw_se`'s focused
+shape) that pin the new policy directly.  Until then, the
+assertion-failure tripwire surfaces height-2-from-flat callers
+honestly.
 
 ## Way-object slope-up sprites — still 4 of 6 hex edges
 

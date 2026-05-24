@@ -204,8 +204,8 @@ all_tests <- [
 	test_trees_plant_single_max_per_square,
 	test_trees_plant_single_occupied,
 	test_trees_plant_forest,
-	// test_way_bridge_build_ground: HEX-PORT PENDING.
-	// test_way_bridge_build_at_slope: HEX-PORT PENDING.
+	test_way_bridge_build_ground,
+	test_way_bridge_build_at_slope,
 	// test_way_bridge_build_at_slope_stacked: HEX-PORT PENDING.
 	// test_way_bridge_build_above_way: HEX-PORT PENDING.
 	// test_way_bridge_build_above_runway: HEX-PORT PENDING.
