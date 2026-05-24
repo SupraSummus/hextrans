@@ -50,19 +50,11 @@ the world.  `tool_load_scenario_t` fires from
 `tool_work_world_t` covers new map / load / save through a single
 tool, dispatching on `default_param[0]`: `'n'` (new map from
 `welt_gui_t`'s Start button, reading `env_t::default_settings`),
-`'l<easy>,<filename>'` (load via `loadsave_frame_t`'s Load button
-or in the network-join path), and `'s<filename>'` (save via
-`loadsave_frame_t`).
-
-## Residual outlier
-
-`server_frame_t::action_triggered` (`gui/server_frame.cc:519,528`)
-calls `welt->load("net:...")` inline when the player joins a
-multiplayer server.  Same hazard, same fix shape — route through
-`tool_work_world_t` with `default_param = "l0net:..."` (the "net:"
-prefix is already handled inside `welt->load`).  Lands when
-somebody touches the multiplayer join path next; gated on nothing
-else.
+`'l<easy><filename>'` (load via `loadsave_frame_t`'s Load button,
+or the multiplayer-join path with a `net:`-prefixed filename from
+`server_frame_t`), and `'s<filename>'` (save via
+`loadsave_frame_t`).  The 'l' branch sets `type_of_generation` to
+`CLIENT_WORLD` for `net:` filenames and `LOADED_WORLD` otherwise.
 
 ## Why a tool and not an ad-hoc deferral flag
 
