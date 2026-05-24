@@ -896,15 +896,3 @@ in `documentation/libcurl-port.md` (relative-redirect dropout,
 `:80`-double-append, mis-tagged error string) remain present in
 the legacy branch — fixing them there is wasted work ahead of
 retirement.
-
-## World-mutation deferral residual
-
-`server_frame_t::action_triggered` (`gui/server_frame.cc:519,528`)
-still calls `welt->load("net:...")` synchronously from the
-multiplayer-browser Join handler — the one residual world-mutation
-call site that hasn't been routed through `tool_work_world_t`
-(which covers welt_gui's Start, loadsave_frame's Load and Save).
-Next move: fire `TOOL_WORK_WORLD` with `default_param =
-"l0net:..."` (the `welt->load` "net:" prefix is already handled
-internally).  Ground truth is
-`documentation/world-mutation-deferral.md`.

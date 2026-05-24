@@ -419,7 +419,7 @@ Longer-form design and planning docs live under `documentation/`:
     can't synchronously call `welt->init()` / `welt->load()` /
     `karte_t::destroy()` (event dispatch nests inside
     `karte_t::step`), and the `tool_t` dispatch path that fixes
-    it.  Live coverage + one residual outlier still to migrate.
+    it.  Describes live behaviour.
 
 ## Upstream documentation pointers
 
