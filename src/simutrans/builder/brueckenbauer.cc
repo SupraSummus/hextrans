@@ -346,7 +346,7 @@ bool bridge_builder_t::is_monorail_junction(koord3d pos, player_t *player, const
  */
 static bool is_bridge_start_slope(slope_t::type sl)
 {
-	return slope_t::is_way(sl) || slope_t::is_planar_double_edge(sl);
+	return slope_t::is_way(sl);
 }
 
 const char* bridge_builder_t::check_start_tile(const player_t* player, const grund_t* gr, ribi_t::ribi bridge_ribi, const bridge_desc_t* desc)

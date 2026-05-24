@@ -432,7 +432,7 @@ way_image_slot_t weg_t::pick_image_slot() const
 		// renders blank for these stubs, the same way a missing flat
 		// ribi cell does, until the pakset ships matching sprites.
 		if (ribi_t::is_single(ribi)
-			&& (slope_t::is_axis_slope(img_slope) || slope_t::is_planar_double_edge(img_slope))) {
+			&& slope_t::is_axis_ramp(img_slope)) {
 			const sint8 edge_h = slope_level_edge_h(hang, ribi);
 			if (edge_h >= 0) {
 				const bool high_half = (edge_h == (sint8)slope_t::max_diff(img_slope));

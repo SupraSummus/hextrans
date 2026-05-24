@@ -253,6 +253,7 @@ all_tests <- [
 	// test_way_tunnel_build_above_tunnel_slope: HEX-PORT PENDING.
 	// test_way_tunnel_build_across_tunnel_slope: HEX-PORT PENDING.
 	test_way_tunnel_make_public,
+	test_way_tunnel_build_nw_double_axis_slope,
 	test_wayobj_build_straight,
 	test_wayobj_build_disconnected,
 	test_wayobj_upgrade_downgrade,
