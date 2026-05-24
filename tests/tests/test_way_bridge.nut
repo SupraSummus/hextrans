@@ -10,8 +10,10 @@
 
 
 // Flat-ground N-S-axis bridge: build (3,5,0)→(3,2,0), verify, remove.
-// Three square-era "should fail" subcases on overlap/clearance dropped
-// — see TODO.md → "Bridge builder height-2 ramp slope arithmetic".
+// The three square-era "should fail" subcases (build over bridgehead,
+// slope under bridge, bridge crossing) now build a stacked bridge
+// under hex's art-permissive double-height policy; see
+// `test_way_bridge_build_stacked` for the pinned behaviour.
 function test_way_bridge_build_ground()
 {
 	local pl          = player_x(0)
@@ -344,6 +346,39 @@ function test_way_bridge_build_at_slope_stacked()
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.all_down_slope), null)
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.all_down_slope), null)
 
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// Stacked bridge crossing: lay a lower N-S bridge from flat ground
+// with span at z=1, then build a crossing NW-SE bridge from flat
+// ground.  The crossing must clear the lower bridge: h=0 fails (flat
+// kartenboden at z=0 under the crossing's middle tile) and h=1 fails
+// (lower bridge span at z=1), so the picker selects h=2 and the
+// crossing ramps go delta-2 from flat ground at both ends.  Pins the
+// `narrow_to_double` ramp arithmetic; the prior `slope_type(zv) * 2`
+// produced a kinked-cliff slope with no sprite and tripped the
+// `bruecke_t` constructor assertion.
+function test_way_bridge_build_stacked()
+{
+	local pl = player_x(0)
+	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
+	ASSERT_TRUE(bridge_desc != null)
+
+	// Lower N-S bridge, span at z=1.
+	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(3, 2, 0), coord3d(3, 5, 0), bridge_desc), null)
+
+	// Crossing NW-SE bridge from flat ground; span lands at z=2 over the lower bridge.
+	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(2, 3, 0), coord3d(4, 3, 0), bridge_desc), null)
+	ASSERT_TRUE(tile_x(3, 3, 2).find_object(mo_bridge) != null)
+
+	// Cleanup is asymmetric: the lower bridge's delta-1 ramps trigger
+	// the auto-extension at brueckenbauer.cc:905 (road stubs at
+	// (3,1,0)/(3,6,0)), the crossing's delta-2 ramps don't (see
+	// TODO.md → "build_bridge auto-extension misses delta-2 ramps").
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 3, 0)), null)
+	local remover = command_x(tool_remove_way)
+	ASSERT_EQUAL(remover.work(pl, coord3d(3, 1, 0), coord3d(3, 6, 0), "" + wt_road), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
