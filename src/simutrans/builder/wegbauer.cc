@@ -913,8 +913,21 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 			// if no way there: check for right ground type, otherwise check owner
 			ok = sch==NULL  ?  (!fundament  &&  !to->is_water())  :  check_owner(sch->get_owner(),player_builder);
 			if(ok) {
-				// calculate costs
-				*costs += sch ? s.way_count_straight : s.way_count_no_way;
+				// Hex 1-step NE/SW diagonals make the unconditional
+				// cheap-reuse pull builds onto adjacent parallel rows.
+				// Mirror schiene's prefer_parallel branch to keep
+				// parallel-shaped chords straight.
+				if (!sch  &&  prefer_parallel) {
+					if (has_neighbour_with_way(from->get_pos(), track_wt)) {
+						*costs = s.way_count_straight;
+					}
+					else {
+						*costs = s.way_count_no_way;
+					}
+				}
+				else {
+					*costs += sch ? s.way_count_straight : s.way_count_no_way;
+				}
 				// prefer own track a little more
 				if(to->hat_weg(road_wt)) {
 					*costs += s.way_count_straight;

@@ -51,9 +51,14 @@ function test_terraform_raise_lower_land_at_map_border()
 	ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(0, 0, 1)), null)
 	ASSERT_EQUAL(command_x.grid_lower(player_x(0), coord3d(0, 0, 1)), null)
 
-	// clean up
+	// clean up.  The deep raise/lower above lifts (0, 0) onto a base
+	// with 4 of 6 corners at relative h=1; trailing W- and NE-corner
+	// raises bring the remaining 2 up too, leaving the tile flat.
 	ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(0, 0, 0)), null)
 	ASSERT_EQUAL(command_x.grid_raise(player_x(0), coord3d(0, 0, 0)), null)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(player_x(0), coord3d(0, 0, 0), hex_corner.W),  null)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(player_x(0), coord3d(0, 0, 0), hex_corner.NE), null)
+	ASSERT_EQUAL(tile_x(0, 0, 0).get_slope(), slope.flat)
 
 	RESET_ALL_PLAYER_FUNDS()
 }

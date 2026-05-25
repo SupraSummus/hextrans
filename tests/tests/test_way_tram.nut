@@ -24,81 +24,43 @@ function test_way_tram_build_flat()
 }
 
 
-// test_way_tram_build_parallel: HEX-PORT PENDING.
 function test_way_tram_build_parallel()
 {
 	local pl   = player_x(0)
 	local rail_desc = way_desc_x.get_available_ways(wt_rail, st_tram)[0]
 	local remover = command_x(tool_remove_way)
 
-	{
+	local straight_se = [
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+		[1, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8],
+	]
+
+	// Same straight-chord pattern with and without ctrl: ctrl forces it
+	// trivially, ctrl-free relies on prefer_parallel in `schiene_tram`.
+	foreach (straight in [true, false]) {
 		for (local i = 0; i < 16; ++i) {
-			ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, i, 0), coord3d(15, i, 0), rail_desc, true), null)
+			ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, i, 0), coord3d(15, i, 0), rail_desc, straight), null)
 		}
-
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8",
-				"2AAAAAAAAAAAAAA8"
-			])
-
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), straight_se)
 		for (local i = 0; i < 16; ++i) {
 			ASSERT_EQUAL(remover.work(pl, coord3d(0, i, 0), coord3d(15, i, 0), "" + wt_rail), null)
 		}
+		RESET_ALL_PLAYER_FUNDS()
 	}
-
-	RESET_ALL_PLAYER_FUNDS()
-
-	{
-		for (local i = 0; i < 16; ++i) {
-			ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, i, 0), coord3d(15, i, 0), rail_desc, false), null)
-		}
-
-		// FIXME this is different from the road pattern (which is all straight roads even without ctrl)
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"6EEAAAAAAAAAAAE8",
-				"7B9...........3C",
-				"5..............5",
-				"5..............5",
-				"5..............5",
-				"5..............5",
-				"5..............5",
-				"5..............5",
-				"5..............5",
-				"1..............1",
-				"6EEAAAAAAAAAAAE8",
-				"7B9...........3C",
-				"5..............5",
-				"5..............5",
-				"5..............5",
-				"1..............1"
-			])
-
-		ASSERT_EQUAL(remover.work(pl, coord3d(0, 9, 0), coord3d(15, 9, 0), "" + wt_rail), null)
-		ASSERT_EQUAL(remover.work(pl, coord3d(0, 15, 0), coord3d(15, 15, 0), "" + wt_rail), null)
-		for (local i = 0; i < 15; i = i + 10) {
-			ASSERT_EQUAL(remover.work(pl, coord3d(1, i, 0), coord3d(0, 1+i, 0), "" + wt_rail), null)
-			ASSERT_EQUAL(remover.work(pl, coord3d(1, i+1, 0), coord3d(2, i, 0), "" + wt_rail), null)
-			ASSERT_EQUAL(remover.work(pl, coord3d(14, i, 0), coord3d(15, i, 0), "" + wt_rail), null)
-		}
-	}
-
-	RESET_ALL_PLAYER_FUNDS()
 }
 
 

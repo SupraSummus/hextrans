@@ -46,7 +46,7 @@ all_tests <- [
 	test_building_build_house_invalid_desc,
 	test_building_build_house_auto_rotation_attraction,
 	test_building_build_house_auto_rotation_citybuilding,
-	// test_building_build_multi_tile_sloped: HEX-PORT PENDING.
+	test_building_build_multi_tile_sloped,
 	test_building_buy_house_invalid_param,
 	test_building_buy_house_from_public_player,
 	test_building_buy_house_attraction,
@@ -244,7 +244,7 @@ all_tests <- [
 	// test_way_runway_build_tw_flat: HEX-PORT PENDING.
 	// test_way_runway_build_mixed_flat: HEX-PORT PENDING.
 	test_way_tram_build_flat,
-	// test_way_tram_build_parallel: HEX-PORT PENDING.
+	test_way_tram_build_parallel,
 	test_way_tram_build_on_road,
 	test_way_tram_build_across_road_bridge,
 	test_way_tram_build_across_crossing,

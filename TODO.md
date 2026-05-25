@@ -25,7 +25,7 @@ builder routes around the NE-SW axis (no sprite support there yet)
 into a 2-step path through `(q+1, r)`-style intermediate tiles.
 Affected: `test_way_road_build_{below_powerline, crossing}`,
 `test_way_road_upgrade_crossing`,
-`test_way_tram_build_{parallel, in_tunel}`, and the two
+`test_way_tram_build_in_tunel`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
 Several crossing cases additionally need a hex-axis pair to replace
 the square-perpendicular setup.  Patterns must be rewritten as
@@ -93,18 +93,6 @@ _cube` use square-coordinate rect/cube selection regions to verify
 scenario rule coverage.  Under hex the region shapes are different;
 restore after the region-selection tools are hex-aware.
 
-**Per-vertex grid topology.**
-`test_building_build_multi_tile_sloped` depends on 4-way vertex
-sharing (hex shares 3 per vertex).  With the terraformer now
-hex-correct, `grid_raise` propagates to the 3 hex-vertex owners
-rather than 4 square-vertex owners, so the test's specific
-assertions (4 tiles with 4 specific slopes each) no longer hold.
-Per-test coord rewrite, not a deeper engine fix — the invariant
-("raising a vertex affects the tiles sharing it") survives, but
-the test body bakes in square arithmetic throughout.  See
-`test_terraform_raise_lower_land_at_water_{corner, edge}` for the
-worked examples of the same migration shape.
-
 **Flood-fill / region walkers.**
 `tool_change_water_height_t` in `simtool.cc` is hex-aware (6-neighbour
 flood, shared-edge corner heights on the *current* tile per
@@ -127,6 +115,20 @@ the first scenario test that exercises AI / city-shape
 terraforming — including a regression test for the
 `check_terraforming` widening + corner-index fixes that currently
 have no end-to-end coverage.
+
+## `is_allowed_step` prefer_parallel branches near-duplicated
+
+`strasse`, `schiene`, and `schiene_tram` in `wegbauer.cc::is_allowed_step`
+now carry three near-identical prefer_parallel cost branches (the
+last added on the hex 1-step diagonal motivation).  All three follow
+the same shape: cheap if `has_neighbour_with_way(from, wt)`, otherwise
+`way_count_no_way`, with a fall-through `way_count_straight` /
+`way_count_no_way` when prefer_parallel is off.  Extract a helper
+`prefer_parallel_cost(from, wt)` and drop the upstream dead branch
+(`if (to->get_weg(wt))` inside `if (!sch && ...)` is unreachable —
+`!sch` already excluded it).  Refactor, not a behaviour change;
+defer until the next time any of these branches needs a real
+edit.
 
 ## build_way refuses upgrade-across-bridge under hex
 
