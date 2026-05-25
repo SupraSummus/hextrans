@@ -230,8 +230,8 @@ all_tests <- [
 	test_way_road_build_parallel,
 	test_way_road_build_parallel_routefinder,
 	// test_way_road_build_below_powerline: HEX-PORT PENDING.
-	// test_way_road_build_crossing: HEX-PORT PENDING.
-	// test_way_road_upgrade_crossing: HEX-PORT PENDING.
+	test_way_road_build_crossing,
+	test_way_road_upgrade_crossing,
 	test_way_road_upgrade_downgrade,
 	// test_way_road_upgrade_downgrade_across_bridge: HEX-PORT PENDING.
 	test_way_road_cityroad_build,
