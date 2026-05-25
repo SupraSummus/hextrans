@@ -23,21 +23,24 @@ actual hex-pathfinder route reasoned out — the original patterns
 assume 4-bit square-axis paths, and at least for `wt_road` the
 builder routes around the NE-SW axis (no sprite support there yet)
 into a 2-step path through `(q+1, r)`-style intermediate tiles.
-Affected: `test_way_road_build_{below_powerline, crossing}`,
-`test_way_road_upgrade_crossing`,
+Affected: `test_way_road_build_below_powerline`,
 `test_way_tram_build_in_tunel`, and the two
 `test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
-Several crossing cases additionally need a hex-axis pair to replace
-the square-perpendicular setup.  Patterns must be rewritten as
+`test_way_road_build_below_powerline` additionally bakes in a
+`(0,0)→(7,7)` diagonal powerline build with `straight=true` — the
+endpoints aren't on a common hex axis, so the build fails outright;
+needs the diagonal subcase reshaped onto a real hex axis (or split
+out into a separate test).  Patterns must be rewritten as
 array-of-ints; `ASSERT_WAY_PATTERN` tripwires on string rows because
 Squirrel indexes `row[x]` to ASCII codes (so the legacy `"..5....."`
 shorthand silently produced wrong expected values), and 6-bit hex
 ribis don't fit a single digit besides.  Restored sites
-(`test_way_road_build_{straight, parallel}`,
-`test_way_road_upgrade_downgrade`, `test_way_tram_build_on_road`,
-`test_way_road_cityroad_*`, `test_way_tunnel_build_{straight, up_down,
-make_public}`) are the worked examples; the tunnel ones additionally
-demonstrate the 6-vertex hex-hill scaffold described in
+(`test_way_road_build_{straight, parallel, crossing}`,
+`test_way_road_upgrade_{downgrade, crossing}`,
+`test_way_tram_build_on_road`, `test_way_road_cityroad_*`,
+`test_way_tunnel_build_{straight, up_down, make_public}`) are the
+worked examples; the tunnel ones additionally demonstrate the
+6-vertex hex-hill scaffold described in
 "Hill-with-sloped-neighbours test setup" below.
 
 **Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner

@@ -664,7 +664,6 @@ function test_way_road_build_below_powerline()
 }
 
 
-// test_way_road_build_crossing: HEX-PORT PENDING.
 function test_way_road_build_crossing()
 {
 	local pl = player_x(0)
@@ -674,65 +673,58 @@ function test_way_road_build_crossing()
 	local slow_road = way_desc_x("dirt_road")
 	local fast_road = way_desc_x("asphalt_road")
 
+	// Rail at column x=3, y=1..3 along the S axis: S=2, N|S=18, N=16.
+	local rail_col = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  2, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 16, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
+	local empty_8x8 = [
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
+
 	// road too fast, cannot build crossing
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 3, 0), rail, true), null)
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(4, 2, 0), fast_road, true), translate("No suitable crossing"))
 
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"........",
-				"...4....",
-				"...5....",
-				"...1....",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), rail_col)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
 
 		ASSERT_FALSE(way_x(3, 2, 0).is_crossing())
 		ASSERT_FALSE(tile_x(3, 2, 0).has_two_ways())
 	}
 
-	// road slow enough for crossing -> works
+	// road slow enough for crossing -> works.  S × SE is a 60° hex
+	// crossing pair (replacing the square N-S × E-W setup).
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(4, 2, 0), slow_road, true), null)
 
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"........",
-				"...4....",
-				"...5....",
-				"...1....",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), rail_col)
 
+		// Road row at y=2, x=2..4 along the SE axis: SE=1, SE|NW=9, NW=8.
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"..2A8...",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 1, 9, 8, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 
 		ASSERT_TRUE(way_x(3, 2, 0).is_crossing())
@@ -749,7 +741,6 @@ function test_way_road_build_crossing()
 }
 
 
-// test_way_road_upgrade_crossing: HEX-PORT PENDING.
 function test_way_road_upgrade_crossing()
 {
 	local pl = player_x(0)
@@ -766,32 +757,35 @@ function test_way_road_upgrade_crossing()
 	local crossing_road_speed = 80
 	local crossing_rail_speed = 160
 
-	// upgrade road past max crossing speed; works, but road crossing speed is limited
+	// upgrade road past max crossing speed; works, but road crossing speed is limited.
+	// S × SE is a 60° hex crossing pair (replacing the square N-S × E-W setup).
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(4, 2, 0), fast_road, true), null)
 
+		// Rail column at x=3, y=1..3 along the S axis: S=2, N|S=18, N=16.
 		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
 			[
-				"........",
-				"...4....",
-				"...5....",
-				"...1....",
-				"........",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  2, 0, 0, 0, 0],
+				[0, 0, 0, 18, 0, 0, 0, 0],
+				[0, 0, 0, 16, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
 			])
 
+		// Road row at y=2, x=2..4 along the SE axis: SE=1, SE|NW=9, NW=8.
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"..2A8...",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 1, 9, 8, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 
 		ASSERT_TRUE(way_x(3, 2, 0).is_crossing())
