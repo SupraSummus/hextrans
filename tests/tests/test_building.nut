@@ -211,7 +211,6 @@ function test_building_build_house_auto_rotation_citybuilding()
 }
 
 
-// test_building_build_multi_tile_sloped: HEX-PORT PENDING.
 function test_building_build_multi_tile_sloped()
 {
 	local public_pl = player_x(1)
@@ -220,6 +219,8 @@ function test_building_build_multi_tile_sloped()
 
 	local building_desc = building_desc_x("STADIUM2") // 3x2 size
 
+	// NW vertex of (4, 2) is shared by 3 hex tiles, all inside the
+	// rotation-1 stadium footprint at (3, 1).
 	ASSERT_EQUAL(command_x.grid_raise(public_pl, coord3d(4, 2, 0)), null)
 
 	// add the required city
@@ -229,10 +230,12 @@ function test_building_build_multi_tile_sloped()
 		ASSERT_EQUAL(builder.work(public_pl, coord3d(3, 1, 0), "11" + building_desc.get_name()), null)
 		ASSERT_EQUAL(remover.work(public_pl, coord3d(3, 1, 0)), null)
 
-		ASSERT_EQUAL(tile_x(3, 1, 0).get_slope(), slope.raised_SE)
-		ASSERT_EQUAL(tile_x(4, 1, 0).get_slope(), slope.raised_SW)
-		ASSERT_EQUAL(tile_x(3, 2, 0).get_slope(), slope.raised_NE)
 		ASSERT_EQUAL(tile_x(4, 2, 0).get_slope(), slope.raised_NW)
+		ASSERT_EQUAL(tile_x(3, 2, 0).get_slope(), slope.raised_E)
+		ASSERT_EQUAL(tile_x(4, 1, 0).get_slope(), slope.raised_SW)
+		ASSERT_EQUAL(tile_x(3, 1, 0).get_slope(), slope.flat)
+		ASSERT_EQUAL(tile_x(4, 3, 0).get_slope(), slope.flat)
+		ASSERT_EQUAL(tile_x(3, 3, 0).get_slope(), slope.flat)
 	}
 
 	ASSERT_EQUAL(command_x.grid_lower(public_pl, coord3d(4, 2, 1)), null)
