@@ -856,32 +856,6 @@ diamond using 4 of 6 hex edges, which compiles and produces
 something playable but is not a real hex airport.  Lands together
 with the other items here when crossroads design lands.
 
-## Wire-parser hardening
-
-Wire-parser fuzzer finds an unbounded-allocation loop on the
-`nwc_service_t` SRVC_GET_CLIENT_LIST loading path (nettool /
-client direction).  `socket_list_t::rdwr`
-(`network_socket_list.cc:413`) reads a `uint32 count` from the
-wire and runs `count` iterations of `new socket_info_t()`, with
-no per-packet upper bound.  Each allocation also leaks because
-`nwc_service_t::~nwc_service_t` deletes the
-`vector_tpl<socket_info_t*>` container but not the contained
-pointers — `vector_tpl<T*>::~vector_tpl` is just `delete[] data`
-(`tpl/vector_tpl.h:51`).  `address_list_t::rdwr`
-(`network_address.cc:56`) has the same unbounded-loop shape but
-stores `net_address_t` by value, so it only OOMs without leaking.
-The adversary is the trusted side of a nettool↔server channel, so
-this is a hardening item rather than an external-attack vuln, but
-the fix is small: cap the wire-supplied `count` against
-`(MAX_PACKET_LEN - HEADER_SIZE) / <minimum on-wire entry size>` —
-above that the bytes can't actually be on the packet anyway — and
-either switch `socket_info` to `vector_tpl<socket_info_t>` (by
-value) or have `nwc_service_t::~nwc_service_t` free pointed-to
-elements before deleting the vector.  Reproduce by running the
-`fuzz_network` harness (`src/fuzz/fuzz_network.cc`) under the
-default sanitizer config; the OOM-shaped variant is the cheapest
-path for libFuzzer to find and surfaces within seconds.
-
 ## libcurl rollback gate retirement
 
 Legacy in-house HTTP socket code in `network_file_transfer.cc`
