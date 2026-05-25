@@ -2543,6 +2543,7 @@ const char *tool_plant_groundobj_t::work( player_t *player, koord3d pos )
  * the following routines add waypoints/halts to a schedule
  * because we do not like to stop at AIs stop, but we still want to force the truck to use AI roads
  * So if there is a halt, then it must be either public or ours!
+ * (Except if permission has been explicitely granted.)
  */
 static const char *tool_schedule_insert_aux(karte_t *welt, player_t *player, koord3d pos, schedule_t *schedule, bool append)
 {
@@ -2574,7 +2575,7 @@ static const char *tool_schedule_insert_aux(karte_t *welt, player_t *player, koo
 				return "Das Feld gehoert\neinem anderen Spieler\n";
 			}
 		}
-		if(  bd->is_halt()  &&  !player_t::check_owner( player, bd->get_halt()->get_owner()) ) {
+		if(  bd->is_halt()  &&  !bd->get_halt()->can_use_halt(player)) {
 			return "Das Feld gehoert\neinem anderen Spieler\n";
 		}
 		// ok, now we have a valid ground
@@ -6680,7 +6681,7 @@ uint8 tool_stop_mover_t::is_valid_pos(  player_t *player, const koord3d &pos, co
 	}
 	// check halt ownership
 	halthandle_t h = haltestelle_t::get_halt(pos,player);
-	if(  h.is_bound()  &&  !player_t::check_owner( player, h->get_owner() )  ) {
+	if(  bd->is_halt()  &&  !h.is_bound()  ) {
 		error = "Das Feld gehoert\neinem anderen Spieler\n";
 		return 0;
 	}
@@ -6805,14 +6806,6 @@ const char *tool_stop_mover_t::do_work( player_t *player, const koord3d &last_po
 						}
 						if(updated) {
 							schedule->make_valid();
-							// remove lineless convoy from old stop
-							if(  last_halt.is_bound()  ) {
-								last_halt->remove_convoy(cnv);
-							}
-							// register lineless convoy at new stop
-							if(  new_halt.is_bound()  ) {
-								new_halt->add_convoy(cnv);
-							}
 							if(  !schedule->is_editing_finished()  ) {
 								// schedule is not owned by schedule window ...
 								// ... thus we can set this schedule
@@ -6842,17 +6835,24 @@ const char *tool_stop_mover_t::do_work( player_t *player, const koord3d &last_po
 					// update line
 					if(updated) {
 						schedule->make_valid();
-						// remove line from old stop is needed at here
-						if(last_halt.is_bound()) {
-							last_halt->remove_line(line);
-						}
-						player->simlinemgmt.update_line(line);
 					}
 				}
 			}
 		}
-		// since factory connections may have changed
-		welt->set_schedule_counter();
+		if (new_halt != last_halt) {
+			// we handle it here to properly remove stale freight which could otherwise linger and cause wrong routing
+			bool changed = false;
+			if (last_halt.is_bound()) {
+				changed = last_halt->rebuilt_schedule_registration(true, false);
+			}
+			if (new_halt.is_bound()) {
+				changed |= new_halt->rebuilt_schedule_registration(false, true);
+			}
+			if (changed) {
+				// needs rerouting as something was newly assigned/removed
+				welt->set_schedule_counter();
+			}
+		}
 	}
 	return NULL;
 }
@@ -6935,7 +6935,7 @@ const char *tool_make_stop_public_t::move( player_t *player, uint16, koord3d p )
 const char *tool_make_stop_public_t::work( player_t *player, koord3d p )
 {
 	// target halt must exist
-	halthandle_t halt = haltestelle_t::get_halt(p,player);
+	halthandle_t halt = haltestelle_t::get_halt(p,player,false);
 	if (!halt.is_bound() && player == welt->get_public_player()) {
 		// public player can make halts of other players public
 		grund_t *gr = welt->lookup(p);
@@ -7096,7 +7096,7 @@ uint8 tool_merge_stop_t::is_valid_pos( player_t *player, const koord3d &pos, con
 	}
 
 	// check halt ownership
-	halthandle_t h = haltestelle_t::get_halt(pos,player);
+	halthandle_t h = haltestelle_t::get_halt(pos,player,false);
 	if(  h.is_bound()  ) {
 		//  allow to merge two public stops too
 		// so no need to check for ownership
@@ -7115,8 +7115,8 @@ uint8 tool_merge_stop_t::is_valid_pos( player_t *player, const koord3d &pos, con
 void tool_merge_stop_t::mark_tiles( player_t *player, const koord3d &start, const koord3d &end )
 {
 	// only seens when dragging
-	halt_be_merged_from = haltestelle_t::get_halt(start,player);
-	halt_be_merged_to = haltestelle_t::get_halt(end,player);
+	halt_be_merged_from = haltestelle_t::get_halt(start,player,false);
+	halt_be_merged_to = haltestelle_t::get_halt(end,player,false);
 	sint64 workcost = 0;
 	uint32 distance = 0x7FFFFFFFu;
 
@@ -7158,8 +7158,8 @@ void tool_merge_stop_t::mark_tiles( player_t *player, const koord3d &start, cons
 
 const char *tool_merge_stop_t::do_work( player_t *player, const koord3d &last_pos, const koord3d &pos)
 {
-	halt_be_merged_from = haltestelle_t::get_halt(pos,player);
-	halt_be_merged_to = haltestelle_t::get_halt(last_pos,player);
+	halt_be_merged_from = haltestelle_t::get_halt(pos,player,false);
+	halt_be_merged_to = haltestelle_t::get_halt(last_pos,player,false);
 	sint64 workcost = 0;
 	uint32 distance = 0x7FFFFFFFu;
 
@@ -8740,6 +8740,24 @@ bool tool_rename_t::init(player_t *player)
 	}
 	// we are only getting here, if we could not process this request
 	dbg->warning( "tool_rename_t::init", "could not perform (%s)", default_param );
+	return false;
+}
+
+
+bool tool_change_permission_t::init(player_t *player)
+{
+	uint16 id = 0, perms = 0;
+	const char *p = default_param;
+
+	id = atoi(p);
+	while(  *p>0  &&  *p++!=','  );
+	perms = atoi(p);
+
+	halthandle_t halt;
+	halt.set_id(id);
+	if(  halt.is_bound()  &&  player_t::check_owner(halt->get_owner(), player)  ) {
+		halt->set_permissions(perms);
+	}
 	return false;
 }
 

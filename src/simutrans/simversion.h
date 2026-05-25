@@ -37,7 +37,7 @@
 #define SAVE_VERSION_HEX_TRAFFICLIGHT_3AXIS_MINOR 901
 // NOTE: increment before next release to enable save/load of new features
 
-#define MAKEOBJ_VERSION "60.10"
+#define MAKEOBJ_VERSION "60.11"
 
 #ifndef QUOTEME
 #	define QUOTEME_(x) #x
