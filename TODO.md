@@ -116,19 +116,6 @@ of 6R cells at axial distance R from the centre) replaces the 4-side
 square ring, and the per-subcase coord and flood-pattern assertions
 get rewritten.
 
-**Hill-with-sloped-neighbours test setup.**
-`test_powerline_build_underground_transformer_on_powerline` holds
-the underground-tunnel subcase that used to live inside
-`test_powerline_build_transformer`; restore by switching its
-4-corner 2x2 scaffold to `raise_hex_tile{,_pair_S}` from
-`test_helpers.nut` (worked examples: `test_way_tunnel_make_public`
-for a 1-tile hill, `test_way_tunnel_build_up_down` for the S-pair).
-The square-era scaffold raises only 3 of 6 vertices on the centre
-tile under hex's 3-way vertex sharing and misses the hex-only
-neighbour edges; the hex helpers raise all 6 vertices directly so
-the surrounding 6 hex neighbours pick up clean 2-corner edge slopes
-for free.
-
 **Missing `terraform=` in `command_x.build_way`.**
 `command_x.build_way` in the Squirrel API has no `terraform=` flag,
 so the `terraform_flag` paths in `way_builder_t` (set by city / AI
