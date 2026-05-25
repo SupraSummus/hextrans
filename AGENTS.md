@@ -355,6 +355,16 @@ surrounding tiles (which inherit edge slopes for free).
 does not produce a flat hex tile — it hits only 4 of the 6 vertices,
 leaving an alternating-corner slope.
 
+When the test wants an edge-narrow slope on a single tile (e.g. for
+a tunnel mouth or bridge ramp) without lifting the whole tile,
+`grid_lower` / `grid_lower_at_corner` the 2 corners of the chosen
+edge directly — the tile then carries an `<edge>_narrow` slope at
+base z-1 with the chosen edge low.  Each lowered corner is shared
+with 2 other tiles, so this only works when those neighbours aren't
+blocked by buildings.  `test_powerline_build_underground_transformer_on_powerline`
+is the worked example (SE edge of (3,2) lowered for a NW-facing
+mouth that tunnels under an adjacent mine tile).
+
 `way_desc_t::has_double_slopes()` reads an explicit `has_double_slopes=`
 .dat key (way_desc save version 9); paksets opt each way in or out
 independently of which slope sprites they ship.  Pak64 doesn't set it,

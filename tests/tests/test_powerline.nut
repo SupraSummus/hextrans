@@ -287,15 +287,13 @@ function test_powerline_build_transformer()
 }
 
 
-// test_powerline_build_underground_transformer_on_powerline: HEX-PORT PENDING.
+// Underground transformer placement requires the factory directly
+// above (tool_transformer_t::work), so the buried powerline must
+// land inside the mine footprint at (2,2,-1).  Mine tiles can't be
+// terraformed; the slope is built on (3,2) instead and the tunnel
+// runs NW under (2,2) to the assertion point.
 function test_powerline_build_underground_transformer_on_powerline()
 {
-	// Tile-occupancy invariant: a transformer cannot be built on an
-	// existing underground powerline ("Tile not empty.").  Setup digs a
-	// power tunnel after lowering 2 grid points, which under hex's
-	// 3-way vertex sharing produces a different terrain shape than
-	// upstream square — see "Hill-with-sloped-neighbours test setup"
-	// in TODO.md.
 	local pl = player_x(0)
 	local public_pl = player_x(1)
 	local build_trafo = command_x(tool_build_transformer)
@@ -307,27 +305,26 @@ function test_powerline_build_underground_transformer_on_powerline()
 	ASSERT_EQUAL(build_factory(public_pl, coord3d(0, 0, 0), 1, 1, 1024, "Kohlegrube"), null)
 	ASSERT_EQUAL(build_factory(public_pl, coord3d(6, 6, 0), 1, 1, 1024, "Kohlekraftwerk"), null)
 
-	local digger = command_x(tool_build_tunnel)
-	digger.set_flags(2) # Ctrl
-
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 4, 0)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(3, 4, 0)), null)
+	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 2, 0)), null)              // (3,2).E
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(3, 2, 0), 1), null) // (3,2).SE
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 
-	ASSERT_EQUAL(digger.work(pl, coord3d(2, 3, -1), power_tunnel.get_name()), null)
-	ASSERT_EQUAL(digger.work(pl, coord3d(2, 3, -1), coord3d(2, 2, -1), power_tunnel.get_name()), null)
+	local digger = command_x(tool_build_tunnel)
+	digger.set_flags(2) // ctrl: single-tile mouth, then 1-tile extension
+
+	ASSERT_EQUAL(digger.work(pl, coord3d(3, 2, -1), power_tunnel.get_name()), null)
+	ASSERT_EQUAL(digger.work(pl, coord3d(3, 2, -1), coord3d(2, 2, -1), power_tunnel.get_name()), null)
 
 	local old_maint = pl.get_current_maintenance()
 	ASSERT_EQUAL(build_trafo.work(pl, coord3d(2, 2, -1)), "Tile not empty.")
 	ASSERT_EQUAL(pl.get_current_maintenance(), old_maint)
-	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 2, -1)), null)
 
-	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 2, -1)), "")   // underground  ???
-	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 3, -1)), null) // above ground ???
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 2, -1)), null) // underground way
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(3, 2, -1)), null) // tunnel mouth
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 4, -1)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(3, 4, -1)), null)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(3, 2, -1), 1), null) // (3,2).SE
+	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 2, -1)), null)              // (3,2).E
 
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(6, 6, 0)), null)
