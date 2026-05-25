@@ -174,7 +174,12 @@ function test_way_bridge_build_at_slope()
 }
 
 
-// test_way_bridge_build_at_slope_stacked: HEX-PORT PENDING.
+// Two parallel S-axis road bridges stacked vertically on the same column.
+// Lower bridge spans (3,3)/(3,4) at z=1 between south_narrow ramp (3,2,0)
+// and north_narrow ramp (3,5,0).  Upper bridge spans (3,2)..(3,5) at z=2
+// between two 2-step ramps: (3,1) and (3,6) raised to z=1 (all_up_slope)
+// then sloped south_narrow / north_narrow at z=1.  The cross-axis stacked
+// case (perpendicular bridges) is covered by `test_way_bridge_build_stacked`.
 function test_way_bridge_build_at_slope_stacked()
 {
 	local remover = command_x(tool_remove_way)
@@ -182,167 +187,67 @@ function test_way_bridge_build_at_slope_stacked()
 	local pl = player_x(0)
 	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
 
-	{
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.south_narrow), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.north_narrow), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.north_narrow), null)
 
-		ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 2, 0), bridge_desc), null)
+	ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 2, 0), bridge_desc), null)
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"........",
-				"........"
-			])
+	// Lower bridge alone: S=2 at (3,2), N|S=18 over (3,3)/(3,4), N=16 at (3,5).
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
+		[
+			[0, 0, 0,  0, 0, 0, 0, 0],
+			[0, 0, 0,  0, 0, 0, 0, 0],
+			[0, 0, 0,  2, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 16, 0, 0, 0, 0],
+			[0, 0, 0,  0, 0, 0, 0, 0],
+			[0, 0, 0,  0, 0, 0, 0, 0],
+		])
 
+	// Upper bridge: 2-step ramps at (3,1) and (3,6) (all_up_slope at z=0
+	// flattens the tile to z=1, then south_narrow / north_narrow at z=1
+	// gives the ramp surface that the bridge at z=2 attaches to).
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 1, 0), slope.all_up_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 1, 1), slope.south_narrow), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 6, 0), slope.all_up_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 6, 1), slope.north_narrow), null)
 
-		// second bridge layer
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 1, 0), slope.all_up_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 1, 1), slope.south_narrow), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 6, 0), slope.all_up_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 6, 1), slope.north_narrow), null)
+	ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 1, 1), bridge_desc), null)
 
-		ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 1, 1), bridge_desc), null)
+	// z=1: now both upper ramps (3,1)/(3,6) and the lower bridge appear.
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
+		[
+			[0, 0, 0,  0, 0, 0, 0, 0],
+			[0, 0, 0,  2, 0, 0, 0, 0],
+			[0, 0, 0,  2, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 16, 0, 0, 0, 0],
+			[0, 0, 0, 16, 0, 0, 0, 0],
+			[0, 0, 0,  0, 0, 0, 0, 0],
+		])
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"...4....",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"...1....",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 2),
-			[
-				"........",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"........"
-			])
-	}
-
-	{
-		// remove lower bridge and rebuild it
-		ASSERT_EQUAL(remover.work(pl, coord3d(3, 2, 0), coord3d(3, 5, 0), "" + wt_road), null)
-
-		ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 2, 0), bridge_desc), null)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"...4....",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"...1....",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 2),
-			[
-				"........",
-				"...4....",
-				"...5....",
-				"...5....",
-				"...5....",
-				"...5....",
-				"...1....",
-				"........"
-			])
-
-		ASSERT_EQUAL(remover.work(pl, coord3d(3, 1, 1), coord3d(3, 6, 1), "" + wt_road), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 1, 1), slope.flat), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 6, 1), slope.flat), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 1, 1), slope.all_down_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(3, 6, 1), slope.all_down_slope), null)
-	}
-
-	{
-		// second bridge layer
-		ASSERT_EQUAL(setslope(pl, coord3d(1, 3, 0), slope.all_up_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(1, 3, 1), slope.east), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(6, 3, 0), slope.all_up_slope), null)
-		ASSERT_EQUAL(setslope(pl, coord3d(6, 3, 1), slope.west), null)
-
-		ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(1, 3, 1), bridge_desc), null)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"...4....",
-				".2.5..8.",
-				"...5....",
-				"...1....",
-				"........",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 2),
-			[
-				"........",
-				"........",
-				"...4....",
-				".2AAAA8.",
-				"........",
-				"...1....",
-				"........",
-				"........"
-			])
-	}
-
-	{
-		// remove lower bridge and rebuild it
-		ASSERT_EQUAL(remover.work(pl, coord3d(3, 5, 0), coord3d(3, 2, 0), "" + wt_road), null)
-		ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 5, 0), bridge_desc), null)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1),
-			[
-				"........",
-				"........",
-				"...4....",
-				".2.5..8.",
-				"...5....",
-				"...1....",
-				"........",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 2),
-			[
-				"........",
-				"........",
-				"...4....",
-				".2AAAA8.",
-				"........",
-				"...1....",
-				"........",
-				"........"
-			])
-
-	}
+	// z=2: upper bridge span (3,2)..(3,5) plus its (3,1)/(3,6) ramp tops.
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 2),
+		[
+			[0, 0, 0,  0, 0, 0, 0, 0],
+			[0, 0, 0,  2, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 18, 0, 0, 0, 0],
+			[0, 0, 0, 16, 0, 0, 0, 0],
+			[0, 0, 0,  0, 0, 0, 0, 0],
+		])
 
 	// clean up
+	ASSERT_EQUAL(remover.work(pl, coord3d(3, 1, 1), coord3d(3, 6, 1), "" + wt_road), null)
 	ASSERT_EQUAL(remover.work(pl, coord3d(3, 2, 0), coord3d(3, 5, 0), "" + wt_road), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(1, 3, 1), coord3d(6, 3, 1), "" + wt_road), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(1, 3, 1), slope.all_down_slope), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(1, 3, 1), slope.all_down_slope), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(6, 3, 1), slope.all_down_slope), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(6, 3, 1), slope.all_down_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 1, 1), slope.all_down_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 1, 1), slope.all_down_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 6, 1), slope.all_down_slope), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 6, 1), slope.all_down_slope), null)
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.all_down_slope), null)
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.all_down_slope), null)
 
