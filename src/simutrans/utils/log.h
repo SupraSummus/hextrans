@@ -100,6 +100,17 @@ public:
 	void NORETURN custom_fatal(const char* error_str);
 
 	/**
+	 * Optional process-wide hook invoked at the start of
+	 * `custom_fatal`.  If set and the hook returns, control falls
+	 * through to the normal log + abort/exit path.  Intended for
+	 * libFuzzer harnesses, where a longjmp out of the hook turns a
+	 * defensive `dbg->fatal` into an input-rejection rather than an
+	 * iteration-killing crash.
+	 */
+	typedef void (*fatal_hook_t)(const char *buffer);
+	static void set_fatal_hook(fatal_hook_t hook);
+
+	/**
 	 * writes to log using va_lists
 	 */
 	void vmessage(const char *what, const char *who, const char *format,  va_list args );
