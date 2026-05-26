@@ -11,10 +11,7 @@
 #include "../display/scr_coord.h"
 #include "../simcolor.h"
 
-#ifndef NETTOOL
 #include <zlib.h>
-#endif
-
 #include <cstddef>
 
 // Provide chdir().
@@ -143,12 +140,11 @@ char *dr_getcwd(char *buf, size_t size);
 /// @param mode How to open the file (reading, writing). Format is the same as for @ref fopen.
 FILE *dr_fopen(const char *filename, const char *mode);
 
-#ifndef NETTOOL
 /// Opens a regular compressed file specified by @p filename. The filename must be UTF-8 encoded.
 /// Returns NULL on failure (e.g. the path is a directory, or does not exist).
 /// @param mode How to open the file (reading, writing). Format is the same as for @ref gzopen.
+/// Declared in both binaries; nettool never links a definition (or calls it).
 gzFile dr_gzopen(const char *path, const char *mode);
-#endif
 
 /// Functions the same as @ref stat except @p path must be UTF-8 encoded.
 int dr_stat(const char *path, struct stat *buf);

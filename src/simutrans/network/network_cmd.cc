@@ -7,10 +7,7 @@
 #include "network.h"
 #include "network_packet.h"
 #include "network_socket_list.h"
-
-#ifndef NETTOOL
 #include "../dataobj/environment.h"
-#endif
 
 #include <stdlib.h>
 
@@ -126,21 +123,16 @@ extern address_list_t blacklist;
 void nwc_service_t::rdwr()
 {
 	network_command_t::rdwr();
-#ifndef NETTOOL
-	// nwc_service_t is the admin-tool <-> server channel: nettool
-	// drives the request side, the server drives the response side.
-	// An in-game multiplayer client never legitimately exchanges
-	// nwc_service_t. Bail before parsing the body so a peer can't
-	// drive socket_list_t::rdwr / address_list_t::rdwr through an
+	// Bail before parsing the body so a peer can't drive
+	// socket_list_t::rdwr / address_list_t::rdwr through an
 	// unbounded allocation loop with a wire-supplied count:
 	//   - server side: closes the pre-auth crash, since execute()'s
 	//     admin-auth gate fires only after rdwr() returns;
 	//   - client side: closes the equivalent OOM that a malicious
 	//     server could push to a joined client.
-	if (!env_t::server) {
+	if (!is_admin_endpoint()) {
 		return;
 	}
-#endif
 	packet->rdwr_long(flag);
 	packet->rdwr_long(number);
 	switch(flag) {
@@ -153,33 +145,28 @@ void nwc_service_t::rdwr()
 			packet->rdwr_str(text);
 			break;
 
-		// Direction-asymmetric: the list rides on the server->admin
-		// response only; the admin->server request body is just the
-		// flag. Each side handles exactly one leg, so there's no
-		// untrusted-bytes-into-list-count path left.
+		// SRVC_GET_CLIENT_LIST / SRVC_GET_BLACK_LIST flow server ->
+		// admin only; each binary uses one leg in practice.  Wire
+		// counts are capped in socket_list_t::rdwr / address_list_t::
+		// rdwr so a peer that reaches the wrong leg cannot drive
+		// unbounded allocation.
 		case SRVC_GET_CLIENT_LIST:
-#ifdef NETTOOL
-			if (packet->is_loading()) {
-				socket_info = new vector_tpl<socket_info_t*>(10);
-				socket_list_t::rdwr(packet, socket_info);
-			}
-#else
 			if (packet->is_saving()) {
 				socket_list_t::rdwr(packet);
 			}
-#endif
+			else {
+				socket_info = new vector_tpl<socket_info_t*>(10);
+				socket_list_t::rdwr(packet, socket_info);
+			}
 			break;
 		case SRVC_GET_BLACK_LIST:
-#ifdef NETTOOL
-			if (packet->is_loading()) {
-				address_list = new address_list_t();
-				address_list->rdwr(packet);
-			}
-#else
 			if (packet->is_saving()) {
 				blacklist.rdwr(packet);
 			}
-#endif
+			else {
+				address_list = new address_list_t();
+				address_list->rdwr(packet);
+			}
 			break;
 		default: ;
 	}

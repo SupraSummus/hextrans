@@ -136,4 +136,8 @@ public:
 extern log_t::level_t debuglevel;
 #endif
 
+// Per-binary fatal sink invoked at the end of log_t::custom_fatal.
+// Must not return.
+void NORETURN log_t_platform_fatal_exit(char *buffer);
+
 #endif

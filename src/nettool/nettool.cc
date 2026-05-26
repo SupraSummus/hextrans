@@ -17,6 +17,7 @@
 #include <termios.h>
 #endif
 
+#include "../simutrans/dataobj/environment.h"
 #include "../simutrans/network/network.h"
 #include "../simutrans/network/network_cmd.h"
 #include "../simutrans/network/network_packet.h"
@@ -482,6 +483,11 @@ struct command_t {
 
 int main(int argc, char* argv[]) {
 	init_logging("stderr", true, true, NULL, "nettool");
+
+	// env_t::listen is the source-bind list network_open_address
+	// iterates for outgoing connections; default to any-IPv6 / any-IPv4.
+	env_t::listen.append_unique("::");
+	env_t::listen.append_unique("0.0.0.0");
 
 	// Use Fetchopt to parse option flags
 	Fetchopt_t fetchopt(argc, argv, "hp:P:qs:");

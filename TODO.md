@@ -911,6 +911,19 @@ strict C++, harmless in practice but reinforces the leak).
 Trigger: when active-fuzz RSS growth or strict leak checking
 becomes a blocker.
 
+## MAKEOBJ preprocessor gate
+
+`log.cc` and a few `pakset_info` / descriptor reader sites still
+gate behaviour on `#ifdef MAKEOBJ` — same preprocessor-as-boundary
+shape we just retired for nettool.  The pattern is to add a small
+`makeobj_compat.cc` next to `src/makeobj/makeobj.cc` that defines
+the symbols makeobj reaches into but doesn't behaviourally need
+(env_t globals, dr_fopen wrapper, log_t_platform_fatal_exit that
+just calls exit), drop the `-DMAKEOBJ` flag from `src/makeobj/
+CMakeLists.txt` and `src/makeobj/Makefile`, and let the source list
+carry the boundary.  Trigger: next time someone is already in
+log.cc or pakset_info.cc.
+
 ## libcurl rollback gate retirement
 
 Legacy in-house HTTP socket code in `network_file_transfer.cc`

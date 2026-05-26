@@ -7,10 +7,7 @@
 #include "network_cmd.h"
 #include "network_cmd_ingame.h"
 #include "network_packet.h"
-
-#ifndef NETTOOL
 #include "../dataobj/environment.h"
-#endif
 
 
 bool connection_info_t::operator==(const connection_info_t& other) const
@@ -222,7 +219,6 @@ void socket_list_t::add_server( SOCKET sock )
 	list[i]->socket = sock;
 	change_state(i, socket_info_t::server);
 	if (i==0) {
-#ifndef NETTOOL
 		// set server nickname
 		if (!env_t::nickname.empty()) {
 			list[i]->nickname = env_t::nickname.c_str();
@@ -231,7 +227,6 @@ void socket_list_t::add_server( SOCKET sock )
 			list[i]->nickname = "Server#0";
 			env_t::nickname = list[i]->nickname.c_str();
 		}
-#endif
 	}
 
 	network_set_socket_nodelay( sock );
@@ -244,11 +239,7 @@ bool socket_list_t::remove_client( SOCKET sock )
 	for(uint32 j=0; j<list.get_count(); j++) {
 		if (list[j]->socket == sock) {
 
-#ifdef NETTOOL
-			if (list[j]->state == socket_info_t::playing) {
-#else
-			if (env_t::server  &&  list[j]->state == socket_info_t::playing) {
-#endif
+			if (is_admin_endpoint()  &&  list[j]->state == socket_info_t::playing) {
 				change_state(j, socket_info_t::has_left);
 			}
 			else {
@@ -282,8 +273,8 @@ uint32 socket_list_t::get_client_id( SOCKET sock ){
 
 void socket_list_t::unlock_player_all(uint8 player_nr, bool unlock, uint32 except_client)
 {
-// nettool does not know about nwc_auth_player_t
-#ifndef NETTOOL
+	// Callers (nwc_auth_player_t::execute, simplay.cc) are all
+	// simutrans-only, so nettool links the body but never reaches it.
 	for(uint32 i=0; i<list.get_count(); i++) {
 		if (i!=except_client  &&  (i==0  ||  list[i]->state == socket_info_t::playing) ) {
 			uint16 old_player_unlocked = list[i]->player_unlocked;
@@ -308,11 +299,6 @@ void socket_list_t::unlock_player_all(uint8 player_nr, bool unlock, uint32 excep
 			}
 		}
 	}
-#else
-	(void) player_nr;
-	(void) unlock;
-	(void) except_client;
-#endif
 }
 
 
