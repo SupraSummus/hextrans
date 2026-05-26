@@ -1337,6 +1337,13 @@ void nwc_tool_t::do_command(karte_t *welt)
 
 extern address_list_t blacklist;
 
+
+bool is_admin_endpoint()
+{
+	return env_t::server != 0;
+}
+
+
 bool nwc_service_t::execute(karte_t *welt)
 {
 	if (flag>=SRVC_MAX  ||  !env_t::server) {

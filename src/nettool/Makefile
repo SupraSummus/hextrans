@@ -13,7 +13,6 @@ ifeq ($(findstring $(OSTYPE), $(OSTYPES)),)
 endif
 
 # Absolutely essential
-CXXFLAGS += -DNETTOOL
 
 ifeq ($(OSTYPE),cygwin)
   OS_INC   ?= -I/usr/include/mingw
@@ -73,6 +72,7 @@ CXXFLAGS += -DREVISION -Wall -Wextra -Wcast-qual -Wpointer-arith -Wcast-align $(
 # VARIANT_SOURCES contains those which need different .o files for nettool and simutrans.
 # At the moment they're all treated identically, of course.
 SOLO_SOURCES += nettool.cc
+SOLO_SOURCES += nettool_compat.cc
 SHARED_SOURCES += ../simutrans/dataobj/freelist.cc
 SHARED_SOURCES += ../simutrans/network/memory_rw.cc
 SHARED_SOURCES += ../simutrans/network/network_address.cc

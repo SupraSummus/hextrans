@@ -149,6 +149,13 @@ void network_core_shutdown();
 uint32 network_get_client_id();
 void network_set_client_id(uint32 id);
 
+extern uint16 network_server_port;
+
+// True if this binary processes admin-channel payloads and tracks
+// full client-state transitions: simutrans running as a server, or
+// nettool. False on the in-game multiplayer client.
+bool is_admin_endpoint();
+
 bool get_external_IP( cbuffer_t &myIPaddr, cbuffer_t &alt_IP );
 
 // trys to open port on router (if there) and get external IP
