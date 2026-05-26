@@ -514,6 +514,7 @@ SOURCES += src/simutrans/network/network.cc
 SOURCES += src/simutrans/network/network_address.cc
 SOURCES += src/simutrans/network/network_cmd.cc
 SOURCES += src/simutrans/network/network_cmd_ingame.cc
+SOURCES += src/simutrans/network/network_cmd_ingame_execute.cc
 SOURCES += src/simutrans/network/network_cmd_scenario.cc
 SOURCES += src/simutrans/network/network_cmp_pakset.cc
 SOURCES += src/simutrans/network/network_file_transfer.cc
