@@ -859,23 +859,18 @@ diamond using 4 of 6 hex edges, which compiles and produces
 something playable but is not a real hex airport.  Lands together
 with the other items here when crossroads design lands.
 
-## obj_named_desc_t::get_name NPE on zero-children descs
+## Pak reader child-count expectations are implicit
 
-`fuzz_pak` finds a NULL-dereference in
-`obj_named_desc_t::get_name()` (`obj_base_desc.h:27`) reached via
-`skin_reader_t::register_obj` → `skinverwaltung_t::register_desc` →
-`::register_desc<skin_desc_t>` (`spezial_obj_tpl.h:39`) when a skin
-node has `nchildren == 0`.  `read_nodes` (`pakset_manager.cc:362`)
-only allocates `data->children` when `nchildren != 0`, so
-`get_child<T>(0)` reads from a NULL array and the `->get_text()`
-call dereferences a null `text_desc_t*`.  Fix is a null guard in
-`obj_desc_t::get_child` (`obj_desc.h:47`) and a follow-up audit of
-`get_name`/`get_copyright`/the ~80 other `get_child<T>(i)->...`
-sites that today assume the children array is sized for them — the
-named-desc bases need to either tolerate NULL or have the readers
-reject the node up front.  Trigger: when `fuzz_pak` gets a CI gate
-(see "Pak-fuzzer per-iteration teardown") — the seed reproducing
-this finding would block any green-path run.
+`obj_desc_t::get_child` now `dbg->fatal`s on out-of-bounds child
+access, which catches the malformed-pak class in one place and
+makes the fuzzer's recovery seam surface each offending reader by
+name.  But the per-reader "I expect at least N children" contract
+still lives only inside each reader's `register_obj` / desc
+accessor code — there's no declarative way to read off how many
+children a `bridge` / `vehicle` / `building` node needs.  A
+fuzz_pak corpus that exercises one node per reader type would pin
+each contract as a regression seed; opportunistic and low priority
+until the next pak-loader bug or a CI gate motivates it.
 
 ## fuzz_pak CMake source-list inheritance fragility
 
