@@ -118,16 +118,17 @@ jobs:
         export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
         export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
         python3 -m unittest discover -v -s tools/nwc_protocol_test -t .
-    - name: Replay wire-parser fuzz corpus
-      # Builds the libFuzzer harness (src/fuzz/fuzz_network.cc) and
-      # replays src/fuzz/corpus/network/ in one-shot mode (-runs=0):
-      # every file is consumed once, no mutation.  Any input that
-      # crashes / leaks / trips ASAN/UBSAN fails the job, so each
-      # committed corpus file pins one fixed bug as a regression.
-      # Active mutation fuzzing is out-of-band — the same binary takes
-      # -max_total_time=N to explore.
+    - name: Replay fuzz corpora
+      # Builds the libFuzzer harnesses under src/fuzz/ and replays each
+      # committed corpus in one-shot mode (-runs=0): every file is
+      # consumed once, no mutation.  Any input that crashes / leaks /
+      # trips ASAN/UBSAN fails the job, so each committed corpus file
+      # pins one fixed bug as a regression.  Active mutation fuzzing
+      # is out-of-band — the same binaries take -max_total_time=N to
+      # explore.  fuzz_pak runs with detect_leaks=0 because the harness
+      # has no per-iteration teardown of the descriptor registry
+      # (TODO.md → "Pak-fuzzer per-iteration teardown").
       run: |
-        export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=1"
         export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
         cmake -S . -B build-fuzz \
           -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 \
@@ -135,8 +136,11 @@ jobs:
           -DSIMUTRANS_SANITIZE_ADDRESS=ON -DSIMUTRANS_SANITIZE_UNDEFINED=ON \
           -DSIMUTRANS_BACKEND=none -DCMAKE_BUILD_TYPE=Debug
         cmake --build build-fuzz --target svnheader
-        cmake --build build-fuzz --target fuzz_network -j$(nproc)
-        ./build-fuzz/src/fuzz/fuzz_network -runs=0 src/fuzz/corpus/network/
+        cmake --build build-fuzz --target fuzz_network fuzz_pak -j$(nproc)
+        ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=1" \
+          ./build-fuzz/src/fuzz/fuzz_network -runs=0 src/fuzz/corpus/network/
+        ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0" \
+          ./build-fuzz/src/fuzz/fuzz_pak -runs=0 src/fuzz/corpus/pak/
     - name: Run HTTP e2e suite
       # Baseline coverage for the four HTTP call sites ahead of the
       # libcurl migration (see documentation/libcurl-port.md).  Drives

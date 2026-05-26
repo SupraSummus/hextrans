@@ -911,6 +911,65 @@ strict C++, harmless in practice but reinforces the leak).
 Trigger: when active-fuzz RSS growth or strict leak checking
 becomes a blocker.
 
+## Pak reader short-node bounds checks — remaining readers
+
+`image_reader_t::read_node` and `imagelist_reader_t::read_node` now
+`dbg->fatal` when `node.size` is smaller than the header layout they
+read (seeds `image_short_node`, `imagelist_short_node` pin both).
+The same `array_tpl<char> desc_buf(node.size); fread(...); decode_*`
+pattern exists in 16 other readers under
+`src/simutrans/descriptor/reader/` (`building_reader`,
+`bridge_reader`, `vehicle_reader`, `way_reader`, `tunnel_reader`,
+`factory_reader`, `crossing_reader`, `roadsign_reader`,
+`tree_reader`, `groundobj_reader`, `citycar_reader`,
+`pedestrian_reader`, `good_reader`, `sound_reader`,
+`imagelist2d_reader`, `way_obj_reader`).  Each has its own per-version
+header layout; the sweep is a mechanical pass adding a `node.size <
+header_min` guard at the top of each version branch.  Trigger: next
+fuzz_pak finding in one of them, or a deliberate sweep when other
+loader work brings these files into the diff.
+
+## image_reader dedup-table UAF on failed-sibling delete
+
+`image_reader_t::read_node` registers each unique image desc in a
+static `images_adlers<adler, image_t*>` for content-deduplication.
+A malformed pak can hand an IMG node a non-zero `nchildren` even
+though IMG nodes don't normally take children; when one of those
+synthetic children fails to read, `pakset_manager_t::read_nodes` at
+`pakset_manager.cc:369` `delete data`s the IMG desc that
+`read_node` just registered.  `images_adlers` keeps the freed
+pointer; a later image with a matching adler hits the dangling
+entry at `image_reader.cc:218` (`a.x != b.x`) and reads freed
+memory.  Fix candidates: (a) clear `images_adlers` on
+`load_pak_from_fp` entry, losing cross-load dedup but trivially
+correct; or (b) extend `~image_t()` (or override
+`image_t::operator delete`) to drop the entry from
+`images_adlers`, so any `delete` on a registered image cleans the
+table transparently.  Lands well alongside the
+`pakset_manager_t::reset()` work in "Pak-fuzzer per-iteration
+teardown" above — both need a clean ownership story for image
+descs.  No small seed pins this one — minimisation collapses the
+UAF inputs onto simpler bug classes (the OOMs and the
+`obj_named_desc_t::get_name` NULL deref below); the deeper-run
+crash artifacts are reproducible locally but too large to commit.
+
+## obj_named_desc_t::get_name NULL-child deref
+
+`obj_named_desc_t::get_name` (`src/simutrans/descriptor/obj_base_desc.h:27`)
+returns `get_child<text_desc_t>(0)->get_text()` without
+NULL-checking the child pointer, even though the sibling
+`get_copyright` accessor right below it does check.  A pak whose
+parent declares `nchildren=1` but whose first child is either
+absent or has an unknown type lands `data->children[0] = NULL`
+(via the `data = NULL` path at `pakset_manager.cc:395` for unknown
+nodes), and the subsequent `register_desc` call deref's NULL via
+`strcmp` in `register_desc<skin_desc_t>` at
+`spezial_obj_tpl.h:39`.  Pre-existing upstream.  Fix: mirror
+`get_copyright`'s pattern — `if (!ts) return NULL;` before the
+`get_text()` call.  Trigger: when the malformed-pak surface gets
+its next pass, or alongside the `register_desc` callers that
+already special-case missing names.
+
 ## libcurl rollback gate retirement
 
 Legacy in-house HTTP socket code in `network_file_transfer.cc`

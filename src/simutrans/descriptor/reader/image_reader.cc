@@ -32,6 +32,11 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 	if (fread(desc_buf.begin(), node.size, 1, fp) != 1) {
 		return NULL;
 	}
+
+	// version byte sits at offset 6; per-version branches guard their own header reads.
+	if (node.size < 7) {
+		dbg->fatal("image_reader_t::read_node", "malformed image node: size %u < 7", node.size);
+	}
 	char *p = desc_buf.begin()+6;
 
 	// always zero in old version, since length was always less than 65535
@@ -47,6 +52,9 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 #endif
 
 	if(version==0) {
+		if (node.size < 11) {
+			dbg->fatal("image_reader_t::read_node", "malformed v0 image node: size %u < 11", node.size);
+		}
 		desc->x = decode_uint8(p);
 		desc->w = decode_uint8(p);
 		desc->y = decode_uint8(p);
@@ -74,6 +82,9 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		}
 	}
 	else if(version<=2) {
+		if (node.size < 10) {
+			dbg->fatal("image_reader_t::read_node", "malformed v%u image node: size %u < 10", version, node.size);
+		}
 		desc->x = decode_sint16(p);
 		desc->y = decode_sint16(p);
 		desc->w = decode_uint8(p);
@@ -92,6 +103,9 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		}
 	}
 	else if(version==3) {
+		if (node.size < 10) {
+			dbg->fatal("image_reader_t::read_node", "malformed v3 image node: size %u < 10", node.size);
+		}
 		desc->x = decode_sint16(p);
 		desc->y = decode_sint16(p);
 		desc->w = decode_sint16(p);
