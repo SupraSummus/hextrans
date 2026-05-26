@@ -4006,7 +4006,6 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 					if( grund_t *bd_recalc = welt->lookup_kartenboden( k + koord( 1, 1 ) ) ) {
 						bd_recalc->check_update_underground();
 					}
-					bd->mark_image_dirty();
 
 					// update slope graphics on tile and tile in front
 					if (grund_t* bd_recalc = welt->lookup_kartenboden(end + koord(0, 1))) {
