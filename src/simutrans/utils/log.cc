@@ -228,8 +228,23 @@ void log_t::fatal(const char* who, const char* format, ...)
 
 
 
+static log_t::fatal_hook_t s_fatal_hook = NULL;
+
+void log_t::set_fatal_hook(fatal_hook_t hook)
+{
+	s_fatal_hook = hook;
+}
+
+
 void log_t::custom_fatal(char *buffer)
 {
+	if (s_fatal_hook) {
+		s_fatal_hook(buffer);
+		// hook should not return; if it does, fall through to the
+		// regular log + abort path so a missed longjmp is loud rather
+		// than silent.
+	}
+
 	if(  log  ) {
 		fputs( buffer, log );
 		if (  force_flush  ) {

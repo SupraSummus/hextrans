@@ -163,6 +163,49 @@ DBG_MESSAGE("pakset_manager_t::load_paks_from_directory", "Reading from '%s'", p
 }
 
 
+bool pakset_manager_t::load_pak_from_fp(FILE *fp, const char *display_name)
+{
+	// This is the normal header reading code
+	int c;
+	uint32 n = 0;
+
+	do {
+		c = fgetc(fp);
+		n ++;
+	} while(c != EOF && c != 0x1a);
+
+	if(c == EOF) {
+		dbg->error("pakset_manager_t::load_pak_from_fp", "Unexpected end of file after %u bytes while reading '%s'!", n, display_name);
+		return false;
+	}
+
+	// Compiled Version
+	char dummy[4];
+	n = fread(dummy, 4, 1, fp);
+	if (n != 1) {
+		return false;
+	}
+
+	char *p = dummy;
+	const uint32 version = decode_uint32(p);
+
+	PAKSET_INFO("pakset_manager_t::load_pak_from_fp", "%s, reading %u blocks, file version is %x", display_name, n, version);
+
+	if(version <= COMPILER_VERSION_CODE) {
+		obj_desc_t *data = NULL;
+		if (!read_nodes(fp, data, 0, version)) {
+			return false;
+		}
+	}
+	else {
+		dbg->warning("pakset_manager_t::load_pak_from_fp", "Version of '%s' is too old, %u instead of %u", display_name, version, COMPILER_VERSION_CODE );
+		return false;
+	}
+
+	return true;
+}
+
+
 bool pakset_manager_t::load_pak_file(const std::string &filename)
 {
 	// added trace
@@ -174,49 +217,9 @@ bool pakset_manager_t::load_pak_file(const std::string &filename)
 		return false;
 	}
 
-	// This is the normal header reading code
-	int c;
-	uint32 n = 0;
-
-	do {
-		c = fgetc(fp);
-		n ++;
-	} while(c != EOF && c != 0x1a);
-
-	if(c == EOF) {
-		dbg->error("pakset_manager_t::load_pak_file", "Unexpected end of file after %u bytes while reading '%s'!", n, filename.c_str());
-		fclose(fp);
-		return false;
-	}
-
-	// Compiled Version
-	char dummy[4];
-	n = fread(dummy, 4, 1, fp);
-	if (n != 1) {
-		fclose(fp);
-		return false;
-	}
-
-	char *p = dummy;
-	const uint32 version = decode_uint32(p);
-
-	PAKSET_INFO("pakset_manager_t::load_pak_file", "%s, reading %u blocks, file version is %x", filename.c_str(), n, version);
-
-	if(version <= COMPILER_VERSION_CODE) {
-		obj_desc_t *data = NULL;
-		if (!read_nodes(fp, data, 0, version)) {
-			fclose(fp);
-			return false;
-		}
-	}
-	else {
-		dbg->warning("pakset_manager_t::load_pak_file", "Version of '%s' is too old, %u instead of %u", filename.c_str(), version, COMPILER_VERSION_CODE );
-		fclose(fp);
-		return false;
-	}
-
+	const bool ok = load_pak_from_fp(fp, filename.c_str());
 	fclose(fp);
-	return true;
+	return ok;
 }
 
 

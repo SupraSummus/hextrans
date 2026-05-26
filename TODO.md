@@ -859,6 +859,63 @@ diamond using 4 of 6 hex edges, which compiles and produces
 something playable but is not a real hex airport.  Lands together
 with the other items here when crossroads design lands.
 
+## obj_named_desc_t::get_name NPE on zero-children descs
+
+`fuzz_pak` finds a NULL-dereference in
+`obj_named_desc_t::get_name()` (`obj_base_desc.h:27`) reached via
+`skin_reader_t::register_obj` → `skinverwaltung_t::register_desc` →
+`::register_desc<skin_desc_t>` (`spezial_obj_tpl.h:39`) when a skin
+node has `nchildren == 0`.  `read_nodes` (`pakset_manager.cc:362`)
+only allocates `data->children` when `nchildren != 0`, so
+`get_child<T>(0)` reads from a NULL array and the `->get_text()`
+call dereferences a null `text_desc_t*`.  Fix is a null guard in
+`obj_desc_t::get_child` (`obj_desc.h:47`) and a follow-up audit of
+`get_name`/`get_copyright`/the ~80 other `get_child<T>(i)->...`
+sites that today assume the children array is sized for them — the
+named-desc bases need to either tolerate NULL or have the readers
+reject the node up front.  Trigger: when `fuzz_pak` gets a CI gate
+(see "Pak-fuzzer per-iteration teardown") — the seed reproducing
+this finding would block any green-path run.
+
+## fuzz_pak CMake source-list inheritance fragility
+
+`src/fuzz/CMakeLists.txt` builds `fuzz_pak` by copying the
+simutrans target's `SOURCES` / `COMPILE_DEFINITIONS` /
+`COMPILE_OPTIONS` / `LINK_LIBRARIES` via `get_target_property`,
+because the readers must all link to populate the
+`obj_reader_t::registered_readers` table.  This works today but
+silently misses anything added through INTERFACE properties,
+target-level `$<...>` generator-expression sources, or new
+backend-specific quirks; a future regression would appear as
+fuzz_pak missing a translation unit rather than a build error.
+Cleaner fix: restructure `simutrans` as `add_library(... OBJECT
+...)` plus a thin executable, and have `fuzz_pak` link the OBJECT
+target via `$<TARGET_OBJECTS:simutrans_objects>`.  Requires
+extracting the per-backend `main()` (currently in
+`simsys_posix.cc` / `simsys_s2.cc` / `simsys_w.cc`) into its own
+file so it can be added to the executable target only — the
+`SIMUTRANS_NO_MAIN` guard in `simsys_posix.cc` is an interim shim
+that survives only as long as fuzz_pak is linux-only.  Trigger:
+when a propagation gap actually bites, or when another tool grows
+a similar "link the whole simutrans source set" need.
+
+## Pak-fuzzer per-iteration teardown
+
+`fuzz_pak` (`src/fuzz/fuzz_pak.cc`) leaks every descriptor it
+constructs because there's no per-iteration teardown of
+`pakset_manager_t::loaded` / `unresolved` / the desc trees
+themselves, so the CI replay path needs `ASAN_OPTIONS=detect_leaks=0`
+and active fuzz RSS grows linearly.  Fix is a
+`pakset_manager_t::reset()` that drops the loaded registry and
+deletes the desc trees; tricky because readers share image pointers
+via `images_adlers` deduplication, so a naive delete double-frees.
+The same boundary would also wire `longjmp`-driven `dbg->fatal`
+recovery in `fuzz_pak.cc` to a destructor-safe path — today the
+longjmp out of `log_t::set_fatal_hook` skips RAII unwinding (UB in
+strict C++, harmless in practice but reinforces the leak).
+Trigger: when active-fuzz RSS growth or strict leak checking
+becomes a blocker.
+
 ## libcurl rollback gate retirement
 
 Legacy in-house HTTP socket code in `network_file_transfer.cc`

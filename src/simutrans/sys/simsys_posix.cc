@@ -174,11 +174,13 @@ void dr_notify_input_pos(scr_coord)
 {
 }
 
+#ifndef SIMUTRANS_NO_MAIN
 static void posix_sigterm(int)
 {
 	DBG_MESSAGE("Received SIGTERM", "exiting...");
 	sigterm_received = 1;
 }
+#endif
 
 
 const char* dr_get_locale()
@@ -210,6 +212,7 @@ void dr_restore_fullscreen(sint16) {}
 
 
 
+#ifndef SIMUTRANS_NO_MAIN
 int main(int argc, char **argv)
 {
 	signal( SIGTERM, posix_sigterm );
@@ -218,6 +221,7 @@ int main(int argc, char **argv)
 #endif
 	return sysmain(argc, argv);
 }
+#endif
 
 
 

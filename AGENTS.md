@@ -514,6 +514,29 @@ corpus/` to explore, and a crash gets minimised via
 `-minimize_crash=1 -runs=... crash-input` and committed under
 `src/fuzz/corpus/network/`.
 
+`src/fuzz/fuzz_pak.cc` is the libFuzzer harness for the pak
+descriptor reader.  The fuzz bytes are wrapped in a `FILE*` via
+`fmemopen` and handed to `pakset_manager_t::load_pak_from_fp` — the
+same entry the in-game loader uses per file after `dr_fopen`.  That
+covers the magic-prefix scan, the version decoder, and the recursive
+node tree that dispatches through `registered_readers` to ~25
+`obj_reader_t::read_node` implementations.  The readers self-register
+at static init via `OBJ_READER_DEF`, so the type table is populated
+before `LLVMFuzzerTestOneInput` runs — but only when the *full*
+simutrans source set links, so the fuzz_pak target inherits the
+simutrans target's sources via `get_target_property` rather than
+duplicating the list.  Needs `-DSIMUTRANS_BACKEND=none` (headless)
+and binds the null renderer (`SIMGRAPH_TYPE_NULL`) so the image
+reader's `gfx->register_image` doesn't NPE.  Defensive `dbg->fatal`
+sites in the readers (e.g. "Cannot handle too new node version")
+would normally abort the iteration and drown real findings under
+expected aborts; the harness routes them through
+`log_t::set_fatal_hook` to a `longjmp` back into the per-iteration
+recovery point, so they read as input-rejection and only
+sanitizer-detected bugs fail the run.  Per-iteration descriptor
+state still leaks (no teardown of the pakset registry), so runs
+need `ASAN_OPTIONS=detect_leaks=0` — tracked in `TODO.md`.
+
 Claude Code on the web checks out a shallow clone — `git log` only
 reaches back a handful of commits and `git blame` on older lines
 returns "(grafted)". Run `git fetch --unshallow origin` when the

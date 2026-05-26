@@ -69,6 +69,10 @@ public:
 	/// Only for single files, must take care of all the cleanup/registering matrix themselves
 	static bool load_pak_file(const std::string &filename);
 
+	/// Reads a single pak from an already-open FILE*.  The fp is consumed but
+	/// not closed; @p display_name is used only for diagnostics.
+	static bool load_pak_from_fp(FILE *fp, const char *display_name);
+
 	/// special error handling for double objects
 	static void doubled(const char *what, const char *name);
 
