@@ -15,7 +15,7 @@
  * implementation, no harness/production divergence.  Bonus: the
  * incremental-read state machine inside `recv()` also gets fuzzed.
  *
- * Compiles with `NETTOOL=1`, covering the parser surface that doesn't
+ * Links the nettool source subset, covering the parser surface that doesn't
  * require a `karte_t` / running game: base `network_command_t::rdwr`,
  * `nwc_auth_player_t::rdwr`, and `nwc_service_t::rdwr` (which in turn
  * exercises `socket_list_t::rdwr` and `address_list_t::rdwr`).

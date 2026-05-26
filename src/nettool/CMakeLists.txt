@@ -5,10 +5,11 @@
 
 add_executable(nettool
 	nettool.cc
+	nettool_compat.cc
 )
 
 target_compile_options(nettool PRIVATE ${SIMUTRANS_COMMON_COMPILE_OPTIONS})
-target_compile_definitions(nettool PRIVATE NETTOOL=1 COLOUR_DEPTH=0)
+target_compile_definitions(nettool PRIVATE COLOUR_DEPTH=0)
 target_compile_definitions(nettool PRIVATE MSG_LEVEL=${SIMUTRANS_MSG_LEVEL})
 
 if (SIMUTRANS_USE_SYSLOG)

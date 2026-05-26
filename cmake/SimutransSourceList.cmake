@@ -214,7 +214,9 @@ target_sources(simutrans PRIVATE
 		src/simutrans/network/network_cmd_ingame.cc
 		src/simutrans/network/network_cmd_scenario.cc
 		src/simutrans/network/network_cmp_pakset.cc
+		src/simutrans/network/network_easy_server.cc
 		src/simutrans/network/network_file_transfer.cc
+		src/simutrans/network/network_file_transfer_game.cc
 		src/simutrans/network/network_packet.cc
 		src/simutrans/network/network_socket_list.cc
 		src/simutrans/network/pakset_info.cc
@@ -311,6 +313,7 @@ target_sources(simutrans PRIVATE
 		src/simutrans/utils/checklist.cc
 		src/simutrans/utils/csv.cc
 		src/simutrans/utils/log.cc
+		src/simutrans/utils/log_fatal_display.cc
 		src/simutrans/utils/searchfolder.cc
 		src/simutrans/utils/sha1.cc
 		src/simutrans/utils/sha1_hash.cc

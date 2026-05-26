@@ -130,10 +130,7 @@ public:
 	nwc_service_t() : network_command_t(NWC_SERVICE), text(NULL), socket_info(NULL), address_list(NULL) { }
 	~nwc_service_t();
 
-#ifndef NETTOOL
 	bool execute(karte_t *) OVERRIDE;
-#endif
-
 	void rdwr() OVERRIDE;
 };
 
@@ -150,9 +147,7 @@ public:
 	nwc_auth_player_t() : network_command_t(NWC_AUTH_PLAYER), hash(), player_unlocked(0), player_nr(255)  { }
 	nwc_auth_player_t(uint8 nr, const pwd_hash_t& hash_) : network_command_t(NWC_AUTH_PLAYER), hash(hash_), player_unlocked(0), player_nr(nr)  { }
 
-#ifndef NETTOOL
 	bool execute(karte_t *) OVERRIDE;
-#endif
 	void rdwr() OVERRIDE;
 
 	pwd_hash_t hash;
