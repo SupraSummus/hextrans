@@ -8,6 +8,7 @@
 
 
 #include <cstddef>
+#include "../simdebug.h"
 #include "../simtypes.h"
 
 /**
@@ -19,7 +20,7 @@ class obj_desc_t
 	friend class pakset_manager_t;
 
 public:
-	obj_desc_t() : children() {}
+	obj_desc_t() : children(), nchildren() {}
 
 	~obj_desc_t() { delete [] children; }
 
@@ -44,14 +45,17 @@ public:
 	}
 
 protected:
-	template<typename T> T const* get_child(int const i) const { return static_cast<T const*>(children[i]); }
+	template<typename T> T const* get_child(int const i) const
+	{
+		if (static_cast<unsigned>(i) >= nchildren) {
+			dbg->fatal("obj_desc_t::get_child", "requested child %d of %u", i, nchildren);
+		}
+		return static_cast<T const*>(children[i]);
+	}
 
 private:
-	/*
-	 * Internal Node information - the derived class knows,
-	 * how many node child nodes really exist.
-	 */
 	obj_desc_t** children;
+	uint16 nchildren;
 
 	friend class factory_field_group_reader_t;
 	friend class obj_reader_t;
