@@ -5,6 +5,7 @@
 
 add_executable(nettool
 	nettool.cc
+	nettool_compat.cc
 )
 
 target_compile_options(nettool PRIVATE ${SIMUTRANS_COMMON_COMPILE_OPTIONS})

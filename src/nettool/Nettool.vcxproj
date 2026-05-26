@@ -80,6 +80,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="nettool.cc" />
+    <ClCompile Include="nettool_compat.cc" />
     <ClCompile Include="..\simdebug.cc" />
     <ClCompile Include="..\simmem.cc" />
     <ClCompile Include="..\dataobj\freelist.cc" />
