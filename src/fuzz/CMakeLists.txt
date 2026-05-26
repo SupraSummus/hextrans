@@ -15,6 +15,7 @@
 
 add_executable(fuzz_network
 	fuzz_network.cc
+	fuzz_stubs.cc
 )
 
 target_compile_options(fuzz_network PRIVATE ${SIMUTRANS_COMMON_COMPILE_OPTIONS})
@@ -36,6 +37,7 @@ target_sources(fuzz_network PRIVATE
 	../simutrans/network/memory_rw.cc
 	../simutrans/network/network_address.cc
 	../simutrans/network/network_cmd.cc
+	../simutrans/network/network_cmd_ingame.cc
 	../simutrans/network/network_packet.cc
 	../simutrans/network/network_socket_list.cc
 	../simutrans/simdebug.cc
@@ -46,12 +48,20 @@ target_sources(fuzz_network PRIVATE
 	../simutrans/utils/sha1.cc
 	../simutrans/utils/sha1_hash.cc
 	../simutrans/utils/log.cc
+	../simutrans/utils/checklist.cc
 	../simutrans/network/network.cc
 	../simutrans/network/network_file_transfer.cc
 )
 
 target_link_options(fuzz_network PRIVATE -fsanitize=fuzzer)
 target_compile_options(fuzz_network PRIVATE -fsanitize=fuzzer-no-link)
+
+# UBSan's vptr check needs the full typeinfo for any class whose
+# methods we call; under NETTOOL the real tool_t lives in simmenu.cc
+# (not linked here), so the check fires unresolved-symbol errors.
+# The vptr check is sanitizer instrumentation, not a real defect class
+# the fuzzer can drive — drop it.
+target_compile_options(fuzz_network PRIVATE -fno-sanitize=vptr)
 
 
 #

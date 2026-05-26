@@ -212,6 +212,7 @@ target_sources(simutrans PRIVATE
 		src/simutrans/network/network_address.cc
 		src/simutrans/network/network_cmd.cc
 		src/simutrans/network/network_cmd_ingame.cc
+		src/simutrans/network/network_cmd_ingame_execute.cc
 		src/simutrans/network/network_cmd_scenario.cc
 		src/simutrans/network/network_cmp_pakset.cc
 		src/simutrans/network/network_file_transfer.cc

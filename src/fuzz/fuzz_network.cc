@@ -15,10 +15,11 @@
  * implementation, no harness/production divergence.  Bonus: the
  * incremental-read state machine inside `recv()` also gets fuzzed.
  *
- * Compiles with `NETTOOL=1`, covering the parser surface that doesn't
- * require a `karte_t` / running game: base `network_command_t::rdwr`,
- * `nwc_auth_player_t::rdwr`, and `nwc_service_t::rdwr` (which in turn
- * exercises `socket_list_t::rdwr` and `address_list_t::rdwr`).
+ * Compiles with `NETTOOL=1`, covering every wire-parser surface that
+ * doesn't depend on `karte_t` / a running game: dispatched through the
+ * real `network_command_t::read_from_packet`, which gives every NWC_*
+ * type's rdwr() (except scenario and pakset, which pull in the script
+ * VM and pakset comparator) a fuzz path.
  *
  * Build with -fsanitize=fuzzer,address,undefined to catch the
  * memory/UB regressions a malformed wire packet can drive.
@@ -33,30 +34,6 @@
 #include "../simutrans/network/network_packet.h"
 #include "../simutrans/simdebug.h"
 #include "../simutrans/utils/log.h"
-
-
-// nettool ships its own stub for read_from_packet; we need an
-// equivalent because network_socket_list.cc references it from a path
-// the fuzzer never reaches.
-network_command_t *network_command_t::read_from_packet(packet_t *p)
-{
-	delete p;
-	return NULL;
-}
-
-
-namespace {
-
-network_command_t *make_nwc(uint16 id)
-{
-	switch (id) {
-		case NWC_SERVICE:     return new nwc_service_t();
-		case NWC_AUTH_PLAYER: return new nwc_auth_player_t();
-		default:              return NULL;
-	}
-}
-
-} // namespace
 
 
 extern "C" int LLVMFuzzerInitialize(int * /*argc*/, char *** /*argv*/)
@@ -90,20 +67,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 	}
 	close(sv[1]);
 
-	if (p->has_failed()  ||  !p->check_version()) {
-		delete p;
-		return 0;
-	}
-
-	network_command_t *nwc = make_nwc(p->get_id());
-	if (nwc == NULL) {
-		delete p;
-		return 0;
-	}
-
-	// receive() takes ownership of the packet — stashed in
-	// network_command_t::packet, freed by the destructor.
-	nwc->receive(p);
+	// read_from_packet takes ownership of p: it dispatches on the wire
+	// id, constructs the matching nwc, calls receive(p) (which calls
+	// rdwr()), and frees both on failure.  On success it returns the
+	// nwc, which we delete.
+	network_command_t *nwc = network_command_t::read_from_packet(p);
 	delete nwc;
 	return 0;
 }
