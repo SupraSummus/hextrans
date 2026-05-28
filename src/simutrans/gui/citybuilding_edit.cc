@@ -7,7 +7,6 @@
  * The citybuilding editor (urban buildings builder)
  */
 
-#include <algorithm>
 #include <stdio.h>
 
 #include "../world/simworld.h"

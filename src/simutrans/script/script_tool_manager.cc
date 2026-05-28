@@ -10,7 +10,6 @@
 #include "../simdebug.h"
 #include "../tool/simtool-scripted.h"
 #include "../simskin.h"
-#include "../descriptor/skin_desc.h"
 #include "../sys/simsys.h"
 #include "../gui/tool_selector.h"
 #include "../utils/cbuffer.h"

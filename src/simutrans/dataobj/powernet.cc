@@ -3,11 +3,9 @@
  * (see LICENSE.txt)
  */
 
-#include "../simdebug.h"
 #include "powernet.h"
 
 #ifdef MULTI_THREAD
-#include "../utils/simthread.h"
 static pthread_mutex_t netlist_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 

@@ -3,7 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include "../../simskin.h"
 #include "text_reader.h"
 #include "image_reader.h"
 #include "imagelist_reader.h"

@@ -7,7 +7,6 @@
  * The depot window, where to buy convois
  */
 
-#include <algorithm>
 #include <stdio.h>
 #include <string.h>
 
@@ -41,7 +40,6 @@
 #include "../builder/vehikelbauer.h"
 #include "../dataobj/schedule.h"
 #include "../dataobj/translator.h"
-#include "../dataobj/environment.h"
 
 #include "../player/simplay.h"
 

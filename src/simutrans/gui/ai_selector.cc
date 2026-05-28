@@ -3,7 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include "../simdebug.h"
 #include "../sys/simsys.h"
 
 #include "ai_selector.h"

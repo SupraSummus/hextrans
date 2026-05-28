@@ -3,7 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include "../world/simworld.h"
 #include "../display/simgraph.h"
 
 #include "../simskin.h"

@@ -3,8 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include "../utils/cbuffer.h"
-
 #include "pakinstaller.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/environment.h"
@@ -12,7 +10,6 @@
 #include "../world/simworld.h"
 
 #include "../dataobj/pakset_downloader.h"
-#include "../simloadingscreen.h"
 
 #include "../../paksetinfo.h"
 

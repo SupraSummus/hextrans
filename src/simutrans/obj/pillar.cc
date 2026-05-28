@@ -7,7 +7,6 @@
 
 #include "../world/simworld.h"
 #include "simobj.h"
-#include "../simmem.h"
 #include "../display/simimg.h"
 
 #include "../builder/brueckenbauer.h"

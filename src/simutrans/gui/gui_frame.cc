@@ -3,8 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include <stdio.h>
-
 #include "gui_frame.h"
 #include "../simcolor.h"
 #include "../dataobj/environment.h"
@@ -12,10 +10,6 @@
 #include "simwin.h"
 #include "../world/simworld.h"
 #include "../player/simplay.h"
-
-#include "../descriptor/reader/obj_reader.h"
-#include "../descriptor/skin_desc.h"
-#include "../simskin.h"
 
 karte_ptr_t gui_frame_t::welt;
 

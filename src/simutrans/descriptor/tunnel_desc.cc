@@ -3,8 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include <stdio.h>
-
 #include "../dataobj/ribi.h"
 #include "tunnel_desc.h"
 

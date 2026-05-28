@@ -17,7 +17,6 @@
 #include "../dataobj/translator.h"
 
 #include "../utils/simrandom.h"
-#include "../utils/simstring.h"
 #include "../utils/cbuffer.h"
 
 #include "factory_edit.h"

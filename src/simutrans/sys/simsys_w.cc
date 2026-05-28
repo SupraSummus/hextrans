@@ -20,8 +20,6 @@
 #include <shellapi.h>
 #include <shlobj.h>
 
-#include <string>
-
 #ifdef __CYGWIN__
 extern int __argc;
 extern char **__argv;
@@ -30,18 +28,12 @@ extern char **__argv;
 #include "simsys.h"
 
 #include "../macros.h"
-#include "../simconst.h"
 #include "../simdebug.h"
 #include "../simmem.h"
 #include "../simversion.h"
 #include "../simevent.h"
-#include "../dataobj/environment.h"
 #include "../display/simgraph.h"
 #include "../gui/simwin.h"
-#include "../gui/gui_frame.h"
-#include "../gui/components/gui_component.h"
-#include "../gui/components/gui_textinput.h"
-#include "../utils/unicode.h"
 
 // needed for wheel
 #ifndef WM_MOUSEWHEEL

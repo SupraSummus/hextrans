@@ -7,7 +7,6 @@
 
 #include "../../builder/brueckenbauer.h"
 #include "../bridge_desc.h"
-#include "../intro_dates.h"
 
 #include "bridge_reader.h"
 #include "../obj_node_info.h"

@@ -8,8 +8,6 @@
 #include <math.h>
 
 #include "../simdebug.h"
-#include "../simevent.h"
-#include "../simversion.h"
 #include "../world/simcity.h"
 #include "../simmesg.h"
 #include "../simconvoi.h"

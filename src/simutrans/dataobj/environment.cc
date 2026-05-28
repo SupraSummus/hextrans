@@ -6,7 +6,6 @@
 #include <string>
 #include "environment.h"
 #include "loadsave.h"
-#include "../pathes.h"
 #include "../simversion.h"
 #include "../simconst.h"
 #include "../simtypes.h"

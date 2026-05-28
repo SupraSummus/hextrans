@@ -7,8 +7,6 @@
 
 #include "../../simdebug.h"
 
-#include "../../dataobj/ribi.h"
-
 #include "../intro_dates.h"
 #include "../tunnel_desc.h"
 #include "../obj_desc.h"

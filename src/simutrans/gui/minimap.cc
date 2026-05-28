@@ -28,7 +28,6 @@
 
 #include "../obj/way/schiene.h"
 #include "../obj/leitung2.h"
-#include "../utils/cbuffer.h"
 #include "../display/scr_coord.h"
 #include "../display/simgraph.h"
 #include "../display/viewport.h"

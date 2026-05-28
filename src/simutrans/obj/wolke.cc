@@ -6,14 +6,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../world/simworld.h"
 #include "simobj.h"
 #include "../utils/simrandom.h"
 #include "wolke.h"
 
 #include "../dataobj/loadsave.h"
-
-#include "../descriptor/factory_desc.h"
 
 #include "../tpl/vector_tpl.h"
 

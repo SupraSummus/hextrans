@@ -3,7 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include <string>
 #include <stdio.h>
 #include <cmath>
 
@@ -11,7 +10,6 @@
 #include "map_frame.h"
 
 #include "simwin.h"
-#include "../sys/simsys.h"
 
 #include "../world/simworld.h"
 #include "../display/simgraph.h"

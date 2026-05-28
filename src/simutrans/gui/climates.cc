@@ -4,19 +4,14 @@
  */
 
 #include "climates.h"
-#include "minimap.h"
 #include "welt.h"
 
 #include "../descriptor/ground_desc.h"
 
-#include "../simdebug.h"
 #include "simwin.h"
 
 #include "../dataobj/settings.h"
-#include "../dataobj/environment.h"
 #include "../dataobj/translator.h"
-
-#include "../display/simgraph.h"
 
 // HEX-PORT: label order matches ribi_t::nesw[0..5] bit positions =
 // SE, S, SW, NW, N, NE.  Old square had only 4 labels (N/E/S/W); the

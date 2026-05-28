@@ -10,11 +10,9 @@
 #include "../simtypes.h"
 #include "../world/simworld.h"
 #include "../simhalt.h"
-#include "../display/simimg.h"
 
 #include "../utils/cbuffer.h"
 #include "../utils/simrandom.h"
-#include "../gui/messagebox.h"
 #include "../descriptor/building_desc.h"
 #include "../ground/grund.h"
 #include "../obj/gebaeude.h"
@@ -24,8 +22,6 @@
 #include "translator.h"
 
 #include "schedule.h"
-
-#include "../tpl/slist_tpl.h"
 
 
 schedule_entry_t schedule_t::dummy_entry(koord3d::invalid, 0, 0);

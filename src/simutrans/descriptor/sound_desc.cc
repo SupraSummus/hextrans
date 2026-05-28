@@ -8,16 +8,13 @@
 #include "../simdebug.h"
 
 #include "../dataobj/tabfile.h"
-#include "../dataobj/environment.h"
 
-#include "../macros.h"
 #include "../sound/sound.h"
 
 #include "../utils/simstring.h"
 
 #include "../tpl/stringhashtable_tpl.h"
 
-#include "spezial_obj_tpl.h"
 #include "sound_desc.h"
 #include "ground_desc.h"
 

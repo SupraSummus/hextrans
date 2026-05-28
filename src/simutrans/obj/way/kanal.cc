@@ -6,9 +6,7 @@
 #include <stdio.h>
 
 #include "../../world/simworld.h"
-#include "../../display/simimg.h"
 
-#include "../../descriptor/ground_desc.h"
 #include "../../descriptor/way_desc.h"
 
 #include "../../builder/wegbauer.h"

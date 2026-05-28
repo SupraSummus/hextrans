@@ -8,7 +8,6 @@
 #include "../../utils/simstring.h"
 #include "../../dataobj/tabfile.h"
 #include "obj_node.h"
-#include "../skin_desc.h"
 #include "../factory_desc.h"
 #include "../sound_desc.h"
 #include "text_writer.h"

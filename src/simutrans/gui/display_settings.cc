@@ -4,7 +4,6 @@
  */
 
 #include "display_settings.h"
-#include "../simdebug.h"
 #include "../world/simworld.h"
 #include "../display/simimg.h"
 #include "../simintr.h"

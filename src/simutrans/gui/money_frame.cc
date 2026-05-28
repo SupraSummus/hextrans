@@ -12,12 +12,9 @@
 
 #include "../world/simworld.h"
 #include "../player/ai_scripted.h"
-#include "../simdebug.h"
 #include "../display/simgraph.h"
 #include "../simcolor.h"
-#include "../utils/simstring.h"
 #include "../dataobj/translator.h"
-#include "../dataobj/environment.h"
 #include "../dataobj/scenario.h"
 #include "../dataobj/loadsave.h"
 

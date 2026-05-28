@@ -5,10 +5,7 @@
 
 #include <string>
 #include "../../dataobj/tabfile.h"
-#include "../../utils/simstring.h"
 #include "obj_node.h"
-#include "obj_pak_exception.h"
-#include "../way_desc.h"
 #include "../way_image_keys.h"
 #include "text_writer.h"
 #include "imagelist_writer.h"

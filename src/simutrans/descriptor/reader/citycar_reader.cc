@@ -6,7 +6,6 @@
 #include <stdio.h>
 
 #include "../../simunits.h"
-#include "../../vehicle/vehicle.h"
 #include "../../vehicle/simroadtraffic.h"
 #include "../citycar_desc.h"
 #include "../intro_dates.h"

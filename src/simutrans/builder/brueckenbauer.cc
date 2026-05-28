@@ -22,7 +22,6 @@
 #include "../obj/depot.h"
 #include "../obj/leitung2.h"
 #include "../obj/pillar.h"
-#include "../obj/signal.h"
 #include "../obj/wayobj.h"
 
 #include "../player/simplay.h"

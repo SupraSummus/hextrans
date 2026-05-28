@@ -14,7 +14,6 @@
 #include "../simtypes.h"
 #include "../display/simgraph.h" // for unicode stuff
 #include "translator.h"
-#include "loadsave.h"
 #include "environment.h"
 #include "../simmem.h"
 #include "../utils/cbuffer.h"

@@ -7,8 +7,6 @@
 
 #include "environment.h"
 
-#include "../simio.h"
-#include "../sys/simsys.h"
 #include "../simmem.h"
 #include "../macros.h"
 #include "../io/raw_image.h"

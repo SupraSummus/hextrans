@@ -7,13 +7,11 @@
 #include "components/gui_button.h"
 #include "components/gui_label.h"
 
-#include "messagebox.h"
 #include "simwin.h"
 
 #include "../world/simworld.h"
 #include "../display/viewport.h"
 #include "../dataobj/translator.h"
-#include "../dataobj/environment.h"
 
 static karte_ptr_t welt;
 

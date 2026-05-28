@@ -7,7 +7,6 @@
 #include "../../utils/simstring.h"
 #include "../../dataobj/tabfile.h"
 #include "../building_desc.h"
-#include "obj_pak_exception.h"
 #include "obj_node.h"
 #include "text_writer.h"
 #include "imagelist2d_writer.h"

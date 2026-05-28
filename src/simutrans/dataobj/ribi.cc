@@ -3,9 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include <stdio.h>
-#include "../simdebug.h"
-#include "../simconst.h"
 #include "ribi.h"
 #include "koord.h"
 #include "koord3d.h"

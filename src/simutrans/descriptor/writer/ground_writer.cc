@@ -8,7 +8,6 @@
 #include "../../dataobj/tabfile.h"
 #include "../../dataobj/ribi.h"
 #include "obj_node.h"
-#include "../ground_desc.h"
 #include "text_writer.h"
 #include "imagelist2d_writer.h"
 #include "ground_writer.h"

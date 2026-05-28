@@ -10,7 +10,6 @@
 #include "../builder/vehikelbauer.h"
 #include "../obj/crossing.h"
 #include "../dataobj/schedule.h"
-#include "../obj/roadsign.h"
 #include "../simconvoi.h"
 
 

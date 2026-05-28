@@ -13,7 +13,6 @@
 #include "../sys/simsys.h"
 #include "../dataobj/environment.h"
 #include "../dataobj/tabfile.h"
-#include "components/gui_button.h"
 #include "components/gui_tab_panel.h"
 #include "../descriptor/skin_desc.h"
 #include "../dataobj/pakset_manager.h"

@@ -8,18 +8,15 @@
 #include "../simskin.h"
 #include "../simcolor.h"
 #include "../tool/simtool.h"
-#include "../display/simgraph.h"
 #include "../display/viewport.h"
 #include "../player/simplay.h"
 #include "../world/simworld.h"
-#include "../display/simimg.h"
 
 #include "../dataobj/translator.h"
 
 #include "../descriptor/skin_desc.h"
 
 #include "../utils/cbuffer.h"
-#include "../utils/simstring.h"
 
 #include "gui_frame.h"
 #include "halt_info.h" // gui_halt_type_images_t

@@ -9,9 +9,7 @@
 #include "../simdebug.h"
 #include "../world/simworld.h"
 #include "simwin.h"
-#include "../display/simimg.h"
 #include "../simmesg.h"
-#include "../simskin.h"
 #include "../simversion.h"
 
 #include "../builder/hausbauer.h"
@@ -34,26 +32,21 @@
 #include "../player/simplay.h"
 #include "../simconvoi.h"
 
-#include "../simcolor.h"
-
 #include "../display/simgraph.h"
 
 #include "../sys/simsys.h"
 
 #include "../tool/simmenu.h"
 
-#include "../utils/simstring.h"
 #include "../utils/simrandom.h"
 
 #include "components/gui_divider.h"
 
 
 #include "banner.h"
-#include "sprachen.h"
 #include "climates.h"
 #include "settings_frame.h"
 #include "load_relief_frame.h"
-#include "messagebox.h"
 
 
 // Local adjustment

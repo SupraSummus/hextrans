@@ -21,7 +21,6 @@
 #include "../world/simworld.h"
 #include "../simskin.h"
 #include "../dataobj/translator.h"
-#include "../dataobj/environment.h"
 #include "../utils/simstring.h"
 
 /**

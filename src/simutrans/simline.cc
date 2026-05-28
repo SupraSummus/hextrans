@@ -8,11 +8,9 @@
 #include "simhalt.h"
 #include "world/simworld.h"
 
-#include "utils/simstring.h"
 #include "dataobj/schedule.h"
 #include "dataobj/translator.h"
 #include "dataobj/loadsave.h"
-#include "gui/gui_theme.h"
 #include "player/simplay.h"
 #include "player/finance.h" // convert_money
 #include "vehicle/vehicle.h"

@@ -3,17 +3,13 @@
  * (see LICENSE.txt)
  */
 
-#include "../../simdebug.h"
-
 #include "../gui_frame.h"
 #include "gui_scrollpane.h"
 #include "gui_scrollbar.h"
-#include "gui_button.h"
 
 #include "../../dataobj/loadsave.h"
 #include "../../dataobj/environment.h"
 #include "../../display/simgraph.h"
-#include "../../simcolor.h"
 
 
 /**

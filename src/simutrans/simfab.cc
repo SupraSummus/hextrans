@@ -10,7 +10,6 @@
 #include <string.h>
 
 #include "simdebug.h"
-#include "display/simimg.h"
 #include "simcolor.h"
 #include "ground/grund.h"
 #include "ground/boden.h"
@@ -33,7 +32,6 @@
 #include "obj/leitung2.h"
 
 #include "dataobj/settings.h"
-#include "dataobj/environment.h"
 #include "dataobj/translator.h"
 #include "dataobj/loadsave.h"
 #include "dataobj/pakset_manager.h"

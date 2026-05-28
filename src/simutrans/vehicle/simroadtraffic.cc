@@ -8,7 +8,6 @@
 #include "../simmesg.h"
 #include "../world/simworld.h"
 #include "../utils/simrandom.h"
-#include "../display/simimg.h"
 #include "../simunits.h"
 #include "../simtypes.h"
 #include "../simconvoi.h"

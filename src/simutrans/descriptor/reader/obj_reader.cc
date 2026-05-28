@@ -3,4 +3,3 @@
  * (see LICENSE.txt)
  */
 
-#include "obj_reader.h"

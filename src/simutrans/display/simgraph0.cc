@@ -3,7 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include "../simconst.h"
 #include "../sys/simsys.h"
 #include "../descriptor/image.h"
 

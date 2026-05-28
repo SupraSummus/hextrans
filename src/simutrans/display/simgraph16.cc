@@ -10,21 +10,16 @@
 #include "../dataobj/environment.h"
 #include "../dataobj/translator.h"
 #include "../descriptor/image.h"
-#include "../gui/simwin.h"
 #include "../io/raw_image.h"
 #include "../macros.h"
-#include "../obj/roadsign.h"
 #include "../pathes.h"
 #include "../simconst.h"
 #include "../simdebug.h"
 #include "../simmem.h"
-#include "../simticker.h"
 #include "../simtypes.h"
 #include "../sys/simsys.h"
-#include "../utils/simstring.h"
 #include "../utils/unicode.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -39,7 +34,6 @@
 #endif
 
 #ifdef MULTI_THREAD
-#include "../utils/simthread.h"
 
 // currently just redrawing/rezooming
 static pthread_mutex_t rezoom_img_mutex[MAX_THREADS];

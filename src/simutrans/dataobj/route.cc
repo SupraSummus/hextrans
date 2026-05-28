@@ -16,7 +16,6 @@
 #include "../vehicle/simtestdriver.h"
 #include "loadsave.h"
 #include "route.h"
-#include "environment.h"
 
 #include"../utils/simrandom.h"
 

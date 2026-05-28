@@ -11,7 +11,6 @@
 #include "../../dataobj/tabfile.h"
 #include "../sound_desc.h"
 #include "obj_node.h"
-#include "obj_pak_exception.h"
 #include "text_writer.h"
 #include "image_writer.h"
 #include "get_waytype.h"

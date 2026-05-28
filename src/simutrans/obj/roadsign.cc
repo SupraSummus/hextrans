@@ -18,7 +18,6 @@
 #include "../descriptor/skin_desc.h"
 
 #include "../ground/grund.h"
-#include "../obj/way/strasse.h"
 
 #include "../dataobj/loadsave.h"
 #include "../dataobj/scenario.h"
@@ -33,7 +32,6 @@
 #include "../tpl/stringhashtable_tpl.h"
 
 #include "../utils/cbuffer.h"
-#include "../utils/simstring.h"
 
 #include "roadsign.h"
 

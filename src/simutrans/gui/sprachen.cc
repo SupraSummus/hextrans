@@ -5,9 +5,7 @@
 
 #include <stdio.h>
 
-#include "../simdebug.h"
 #include "../pathes.h"
-#include "../display/simimg.h"
 #include "../simskin.h"
 #include "../tool/simmenu.h"
 #include "../descriptor/skin_desc.h"
@@ -16,8 +14,6 @@
 #include "simwin.h"
 #include "components/gui_image.h"
 #include "components/gui_divider.h"
-
-#include "../display/font.h"
 
 #include "../dataobj/environment.h"
 #include "../dataobj/translator.h"

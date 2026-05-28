@@ -6,7 +6,6 @@
 #include <stdio.h>
 
 #include "../../simunits.h"
-#include "../../obj/simobj.h"
 #include "../../simdebug.h"
 #include "../../obj/groundobj.h"
 #include "../../vehicle/movingobj.h"

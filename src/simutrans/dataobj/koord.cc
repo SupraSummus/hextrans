@@ -7,7 +7,6 @@
 #include "loadsave.h"
 #include "../display/scr_coord.h"
 #include "../utils/simrandom.h"
-#include "../simconst.h"
 #include "../simdebug.h"
 
 
