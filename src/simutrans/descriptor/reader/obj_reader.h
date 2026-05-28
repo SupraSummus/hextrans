@@ -99,7 +99,7 @@ inline uint64 decode_uint64(char *&data)
 class obj_reader_t
 {
 public:
-	obj_reader_t() : buf_end_(NULL) { /* Beware: Cannot register_reader() here! */ }
+	obj_reader_t() : buf_start_(NULL), buf_end_(NULL) { /* Beware: Cannot register_reader() here! */ }
 	virtual ~obj_reader_t() {}
 
 protected:
@@ -112,14 +112,27 @@ protected:
 	/// process-singleton (see OBJ_READER_DEF) and pak loading is
 	/// single-threaded.  If that ever changes, this needs to become a
 	/// per-call cursor.
+	char* buf_start_;
 	char* buf_end_;
 
-	void set_buffer(char* base, size_t size) { buf_end_ = base + size; }
+	void set_buffer(char* base, size_t size)
+	{
+		buf_start_ = base;
+		buf_end_ = base + size;
+	}
 
 	void require(const char* p, size_t n) const
 	{
+		if (!buf_end_) {
+			dbg->fatal(get_type_name(), "decode called before set_buffer");
+		}
 		if (p + n > buf_end_) {
-			dbg->fatal("obj_reader_t::decode", "short read: need %zu beyond bound", n);
+			dbg->fatal(get_type_name(),
+				"short read at offset %zu of %zu: need %zu, have %zu",
+				static_cast<size_t>(p - buf_start_),
+				static_cast<size_t>(buf_end_ - buf_start_),
+				n,
+				static_cast<size_t>(buf_end_ - p));
 		}
 	}
 
