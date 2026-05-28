@@ -5,10 +5,7 @@
 
 #include "export_objs.h"
 
-#include <string.h>
-
 #include "api_function.h"
-#include "api_class.h"
 
 #include "api/api.h"
 

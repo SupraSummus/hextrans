@@ -4,7 +4,6 @@
  */
 
 #include <stdio.h>
-#include "../../simdebug.h"
 
 #include "../image_array.h"
 

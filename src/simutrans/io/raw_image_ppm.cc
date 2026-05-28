@@ -8,7 +8,6 @@
 #include "raw_image.h"
 
 #include "../simdebug.h"
-#include "../sys/simsys.h"
 #include "../simio.h"
 #include "../simmem.h"
 

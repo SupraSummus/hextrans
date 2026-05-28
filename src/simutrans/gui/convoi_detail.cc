@@ -3,10 +3,7 @@
  * (see LICENSE.txt)
  */
 
-#include <stdio.h>
-
 #include "convoi_detail.h"
-#include "components/gui_divider.h"
 #include "components/gui_image.h"
 #include "components/gui_textarea.h"
 

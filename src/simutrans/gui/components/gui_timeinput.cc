@@ -6,7 +6,6 @@
 #include "gui_timeinput.h"
 #include "../simwin.h"
 #include "../../display/simgraph.h"
-#include "../../macros.h"
 #include "../../dataobj/translator.h"
 #include "../../simevent.h"
 #include "../../dataobj/environment.h"

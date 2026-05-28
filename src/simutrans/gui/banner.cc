@@ -5,7 +5,6 @@
 
 #include "../simcolor.h"
 #include "../simevent.h"
-#include "../display/simimg.h"
 #include "../world/simworld.h"
 #include "../simskin.h"
 #include "../sys/simsys.h"
@@ -14,7 +13,6 @@
 #include "../macros.h"
 #include "../descriptor/skin_desc.h"
 #include "../dataobj/environment.h"
-#include "../dataobj/sve_cache.h"
 #include "../tool/simmenu.h"
 
 #include "simwin.h"
@@ -278,7 +276,6 @@ void banner_text_t::draw(scr_coord offset)
 	//                    BANNER_TEXT_INDENT defines left and right padding inside banner area
 
 	static const char* const scrolltext[] = {
-		#include "../scrolltext.h"
 	};
 
 	scr_coord cursor(get_pos() + offset);

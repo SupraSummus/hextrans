@@ -31,7 +31,6 @@
 #include "../obj/wayobj.h"
 
 #include "../utils/simrandom.h"
-#include "../utils/simstring.h"
 #include "../utils/cbuffer.h"
 
 #include "../vehicle/vehicle.h"

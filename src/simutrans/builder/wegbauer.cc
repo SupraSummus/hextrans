@@ -22,7 +22,6 @@
 #include "../descriptor/way_desc.h"
 #include "../descriptor/tunnel_desc.h"
 #include "../descriptor/building_desc.h"
-#include "../descriptor/crossing_desc.h"
 
 #include "../obj/way/strasse.h"
 #include "../obj/way/schiene.h"
@@ -31,7 +30,6 @@
 #include "../obj/way/narrowgauge.h"
 #include "../obj/way/kanal.h"
 #include "../obj/way/runway.h"
-#include "../ground/brueckenboden.h"
 #include "../ground/monorailboden.h"
 #include "../ground/tunnelboden.h"
 #include "../ground/grund.h"
@@ -59,7 +57,6 @@
 
 #include "../vehicle/simtestdriver.h"
 
-#include "../tpl/array_tpl.h"
 #include "../tpl/stringhashtable_tpl.h"
 
 #include "../gui/minimap.h" // for debugging

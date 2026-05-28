@@ -19,7 +19,6 @@
 
 #ifndef _WIN32
 #include <dirent.h>
-#include <sys/types.h>
 #endif
 
 

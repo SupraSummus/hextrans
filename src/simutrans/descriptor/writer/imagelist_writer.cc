@@ -7,7 +7,6 @@
 #include "../../tpl/slist_tpl.h"
 #include "obj_node.h"
 #include "image_writer.h"
-#include "obj_pak_exception.h"
 #include "imagelist_writer.h"
 
 

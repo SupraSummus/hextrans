@@ -6,8 +6,6 @@
 #include "image.h"
 #include "../display/simgraph.h"
 #include "../simtypes.h"
-#include "../simdebug.h"
-#include "../macros.h"
 
 #include <string.h>
 #include <stdlib.h>

@@ -3,9 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include <string.h>
-
-#include "../simdebug.h"
 #include "../world/simworld.h"
 #include "../display/viewport.h"
 #include "../obj/zeiger.h"

@@ -18,12 +18,9 @@
 #include "../descriptor/ground_desc.h"
 #include "../descriptor/skin_desc.h"
 
-#include "../dataobj/environment.h"
-
 #include "label.h"
 
 #ifdef MULTI_THREAD
-#include "../utils/simthread.h"
 static pthread_mutex_t add_label_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 

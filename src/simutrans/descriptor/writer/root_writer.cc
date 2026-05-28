@@ -8,7 +8,6 @@
 #include "../../dataobj/tabfile.h"
 #include "../../utils/searchfolder.h"
 #include "../../utils/simstring.h"
-#include "../obj_desc.h"
 #include "obj_node.h"
 #include "obj_writer.h"
 #include "root_writer.h"

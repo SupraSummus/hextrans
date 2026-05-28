@@ -4,7 +4,6 @@
  */
 
 #include <string>
-#include <vector>
 #include "../../dataobj/tabfile.h"
 #include "../roadsign_desc.h"
 #include "obj_node.h"

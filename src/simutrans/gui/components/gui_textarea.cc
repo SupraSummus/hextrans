@@ -7,10 +7,7 @@
 
 #include "gui_textarea.h"
 #include "../../display/simgraph.h"
-#include "../../simdebug.h"
 #include "../../simcolor.h"
-#include "../../simskin.h"
-#include "../gui_theme.h"
 #include "../../utils/cbuffer.h"
 
 #define L_PADDING_RIGHT (10)

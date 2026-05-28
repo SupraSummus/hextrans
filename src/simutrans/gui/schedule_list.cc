@@ -5,10 +5,8 @@
 
 #include <stdio.h>
 
-#include "messagebox.h"
 #include "schedule_list.h"
 #include "line_management_gui.h"
-#include "components/gui_convoiinfo.h"
 #include "line_item.h"
 #include "simwin.h"
 
@@ -16,14 +14,11 @@
 #include "../obj/depot.h"
 #include "../simhalt.h"
 #include "../world/simworld.h"
-#include "../simevent.h"
 #include "../display/simgraph.h"
-#include "../simskin.h"
 #include "../simconvoi.h"
 #include "../vehicle/vehicle.h"
 #include "../simlinemgmt.h"
 #include "../tool/simmenu.h"
-#include "../utils/simstring.h"
 #include "../player/simplay.h"
 
 #include "../builder/vehikelbauer.h"
@@ -31,14 +26,6 @@
 #include "../dataobj/schedule.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/environment.h"
-
-#include "../obj/way/kanal.h"
-#include "../obj/way/maglev.h"
-#include "../obj/way/monorail.h"
-#include "../obj/way/narrowgauge.h"
-#include "../obj/way/runway.h"
-#include "../obj/way/schiene.h"
-#include "../obj/way/strasse.h"
 
 #include "../utils/unicode.h"
 

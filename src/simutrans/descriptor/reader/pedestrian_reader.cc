@@ -8,7 +8,6 @@
 #include "../../vehicle/pedestrian.h"
 #include "../pedestrian_desc.h"
 #include "../obj_node_info.h"
-#include "../intro_dates.h"
 
 #include "pedestrian_reader.h"
 #include "../../network/pakset_info.h"

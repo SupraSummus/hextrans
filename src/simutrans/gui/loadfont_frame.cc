@@ -3,26 +3,19 @@
  * (see LICENSE.txt)
  */
 
-#include "../simdebug.h"
 
-#include <sys/stat.h>
 #include <string.h>
 #include <time.h>
 
 #include "loadfont_frame.h"
 
 #include "../sys/simsys.h"
-#include "../world/simworld.h"
-#include "../simversion.h"
-#include "../pathes.h"
 #include "../utils/unicode.h"
 #include "../utils/searchfolder.h"
 
 #include "../dataobj/loadsave.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/environment.h"
-
-#include "gui_theme.h"
 
 #include "../utils/simstring.h"
 

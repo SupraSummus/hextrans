@@ -29,8 +29,6 @@
  *
  */
 
-#include <string.h>
-
 #include "sha1.h"
 
 /*

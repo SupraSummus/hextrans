@@ -18,7 +18,6 @@
 #include "../dataobj/scenario.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/environment.h"
-#include "../network/network_cmd_ingame.h"
 #include "../player/simplay.h"
 
 

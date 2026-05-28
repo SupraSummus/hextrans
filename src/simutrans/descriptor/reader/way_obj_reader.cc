@@ -5,7 +5,6 @@
 
 #include <stdio.h>
 #include "../../simdebug.h"
-#include "../../utils/simstring.h"
 
 #include "../way_obj_desc.h"
 #include "../../obj/wayobj.h"

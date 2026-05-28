@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "../simtypes.h"
 #include "../simmem.h"
 #include "freelist.h"
 #include "../tpl/freelist_tpl.h"

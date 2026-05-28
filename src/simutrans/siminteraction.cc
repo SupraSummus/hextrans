@@ -5,7 +5,6 @@
 
 #include "siminteraction.h"
 
-#include "simversion.h"
 #include "dataobj/environment.h"
 #include "gui/gui_frame.h"
 #include "gui/help_frame.h"

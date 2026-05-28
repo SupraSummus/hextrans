@@ -4,7 +4,6 @@
  */
 
 #include "gui_label.h"
-#include "../gui_frame.h"
 #include "../../dataobj/translator.h"
 #include "../../utils/simstring.h"
 #include "../simwin.h"

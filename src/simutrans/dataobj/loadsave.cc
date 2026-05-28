@@ -8,7 +8,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
-#include <errno.h>
 
 #include "../sys/simsys.h"
 #include "../simtypes.h"

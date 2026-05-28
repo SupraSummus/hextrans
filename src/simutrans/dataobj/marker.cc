@@ -4,8 +4,6 @@
  */
 
 #include <string.h>
-#include "../simtypes.h"
-#include "../simdebug.h"
 #include "../ground/grund.h"
 #include "marker.h"
 

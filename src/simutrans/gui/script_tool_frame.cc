@@ -9,14 +9,11 @@
 
 #include "../script/script_tool_manager.h"
 #include "../dataobj/environment.h"
-#include "../dataobj/tabfile.h"
 #include "../dataobj/translator.h"
-#include "../simdebug.h"
 #include "../world/simworld.h"
 #include "../tool/simtool-scripted.h"
 #include "../sys/simsys.h"
 #include "../utils/cbuffer.h"
-#include "../utils/simstring.h"
 
 script_tool_frame_t::~script_tool_frame_t()
 {

@@ -3,8 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include <stdio.h>
-
 #include "simworld.h"
 #include "../simintr.h"
 #include "../simtypes.h"

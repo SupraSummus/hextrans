@@ -3,13 +3,9 @@
  * (see LICENSE.txt)
  */
 
-#include <stdio.h>
-
 #include "../player/ai.h"
 
-#include "../descriptor/skin_desc.h"
 #include "../dataobj/translator.h"
-#include "../dataobj/environment.h"
 #include "ai_option.h"
 
 

@@ -10,7 +10,6 @@
 #include "simcolor.h"
 #include "tpl/slist_tpl.h"
 #include "utils/simstring.h"
-#include "gui/gui_theme.h"
 #include "gui/simwin.h"
 #include "gui/chat_frame.h"
 #include "world/simworld.h"

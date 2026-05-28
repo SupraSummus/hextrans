@@ -26,9 +26,7 @@
 
 #include "../descriptor/building_desc.h"
 
-#include "../display/simimg.h"
 
-#include "../ground/boden.h"
 #include "../ground/fundament.h"
 #include "../ground/grund.h"
 

@@ -4,9 +4,7 @@
  */
 
 #include <string>
-#include "../../simdebug.h"
 #include "../../dataobj/tabfile.h"
-#include "../skin_desc.h"
 #include "obj_node.h"
 #include "text_writer.h"
 #include "imagelist_writer.h"

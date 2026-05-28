@@ -7,7 +7,6 @@
 
 #include "road_vehicle.h"
 #include "simroadtraffic.h"
-#include "vehicle.h"
 
 #include "../dataobj/environment.h"
 #include "../simunits.h"

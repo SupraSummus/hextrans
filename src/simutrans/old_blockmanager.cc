@@ -11,13 +11,10 @@
 #include "simmesg.h"
 #include "display/simimg.h"
 #include "obj/signal.h"
-#include "obj/tunnel.h"
 #include "ground/grund.h"
-#include "obj/way/schiene.h"
 
 #include "dataobj/loadsave.h"
 #include "dataobj/translator.h"
-#include "dataobj/environment.h"
 
 #include "tpl/slist_tpl.h"
 

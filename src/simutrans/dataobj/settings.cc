@@ -8,7 +8,6 @@
 
 #include "../builder/wegbauer.h"
 #include "../descriptor/way_desc.h"
-#include "../pathes.h"
 #include "../player/finance.h"
 #include "../player/simplay.h"
 #include "../simconst.h"

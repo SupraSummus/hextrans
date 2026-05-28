@@ -3,8 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include <stdio.h>
-
 #include "gui_world_view.h"
 #include "../../world/simworld.h"
 #include "../../display/viewport.h"

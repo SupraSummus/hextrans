@@ -10,10 +10,8 @@
 #include "welt.h"
 #include "components/gui_divider.h"
 
-#include "../simdebug.h"
 #include "../world/simworld.h"
 #include "simwin.h"
-#include "../display/simimg.h"
 
 #include "../dataobj/settings.h"
 #include "../dataobj/translator.h"

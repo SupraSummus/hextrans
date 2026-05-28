@@ -3,13 +3,8 @@
  * (see LICENSE.txt)
  */
 
-#include "../../simdebug.h"
-#include "../../simcolor.h"
 #include "../../display/simgraph.h"
-#include "../../simskin.h"
 #include "../../macros.h"
-#include "../../descriptor/skin_desc.h"
-#include "action_listener.h"
 #include "gui_scrollbar.h"
 
 #include "../gui_theme.h"

@@ -16,7 +16,6 @@
 #include "../obj/way/weg.h"
 
 #include "../dataobj/loadsave.h"
-#include "../dataobj/environment.h"
 #include "../dataobj/translator.h"
 
 #include "../utils/cbuffer.h"

@@ -4,14 +4,11 @@
  */
 
 #include <stdio.h>
-#include "../../simfab.h"
 #include "../../builder/fabrikbauer.h"
 #include "../../simdebug.h"
 #include "../obj_node_info.h"
 #include "../sound_desc.h"
 #include "../factory_desc.h"
-#include "../xref_desc.h"
-#include "../../network/pakset_info.h"
 
 #include "factory_reader.h"
 

@@ -19,7 +19,6 @@
 #include "../ground/grund.h"
 
 #include "../dataobj/settings.h"
-#include "../dataobj/environment.h"
 #include "../network/pakset_info.h"
 #include "../dataobj/translator.h"
 
@@ -28,8 +27,6 @@
 #include "../world/building_placefinder.h"
 
 #include "../utils/cbuffer.h"
-
-#include "../descriptor/objversion.h"
 
 #include "../gui/minimap.h" // to update map after construction of new industry
 

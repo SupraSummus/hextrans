@@ -3,7 +3,6 @@
  * (see LICENSE.txt)
  */
 
-#include <algorithm>
 #include <string.h>
 
 #include "halt_list_frame.h"
@@ -15,13 +14,10 @@
 #include "../simfab.h"
 #include "../utils/unicode.h"
 #include "simwin.h"
-#include "../descriptor/skin_desc.h"
 
 #include "../builder/goods_manager.h"
 
 #include "../dataobj/translator.h"
-
-#include "../utils/cbuffer.h"
 
 
 /**
