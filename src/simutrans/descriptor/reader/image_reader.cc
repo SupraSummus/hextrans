@@ -32,6 +32,7 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 	if (fread(desc_buf.begin(), node.size, 1, fp) != 1) {
 		return NULL;
 	}
+	set_buffer(desc_buf.begin(), node.size);
 	char *p = desc_buf.begin()+6;
 
 	// always zero in old version, since length was always less than 65535

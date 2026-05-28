@@ -19,6 +19,7 @@ obj_desc_t * imagelist_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 	if (fread(desc_buf.begin(), node.size, 1, fp) != 1) {
 		return NULL;
 	}
+	set_buffer(desc_buf.begin(), node.size);
 	char *p = desc_buf.begin();
 
 	image_list_t *desc = new image_list_t();

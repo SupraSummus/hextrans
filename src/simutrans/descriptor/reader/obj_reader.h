@@ -99,8 +99,68 @@ inline uint64 decode_uint64(char *&data)
 class obj_reader_t
 {
 public:
-	obj_reader_t() { /* Beware: Cannot register_reader() here! */ }
+	obj_reader_t() : buf_end_(NULL) { /* Beware: Cannot register_reader() here! */ }
 	virtual ~obj_reader_t() {}
+
+protected:
+	/// Bounds advertised to the decode_* helpers below.  Each read_node
+	/// implementation calls set_buffer() once after fread'ing the node
+	/// body; subsequent decode_*() calls dbg->fatal if they would walk
+	/// past buf_end_.
+	///
+	/// Stored on the reader instance because each obj_reader_t is a
+	/// process-singleton (see OBJ_READER_DEF) and pak loading is
+	/// single-threaded.  If that ever changes, this needs to become a
+	/// per-call cursor.
+	char* buf_end_;
+
+	void set_buffer(char* base, size_t size) { buf_end_ = base + size; }
+
+	void require(const char* p, size_t n) const
+	{
+		if (p + n > buf_end_) {
+			dbg->fatal("obj_reader_t::decode", "short read: need %zu beyond bound", n);
+		}
+	}
+
+	uint8 decode_uint8(char*& p) const
+	{
+		require(p, 1);
+		const uint8 v = (uint8)*p;
+		++p;
+		return v;
+	}
+
+	uint16 decode_uint16(char*& p) const
+	{
+		require(p, 2);
+		const uint16 v = (uint16)(uint8)p[0] | (uint16)(uint8)p[1] << 8;
+		p += 2;
+		return v;
+	}
+
+	uint32 decode_uint32(char*& p) const
+	{
+		require(p, 4);
+		const uint32 v =
+			(uint32)(uint8)p[0]       |
+			(uint32)(uint8)p[1] <<  8 |
+			(uint32)(uint8)p[2] << 16 |
+			(uint32)(uint8)p[3] << 24;
+		p += 4;
+		return v;
+	}
+
+	uint64 decode_uint64(char*& p) const
+	{
+		require(p, 8);
+		uint64 v = 0;
+		for (int i = 0; i < 8; ++i) {
+			v |= (uint64)(uint8)p[i] << (i * 8);
+		}
+		p += 8;
+		return v;
+	}
 
 public:
 	/// Read a descriptor from @p fp. Does version check and compatibility transformations.
