@@ -474,6 +474,19 @@ locally under cmake can fail CI.  Reproduce with `autoconf &&
 ./configure && CC=clang CXX=clang++ make -C src/makeobj` after a
 clean.
 
+`clang-tidy --checks='-*,misc-include-cleaner' -p build <file>.cc`
+flags two warning classes: unused direct includes ("is not used
+directly") and missing direct includes ("no header providing X is
+directly included").  The cleanup is honest only if both halves
+run together — removing unused without adding missing just shifts a
+file's dependencies further onto transitive includes, not less.
+Either half on its own is mechanical divergence from upstream
+without a hex-port reason, and the tree relies on transitive
+includes pervasively, so a mass sweep just enlarges the merge
+surface.  Useful for spot-checking a file you're already rewriting,
+or before submitting an upstream-bound PR; not as a working-tree
+cleanup pass.
+
 `tools/test.py` runs the scenario suite end-to-end against pak64 — it
 fetches pak64 on first invocation (~30 MB, cached) and skips setup it
 already did, so warm runs are dominated by sim startup. Pass substring
