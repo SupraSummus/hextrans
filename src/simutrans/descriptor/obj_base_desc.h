@@ -24,7 +24,8 @@ class obj_named_desc_t : public obj_desc_t
 public:
 	const char *get_name() const
 	{
-		return get_child<text_desc_t>(0)->get_text();
+		const text_desc_t *const ts = get_child<text_desc_t>(0);
+		return ts ? ts->get_text() : NULL;
 	}
 
 	const char *get_copyright() const

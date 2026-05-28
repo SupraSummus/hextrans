@@ -8,6 +8,7 @@
 
 
 #include <stdio.h>
+#include <memory>
 
 #include "../obj_node_info.h"
 #include "../objversion.h"
@@ -94,6 +95,112 @@ inline uint64 decode_uint64(char *&data)
 		static classname *instance() { return &the_instance; } \
 	private: \
 		static classname the_instance
+
+
+/// Owns the bytes of one pak node body plus a bounds-checked cursor
+/// over them.  Constructed in each reader's read_node() with
+/// `auto p = node_body(fp, node.size, get_type_name());`;
+/// decode_*(node_body&) free overloads dispatch to its bounds-checked
+/// readers.
+class node_body
+{
+public:
+	/// Allocate @p size bytes, fread them from @p fp.  Short fread
+	/// leaves the cursor in failure state (bool-false).
+	/// @p size == 0 yields a valid but empty cursor.
+	node_body(FILE* fp, size_t size, const char* type_name)
+		: buf_(new char[size > 0 ? size : 1]),
+		  pos_(NULL),
+		  end_(NULL),
+		  type_name_(type_name)
+	{
+		if (size > 0 && fread(buf_.get(), size, 1, fp) != 1) {
+			buf_.reset();
+			return;
+		}
+		pos_ = buf_.get();
+		end_ = buf_.get() + size;
+	}
+
+	/// false on short fread.
+	explicit operator bool() const { return pos_ != NULL; }
+
+	/// Bounds-checked absolute seek from the buffer start.
+	void seek(size_t off)
+	{
+		if (buf_.get() + off > end_) {
+			dbg->fatal(type_name_,
+				"seek to offset %zu past buffer end %zu",
+				off, (size_t)(end_ - buf_.get()));
+		}
+		pos_ = buf_.get() + off;
+	}
+
+	/// Bounds-checked skip-forward; pairs with the legacy
+	/// `p += N` idiom at reader call sites.
+	node_body& operator+=(size_t n) { require(n); pos_ += n; return *this; }
+
+	/// Single-byte skip — `p++` for callers that used to advance a
+	/// raw char* by one byte (typically to step over a version tag).
+	/// Returns *this rather than a pre-increment copy because the
+	/// owned unique_ptr buffer can't be cheaply duplicated; no current
+	/// caller reads the return value.
+	node_body& operator++(int) { require(1); ++pos_; return *this; }
+
+	/// Return the current cursor and advance by @p n bytes
+	/// (bounds-checked).  Used for memcpy-style tail reads.
+	char* read_bytes(size_t n) { require(n); char* p = pos_; pos_ += n; return p; }
+
+	uint8 read_uint8()   { require(1); return (uint8)*pos_++; }
+	uint16 read_uint16() { require(2); uint16 v = (uint16)(uint8)pos_[0] | (uint16)(uint8)pos_[1] << 8; pos_ += 2; return v; }
+	uint32 read_uint32()
+	{
+		require(4);
+		uint32 v =
+			(uint32)(uint8)pos_[0]       |
+			(uint32)(uint8)pos_[1] <<  8 |
+			(uint32)(uint8)pos_[2] << 16 |
+			(uint32)(uint8)pos_[3] << 24;
+		pos_ += 4;
+		return v;
+	}
+	uint64 read_uint64()
+	{
+		require(8);
+		uint64 v = 0;
+		for (int i = 0; i < 8; ++i) {
+			v |= (uint64)(uint8)pos_[i] << (i * 8);
+		}
+		pos_ += 8;
+		return v;
+	}
+
+private:
+	void require(size_t n) const
+	{
+		if (pos_ + n > end_) {
+			dbg->fatal(type_name_,
+				"short read at offset %zu of %zu: need %zu, have %zu",
+				(size_t)(pos_ - buf_.get()), (size_t)(end_ - buf_.get()),
+				n, (size_t)(end_ - pos_));
+		}
+	}
+
+	std::unique_ptr<char[]> buf_;
+	char* pos_;
+	char* end_;
+	const char* type_name_;
+};
+
+/// Free decode_uint*() overloads that dispatch to the cursor's
+/// bounds-checked readers.  Paired with the free char*& overloads
+/// above: `decode_uint16(p)` resolves to either based on whether
+/// `p` is a node_body (reader bodies) or char* (pakset_manager
+/// node-header reads).
+inline uint8  decode_uint8(node_body& b)  { return b.read_uint8(); }
+inline uint16 decode_uint16(node_body& b) { return b.read_uint16(); }
+inline uint32 decode_uint32(node_body& b) { return b.read_uint32(); }
+inline uint64 decode_uint64(node_body& b) { return b.read_uint64(); }
 
 
 class obj_reader_t

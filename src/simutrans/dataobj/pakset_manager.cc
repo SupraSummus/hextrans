@@ -336,6 +336,22 @@ static bool read_node_info(obj_node_info_t& node, FILE* const f, uint32 const ve
 			return false;
 		}
 		node.size = decode_uint32(p);
+
+		// Reject a node whose body would extend past EOF, before any
+		// reader allocates a buffer sized to it.  The small-record
+		// path is uint16-bounded and can't OOM; only the large path
+		// needs this guard.
+		const long pos = ftell(f);
+		if (pos >= 0 && fseek(f, 0, SEEK_END) == 0) {
+			const long end = ftell(f);
+			if (fseek(f, pos, SEEK_SET) != 0) {
+				return false;
+			}
+			if (end >= pos && node.size > (uint32)(end - pos)) {
+				dbg->error("read_node_info", "node size %u exceeds remaining file bytes %ld", node.size, end - pos);
+				return false;
+			}
+		}
 	}
 
 	return true;
