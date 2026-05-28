@@ -324,6 +324,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\utils\checklist.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\utils\csv.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\utils\log.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\utils\log_fatal_display.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\utils\searchfolder.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\utils\sha1.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\utils\sha1_hash.cc" />

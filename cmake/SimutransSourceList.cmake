@@ -311,6 +311,7 @@ target_sources(simutrans PRIVATE
 		src/simutrans/utils/checklist.cc
 		src/simutrans/utils/csv.cc
 		src/simutrans/utils/log.cc
+		src/simutrans/utils/log_fatal_display.cc
 		src/simutrans/utils/searchfolder.cc
 		src/simutrans/utils/sha1.cc
 		src/simutrans/utils/sha1_hash.cc

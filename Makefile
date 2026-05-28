@@ -612,6 +612,7 @@ SOURCES += src/simutrans/utils/cbuffer.cc
 SOURCES += src/simutrans/utils/checklist.cc
 SOURCES += src/simutrans/utils/csv.cc
 SOURCES += src/simutrans/utils/log.cc
+SOURCES += src/simutrans/utils/log_fatal_display.cc
 SOURCES += src/simutrans/utils/searchfolder.cc
 SOURCES += src/simutrans/utils/sha1.cc
 SOURCES += src/simutrans/utils/sha1_hash.cc
