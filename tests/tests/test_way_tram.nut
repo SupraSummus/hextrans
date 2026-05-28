@@ -213,7 +213,10 @@ function test_way_tram_build_across_crossing()
 }
 
 
-// test_way_tram_build_in_tunel: HEX-PORT PENDING.
+// 1-tile hex hill at (3,2): road tunnel S-axis through (3,1)<->(3,3),
+// tram crosses via ctrl-dug rail-tunnel mouths on the SE-axis at
+// (2,2)<->(4,2).  Buried tile (3,2) carries road N|S=18 and, after
+// the cross, tram N|S|NW|SE=27.
 function test_way_tram_build_in_tunel()
 {
 	local pl = player_x(0)
@@ -221,89 +224,113 @@ function test_way_tram_build_in_tunel()
 	local road_tunnel = tunnel_desc_x.get_available_tunnels(wt_road)[0]
 	local rail_tunnel = tunnel_desc_x.get_available_tunnels(wt_rail)[0]
 
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(2, 3, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(3, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(3, 3, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 2, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 3, 0)), null)
+	raise_hex_tile(pl, 3, 2, 0)
 
-	ASSERT_EQUAL(command_x(tool_build_tunnel).work(pl, coord3d(1, 2, 0), road_tunnel.get_name()), null)
+	// road tunnel auto-finds end: (3,1) mouth S=2, (3,2) buried N|S=18, (3,3) mouth N=16
+	ASSERT_EQUAL(command_x(tool_build_tunnel).work(pl, coord3d(3, 1, 0), road_tunnel.get_name()), null)
 
-	// build tramway through road tunnel
+	local s_axis_col = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  2, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 16, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
+
+	local empty_8x8 = [
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
+
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), s_axis_col)
+	ASSERT_TRUE(tile_x(3, 1, 0).find_object(mo_tunnel) != null)
+	ASSERT_TRUE(tile_x(3, 3, 0).find_object(mo_tunnel) != null)
+
+	// build tramway through road tunnel: tram coexists with road on
+	// both mouths and the buried tile.
 	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 2, 0), coord3d(4, 2, 0), tramway, true), null)
-		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(1, 2, 0), coord3d(4, 2, 0), "" + wt_rail), null)
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 3, 0), tramway, true), null)
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), s_axis_col)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), s_axis_col)
+
+		// remove tram only: road tunnel and its mouths stay intact.
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(3, 1, 0), coord3d(3, 3, 0), "" + wt_rail), null)
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), empty_8x8)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), s_axis_col)
+		ASSERT_TRUE(tile_x(3, 1, 0).find_object(mo_tunnel) != null)
+		ASSERT_TRUE(tile_x(3, 3, 0).find_object(mo_tunnel) != null)
 	}
 
-	// cross road tunnel with tramway
+	// cross road tunnel with tramway via ctrl-dug rail-tunnel mouths
+	// on the SE-axis.  (2,2) and (4,2) sit on the SE/NW edges of the
+	// hill at (3,2); ctrl-dig leaves them as isolated ribi=0 mouths
+	// until the tram-build joins them through the buried tile.
 	{
 		local tunnel_builder = command_x(tool_build_tunnel)
 		tunnel_builder.set_flags(2) // ctrl
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 2, 0), coord3d(4, 2, 0), tramway, true), null)
-		ASSERT_EQUAL(tunnel_builder.work(pl, coord3d(2, 1, 0), rail_tunnel.get_name()), null)
-		ASSERT_EQUAL(tunnel_builder.work(pl, coord3d(2, 3, 0), rail_tunnel.get_name()), null)
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 3, 0), tramway, true), null)
+		ASSERT_EQUAL(tunnel_builder.work(pl, coord3d(2, 2, 0), rail_tunnel.get_name()), null)
+		ASSERT_EQUAL(tunnel_builder.work(pl, coord3d(4, 2, 0), rail_tunnel.get_name()), null)
+		tunnel_builder.set_flags(0)
 
+		// ctrl-dug rail mouths have ribi=0 at (2,2) and (4,2); the
+		// tram in the road tunnel is unchanged on the S-axis column;
+		// the road tunnel itself is also unchanged.
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), s_axis_col)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), s_axis_col)
+		ASSERT_TRUE(tile_x(2, 2, 0).find_object(mo_tunnel) != null)
+		ASSERT_TRUE(tile_x(4, 2, 0).find_object(mo_tunnel) != null)
+
+		// connect the rail-tunnel mouths through the buried tile.
+		// (2,2) mouth gets ribi SE=1, (4,2) mouth gets ribi NW=8;
+		// (3,2) buried tile gains the NW-SE cross on top of N-S, so
+		// tram ribi = 16|2|8|1 = 27.
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(4, 2, 0), tramway, true), null)
 		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
 			[
-				"........",
-				"..0.....",
-				".2AA8...",
-				"..0.....",
-				"........",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  2, 0, 0, 0, 0],
+				[0, 0, 1, 27, 8, 0, 0, 0],
+				[0, 0, 0, 16, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
+				[0, 0, 0,  0, 0, 0, 0, 0],
 			])
+		// road tunnel buried tile unchanged on its own waytype.
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), s_axis_col)
 
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 1, 0), coord3d(2, 3, 0), tramway, true), null)
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"........",
-				"..4.....",
-				".2FA8...",
-				"..1.....",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		// remove tram cross: rail-tunnel mouths come out with the way
+		// (their only inhabitant), buried-tile tram drops back to N|S.
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(2, 2, 0), coord3d(4, 2, 0), "" + wt_rail), null)
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), s_axis_col)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), s_axis_col)
+		ASSERT_TRUE(tile_x(2, 2, 0).find_object(mo_tunnel) == null)
+		ASSERT_TRUE(tile_x(4, 2, 0).find_object(mo_tunnel) == null)
 
-		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(2, 1, 0), coord3d(2, 3, 0), "" + wt_rail), null)
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				".2AA8...",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				".2AA8...",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-
-
-		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(1, 2, 0), coord3d(4, 2, 0), "" + wt_rail), null)
+		// remove tram from road tunnel: road tunnel mouths still stand.
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(3, 1, 0), coord3d(3, 3, 0), "" + wt_rail), null)
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), empty_8x8)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), s_axis_col)
+		ASSERT_TRUE(tile_x(3, 1, 0).find_object(mo_tunnel) != null)
+		ASSERT_TRUE(tile_x(3, 3, 0).find_object(mo_tunnel) != null)
 	}
 
-	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(1, 2, 0), coord3d(4, 2, 0), "" + wt_road), null)
+	// remove road tunnel: mouths and buried way all gone.
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(3, 1, 0), coord3d(3, 3, 0), "" + wt_road), null)
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
+	ASSERT_TRUE(tile_x(3, 1, 0).find_object(mo_tunnel) == null)
+	ASSERT_TRUE(tile_x(3, 3, 0).find_object(mo_tunnel) == null)
 
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(2, 3, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(3, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(3, 3, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 2, 1)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 3, 1)), null)
+	lower_hex_tile(pl, 3, 2, 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
