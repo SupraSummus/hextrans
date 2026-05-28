@@ -248,7 +248,7 @@ all_tests <- [
 	test_way_tram_build_on_road,
 	test_way_tram_build_across_road_bridge,
 	test_way_tram_build_across_crossing,
-	// test_way_tram_build_in_tunel: HEX-PORT PENDING.
+	test_way_tram_build_in_tunel,
 	test_way_tunnel_build_straight,
 	test_way_tunnel_build_up_down,
 	test_way_tunnel_build_above_tunnel_slope,
