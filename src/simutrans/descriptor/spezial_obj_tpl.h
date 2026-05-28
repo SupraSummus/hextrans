@@ -35,8 +35,12 @@ template<class desc_t> struct special_obj_tpl {
  */
 template<class desc_t> bool register_desc(special_obj_tpl<desc_t> const* so, desc_t const* const desc)
 {
+	const char* const desc_name = desc->get_name();
+	if (!desc_name) {
+		return false;
+	}
 	for (; so->name; ++so) {
-		if (strcmp(so->name, desc->get_name()) == 0) {
+		if (strcmp(so->name, desc_name) == 0) {
 			if (*so->desc != NULL  ) {
 				// these doublettes are harmless, and hence only recored at debug level 3
 //				dbg->doubled( "object", desc->get_name() );

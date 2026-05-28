@@ -911,24 +911,6 @@ strict C++, harmless in practice but reinforces the leak).
 Trigger: when active-fuzz RSS growth or strict leak checking
 becomes a blocker.
 
-## Pak reader short-node bounds checks — remaining readers
-
-`image_reader_t::read_node` and `imagelist_reader_t::read_node` now
-`dbg->fatal` when `node.size` is smaller than the header layout they
-read (seeds `image_short_node`, `imagelist_short_node` pin both).
-The same `array_tpl<char> desc_buf(node.size); fread(...); decode_*`
-pattern exists in 16 other readers under
-`src/simutrans/descriptor/reader/` (`building_reader`,
-`bridge_reader`, `vehicle_reader`, `way_reader`, `tunnel_reader`,
-`factory_reader`, `crossing_reader`, `roadsign_reader`,
-`tree_reader`, `groundobj_reader`, `citycar_reader`,
-`pedestrian_reader`, `good_reader`, `sound_reader`,
-`imagelist2d_reader`, `way_obj_reader`).  Each has its own per-version
-header layout; the sweep is a mechanical pass adding a `node.size <
-header_min` guard at the top of each version branch.  Trigger: next
-fuzz_pak finding in one of them, or a deliberate sweep when other
-loader work brings these files into the diff.
-
 ## image_reader dedup-table UAF on failed-sibling delete
 
 `image_reader_t::read_node` registers each unique image desc in a
@@ -953,22 +935,22 @@ UAF inputs onto simpler bug classes (the OOMs and the
 `obj_named_desc_t::get_name` NULL deref below); the deeper-run
 crash artifacts are reproducible locally but too large to commit.
 
-## obj_named_desc_t::get_name NULL-child deref
+## Descriptor-driven allocation OOM in image_reader (and likely others)
 
-`obj_named_desc_t::get_name` (`src/simutrans/descriptor/obj_base_desc.h:27`)
-returns `get_child<text_desc_t>(0)->get_text()` without
-NULL-checking the child pointer, even though the sibling
-`get_copyright` accessor right below it does check.  A pak whose
-parent declares `nchildren=1` but whose first child is either
-absent or has an unknown type lands `data->children[0] = NULL`
-(via the `data = NULL` path at `pakset_manager.cc:395` for unknown
-nodes), and the subsequent `register_desc` call deref's NULL via
-`strcmp` in `register_desc<skin_desc_t>` at
-`spezial_obj_tpl.h:39`.  Pre-existing upstream.  Fix: mirror
-`get_copyright`'s pattern — `if (!ts) return NULL;` before the
-`get_text()` call.  Trigger: when the malformed-pak surface gets
-its next pass, or alongside the `register_desc` callers that
-already special-case missing names.
+`image_reader_t::read_node` calls `desc->alloc(decode_uint32(p))`
+where the uint32 is a `len` field read straight from the pak.  The
+spike's `decode_*` bounds-check guards the buffer read but not the
+*value* — a hostile `len` close to 2³² drives `image_t::alloc` into
+a multi-GB `operator new[]`.  Same shape exists wherever a reader
+turns a decoded count/length field into an allocation (vehicle
+pixel arrays, building tile lists, …).  Fix: cap each
+allocation-driving count against the buffer's remaining bytes
+before alloc — for image specifically, `len * sizeof(uint16) <=
+buf_end_ - p`.  A common helper on `obj_reader_t` (e.g.
+`require_remaining(p, n)` returning the cap, or a
+`bounded_alloc<T>(count)` wrapper) avoids per-reader whack-a-mole.
+Trigger: fuzz_pak active mutation surfaces this immediately on
+top of the seeded corpus; harden once a structural fix lands.
 
 ## libcurl rollback gate retirement
 
