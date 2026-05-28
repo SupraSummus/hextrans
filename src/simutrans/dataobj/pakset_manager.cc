@@ -358,6 +358,7 @@ bool pakset_manager_t::read_nodes(FILE *fp, obj_desc_t *&data, int node_depth, u
 
 		if (node.nchildren != 0) {
 			data->children = new obj_desc_t *[node.nchildren];
+			data->nchildren = node.nchildren;
 
 			for (int i = 0; i < node.nchildren; i++) {
 				if (!read_nodes(fp, data->children[i], node_depth + 1, version)) {
