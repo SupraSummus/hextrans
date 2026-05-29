@@ -70,17 +70,6 @@ the 3rd (NE-SW) has no powerline crossing sprite or connection FSM
 support (`leitung2.cc` diagonal-image table is keyed on 4 old-combo
 values).  Restore after the crossing-cluster / 3rd-axis work lands.
 
-**Sign 4-direction rotation layouts.**  `test_sign_build_trafficlight /
-_build_private_way` bake square-era 4-direction sign rotation layouts
-from `roadsign.cc` and the square-grid coord choices around them.
-The traffic-light FSM itself is now 3-axis adaptive (T-junctions
-cycle 2 phases, Y-junctions 3 phases) — engine side is done.  What
-remains: each test's coord/asserts need rewriting to hex axes
-(`test_sign_build_trafficlight`'s W-arm read as hex NW under the
-2:1 iso rename, etc.), and the pakset-side sprite tables in
-`roadsign_writer.cc` still emit 4 rotations rather than 6 (tracked
-separately under "Engine → pakset descriptor boundary").
-
 **Runway layout.**  `test_way_runway_build_rw_flat / _tw_flat /
 _mixed_flat` bake a 4-direction airport layout (runway + taxiway
 cross at 90°).  The `ai_passenger.cc` airport builder was ported
