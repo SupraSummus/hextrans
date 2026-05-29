@@ -909,11 +909,15 @@ turns a decoded count/length field into an allocation (vehicle
 pixel arrays, building tile lists, …).  Fix: cap each
 allocation-driving count against the buffer's remaining bytes
 before alloc — for image specifically, `len * sizeof(uint16) <=
-buf_end_ - p`.  A common helper on `obj_reader_t` (e.g.
-`require_remaining(p, n)` returning the cap, or a
-`bounded_alloc<T>(count)` wrapper) avoids per-reader whack-a-mole.
-Trigger: fuzz_pak active mutation surfaces this immediately on
-top of the seeded corpus; harden once a structural fix lands.
+buf_end_ - p`.  `node_body` already has the primitive: its private
+`require(n)` tests that `n` bytes remain, and the bulk pixel read
+now computes `len * 2` at the copy site — the fix is to call that
+check on `len * 2` (exposed as a public method) just above
+`desc->alloc`.  The same shape elsewhere (vehicle pixel arrays,
+building tile lists, …) wants a shared `obj_reader_t` helper to
+avoid per-reader whack-a-mole.  Trigger: fuzz_pak active mutation
+surfaces this immediately on top of the seeded corpus; harden once
+a structural fix lands.
 
 ## libcurl rollback gate retirement
 

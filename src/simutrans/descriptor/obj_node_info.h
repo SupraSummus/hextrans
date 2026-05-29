@@ -15,6 +15,11 @@
 #define EXT_OBJ_NODE_INFO_SIZE (12)
 #define LARGE_RECORD_SIZE (0xFFFFu)
 
+// Ceiling on a large-record (uint32) node body, to stop a hostile size near
+// 2^32 from driving the per-node allocation into a multi-GB new[].  Generous
+// against real nodes (largest in shipped paksets is a few hundred KB).
+#define MAX_NODE_BODY_SIZE (64u * 1024u * 1024u)
+
 /**
  * Stored structure of a pak node inside the file.
  */

@@ -29,6 +29,7 @@ ptrhashtable_tpl<obj_desc_t**, int>                           pakset_manager_t::
 std::string                                                   pakset_manager_t::doublettes;
 stringhashtable_tpl<missing_level_t>                          pakset_manager_t::missing_pak_names;
 std::string                                                   pakset_manager_t::overlaid_warning;
+std::string                                                   pakset_manager_t::loading_pak_name;
 
 void pakset_manager_t::register_reader(obj_reader_t *reader)
 {
@@ -165,6 +166,8 @@ DBG_MESSAGE("pakset_manager_t::load_paks_from_directory", "Reading from '%s'", p
 
 bool pakset_manager_t::load_pak_from_fp(FILE *fp, const char *display_name)
 {
+	loading_pak_name = display_name;
+
 	// This is the normal header reading code
 	int c;
 	uint32 n = 0;
@@ -337,20 +340,12 @@ static bool read_node_info(obj_node_info_t& node, FILE* const f, uint32 const ve
 		}
 		node.size = decode_uint32(p);
 
-		// Reject a node whose body would extend past EOF, before any
-		// reader allocates a buffer sized to it.  The small-record
-		// path is uint16-bounded and can't OOM; only the large path
-		// needs this guard.
-		const long pos = ftell(f);
-		if (pos >= 0 && fseek(f, 0, SEEK_END) == 0) {
-			const long end = ftell(f);
-			if (fseek(f, pos, SEEK_SET) != 0) {
-				return false;
-			}
-			if (end >= pos && node.size > (uint32)(end - pos)) {
-				dbg->error("read_node_info", "node size %u exceeds remaining file bytes %ld", node.size, end - pos);
-				return false;
-			}
+		// Reject a hostile large-record size before node_body allocates
+		// a buffer for it.  A size merely past EOF but under the cap is
+		// caught later by the body fread, which short-reads.
+		if (node.size > MAX_NODE_BODY_SIZE) {
+			dbg->error("read_node_info", "node size %u in pak '%s' exceeds cap %u", node.size, pakset_manager_t::get_loading_pak_name(), MAX_NODE_BODY_SIZE);
+			return false;
 		}
 	}
 

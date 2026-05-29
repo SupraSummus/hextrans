@@ -130,8 +130,8 @@ public:
 	{
 		if (buf_.get() + off > end_) {
 			dbg->fatal(type_name_,
-				"seek to offset %zu past buffer end %zu",
-				off, (size_t)(end_ - buf_.get()));
+				"seek to offset %zu past buffer end %zu in pak '%s'",
+				off, (size_t)(end_ - buf_.get()), pakset_manager_t::get_loading_pak_name());
 		}
 		pos_ = buf_.get() + off;
 	}
@@ -180,7 +180,8 @@ private:
 	{
 		if (pos_ + n > end_) {
 			dbg->fatal(type_name_,
-				"short read at offset %zu of %zu: need %zu, have %zu",
+				"short read in pak '%s' at offset %zu of %zu: need %zu, have %zu",
+				pakset_manager_t::get_loading_pak_name(),
 				(size_t)(pos_ - buf_.get()), (size_t)(end_ - buf_.get()),
 				n, (size_t)(end_ - pos_));
 		}

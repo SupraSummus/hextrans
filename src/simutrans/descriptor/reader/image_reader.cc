@@ -63,8 +63,11 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		p.seek(12);
 
 		if (desc->h > 0) {
+			// bounds-check the whole pixel span once, then walk it with
+			// the unchecked raw decode_uint16.
+			char* src = p.read_bytes((size_t)desc->len * 2);
 			for (uint i = 0; i < desc->len; i++) {
-				uint16 data = decode_uint16(p);
+				uint16 data = decode_uint16(src);
 				if(data>=0x8000u  &&  data<=0x800Fu) {
 					// player color offset changed
 					data ++;
@@ -89,8 +92,9 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		skip_reading_pixels_if_no_graphics;
 		uint16* dest = desc->data;
 		if (desc->h > 0) {
+			char* src = p.read_bytes((size_t)desc->len * 2);
 			for (uint i = 0; i < desc->len; i++) {
-				*dest++ = decode_uint16(p);
+				*dest++ = decode_uint16(src);
 			}
 		}
 	}
@@ -110,8 +114,9 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		skip_reading_pixels_if_no_graphics;
 		uint16* dest = desc->data;
 		if (desc->h > 0) {
+			char* src = p.read_bytes((size_t)desc->len * 2);
 			for (uint i = 0; i < desc->len; i++) {
-				*dest++ = decode_uint16(p);
+				*dest++ = decode_uint16(src);
 			}
 		}
 	}
