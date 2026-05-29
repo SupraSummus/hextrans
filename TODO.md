@@ -909,26 +909,6 @@ Run with `ASAN_OPTIONS=detect_leaks=0`.  The pre-auth surface
 (`init_tool` / `rdwr_custom_data` with attacker `tool_id` before any
 auth check) is covered by `fuzz_command_preauth` and lives in CI.
 
-## Pre-auth `get_client` lookup gap
-
-`nwc_nick_t::rdwr` at `network_cmd_ingame.cc:150-151` reads the sender
-socket and immediately calls
-`socket_list_t::get_client(socket_list_t::get_client_id(sock))` —
-which asserts in Debug (and reads past `list.get_count()` in Release)
-when `get_client_id` returns its OOB sentinel because the socket
-isn't in the list or is inactive.  Same shape at line 340 in
-`nwc_chat_t::rdwr`.  Today's single-threaded network thread holds the
-invariant "the sender is always in the list when its rdwr runs"
-across the receive loop, so this is a robustness gap rather than a
-present-day reachable bug; it would matter the moment packet receive
-and parse decouple (worker pool, queued parse, etc.).  Fix is small:
-guard with `client_id < socket_list_t::get_count()` (or
-`get_socket(client_id) != INVALID_SOCKET`) and `packet->failed()`
-otherwise.  `fuzz_command_preauth` previously asserted on every NICK
-packet before the harness was taught to register the sender via
-`socket_list_t::add_client`; the production guard is independent of
-the harness.
-
 ## image_reader dedup-table UAF on failed-sibling delete
 
 `image_reader_t::read_node` registers each unique image desc in a
