@@ -589,7 +589,6 @@ function test_sign_build_private_way()
 }
 
 
-// test_sign_build_signal: HEX-PORT PENDING.
 function test_sign_build_signal()
 {
 	local pl = player_x(0)
@@ -647,6 +646,31 @@ function test_sign_build_signal()
 
 	ASSERT_EQUAL(wayremover.work(pl, coord3d(2, 0, 0), coord3d(2, 7, 0), "" + wt_road), null)
 
+	// Six straight 3-tile rails, all carrying a signal at the middle
+	// tile.  Along +x they run on the SE axis (SE=1 at the low-x end,
+	// NW=8 at the high-x end, SE|NW=9 in the middle); along +y on the S
+	// axis (S=2 top, N=16 bottom, N|S=18 middle).  A freshly-placed
+	// (2-way) signal leaves the masked pattern equal to the unmasked one.
+	local se_2way = [
+		[1, 9, 8, 0, 0, 0, 0, 0],
+		[1, 9, 8, 0, 0, 0, 0, 0],
+		[1, 9, 8, 0, 0, 0, 0, 0],
+		[1, 9, 8, 0, 0, 0, 0, 0],
+		[1, 9, 8, 0, 0, 0, 0, 0],
+		[1, 9, 8, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
+	local s_2way = [
+		[2,  2,  2,  2,  2,  2,  0, 0],
+		[18, 18, 18, 18, 18, 18, 0, 0],
+		[16, 16, 16, 16, 16, 16, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
 
 	// build signals
 	{
@@ -662,29 +686,8 @@ function test_sign_build_signal()
 			}
 		}
 
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"........",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
-			[
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), se_2way)
+		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0), se_2way)
 	}
 
 	// make signals directional
@@ -701,28 +704,20 @@ function test_sign_build_signal()
 			}
 		}
 
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), se_2way)
 
+		// 1-way signal drops SE, leaving NW=8 (the eocsignal in row 5 is
+		// an end-of-choose roadsign and blocks nothing).
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"288.....",
-				"288.....",
-				"288.....",
-				"288.....",
-				"288.....",
-				"2A8.....",
-				"........",
-				"........"
+				[1, 8, 8, 0, 0, 0, 0, 0],
+				[1, 8, 8, 0, 0, 0, 0, 0],
+				[1, 8, 8, 0, 0, 0, 0, 0],
+				[1, 8, 8, 0, 0, 0, 0, 0],
+				[1, 8, 8, 0, 0, 0, 0, 0],
+				[1, 9, 8, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 	}
 
@@ -740,28 +735,20 @@ function test_sign_build_signal()
 			}
 		}
 
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"2A8.....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), se_2way)
 
+		// the next re-click flips to the other 1-way state, dropping NW
+		// and leaving SE=1.
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"228.....",
-				"228.....",
-				"228.....",
-				"228.....",
-				"228.....",
-				"2A8.....",
-				"........",
-				"........"
+				[1, 1, 8, 0, 0, 0, 0, 0],
+				[1, 1, 8, 0, 0, 0, 0, 0],
+				[1, 1, 8, 0, 0, 0, 0, 0],
+				[1, 1, 8, 0, 0, 0, 0, 0],
+				[1, 1, 8, 0, 0, 0, 0, 0],
+				[1, 9, 8, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 	}
 
@@ -769,28 +756,33 @@ function test_sign_build_signal()
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 0, 0), coord3d(1, all_signals.len()-1, 0), rail, true), null)
 
+		// the x=1 column now runs along +y (S axis), so each (1,i) is a
+		// junction: SE|NW horizontal plus the vertical N/S.  Top end
+		// (y=0) has S only, bottom end (y=5) N only, middle has both.
 		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
 			[
-				"2E8.....",
-				"2F8.....",
-				"2F8.....",
-				"2F8.....",
-				"2F8.....",
-				"2B8.....",
-				"........",
-				"........"
+				[1, 11, 8, 0, 0, 0, 0, 0],
+				[1, 27, 8, 0, 0, 0, 0, 0],
+				[1, 27, 8, 0, 0, 0, 0, 0],
+				[1, 27, 8, 0, 0, 0, 0, 0],
+				[1, 27, 8, 0, 0, 0, 0, 0],
+				[1, 25, 8, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 
+		// the 1-way signals (facing SE) drop NW on the junction; the
+		// vertical axis stays open.
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"268.....",
-				"278.....",
-				"278.....",
-				"278.....",
-				"278.....",
-				"2B8.....",
-				"........",
-				"........"
+				[1, 3, 8, 0, 0, 0, 0, 0],
+				[1, 19, 8, 0, 0, 0, 0, 0],
+				[1, 19, 8, 0, 0, 0, 0, 0],
+				[1, 19, 8, 0, 0, 0, 0, 0],
+				[1, 19, 8, 0, 0, 0, 0, 0],
+				[1, 25, 8, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 	}
 
@@ -817,29 +809,8 @@ function test_sign_build_signal()
 			}
 		}
 
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"444444..",
-				"555555..",
-				"111111..",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
-			[
-				"444444..",
-				"555555..",
-				"111111..",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), s_2way)
+		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0), s_2way)
 	}
 
 	// make signals directional, dir 2
@@ -855,28 +826,19 @@ function test_sign_build_signal()
 			}
 		}
 
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"444444..",
-				"555555..",
-				"111111..",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), s_2way)
 
+		// 1-way signal drops S, leaving N=16 (eocsignal column 5 stays full).
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"444444..",
-				"444445..",
-				"111111..",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
+				[2,  2,  2,  2,  2,  2,  0, 0],
+				[16, 16, 16, 16, 16, 18, 0, 0],
+				[16, 16, 16, 16, 16, 16, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 	}
 
@@ -893,28 +855,20 @@ function test_sign_build_signal()
 			}
 		}
 
-		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
-			[
-				"444444..",
-				"555555..",
-				"111111..",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), s_2way)
 
+		// the next re-click flips to the other 1-way state, dropping N
+		// and leaving S=2.
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"444444..",
-				"111115..",
-				"111111..",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
+				[2,  2,  2,  2,  2,  2,  0, 0],
+				[2,  2,  2,  2,  2,  18, 0, 0],
+				[16, 16, 16, 16, 16, 16, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 	}
 
@@ -922,33 +876,44 @@ function test_sign_build_signal()
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 1, 0), coord3d(all_signals.len()-1, 1, 0), rail, true), null)
 
+		// the y=1 row now runs along +x (SE axis), so each (i,1) is a
+		// junction: N|S vertical plus the horizontal SE/NW.  Left end
+		// (x=0) has SE only, right end (x=5) NW only.
 		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0),
 			[
-				"444444..",
-				"7FFFFD..",
-				"111111..",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
+				[2,  2,  2,  2,  2,  2,  0, 0],
+				[19, 27, 27, 27, 27, 26, 0, 0],
+				[16, 16, 16, 16, 16, 16, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 
+		// the 1-way signals (facing S, from the previous block) drop N
+		// on the junction; the horizontal axis stays open.
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"444444..",
-				"3BBBBD..",
-				"111111..",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
+				[2,  2,  2,  2,  2,  2,  0, 0],
+				[3,  11, 11, 11, 11, 26, 0, 0],
+				[16, 16, 16, 16, 16, 16, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 	}
 
-	// remove everything again
+	// remove everything again — clear the signs first: way removal
+	// routes along the masked ribi, so it cannot pass a 1-way signal
+	// against its facing (here the columns face S, the removal runs N).
 	{
+		foreach (i, s in all_signals) {
+			ASSERT_EQUAL(remover.work(pl, coord3d(i, 1, 0)), null)
+		}
+
 		foreach (i, s in all_signals) {
 			ASSERT_EQUAL(wayremover.work(pl, coord3d(i, 2, 0), coord3d(i, 0, 0), "" + wt_rail), null)
 		}
@@ -961,7 +926,6 @@ function test_sign_build_signal()
 }
 
 
-// test_sign_build_signal_multiple: HEX-PORT PENDING.
 function test_sign_build_signal_multiple()
 {
 	local pl = player_x(0)
@@ -979,16 +943,18 @@ function test_sign_build_signal_multiple()
 			ASSERT_EQUAL(tile_x(x, 2, 0).find_object(mo_signal), null)
 		}
 
+		// straight rail along +x is the SE axis: SE=1 at the low-x end,
+		// NW=8 at the high-x end, SE|NW=9 through the middle.
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"2AAAAAA8",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[1, 9, 9, 9, 9, 9, 9, 8],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 
 		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(0, 2, 0), coord3d(7, 2, 0), "" + wt_rail), null)
@@ -1015,7 +981,6 @@ function test_sign_build_signal_multiple()
 }
 
 
-// test_sign_replace_signal: HEX-PORT PENDING.
 function test_sign_replace_signal()
 {
 	local pl = player_x(0)
@@ -1043,16 +1008,18 @@ function test_sign_replace_signal()
 		ASSERT_EQUAL(s.desc.name, presignal.name)
 		ASSERT_EQUAL(pl.current_cash * 100,   old_cash  - signal.cost        - presignal.cost)
 		ASSERT_EQUAL(pl.current_maintenance,  old_maint + signal.maintenance - presignal.maintenance)
+		// rail along +x is the SE axis (SE=1, NW=8, SE|NW=9); a 2-way
+		// signal leaves both directions in the masked pattern.
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"........",
-				"....2A8.",
-				"........",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 1, 9, 8, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 	}
 
@@ -1072,16 +1039,18 @@ function test_sign_replace_signal()
 		ASSERT_EQUAL(s.desc.name, signal.name)
 		ASSERT_EQUAL(pl.current_cash * 100,   old_cash  - signal.cost        - presignal.cost)
 		ASSERT_EQUAL(pl.current_maintenance,  old_maint - signal.maintenance + presignal.maintenance)
+		// a 1-way signal drops the SE direction on the tile it sits on,
+		// leaving NW=8.
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"........",
-				"....288.",
-				"........",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 1, 8, 8, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 	}
 
