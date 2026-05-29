@@ -926,6 +926,40 @@ guard, ideally via one shared call site rather than per-reader.
 Trigger: fuzz_pak active mutation surfaces the next one on top of
 the seeded corpus.
 
+## fuzz_pak UBSAN-class reader findings (post-OOB-read batch)
+
+An active fuzz_pak campaign (dictionary of the obj_type tags from
+`objversion.h`, ~5M execs) on top of the seeded corpus cleared the two
+spatial OOB *reads* — the xref name fed unterminated into
+`xref_to_resolve`'s strcmp, and `vehicle_reader` indexing the 8-entry
+legacy `convert_from_old` table with an unchecked uint8 (both fixed,
+seeds `xref_unterminated_name` / `vehicle_legacy_waytype_oob`).  ~700
+inputs remain that trip UBSAN but not ASAN; none corrupt memory, but
+each aborts under CI's `abort_on_error`, so they gate any move to fuzz
+under UBSAN with a non-empty mutation budget.
+
+The largest actionable cluster is a null `get_name()`: a desc whose
+name TEXT child is absent returns a null name, which `register_obj`
+then hands to strcmp / a hashtable.  Verified at
+`tree_builder_t::register_desc` (hashtable `remove`) and
+`tunnel_reader_t::convert_old_tunnel` (`strcmp(...,"RoadTunnel")`);
+the same `get_name()`-is-non-null assumption is spread across the
+register paths, so the fix wants to be one guard, not one per site —
+reject a desc with a null name in `read_nodes` after `read_node`
+returns (the descs that legitimately lack a name need enumerating
+first), or make the name accessor never return null.
+
+The rest are narrower per-reader decodes: invalid `waytype_t` enum
+loads in `crossing_reader` (value is sound, only used in a
+`PAKSET_INFO` print — validate against the known set on read);
+invalid `building_desc_t::flag_t` / `btype` / `old_btyp::typ` loads
+in `building_reader` (validate on decode); and a signed-int overflow
+in `building_reader`'s `2 + size.x*size.y*layouts` child-count test
+(widen the operands before multiplying).  Work them smallest-risk
+first behind the null-name guard, a minimized seed per fix as above.
+The crash artifacts are not committed — rerun the campaign to
+resurface them.
+
 ## libcurl rollback gate retirement
 
 Legacy in-house HTTP socket code in `network_file_transfer.cc`

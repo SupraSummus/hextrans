@@ -320,9 +320,11 @@ obj_desc_t *vehicle_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 			desc->engine_type = vehicle_desc_t::electric;
 			desc->wtyp = 1;
 		}
-		// convert to new standard
+		// convert to new standard; a hostile pak can hold an old code
+		// outside the table, so map anything out of range to invalid_wt
+		// (as indices 4 and 6 already are) rather than read past the end.
 		static const waytype_t convert_from_old[8]={road_wt, track_wt, water_wt, air_wt, invalid_wt, monorail_wt, invalid_wt, tram_wt };
-		desc->wtyp = convert_from_old[desc->wtyp];
+		desc->wtyp = desc->wtyp < 8 ? convert_from_old[desc->wtyp] : invalid_wt;
 	}
 
 	// before version 5 dates were based on base 16
