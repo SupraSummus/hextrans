@@ -11,6 +11,10 @@ Written against the upstream `simutrans` branch — this is an upstream
 Script-API concern, not hex-port work. File/line references are to that
 branch.
 
+> **Alternative being kept in parallel:** a more ambitious framing puts
+> land ownership directly in the engine instead — see
+> `land-ownership-alternative.md`. Neither is committed to yet.
+
 ---
 
 ## 1. The original patch
