@@ -7,31 +7,31 @@
 #
 # Opt in with -DSIMUTRANS_BUILD_FUZZERS=ON on a clang configure, and
 # enable the sanitizer flags the fuzzer link expects (-fsanitize=fuzzer
-# plus address/undefined).  fuzz_network reuses the NETTOOL source
+# plus address/undefined).  fuzz_nettool reuses the NETTOOL source
 # subset (parser-only, no karte_t/game-state dependencies).  fuzz_pak
 # inherits the simutrans target's full source list — the descriptor
 # readers self-register via static initialisers, so the type table is
 # only populated when all of them link.
 
-add_executable(fuzz_network
-	fuzz_network.cc
+add_executable(fuzz_nettool
+	fuzz_nettool.cc
 )
 
-target_compile_options(fuzz_network PRIVATE ${SIMUTRANS_COMMON_COMPILE_OPTIONS})
-target_compile_definitions(fuzz_network PRIVATE NETTOOL=1 COLOUR_DEPTH=0)
-target_compile_definitions(fuzz_network PRIVATE MSG_LEVEL=${SIMUTRANS_MSG_LEVEL})
+target_compile_options(fuzz_nettool PRIVATE ${SIMUTRANS_COMMON_COMPILE_OPTIONS})
+target_compile_definitions(fuzz_nettool PRIVATE NETTOOL=1 COLOUR_DEPTH=0)
+target_compile_definitions(fuzz_nettool PRIVATE MSG_LEVEL=${SIMUTRANS_MSG_LEVEL})
 
 if (SIMUTRANS_USE_SYSLOG)
-	target_compile_definitions(fuzz_network PRIVATE SYSLOG=1)
+	target_compile_definitions(fuzz_nettool PRIVATE SYSLOG=1)
 endif ()
 
 if (SIMUTRANS_USE_IP4_ONLY)
-	target_compile_definitions(fuzz_network PRIVATE USE_IP4_ONLY=1)
+	target_compile_definitions(fuzz_nettool PRIVATE USE_IP4_ONLY=1)
 endif ()
 
 # Mirror nettool's source list — parser-only subset of simutrans,
 # defined with NETTOOL=1.
-target_sources(fuzz_network PRIVATE
+target_sources(fuzz_nettool PRIVATE
 	../simutrans/dataobj/freelist.cc
 	../simutrans/network/memory_rw.cc
 	../simutrans/network/network_address.cc
@@ -50,8 +50,8 @@ target_sources(fuzz_network PRIVATE
 	../simutrans/network/network_file_transfer.cc
 )
 
-target_link_options(fuzz_network PRIVATE -fsanitize=fuzzer)
-target_compile_options(fuzz_network PRIVATE -fsanitize=fuzzer-no-link)
+target_link_options(fuzz_nettool PRIVATE -fsanitize=fuzzer)
+target_compile_options(fuzz_nettool PRIVATE -fsanitize=fuzzer-no-link)
 
 
 #
@@ -71,7 +71,7 @@ if (NOT SIMUTRANS_BACKEND STREQUAL "none")
 	# fuzz_pak inherits the simutrans target's source set, which under
 	# a graphical backend pulls in simsys_s2/simsys_w with their own
 	# main() — SIMUTRANS_NO_MAIN only papers over simsys_posix.  Skip
-	# fuzz_pak in that case; fuzz_network is unaffected.
+	# fuzz_pak in that case; fuzz_nettool is unaffected.
 	message(STATUS "fuzz_pak: skipped (requires SIMUTRANS_BACKEND=none)")
 	return ()
 endif ()
@@ -147,3 +147,30 @@ endif ()
 
 target_link_options(fuzz_command PRIVATE -fsanitize=fuzzer)
 target_compile_options(fuzz_command PRIVATE -fsanitize=fuzzer-no-link)
+
+
+#
+# fuzz_command_preauth: pre-auth wire surface for ingame commands.
+# Same socketpair → packet_t::recv() shape as fuzz_nettool, but linked
+# against the full simutrans source set so the dispatch reaches the
+# nwc_tool_t / nwc_chg_player_t / nwc_scenario_* types outside NETTOOL=1
+# — and so it can call nwc_tool_t::init_tool() to fire create_tool plus
+# the per-tool rdwr_custom_data overrides.  See fuzz_command_preauth.cc.
+# Reuses the _SIM_* properties + SIMUTRANS_BACKEND=none guard above.
+#
+add_executable(fuzz_command_preauth
+	fuzz_command_preauth.cc
+)
+
+target_sources(fuzz_command_preauth PRIVATE ${_SIM_SOURCES_ABS})
+target_include_directories(fuzz_command_preauth PRIVATE ${_SIM_INCLUDES})
+target_compile_definitions(fuzz_command_preauth PRIVATE ${_SIM_DEFS} SIMUTRANS_NO_MAIN=1)
+target_compile_options(fuzz_command_preauth PRIVATE ${_SIM_OPTS})
+target_link_libraries(fuzz_command_preauth PRIVATE ${_SIM_LIBS})
+
+if (TARGET svnheader)
+	add_dependencies(fuzz_command_preauth svnheader)
+endif ()
+
+target_link_options(fuzz_command_preauth PRIVATE -fsanitize=fuzzer)
+target_compile_options(fuzz_command_preauth PRIVATE -fsanitize=fuzzer-no-link)

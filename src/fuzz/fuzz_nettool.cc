@@ -4,18 +4,24 @@
  */
 
 /*
- * libFuzzer harness for the network-command wire parser.
+ * libFuzzer harness for the `nettool` binary's wire parser.
+ *
+ * Compiled with `NETTOOL=1`, the same conditional-compile mode the
+ * shipped `nettool` utility uses — so this fuzzes nettool's parser
+ * compile specifically.  The ingame multiplayer server links the full
+ * source set and is covered by `fuzz_command_preauth.cc`; the two
+ * compiles share wire shapes but can drift independently.
  *
  * The fuzzer's bytes go through the production wire path verbatim: we
  * stand up a unix socketpair, write the bytes into one end, close it
  * to signal EOF, hand the other end to `packet_t(SOCKET)`, and drive
  * `recv()` in a loop until the packet is ready or has failed.  This
- * means the fuzzer exercises the *exact* function the in-game network
- * thread runs against a remote peer — no parallel parser
- * implementation, no harness/production divergence.  Bonus: the
- * incremental-read state machine inside `recv()` also gets fuzzed.
+ * means the fuzzer exercises the *exact* function nettool runs
+ * against a remote peer — no parallel parser implementation, no
+ * harness/production divergence.  Bonus: the incremental-read state
+ * machine inside `recv()` also gets fuzzed.
  *
- * Compiles with `NETTOOL=1`, covering the parser surface that doesn't
+ * NETTOOL=1 limits the dispatch to the parser surface that doesn't
  * require a `karte_t` / running game: base `network_command_t::rdwr`,
  * `nwc_auth_player_t::rdwr`, and `nwc_service_t::rdwr` (which in turn
  * exercises `socket_list_t::rdwr` and `address_list_t::rdwr`).

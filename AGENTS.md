@@ -513,22 +513,25 @@ module like `tools.nwc_protocol_test.test_auth_player` to run one
 group). The same step in CI also runs under ASAN/UBSAN; sanitizer
 hits on forged packets fail loudly.
 
-`src/fuzz/fuzz_network.cc` is the libFuzzer harness for the wire
-parser.  It drives the production `recv()` end to end via a
+`src/fuzz/fuzz_nettool.cc` is the libFuzzer harness for the wire
+parser as it is compiled in the standalone `nettool` binary
+(`NETTOOL=1`).  It drives the production `recv()` end to end via a
 `socketpair()` — the fuzz bytes go in one end, `packet_t(SOCKET)`
 reads them out the other and dispatches on the wire id to the
 matching `nwc_*::rdwr`.  No parallel parser; what the fuzzer
-exercises is exactly what the in-game network thread runs against a
-remote peer, including the incremental-read state machine inside
-`recv()`.  Build with clang + `-DSIMUTRANS_BUILD_FUZZERS=ON` and the
-existing sanitizer flags; the target is parser-only (nettool source
-subset, no `karte_t`).  CI replays `src/fuzz/corpus/network/` through
-it in `-runs=0` mode — each committed corpus file pins one fixed bug
-as a regression and a new crash there fails the job.  Active
-mutation is out-of-band: the same binary takes `-max_total_time=N
-corpus/` to explore, and a crash gets minimised via
-`-minimize_crash=1 -runs=... crash-input` and committed under
-`src/fuzz/corpus/network/`.
+exercises is exactly what nettool runs against a remote peer,
+including the incremental-read state machine inside `recv()`.  Build
+with clang + `-DSIMUTRANS_BUILD_FUZZERS=ON` and the existing
+sanitizer flags; the target is parser-only (nettool source subset,
+no `karte_t`).  CI replays `src/fuzz/corpus/nettool/` through it in
+`-runs=0` mode — each committed corpus file pins one fixed bug as a
+regression and a new crash there fails the job.  Active mutation is
+out-of-band: the same binary takes `-max_total_time=N corpus/` to
+explore, and a crash gets minimised via `-minimize_crash=1 -runs=...
+crash-input` and committed under `src/fuzz/corpus/nettool/`.  The
+ingame multiplayer server links the full source set rather than the
+NETTOOL subset; its wire surface is covered by `fuzz_command_preauth`
+(below).
 
 `src/fuzz/fuzz_pak.cc` is the libFuzzer harness for the pak
 descriptor reader.  The fuzz bytes are wrapped in a `FILE*` via
@@ -555,7 +558,7 @@ need `ASAN_OPTIONS=detect_leaks=0` — tracked in `TODO.md`.
 
 `src/fuzz/fuzz_command.cc` is the libFuzzer harness for network
 command *handling* — the post-parse surface (`nwc_tool_t::do_command`
-→ `tool->init`/`work`) that `fuzz_network` does not reach.  Unlike the
+→ `tool->init`/`work`) that `fuzz_nettool` does not reach.  Unlike the
 two parser-only harnesses it stands up a real `karte_t` and so needs a
 pakset + base files on disk at runtime (`SIMUTRANS_FUZZ_BASE` /
 `SIMUTRANS_FUZZ_PAK`; same full-source inheritance + fatal-hook
@@ -563,6 +566,31 @@ recovery as fuzz_pak).  It is a POC, not yet in CI; the in-process
 per-input world reset is too slow for a real campaign (~2-5
 execs/sec), so the planned campaign mode is a fork-after-init engine —
 see `TODO.md` for the measurements and next steps.
+
+`src/fuzz/fuzz_command_preauth.cc` is the libFuzzer harness for the
+pre-auth network surface of the ingame multiplayer server: wire bytes
+through `packet_t::recv()` → `network_command_t::read_from_packet()`
+(the full ingame dispatch including `nwc_tool_t` / `nwc_chg_player_t`
+/ `nwc_scenario_*`, which sit outside `fuzz_nettool`'s NETTOOL=1
+subset), then for `NWC_TOOL` a direct `init_tool()` call to fire
+`create_tool(attacker_tool_id)` and the per-tool `rdwr_custom_data`
+overrides — the same path that `nwc_tool_t::clone` runs *before* the
+authentication check at `network_cmd_ingame.cc:1178`.  No `karte_t`,
+no pakset — `dbg` + null `gfx` and the longjmp fatal hook, plus the
+minimum global state a real server exposes to the wire parser:
+`env_t::server` set (so `nwc_service_t::rdwr` doesn't short-circuit
+and the post-rdwr `failed()` paths enable in nwc_nick / nwc_chat /
+nwc_sync / nwc_game / nwc_check), and the receiving socket registered
+via `socket_list_t::add_client` per iteration (so paths that look the
+sender up don't trip an assert).  Runs at ~9000 execs/sec and is the
+CI replay gate for the pre-auth attack surface.  Runs with
+`ASAN_OPTIONS=detect_leaks=0` — the longjmp recovery drops the
+in-flight `nwc_*` on a command-driven fatal, and the one-time
+`socket_info_t` slot in `socket_list_t::list` is never freed (a
+single 80-byte leak, not per-iteration; `add_client` reuses inactive
+slots).  A first-contact finding from this harness — `nwc_nick_t` /
+`nwc_chat_t` calling `get_client(get_client_id(sender))` without
+guarding the OOB sentinel — is tracked in `TODO.md`.
 
 Claude Code on the web checks out a shallow clone — `git log` only
 reaches back a handful of commits and `git blame` on older lines

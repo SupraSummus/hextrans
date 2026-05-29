@@ -5,7 +5,7 @@
 
 /*
  * libFuzzer harness for network command *handling* — the surface past
- * the wire parser fuzz_network.cc covers.
+ * the wire parser fuzz_nettool.cc covers.
  *
  * A multiplayer client can send a well-formed packet whose handling
  * crashes the server.  The target is nwc_tool_t::do_command
