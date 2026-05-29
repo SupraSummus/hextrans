@@ -5654,12 +5654,16 @@ const char *tool_build_roadsign_t::place_sign_intern(player_t *player, grund_t *
 		}
 
 		if (rs->get_desc() == desc) {
-			// signals have three options
+			// signals have three options: cycle two-way → first dir →
+			// second dir → two-way.  Scans all 6 hex ribi directions
+			// (ribi_t::nesw); a 4-direction bound here left the N and NE
+			// single-bit dirs unreachable, collapsing the cycle to
+			// two-way ↔ one-way on the N-S and SW-NE axes.
 			ribi_t::ribi sig_dir = rs->get_dir();
 			uint8 i = 0;
 			if (!ribi_t::is_twoway(sig_dir)) {
 				// inverse first dir
-				for (; i < 4; i++) {
+				for (; i < 6; i++) {
 					if ((dir & ribi_t::nesw[i]) == sig_dir) {
 						i++;
 						break;
@@ -5667,7 +5671,7 @@ const char *tool_build_roadsign_t::place_sign_intern(player_t *player, grund_t *
 				}
 			}
 			// find the second dir ...
-			for (; i < 4; i++) {
+			for (; i < 6; i++) {
 				if ((dir & ribi_t::nesw[i]) != 0) {
 					dir = ribi_t::nesw[i];
 				}

@@ -71,8 +71,7 @@ support (`leitung2.cc` diagonal-image table is keyed on 4 old-combo
 values).  Restore after the crossing-cluster / 3rd-axis work lands.
 
 **Sign 4-direction rotation layouts.**  `test_sign_build_trafficlight /
-_build_private_way / _build_signal / _build_signal_multiple /
-_replace_signal` bake square-era 4-direction sign rotation layouts
+_build_private_way` bake square-era 4-direction sign rotation layouts
 from `roadsign.cc` and the square-grid coord choices around them.
 The traffic-light FSM itself is now 3-axis adaptive (T-junctions
 cycle 2 phases, Y-junctions 3 phases) — engine side is done.  What
