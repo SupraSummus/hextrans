@@ -279,9 +279,14 @@ function test_sign_build_oneway_at_crossing()
 }
 
 
-// test_sign_build_trafficlight: HEX-PORT PENDING.
 function test_sign_build_trafficlight()
 {
+	// Traffic light needs a 3+ way junction.  Road column runs the S
+	// axis (constant x, +y); the crossing arm runs the SE axis (+x).
+	// 3-way at (2,3) = N|S|NW (16|2|8 = 26, a T-junction); the 4-way
+	// adds the SE arm for N|S|NW|SE (27).  Replaces the square
+	// N-S × E-W setup — same 60° hex crossing pair as
+	// test_sign_build_oneway_at_crossing.
 	local pl = player_x(0)
 	local public_pl = player_x(1)
 	local wayremover = command_x(tool_remove_way)
@@ -347,17 +352,17 @@ function test_sign_build_trafficlight()
 
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"..4.....",
-				"..5.....",
-				".2D.....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  2, 0, 0, 0, 0, 0],
+				[0, 0, 18, 0, 0, 0, 0, 0],
+				[0, 1, 26, 0, 0, 0, 0, 0],
+				[0, 0, 16, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
 			])
 
-		ASSERT_EQUAL(tile_x(2, 3, 0).get_way_dirs_masked(wt_road), dir.northsouthwest)
+		ASSERT_EQUAL(tile_x(2, 3, 0).get_way_dirs_masked(wt_road), dir.north | dir.south | dir.northwest)
 	}
 
 
@@ -366,17 +371,17 @@ function test_sign_build_trafficlight()
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 3, 0), coord3d(3, 3, 0), road, true), null)
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"..4.....",
-				"..5.....",
-				".2F8....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  2, 0, 0, 0, 0, 0],
+				[0, 0, 18, 0, 0, 0, 0, 0],
+				[0, 1, 27, 8, 0, 0, 0, 0],
+				[0, 0, 16, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
 			])
 
-		ASSERT_EQUAL(tile_x(2, 3, 0).get_way_dirs_masked(wt_road), dir.all)
+		ASSERT_EQUAL(tile_x(2, 3, 0).get_way_dirs_masked(wt_road), dir.north | dir.south | dir.northwest | dir.southeast)
 	}
 
 	// remove traffic light on crossing via wayremover
@@ -423,9 +428,13 @@ function test_sign_remove_trafficlight()
 }
 
 
-// test_sign_build_private_way: HEX-PORT PENDING.
 function test_sign_build_private_way()
 {
+	// Road column runs the S axis (constant x, +y; S=2, N|S=18, N=16);
+	// the rail/road cross runs the SE axis (+x; SE=1, SE|NW=9, NW=8).
+	// Private-way signs do not mask direction, so the masked road dirs
+	// equal the full topology throughout — same 60° hex crossing pair
+	// as test_sign_build_oneway_at_crossing.
 	local pl = player_x(0)
 	local public_pl = player_x(1)
 	local wayremover = command_x(tool_remove_way)
@@ -434,6 +443,29 @@ function test_sign_build_private_way()
 	local road = way_desc_x("dirt_road")
 	local rail = way_desc_x("sand_track")
 	local sign = sign_desc_x.get_available_signs(wt_road).filter(@(idx, sign) sign.is_private_way())[0]
+
+	// Road alone: a straight N|S column, 18 even at the crossing tile.
+	local road_col_full = [
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+	]
+	// Road+road junction at (2,3): N|S|SE|NW = 27, with SE / NW arms.
+	local road_cross_full = [
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 1, 27, 8, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+	]
 
 	ASSERT_TRUE(road != null)
 	ASSERT_TRUE(sign != null)
@@ -505,28 +537,21 @@ function test_sign_build_private_way()
 	// build road/rail crossing over sign, should succeed if crossing is possible without sign
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), rail, true), null)
-		ASSERT_WAY_PATTERN_MASKED(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"..4.....",
-				"..5.....",
-				"..5.....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
-			])
+
+		// Masked == full: a private-way sign leaves direction unmasked.
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), road_col_full)
+		ASSERT_WAY_PATTERN_MASKED(wt_road, coord3d(0, 0, 0), road_col_full)
 
 		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"........",
-				".2A8....",
-				"........",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 1, 9, 8, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 
 		ASSERT_TRUE(tile_x(2, 3, 0).find_object(mo_way).is_crossing())
@@ -539,21 +564,11 @@ function test_sign_build_private_way()
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), road, true), null)
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"..4.....",
-				"..5.....",
-				".2F8....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), road_cross_full)
 
 		local w = tile_x(2, 3, 0).find_object(mo_way)
 		ASSERT_FALSE(w.is_crossing())
-		ASSERT_EQUAL(w.get_dirs_masked(), dir.all)
+		ASSERT_EQUAL(w.get_dirs_masked(), dir.north | dir.south | dir.northwest | dir.southeast)
 
 		// change direction of sign on road crossing, should fail
 		local error_caught = false
@@ -570,17 +585,8 @@ function test_sign_build_private_way()
 	// remove sign, try to build again (should fail because of crossing)
 	{
 		ASSERT_EQUAL(remover.work(pl, coord3d(2, 3, 0)), null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"..4.....",
-				"..5.....",
-				".2F8....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
-			])
+		// Removing the sign drops the mask; the road junction is unchanged.
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), road_cross_full)
 
 		ASSERT_EQUAL(tile_x(2, 3, 0).find_object(mo_roadsign), null)
 

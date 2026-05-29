@@ -163,9 +163,9 @@ all_tests <- [
 	// test_scenario_rules_allow_forbid_tool_stacked_cube: HEX-PORT PENDING.
 	test_sign_build_oneway,
 	test_sign_build_oneway_at_crossing,
-	// test_sign_build_trafficlight: HEX-PORT PENDING.
+	test_sign_build_trafficlight,
 	test_sign_remove_trafficlight,
-	// test_sign_build_private_way: HEX-PORT PENDING.
+	test_sign_build_private_way,
 	test_sign_build_signal,
 	test_sign_build_signal_multiple,
 	test_sign_replace_signal,
