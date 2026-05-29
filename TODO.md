@@ -937,3 +937,26 @@ in `documentation/libcurl-port.md` (relative-redirect dropout,
 `:80`-double-append, mis-tagged error string) remain present in
 the legacy branch — fixing them there is wasted work ahead of
 retirement.
+
+## Pakset download hardening leftovers
+
+The `#if 0` block at the bottom of `pakset_downloader.cc` (the
+"curl code broken for now" libcurl+libzip variant) carries its own
+`extract_pak_from_zip` that builds the output path as
+`sprintf("%s%s", env_t::install_dir, target_filename)` with no `..`
+check — the same Zip Slip the live miniz path was just fixed for
+(`pak_entry_name_is_safe`). It is dead today, but if anyone revives
+it they reintroduce the hole. Next move: delete the block (the live
+`USE_CURL` path supersedes it) or route it through
+`pak_entry_name_is_safe` before the first write. Delete is
+preferred — nothing references it.
+
+Defense-in-depth: the `src/paksetinfo.h` catalogue ships almost
+entirely `http://` URLs, so a passive MITM can swap the downloaded
+archive. The traversal guard now contains the blast radius to "a
+malicious-but-in-tree pakset" (same trust level as any downloaded
+pak), but switching the generator (`get_pak.sh`) to emit `https://`
+where the mirror supports it closes the swap itself. Deferred:
+needs a per-mirror TLS check (sourceforge / github / codeberg do;
+some of the smaller hosts may not) so it can't be a blind
+find-replace.

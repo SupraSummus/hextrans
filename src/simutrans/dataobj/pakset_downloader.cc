@@ -146,6 +146,28 @@ extern "C" {
 #endif
 
 
+// Reject zip entry names that would escape the install directory.  The bundled
+// zip library only normalizes names inside its all-in-one zip_extract(), which
+// this index-walking loop bypasses, so containment is enforced here instead.
+// zip_entry_openbyindex() has already folded '\\' to '/'.
+static bool pak_entry_name_is_safe(const char* name)
+{
+	// absolute path, or Windows drive / device prefix ("c:...")
+	if(  name[0] == '/'  ||  name[1] == ':'  ) {
+		return false;
+	}
+	// any ".." path component escapes upward
+	for(  const char* p = name;  p;  ) {
+		if(  p[0] == '.'  &&  p[1] == '.'  &&  (p[2] == 0  ||  p[2] == '/')  ) {
+			return false;
+		}
+		const char* slash = strchr(p, '/');
+		p = slash ? slash + 1 : NULL;
+	}
+	return true;
+}
+
+
 static void extract_pak_from_zip(const char* zipfile)
 {
 
@@ -169,9 +191,16 @@ static void extract_pak_from_zip(const char* zipfile)
 	for (int i = 0; i < n; i++) {
 		zip_entry_openbyindex(zip, i);
 		{
-			int isdir = zip_entry_isdir(zip);
-			const char* name = zip_entry_name(zip) + (has_simutrans_folder ? 10 : 0);
-			if (isdir) {
+			const char* full = zip_entry_name(zip);
+			// strip a leading "simutrans/" wrapper directory if the archive has one
+			const char* name = (has_simutrans_folder  &&  full  &&  strlen(full) >= 10) ? full + 10 : full;
+			if(  name == NULL  ||  *name == 0  ) {
+				// empty after the wrapper strip (the wrapper dir itself): nothing to do
+			}
+			else if(  !pak_entry_name_is_safe(name)  ) {
+				dbg->warning("extract_pak_from_zip", "refusing unsafe pak entry \"%s\"", full);
+			}
+			else if (zip_entry_isdir(zip)) {
 				// create directory (may fail if exists ...
 				dr_mkdir(name);
 			}
