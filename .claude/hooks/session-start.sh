@@ -1,7 +1,9 @@
 #!/bin/bash
 # Session-start hook for Claude Code on the web.
 # Installs the system libraries Simutrans needs to compile and run its
-# automated test scenario, and primes a CMake build directory.
+# automated test scenario, the clang toolchain + compiler-rt the libFuzzer
+# harnesses link against (mirrors run-tests.yml), and primes a CMake
+# build directory.
 #
 # Run only inside the Claude Code remote container. On a developer's local
 # machine this is a no-op so we don't surprise anyone with apt installs.
@@ -35,7 +37,9 @@ apt-get install -y --no-install-recommends \
     libminiupnpc-dev \
     libfluidsynth-dev \
     libcurl4-openssl-dev \
-    moreutils
+    moreutils \
+    clang-18 \
+    libclang-rt-18-dev
 
 echo "session-start.sh: configuring CMake build dir (build/)..."
 # Headless-friendly: SIMUTRANS_BACKEND=sdl2 is selected automatically when

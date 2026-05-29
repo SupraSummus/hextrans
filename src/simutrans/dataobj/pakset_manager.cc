@@ -377,7 +377,13 @@ bool pakset_manager_t::read_nodes(FILE *fp, obj_desc_t *&data, int node_depth, u
 			for (int i = 0; i < node.nchildren; i++) {
 				if (!read_nodes(fp, data->children[i], node_depth + 1, version)) {
 					// Note: cannot delete siblings of data->children[i], since equal images point to the same desc
-					delete data; // data->children is delete[]'d by the destructor
+					// Same for `data` when it is an image: image_reader
+					// dedups identical pixels into a shared desc, so deleting
+					// here can double-free one an ancestor node also holds.
+					// Images aren't freed on the success path, so leak it.
+					if (node.type != obj_image) {
+						delete data; // data->children is delete[]'d by the destructor
+					}
 					data = NULL;
 					return false;
 				}

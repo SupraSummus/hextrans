@@ -863,6 +863,9 @@ and active fuzz RSS grows linearly.  Fix is a
 `pakset_manager_t::reset()` that drops the loaded registry and
 deletes the desc trees; tricky because readers share image pointers
 via `images_adlers` deduplication, so a naive delete double-frees.
+`read_nodes` already skips freeing image descs on its error path for
+exactly this reason, so `reset()` has to be the one place that owns
+image teardown (drop `images_adlers` first, then delete uniquely).
 The same boundary would also wire `longjmp`-driven `dbg->fatal`
 recovery in `fuzz_pak.cc` to a destructor-safe path — today the
 longjmp out of `log_t::set_fatal_hook` skips RAII unwinding (UB in
@@ -908,30 +911,6 @@ the `tests/*.nut` scenario scripts already drive real tool sequences.
 Run with `ASAN_OPTIONS=detect_leaks=0`.  The pre-auth surface
 (`init_tool` / `rdwr_custom_data` with attacker `tool_id` before any
 auth check) is covered by `fuzz_command_preauth` and lives in CI.
-
-## image_reader dedup-table UAF on failed-sibling delete
-
-`image_reader_t::read_node` registers each unique image desc in a
-static `images_adlers<adler, image_t*>` for content-deduplication.
-A malformed pak can hand an IMG node a non-zero `nchildren` even
-though IMG nodes don't normally take children; when one of those
-synthetic children fails to read, `pakset_manager_t::read_nodes` at
-`pakset_manager.cc:369` `delete data`s the IMG desc that
-`read_node` just registered.  `images_adlers` keeps the freed
-pointer; a later image with a matching adler hits the dangling
-entry at `image_reader.cc:218` (`a.x != b.x`) and reads freed
-memory.  Fix candidates: (a) clear `images_adlers` on
-`load_pak_from_fp` entry, losing cross-load dedup but trivially
-correct; or (b) extend `~image_t()` (or override
-`image_t::operator delete`) to drop the entry from
-`images_adlers`, so any `delete` on a registered image cleans the
-table transparently.  Lands well alongside the
-`pakset_manager_t::reset()` work in "Pak-fuzzer per-iteration
-teardown" above — both need a clean ownership story for image
-descs.  No small seed pins this one — minimisation collapses the
-UAF inputs onto simpler bug classes (the OOMs and the
-`obj_named_desc_t::get_name` NULL deref below); the deeper-run
-crash artifacts are reproducible locally but too large to commit.
 
 ## Descriptor-driven allocation OOM in pak readers
 
