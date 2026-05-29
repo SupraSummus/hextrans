@@ -157,8 +157,8 @@ all_tests <- [
 	test_reservation_clear_rail,
 	test_scenario_rules_allow_forbid_tool,
 	test_script_sandbox_no_shell_exec,
-	// test_scenario_rules_allow_forbid_way_tool_rect: HEX-PORT PENDING.
-	// test_scenario_rules_allow_forbid_way_tool_cube: HEX-PORT PENDING.
+	test_scenario_rules_allow_forbid_way_tool_rect,
+	test_scenario_rules_allow_forbid_way_tool_cube,
 	test_scenario_rules_allow_forbid_tool_stacked_rect,
 	test_scenario_rules_allow_forbid_tool_stacked_cube,
 	test_sign_build_oneway,
