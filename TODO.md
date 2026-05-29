@@ -16,33 +16,26 @@ in the test file with a short header comment.  Entries below list
 what's currently skipped and the restoration trigger; remove an
 entry here when its test is re-enabled.
 
-**`ASSERT_WAY_PATTERN` family.**  `ASSERT_WAY_PATTERN` takes an
-array-of-arrays of 6-bit ribi integers (`-1` = don't care, `0` = no
-way).  Each disabled test still needs its patterns rewritten and its
-actual hex-pathfinder route reasoned out — the original patterns
-assume 4-bit square-axis paths, and at least for `wt_road` the
-builder routes around the NE-SW axis (no sprite support there yet)
-into a 2-step path through `(q+1, r)`-style intermediate tiles.
-Affected: `test_way_road_build_below_powerline` and the two
-`test_scenario_rules_allow_forbid_tool_stacked_{rect,cube}` entries.
-`test_way_road_build_below_powerline` additionally bakes in a
-`(0,0)→(7,7)` diagonal powerline build with `straight=true` — the
-endpoints aren't on a common hex axis, so the build fails outright;
-needs the diagonal subcase reshaped onto a real hex axis (or split
-out into a separate test).  Patterns must be rewritten as
-array-of-ints; `ASSERT_WAY_PATTERN` tripwires on string rows because
+**`ASSERT_WAY_PATTERN` protocol (for the tests still pending below).**
+`ASSERT_WAY_PATTERN` takes an array-of-arrays of 6-bit ribi integers
+(`-1` = don't care, `0` = no way) and tripwires on string rows because
 Squirrel indexes `row[x]` to ASCII codes (so the legacy `"..5....."`
 shorthand silently produced wrong expected values), and 6-bit hex
-ribis don't fit a single digit besides.  Restored sites
-(`test_way_road_build_{straight, parallel, crossing}`,
+ribis don't fit a single digit besides.  When migrating a pending test,
+the original patterns assume 4-bit square-axis paths, so the actual
+hex-pathfinder route has to be reasoned out (or read off a temporary
+dump) — at least for `wt_road` the builder hugs allowed/buildable tiles
+into a hex staircase rather than the square L-path.  Worked examples:
+`test_way_road_build_{straight, parallel, crossing, below_powerline}`,
+`test_scenario_rules_allow_forbid_tool_stacked_{rect, cube}`,
 `test_way_road_upgrade_{downgrade, crossing}`,
 `test_way_tram_build_{on_road, in_tunel}`,
 `test_way_road_cityroad_*`,
-`test_way_tunnel_build_{straight, up_down, make_public}`) are the
-worked examples; the tunnel ones demonstrate the 6-vertex hex-hill
-scaffold from the AGENTS.md primer, and `test_way_tram_build_in_tunel`
-additionally shows a 2-axis tunnel cross (S-axis road + SE-axis tram)
-threading one buried hex tile with ribi 16|2|8|1=27.
+`test_way_tunnel_build_{straight, up_down, make_public}`; the tunnel
+ones demonstrate the 6-vertex hex-hill scaffold from the AGENTS.md
+primer, and `test_way_tram_build_in_tunel` additionally shows a 2-axis
+tunnel cross (S-axis road + SE-axis tram) threading one buried hex tile
+with ribi 16|2|8|1=27.
 
 **Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner
 diagonals are still admitted as way slopes by the post-slope-way

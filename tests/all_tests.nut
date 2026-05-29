@@ -159,8 +159,8 @@ all_tests <- [
 	test_script_sandbox_no_shell_exec,
 	// test_scenario_rules_allow_forbid_way_tool_rect: HEX-PORT PENDING.
 	// test_scenario_rules_allow_forbid_way_tool_cube: HEX-PORT PENDING.
-	// test_scenario_rules_allow_forbid_tool_stacked_rect: HEX-PORT PENDING.
-	// test_scenario_rules_allow_forbid_tool_stacked_cube: HEX-PORT PENDING.
+	test_scenario_rules_allow_forbid_tool_stacked_rect,
+	test_scenario_rules_allow_forbid_tool_stacked_cube,
 	test_sign_build_oneway,
 	test_sign_build_oneway_at_crossing,
 	test_sign_build_trafficlight,
@@ -229,7 +229,7 @@ all_tests <- [
 	test_way_rail_build_across_half_raised_edge,
 	test_way_road_build_parallel,
 	test_way_road_build_parallel_routefinder,
-	// test_way_road_build_below_powerline: HEX-PORT PENDING.
+	test_way_road_build_below_powerline,
 	test_way_road_build_crossing,
 	test_way_road_upgrade_crossing,
 	test_way_road_upgrade_downgrade,

@@ -444,221 +444,115 @@ function test_way_road_build_parallel_routefinder()
 }
 
 
-// test_way_road_build_below_powerline: HEX-PORT PENDING.
+// A way may share a tile with a powerline only as a perpendicular
+// crossing: way_builder_t::check_powerline admits the tile iff the
+// powerline is a straight, non-single line and the way's step is
+// straight and shares no direction with it.  Lay one straight S-axis
+// powerline and cross it on the SE axis (perpendicular under flat-top
+// hex).
 function test_way_road_build_below_powerline()
 {
 	local pl = player_x(0)
-	local public_pl = player_x(1)
 	local remover = command_x(tool_remove_way)
 	local powerline = way_desc_x.get_available_ways(wt_power, st_flat)[0]
 	local road = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 
+	local empty_8x8 = [
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
+
+	// Straight powerline along the S axis, column x=3, y=1..5:
+	// S=2 at the south end, N|S=18 in the middle, N=16 at the north end.
+	// Every assertion below re-checks this exact column so that a road
+	// op which silently clobbered or rerouted the powerline would fail.
+	local power_col = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  2, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 16, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
 
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 1, 0), coord3d(3, 1, 0), powerline, true), null)
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 3, 0), powerline, true), null)
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 3, 0), coord3d(1, 3, 0), powerline, true), null)
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(1, 1, 0), powerline, true), null)
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 5, 0), powerline, true), null)
+	ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0), power_col)
+	local power_maintenance = pl.get_current_maintenance()
+	ASSERT_TRUE(power_maintenance > 0)
 
-	ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
-		[
-			"........",
-			".6AC....",
-			".5.5....",
-			".3A9....",
-			"........",
-			"........",
-			"........",
-			"........"
-		])
-
-	// build way along powerline above, should fail
+	// Road running ALONG the powerline (same S axis) shares a direction
+	// with it at every tile, so check_powerline rejects -> nothing built,
+	// no cost, powerline untouched.
 	{
-		local old_maintenance = pl.get_current_maintenance()
-
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 1, 0), coord3d(3, 1, 0), road, true), "")
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-
-		ASSERT_EQUAL(pl.get_current_maintenance(), old_maintenance)
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 5, 0), road, true), "")
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
+		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0), power_col)
+		ASSERT_EQUAL(pl.get_current_maintenance(), power_maintenance)
 	}
 
-	// build way ending below power line, should succeed
-	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(2, 1, 0), road, true), null)
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(3, 2, 0), road, true), null)
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(2, 3, 0), road, true), null)
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(1, 2, 0), road, true), null)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"..4.....",
-				".2F8....",
-				"..1.....",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-	}
-
-	// remove ways
-	ASSERT_EQUAL(remover.work(pl, coord3d(2, 1, 0), coord3d(2, 3, 0), "" + wt_road), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(1, 2, 0), coord3d(3, 2, 0), "" + wt_road), null)
-
+	// Road crossing the powerline perpendicular (SE axis through the
+	// N|S interior tile (3,3)) is a legal crossing -> builds and the
+	// road coexists with the powerline on (3,3).  Row at y=3 along SE:
+	// SE=1, SE|NW=9, NW=8.
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(5, 3, 0), road, true), null)
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 		[
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........"
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 1, 9, 9, 9, 8, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
 		])
+	ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0), power_col)
+	ASSERT_TRUE(pl.get_current_maintenance() > power_maintenance)
+	ASSERT_EQUAL(remover.work(pl, coord3d(1, 3, 0), coord3d(5, 3, 0), "" + wt_road), null)
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
+	ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0), power_col)
+	ASSERT_EQUAL(pl.get_current_maintenance(), power_maintenance)
 
-	// build way not ending under power line, should succeed
-	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(2, 0, 0), road, true), null)
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(4, 2, 0), road, true), null)
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(2, 4, 0), road, true), null)
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 2, 0), coord3d(0, 2, 0), road, true), null)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"..4.....",
-				"..5.....",
-				"2AFA8...",
-				"..5.....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
-			])
-	}
-
-	// remove ways
-	ASSERT_EQUAL(remover.work(pl, coord3d(2, 0, 0), coord3d(2, 4, 0), "" + wt_road), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(0, 2, 0), coord3d(4, 2, 0), "" + wt_road), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(1, 1, 0), coord3d(3, 3, 0), "" + wt_power), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(1, 1, 0), coord3d(3, 3, 0), "" + wt_power), null)
-
-	ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
-		[
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........"
-		])
-
+	// Road ending UNDER the powerline at the same crossing tile (3,3)
+	// is also a legal crossing endpoint -> builds, powerline intact.
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), road, true), null)
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 		[
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........",
-			"........"
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 1, 9, 8, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0],
 		])
+	ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0), power_col)
+	ASSERT_EQUAL(remover.work(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), "" + wt_road), null)
+	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
 
-	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
-
-	// build way under end of powerline, should fail
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 1, 0), coord3d(2, 3, 0), powerline, true), null)
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 2, 0), coord3d(3, 2, 0), powerline, true), null)
-
+	// Road crossing at the powerline's dead-end (3,1), where the line is
+	// single (ribi S only), is rejected -> nothing built, powerline intact.
 	{
-		local old_maintenance = pl.get_current_maintenance()
-
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 1, 0), coord3d(3, 1, 0), road, true), "")
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 3, 0), road, true), "")
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 3, 0), coord3d(1, 3, 0), road, true), "")
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(1, 1, 0), road, true), "")
-
-		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
-			[
-				"........",
-				"..4.....",
-				".2F8....",
-				"..1.....",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 1, 0), coord3d(4, 1, 0), road, true), "")
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
+		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0), power_col)
+		ASSERT_EQUAL(pl.get_current_maintenance(), power_maintenance)
 	}
-
-	ASSERT_EQUAL(remover.work(pl, coord3d(2, 1, 0), coord3d(2, 3, 0), "" + wt_power), null)
-	ASSERT_EQUAL(remover.work(pl, coord3d(1, 2, 0), coord3d(3, 2, 0), "" + wt_power), null)
-	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
-
-	// add diagonal power line
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 0, 0), coord3d(7, 7, 0), powerline, true), null)
-
-	{
-		// build way across diagonal power line, should fail
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 7, 0), coord3d(7, 0, 0), road, true), "")
-
-		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
-			[
-				"2C......",
-				".3C.....",
-				"..3C....",
-				"...3C...",
-				"....3C..",
-				".....3C.",
-				"......3C",
-				".......1"
-			])
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
-	}
-
-	// and remove power line
-	ASSERT_EQUAL(remover.work(pl, coord3d(0, 0, 0), coord3d(7, 7, 0), "" + wt_power), null)
 
 	// clean up
+	ASSERT_EQUAL(remover.work(pl, coord3d(3, 1, 0), coord3d(3, 5, 0), "" + wt_power), null)
+	ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0), empty_8x8)
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
