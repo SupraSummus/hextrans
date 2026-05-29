@@ -577,10 +577,15 @@ public:
 		return (ribi)(((x << 3) | (x >> 3)) & 0x3f);
 	}
 
-	/// Straight-axis extension of a single direction (e.g. N → N|S);
-	/// 0 for non-single inputs.
+	/// Full straight axis of @p x (e.g. N → N|S, N|S → N|S); 0 for
+	/// bends, 3-way and none.  Matches the upstream `doppelt` table:
+	/// callers compare `doubles(a) != doubles(b)` to ask "same axis?"
+	/// and routinely pass a way's ribi — which is a straight *pair*
+	/// for a straight way — on one side, so a straight pair has to
+	/// fold onto its own axis, not collapse to 0.
 	static ribi doubles(ribi x) {
-		return is_single(x) ? (ribi)(x | backward(x)) : (ribi)0;
+		const ribi a = straight_axis(x);
+		return a == none ? (ribi)0 : (ribi)(a | backward(a));
 	}
 
 	/// Convert ribi to dir (sprite-raster index).  Still projects onto

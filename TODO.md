@@ -133,32 +133,6 @@ the same shape: cheap if `has_neighbour_with_way(from, wt)`, otherwise
 defer until the next time any of these branches needs a real
 edit.
 
-## build_way refuses upgrade-across-bridge under hex
-
-`command_x.build_way(pl, ramp_a, ramp_b, road, …)` returns `""` when
-`ramp_a` and `ramp_b` are the z=0 ramp tiles at either end of a
-single-height road bridge.  Reproduces with `straight=true` and
-`straight=false`, with z=0 ramp coords and z=1 bridge-surface coords.
-The bridge itself builds fine; only the subsequent way-builder call
-fails.  Suspected cause: `intern_calc_straight_route` walks
-`grund_t::get_neighbour`, which keys on `get_vmove(ribi)` (height of the
-edge in the ribi direction).  Hex `south_narrow` has S as the *low*
-edge, so a S-bound walker steps to z=0 ground underneath the span
-instead of climbing to the bridge surface — the existing
-`bautyp & elevated_flag` upper-layer fallback only fires for
-explicitly-elevated waytypes.  Not verified end-to-end; the same
-symptom could be the route-finder skipping bridge tiles owned by a
-different waytype, or a same-way upgrade returning `""` instead of
-no-op-null.  `test_way_tram_build_across_road_bridge` is the working
-counter-example — tram piggybacks on existing road tiles via the
-tile-overlay path, not via a height walk.
-`test_way_road_upgrade_downgrade_across_bridge` is the test currently
-blocked.  Next move: add log-level tracing to the failing call to pin
-which check returns `""`, then either teach the straight route to
-recognise the low-edge → bridge-span transition (analogue to the
-elevated-flag upper-layer probe at `wegbauer.cc:1851`), or, if the
-failure is in is_allowed_step / the build phase, fix there.
-
 ## Lower_to water-tile NW-only gate
 
 `terraformer_t::lower_to` short-circuits water tiles unless the NW

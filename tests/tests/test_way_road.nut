@@ -899,14 +899,19 @@ function test_way_road_upgrade_downgrade()
 }
 
 
-// test_way_road_upgrade_downgrade_across_bridge: HEX-PORT PENDING.
+// Upgrade / downgrade a road across a flat elevated bridge.
+// build_bridge decks (3,2)..(3,5) at z=1 with auto-extended ground
+// ramps at (3,1)/(3,6).  build_way rewrites only the two ground
+// ramps; the bridgeheads and deck keep the builder's way, so the test
+// pins all six tiles at each step.  Crossing the span exercises the
+// ribi_t::doubles straight-pair fix — without it build_way across a
+// bridge returns "".
 function test_way_road_upgrade_downgrade_across_bridge()
 {
 	local pl = player_x(0)
-	local public_pl = player_x(1)
 	local remover = command_x(tool_remove_way)
-	local start_pos = coord3d(3, 6, 0)
-	local end_pos = coord3d(3, 2, 0)
+	local start_pos = coord3d(3, 1, 0)
+	local end_pos = coord3d(3, 6, 0)
 	local bridge = bridge_desc_x.get_available_bridges(wt_road)[0]
 	local all_ways = way_desc_x.get_available_ways(wt_road, st_flat)
 	all_ways.sort(@(a, b) a.get_topspeed() <=> b.get_topspeed())
@@ -917,33 +922,48 @@ function test_way_road_upgrade_downgrade_across_bridge()
 	ASSERT_TRUE(slow_road.get_name() != fast_road.get_name())
 	ASSERT_TRUE(slow_road.get_topspeed() < fast_road.get_topspeed())
 
-	// build bridge
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(3, 6, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 6, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(3, 3, 0)), null)
-	ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(4, 3, 0)), null)
-	ASSERT_EQUAL(command_x.build_bridge_at(pl, coord3d(3, 5, 0), bridge), null)
+	// connectivity at the bridge height: ground ramp (3,1)=S, deck
+	// span (3,2)..(3,5)=N|S, ground ramp (3,6)=N.  Unchanged by any
+	// upgrade/downgrade below.
+	local bridge_col = [
+		[0, 0, 0,  0, 0, 0, 0, 0],
+		[0, 0, 0,  2, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 18, 0, 0, 0, 0],
+		[0, 0, 0, 16, 0, 0, 0, 0],
+		[0, 0, 0,  0, 0, 0, 0, 0],
+	]
 
-	// upgrade road
+	// build a flat elevated bridge; the auto-extended ground ramps at
+	// (3,1) / (3,6) carry the slow road by default
+	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(3, 5, 0), coord3d(3, 2, 0), bridge), null)
+
+	// capture what the builder laid on a bridgehead and a deck tile;
+	// assert_span then checks both of each stay pinned to it
+	local head_desc = way_x(3, 2, 0).get_desc().get_name()
+	local deck_desc = tile_x(3, 3, 1).find_object(mo_way).get_desc().get_name()
+
+	// the whole span, asserted after every operation: the two ground
+	// ramps carry `ramp_desc`, the bridge structure is untouched, and
+	// connectivity is preserved.
+	local function assert_span(ramp_desc) {
+		ASSERT_EQUAL(way_x(3, 1, 0).get_desc().get_name(), ramp_desc)
+		ASSERT_EQUAL(way_x(3, 6, 0).get_desc().get_name(), ramp_desc)
+		ASSERT_EQUAL(way_x(3, 2, 0).get_desc().get_name(), head_desc)
+		ASSERT_EQUAL(way_x(3, 5, 0).get_desc().get_name(), head_desc)
+		ASSERT_EQUAL(tile_x(3, 3, 1).find_object(mo_way).get_desc().get_name(), deck_desc)
+		ASSERT_EQUAL(tile_x(3, 4, 1).find_object(mo_way).get_desc().get_name(), deck_desc)
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 1), bridge_col)
+	}
+
+	assert_span(slow_road.get_name())
+
+	// upgrade road across the bridge span
 	{
-		ASSERT_TRUE(tile_x(3, 6, 0).find_object(mo_way) != null)
-		ASSERT_TRUE(tile_x(3, 2, 0).find_object(mo_way) != null)
-
 		ASSERT_EQUAL(command_x.build_way(pl, start_pos, end_pos, fast_road, true), null)
-		ASSERT_EQUAL(tile_x(3, 6, 0).find_object(mo_way).get_desc().get_name(), fast_road.get_name())
-		ASSERT_EQUAL(tile_x(3, 2, 0).find_object(mo_way).get_desc().get_name(), fast_road.get_name())
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"........",
-				"...5....",
-				"...1....",
-				"........"
-			])
+		assert_span(fast_road.get_name())
 	}
 
 	// Replace road with same road, should incur no cost
@@ -951,22 +971,11 @@ function test_way_road_upgrade_downgrade_across_bridge()
 		local old_cash = pl.get_current_cash()
 		ASSERT_EQUAL(command_x.build_way(pl, start_pos, end_pos, fast_road, true), null)
 		ASSERT_EQUAL(pl.get_current_cash(), old_cash)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"........",
-				"...5....",
-				"...1....",
-				"........"
-			])
+		assert_span(fast_road.get_name())
 	}
 
-	// downgrade road without ctrl; should fail
-	// note that we cannot use command_x.buid_way for this, because there is no way to enable
+	// downgrade road without ctrl; should not downgrade
+	// note that we cannot use command_x.build_way for this, because there is no way to enable
 	// ctrl-pressed behaviour (the way is replaced in any case)
 	{
 		local old_maintenance = pl.get_current_maintenance()
@@ -975,22 +984,9 @@ function test_way_road_upgrade_downgrade_across_bridge()
 		local tool = command_x(tool_build_way)
 		ASSERT_EQUAL(tool.work(pl, start_pos, end_pos, slow_road.get_name()), null)
 
-		ASSERT_EQUAL(tile_x(3, 6, 0).find_object(mo_way).get_desc().get_name(), fast_road.get_name())
-		ASSERT_EQUAL(tile_x(3, 2, 0).find_object(mo_way).get_desc().get_name(), fast_road.get_name())
 		ASSERT_EQUAL(pl.get_current_cash(), old_cash)
 		ASSERT_EQUAL(pl.get_current_maintenance(), old_maintenance)
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"........",
-				"...5....",
-				"...1....",
-				"........"
-			])
+		assert_span(fast_road.get_name())
 	}
 
 	// downgrade road with ctrl
@@ -998,29 +994,11 @@ function test_way_road_upgrade_downgrade_across_bridge()
 		local tool = command_x(tool_build_way)
 		tool.set_flags(2) // ctrl
 		ASSERT_EQUAL(tool.work(pl, start_pos, end_pos, slow_road.get_name()), null)
-
-		ASSERT_EQUAL(tile_x(3, 6, 0).find_object(mo_way).get_desc().get_name(), slow_road.get_name())
-		ASSERT_EQUAL(tile_x(3, 2, 0).find_object(mo_way).get_desc().get_name(), slow_road.get_name())
-
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"...4....",
-				"...5....",
-				"........",
-				"...5....",
-				"...1....",
-				"........"
-			])
+		assert_span(slow_road.get_name())
 	}
 
-	// remove bridge
+	// remove bridge and the auto-extended ground ramps
 	ASSERT_EQUAL(remover.work(pl, start_pos, end_pos, "" + wt_road), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(3, 6, 0)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 6, 0)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(3, 3, 0)), null)
-	ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(4, 3, 0)), null)
 
 	// clean up
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)

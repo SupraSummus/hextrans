@@ -150,8 +150,11 @@ function test_dir_is_straight()
 
 function test_dir_double()
 {
-	// `dir.double(x)` returns the straight axis containing x when x is
-	// a single edge, else 0.  See ribi_t::doubles.
+	// `dir.double(x)` returns the straight axis containing x for both a
+	// single edge and a straight pair already on that axis, else 0.
+	// Matches the upstream `doppelt` table — callers compare
+	// double(a) != double(b) for "same axis?" and routinely pass a
+	// straight way's ribi (a pair) on one side.  See ribi_t::doubles.
 	ASSERT_EQUAL(dir.double(dir.none), dir.none)
 
 	ASSERT_EQUAL(dir.double(dir.north),     dir.northsouth)
@@ -161,10 +164,12 @@ function test_dir_double()
 	ASSERT_EQUAL(dir.double(dir.northwest), dir.northwest_southeast)
 	ASSERT_EQUAL(dir.double(dir.southeast), dir.northwest_southeast)
 
-	// Multi-bit ribis return none.
-	ASSERT_EQUAL(dir.double(dir.northsouth),          dir.none)
-	ASSERT_EQUAL(dir.double(dir.northeast_southwest), dir.none)
-	ASSERT_EQUAL(dir.double(dir.northwest_southeast), dir.none)
+	// Straight pairs fold onto their own axis.
+	ASSERT_EQUAL(dir.double(dir.northsouth),          dir.northsouth)
+	ASSERT_EQUAL(dir.double(dir.northeast_southwest), dir.northeast_southwest)
+	ASSERT_EQUAL(dir.double(dir.northwest_southeast), dir.northwest_southeast)
+
+	// Bends and 3-way return none.
 	ASSERT_EQUAL(dir.double(dir.north | dir.northeast), dir.none)
 	ASSERT_EQUAL(dir.double(dir.all), dir.none)
 }

@@ -233,7 +233,7 @@ all_tests <- [
 	test_way_road_build_crossing,
 	test_way_road_upgrade_crossing,
 	test_way_road_upgrade_downgrade,
-	// test_way_road_upgrade_downgrade_across_bridge: HEX-PORT PENDING.
+	test_way_road_upgrade_downgrade_across_bridge,
 	test_way_road_cityroad_build,
 	test_way_road_cityroad_upgrade_with_cityroad,
 	test_way_road_cityroad_downgrade_with_cityroad,
