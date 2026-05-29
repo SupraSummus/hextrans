@@ -21,11 +21,16 @@ obj_desc_t *xref_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
+	// The name is the NUL-terminated tail of the body, but a hostile
+	// pak can drop the terminator (or send name_len == 0).  Allocate one
+	// guaranteed slot for it so the strcmp in xref_to_resolve / the
+	// name[0] read in register_obj stay inside the heap buffer.
 	const uint32 name_len = node.size - 5;
-	xref_desc_t* desc = new(name_len) xref_desc_t();
+	xref_desc_t* desc = new(name_len + 1) xref_desc_t();
 	desc->type = static_cast<obj_type>(decode_uint32(p));
 	desc->fatal = (decode_uint8(p) != 0);
 	memcpy(desc->name, p.read_bytes(name_len), name_len);
+	desc->name[name_len] = '\0';
 	return desc;
 }
 
