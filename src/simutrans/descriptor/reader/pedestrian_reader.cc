@@ -37,7 +37,7 @@ bool pedestrian_reader_t::successfully_loaded() const
  */
 obj_desc_t * pedestrian_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	// old versions of PAK files have no version stamp.

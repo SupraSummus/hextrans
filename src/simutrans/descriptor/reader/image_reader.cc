@@ -27,7 +27,7 @@
 
 obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	// version byte sits at offset 6; old versions stored 0 there
