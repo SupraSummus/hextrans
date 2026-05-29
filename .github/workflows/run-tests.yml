@@ -136,11 +136,16 @@ jobs:
           -DSIMUTRANS_SANITIZE_ADDRESS=ON -DSIMUTRANS_SANITIZE_UNDEFINED=ON \
           -DSIMUTRANS_BACKEND=none -DCMAKE_BUILD_TYPE=Debug
         cmake --build build-fuzz --target svnheader
-        cmake --build build-fuzz --target fuzz_network fuzz_pak -j$(nproc)
+        cmake --build build-fuzz --target fuzz_nettool fuzz_pak fuzz_command_preauth -j$(nproc)
         ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=1" \
-          ./build-fuzz/src/fuzz/fuzz_network -runs=0 src/fuzz/corpus/network/
+          ./build-fuzz/src/fuzz/fuzz_nettool -runs=0 src/fuzz/corpus/nettool/
         ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0" \
           ./build-fuzz/src/fuzz/fuzz_pak -runs=0 src/fuzz/corpus/pak/
+        # fuzz_command_preauth: detect_leaks=0 because the longjmp
+        # recovery path drops the in-flight command/packet on fatal —
+        # see fuzz_command_preauth.cc.
+        ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0" \
+          ./build-fuzz/src/fuzz/fuzz_command_preauth -runs=0 src/fuzz/corpus/command_preauth/
     - name: Run HTTP e2e suite
       # Baseline coverage for the four HTTP call sites ahead of the
       # libcurl migration (see documentation/libcurl-port.md).  Drives
