@@ -276,6 +276,7 @@ void banner_text_t::draw(scr_coord offset)
 	//                    BANNER_TEXT_INDENT defines left and right padding inside banner area
 
 	static const char* const scrolltext[] = {
+		#include "../scrolltext.h"
 	};
 
 	scr_coord cursor(get_pos() + offset);
