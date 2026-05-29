@@ -60,7 +60,14 @@ class pakset_manager_t
 	static std::string overlaid_warning;
 	static stringhashtable_tpl<missing_level_t> missing_pak_names;
 
+	/// Pak currently being read, set by load_pak_from_fp (loading is
+	/// single-threaded).  For diagnostics only.
+	static std::string loading_pak_name;
+
 public:
+	/// Pak being read, or "?" if not set.  Diagnostics only.
+	static const char *get_loading_pak_name() { return loading_pak_name.empty() ? "?" : loading_pak_name.c_str(); }
+
 	static void register_reader(obj_reader_t *reader);
 
 	/// Loads pakset data from env_t::pak_dir, and also from env_t::user_dir/addons/env_t::pak_name if @p load_addons is true
