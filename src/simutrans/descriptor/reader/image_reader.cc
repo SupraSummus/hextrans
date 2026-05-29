@@ -138,7 +138,10 @@ adjust_image:
 		desc->w = 1;
 	}
 	if(  desc->len > 0  ) {
-		desc->len = 4;
+		// The placeholder needs 4 PIXVALs, but the file's len may have
+		// allocated fewer (a hostile pak can set len 1..3); realloc so
+		// the memset below stays in bounds.
+		desc->alloc(4);
 		memset(desc->data, 0, desc->len*sizeof(PIXVAL));
 	}
 	desc->x = 0;
