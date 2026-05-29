@@ -119,3 +119,31 @@ endif ()
 
 target_link_options(fuzz_pak PRIVATE -fsanitize=fuzzer)
 target_compile_options(fuzz_pak PRIVATE -fsanitize=fuzzer-no-link)
+
+
+#
+# fuzz_command: network *command handling* (post-parse).  Stands the
+# engine up once, then per input builds a world and drives a fuzzed
+# sequence of nwc_tool_t commands through do_command — see
+# fuzz_command.cc.  Reuses the
+# same full-source inheritance as fuzz_pak (it needs the world + the
+# self-registering tool table), so it shares the _SIM_* properties
+# computed above and the SIMUTRANS_BACKEND=none guard that returned
+# early before this point if unmet.
+#
+add_executable(fuzz_command
+	fuzz_command.cc
+)
+
+target_sources(fuzz_command PRIVATE ${_SIM_SOURCES_ABS})
+target_include_directories(fuzz_command PRIVATE ${_SIM_INCLUDES})
+target_compile_definitions(fuzz_command PRIVATE ${_SIM_DEFS} SIMUTRANS_NO_MAIN=1)
+target_compile_options(fuzz_command PRIVATE ${_SIM_OPTS})
+target_link_libraries(fuzz_command PRIVATE ${_SIM_LIBS})
+
+if (TARGET svnheader)
+	add_dependencies(fuzz_command svnheader)
+endif ()
+
+target_link_options(fuzz_command PRIVATE -fsanitize=fuzzer)
+target_compile_options(fuzz_command PRIVATE -fsanitize=fuzzer-no-link)
