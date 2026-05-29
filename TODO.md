@@ -80,8 +80,6 @@ remains: each test's coord/asserts need rewriting to hex axes
 2:1 iso rename, etc.), and the pakset-side sprite tables in
 `roadsign_writer.cc` still emit 4 rotations rather than 6 (tracked
 separately under "Engine → pakset descriptor boundary").
-`test_sign_build_oneway_at_crossing` holds the crossing subcases
-that used to live inside `test_sign_build_oneway`; same trigger.
 
 **Runway layout.**  `test_way_runway_build_rw_flat / _tw_flat /
 _mixed_flat` bake a 4-direction airport layout (runway + taxiway
@@ -118,6 +116,15 @@ the first scenario test that exercises AI / city-shape
 terraforming — including a regression test for the
 `check_terraforming` widening + corner-index fixes that currently
 have no end-to-end coverage.
+
+**`ASSERT_THROWS` helper for scenario tests.**  47 sites across
+`tests/tests/*.nut` hand-roll the same `local caught = false; try { ...
+} catch (e) { ASSERT_EQUAL(e, "<msg>"); caught = true } ASSERT_TRUE(caught)`
+block to assert a tool call throws an expected message.  Add
+`ASSERT_THROWS(expected_msg, callable)` to `test_helpers.nut` and
+collapse the sites to one line each.  Soft trigger: fold in next time
+a test file in this set is being rewritten anyway (the hex migration
+of the remaining HEX-PORT PENDING tests touches several of them).
 
 ## `is_allowed_step` prefer_parallel branches near-duplicated
 
