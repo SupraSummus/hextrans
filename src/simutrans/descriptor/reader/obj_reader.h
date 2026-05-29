@@ -175,7 +175,10 @@ public:
 		return v;
 	}
 
-private:
+	/// Assert that at least @p n bytes remain at the cursor, else fatal.
+	/// Backs the read_* / operator+= bounds checks, and is also called
+	/// directly by readers that decode a length/count and want to bound
+	/// a derived `new[]` by the bytes actually present.
 	void require(size_t n) const
 	{
 		if (pos_ + n > end_) {
@@ -187,6 +190,7 @@ private:
 		}
 	}
 
+private:
 	std::unique_ptr<char[]> buf_;
 	char* pos_;
 	char* end_;
