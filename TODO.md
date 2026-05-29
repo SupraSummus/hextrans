@@ -911,22 +911,6 @@ world and so sidesteps all of the above.  Seed corpus: the
 `tests/*.nut` scenario scripts already drive real tool sequences.  Run
 with `ASAN_OPTIONS=detect_leaks=0`.
 
-## Sweep the unguarded atoi(default_param) tool sites
-
-`fuzz_command` found `tool_build_wayobj_t::init` calling
-`atoi(default_param)` on a NULL `default_param` (an empty network
-string deserialises to NULL in `memory_rw_t::rdwr_str`), a
-wire-reachable server crash (fixed on the `fix/wayobj-atoi-null`
-branch off `main`).  But `simtool.cc` has ~13 more unguarded
-`atoi(default_param)` /
-`strcmp(default_param, …)` sites (e.g. lines ~882, 925, 1137, 2016,
-2189, 2618, 3507, 6902, 8919) against ~4 that already NULL-check —
-`default_param` is fully attacker-controlled and frequently NULL over
-the wire.  Next move: let the structured fuzzer (above) drive each
-tool to confirm which are reachable with NULL/empty `default_param`
-and crash, then guard those (don't blind-guard all 17 — that is
-upstream-divergence noise; fix the reachable ones).
-
 ## image_reader dedup-table UAF on failed-sibling delete
 
 `image_reader_t::read_node` registers each unique image desc in a

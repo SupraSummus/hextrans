@@ -234,7 +234,10 @@ like "when next refactoring this cluster" or "alongside a future
 elegance pass" is fine — the bar is that the work is actionable,
 not that something automatically fires. "Implemented but needs
 testing" without a way to test belongs in the commit message of
-the change that landed it, not here.
+the change that landed it, not here. Same for a thin action
+("propose upstream", "open a bug") wrapped in a paragraph of
+post-landing state — the action belongs in an issue tracker, the
+durable context in the commit message or `AGENTS.md`.
 
 The aim is for `TODO.md` to remain a useful, current map of "what
 still needs doing". A growing TODO file is fine; a stale one is not.
