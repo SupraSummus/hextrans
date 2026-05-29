@@ -264,12 +264,35 @@ function test_scenario_rules_allow_forbid_way_tool_cube()
 }
 
 
-// test_scenario_rules_allow_forbid_tool_stacked_rect: HEX-PORT PENDING.
+// Road from (5,0) to (0,5) is the SW hex axis; with the inner block
+// forbidden the router hugs the allowed border ring as a hex staircase
+// (down the x=0 / y=0 edges, cutting the corner directly (1,0)->(0,1)).
+local stacked_outer_ring = [
+	[ 0,  5,  9,  9,  9,  8, 0, 0],
+	[34,  0,  0,  0,  0,  0, 0, 0],
+	[18,  0,  0,  0,  0,  0, 0, 0],
+	[18,  0,  0,  0,  0,  0, 0, 0],
+	[18,  0,  0,  0,  0,  0, 0, 0],
+	[16,  0,  0,  0,  0,  0, 0, 0],
+	[ 0,  0,  0,  0,  0,  0, 0, 0],
+	[ 0,  0,  0,  0,  0,  0, 0, 0],
+]
+// Same ring plus the (5,2)->(2,5) straight SW chord through the inner
+// region, buildable once that region is allowed.
+local stacked_inner_chord = [
+	[ 0,  5,  9,  9,  9,  8, 0, 0],
+	[34,  0,  0,  0,  0,  0, 0, 0],
+	[18,  0,  0,  0,  0,  4, 0, 0],
+	[18,  0,  0,  0, 36,  0, 0, 0],
+	[18,  0,  0, 36,  0,  0, 0, 0],
+	[16,  0, 32,  0,  0,  0, 0, 0],
+	[ 0,  0,  0,  0,  0,  0, 0, 0],
+	[ 0,  0,  0,  0,  0,  0, 0, 0],
+]
+
 function test_scenario_rules_allow_forbid_tool_stacked_rect()
 {
 	local pl = player_x(0)
-	local waybuilder = command_x(tool_build_way)
-	local setslope = command_x.set_slope
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 
 	rules.forbid_way_tool_rect(0, tool_build_way, wt_road, "", coord(1, 1), coord(14, 14), "Foo Bar 1")
@@ -277,83 +300,33 @@ function test_scenario_rules_allow_forbid_tool_stacked_rect()
 	// build in outer allowed ring, near map border
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 0, 0), coord3d(0, 5, 0), road_desc, false), null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5.......",
-				"5.......",
-				"5.......",
-				"1.......",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_outer_ring)
 	}
 
-	// build in outer forbidden ring
+	// build in outer forbidden ring -> rejected, ring unchanged
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 1, 0), coord3d(1, 5, 0), road_desc, false), "")
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5.......",
-				"5.......",
-				"5.......",
-				"1.......",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_outer_ring)
 	}
 
 	rules.allow_way_tool_rect(0, tool_build_way, wt_road, "", coord(2, 2), coord(13, 13))
 
-	// try building in allowed ring, does work since introdcued allowed rules
+	// inner block is now allowed -> the SW chord builds
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 2, 0), coord3d(2, 5, 0), road_desc, false), null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5..6A8..",
-				"5.69....",
-				"5.5.....",
-				"1.1.....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_inner_chord)
 	}
 
-	// try building from inside allowed ring to forbidden rect, must fail
+	// from a still-forbidden ring tile into the allowed block -> rejected
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 1, 0), coord3d(2, 5, 0), road_desc, false), "")
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5..6A8..",
-				"5.69....",
-				"5.5.....",
-				"1.1.....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_inner_chord)
 	}
 
-	// try building from inside allowed ring to outside, must fail => we cannot cross border
+	// from outside the allowed block across the border -> rejected
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 0, 0), coord3d(2, 5, 0), road_desc, false), "")
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5..6A8..",
-				"5.69....",
-				"5.5.....",
-				"1.1.....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_inner_chord)
 	}
 
 	rules.clear()
@@ -364,12 +337,11 @@ function test_scenario_rules_allow_forbid_tool_stacked_rect()
 }
 
 
-// test_scenario_rules_allow_forbid_tool_stacked_cube: HEX-PORT PENDING.
+// Identical to the _rect case but the outer forbid is a cube (z range
+// 0..0) rather than a flat rect; same border-hugging routes result.
 function test_scenario_rules_allow_forbid_tool_stacked_cube()
 {
 	local pl = player_x(0)
-	local waybuilder = command_x(tool_build_way)
-	local setslope = command_x.set_slope
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 
 	rules.forbid_way_tool_cube(0, tool_build_way, wt_road, "", coord3d(1, 1, 0), coord3d(14, 14, 0), "Foo Bar 1")
@@ -377,83 +349,33 @@ function test_scenario_rules_allow_forbid_tool_stacked_cube()
 	// build in outer allowed ring, near map border
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 0, 0), coord3d(0, 5, 0), road_desc, false), null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5.......",
-				"5.......",
-				"5.......",
-				"1.......",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_outer_ring)
 	}
 
-	// build in outer forbidden ring
+	// build in outer forbidden ring -> rejected, ring unchanged
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 1, 0), coord3d(1, 5, 0), road_desc, false), "")
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5.......",
-				"5.......",
-				"5.......",
-				"1.......",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_outer_ring)
 	}
 
 	rules.allow_way_tool_rect(0, tool_build_way, wt_road, "", coord(2, 2), coord(13, 13))
 
-	// try building in allowed ring, does work since introdcued allowed rules
+	// inner block is now allowed -> the SW chord builds
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 2, 0), coord3d(2, 5, 0), road_desc, false), null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5..6A8..",
-				"5.69....",
-				"5.5.....",
-				"1.1.....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_inner_chord)
 	}
 
-	// try building from inside allowed ring to forbidden rect, must fail
+	// from a still-forbidden ring tile into the allowed block -> rejected
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 1, 0), coord3d(2, 5, 0), road_desc, false), "")
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5..6A8..",
-				"5.69....",
-				"5.5.....",
-				"1.1.....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_inner_chord)
 	}
 
-	// try building from inside allowed ring to outside, must fail => we cannot cross border
+	// from outside the allowed block across the border -> rejected
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 0, 0), coord3d(2, 5, 0), road_desc, false), "")
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"6AAAA8..",
-				"5.......",
-				"5..6A8..",
-				"5.69....",
-				"5.5.....",
-				"1.1.....",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_inner_chord)
 	}
 
 	rules.clear()
