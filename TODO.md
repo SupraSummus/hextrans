@@ -933,26 +933,19 @@ UAF inputs onto simpler bug classes (the OOMs and the
 `obj_named_desc_t::get_name` NULL deref below); the deeper-run
 crash artifacts are reproducible locally but too large to commit.
 
-## Descriptor-driven allocation OOM in image_reader (and likely others)
+## Descriptor-driven allocation OOM in pak readers
 
-`image_reader_t::read_node` calls `desc->alloc(decode_uint32(p))`
-where the uint32 is a `len` field read straight from the pak.  The
-spike's `decode_*` bounds-check guards the buffer read but not the
-*value* — a hostile `len` close to 2³² drives `image_t::alloc` into
-a multi-GB `operator new[]`.  Same shape exists wherever a reader
-turns a decoded count/length field into an allocation (vehicle
-pixel arrays, building tile lists, …).  Fix: cap each
-allocation-driving count against the buffer's remaining bytes
-before alloc — for image specifically, `len * sizeof(uint16) <=
-buf_end_ - p`.  `node_body` already has the primitive: its private
-`require(n)` tests that `n` bytes remain, and the bulk pixel read
-now computes `len * 2` at the copy site — the fix is to call that
-check on `len * 2` (exposed as a public method) just above
-`desc->alloc`.  The same shape elsewhere (vehicle pixel arrays,
-building tile lists, …) wants a shared `obj_reader_t` helper to
-avoid per-reader whack-a-mole.  Trigger: fuzz_pak active mutation
-surfaces this immediately on top of the seeded corpus; harden once
-a structural fix lands.
+Several readers turn a decoded count/length field into an
+allocation (`desc->alloc(decode_*(p))`, `new[count]`) without first
+checking the count against the bytes remaining — a hostile value
+drives a multi-GB `new[]`, and in headless builds the copy-site
+bounds check that would otherwise catch the short read is skipped,
+so the alloc is the only guard point.  `image_reader` is fixed and
+shows the shape (`node_body::require(len * 2)` before alloc); the
+vehicle pixel arrays and building tile lists still need the same
+guard, ideally via one shared call site rather than per-reader.
+Trigger: fuzz_pak active mutation surfaces the next one on top of
+the seeded corpus.
 
 ## libcurl rollback gate retirement
 

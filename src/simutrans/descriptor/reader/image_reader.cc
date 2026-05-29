@@ -51,7 +51,9 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		desc->w = decode_uint8(p);
 		desc->y = decode_uint8(p);
 		desc->h = decode_uint8(p);
-		desc->alloc(decode_uint32(p)); // len
+		uint32 len = decode_uint32(p);
+		p.require((size_t)len * 2); // cap alloc against bytes present (pixels are uint16)
+		desc->alloc(len);
 		desc->imageid = IMG_EMPTY;
 		p += 2; // dummys
 		desc->zoomable = decode_uint8(p) != 0;
@@ -85,7 +87,9 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		desc->w = decode_uint8(p);
 		desc->h = decode_uint8(p);
 		p++; // skip version information
-		desc->alloc(decode_uint16(p)); // len
+		uint16 len = decode_uint16(p);
+		p.require((size_t)len * 2); // cap alloc against bytes present (pixels are uint16)
+		desc->alloc(len);
 		desc->zoomable = decode_uint8(p) != 0;
 		desc->imageid = IMG_EMPTY;
 
