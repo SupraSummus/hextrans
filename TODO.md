@@ -45,16 +45,15 @@ call sites (`test_building_rotate_harbour`, the "east-west direction"
 block in `test_depot_build_on_bridge_end` and the matching block in
 `test_halt_build_on_bridge_end`, `test_powerline_remove_powerbridge`)
 migrated to `slope.southeast_narrow` / `slope.northwest_narrow`, the hex axis they were
-already projecting onto.  `test_scenario_rules_allow_forbid_way_tool_cube`
-and `test_terraform_climate_from_water` both still use `2*slope.east`;
-left untouched because both functions are already HEX-PORT PENDING
-and need holistic rewrites.  Note the literal `2*slope.east` no
-longer denotes a real terrain slope under hex's base-4 encoding —
-square-era `2 * narrow == double` is gone, replaced by named
-`*_double` constants and the `slope_t::narrow_to_double()` helper —
-so when these tests come back, the `2*slope.east` literals migrate
-to `slope.southeast_double` / `slope.northwest_double` (whichever
-the hex axis intent is).
+already projecting onto.  `test_terraform_raise_lower_water_level`
+still uses `2*slope.east`; left untouched because that function is
+already HEX-PORT PENDING and needs a holistic rewrite.  Note the
+literal `2*slope.east` no longer denotes a real terrain slope under
+hex's base-4 encoding — square-era `2 * narrow == double` is gone,
+replaced by named `*_double` constants and the
+`slope_t::narrow_to_double()` helper — so when that test comes back,
+the `2*slope.east` literals migrate to `slope.southeast_double` /
+`slope.northwest_double` (whichever the hex axis intent is).
 
 **Powerline 3rd hex axis.**  `test_powerline_connect` and
 `test_powerline_ways` each expect crossings / powerlines on the 2
@@ -70,11 +69,6 @@ to a hex diamond (taxiway crosses on N-S and old-E-W = hex SE-NW,
 with 4 of 6 hex edges used), but the runway/taxiway geometry
 tests assume the square 3x3.  Restore after a proper hex airport
 layout is designed.
-
-**Rect/cube scenario scaffolds.**  `test_scenario_rules_allow_forbid_way_tool_rect /
-_cube` use square-coordinate rect/cube selection regions to verify
-scenario rule coverage.  Under hex the region shapes are different;
-restore after the region-selection tools are hex-aware.
 
 **Flood-fill / region walkers.**
 `tool_change_water_height_t` in `simtool.cc` is hex-aware (6-neighbour
