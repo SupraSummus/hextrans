@@ -106,22 +106,61 @@ function test_sign_build_oneway()
 }
 
 
-// test_sign_build_oneway_at_crossing: HEX-PORT PENDING.
 function test_sign_build_oneway_at_crossing()
 {
 	// Sign behavior at multi-axis intersections: placement allowed on
 	// a road-rail crossing (way is a 2-way after subtracting the
 	// crossing axis), rejected once a road-road crossing turns the
-	// junction into 3+ ways.  Bakes the 2-axis intersection model and
-	// the legacy ASSERT_WAY_PATTERN_MASKED string rows — see
-	// "Sign / traffic-light 2-axis FSM" in TODO.md.
+	// junction into 3+ ways.  Road column runs the S axis (constant x,
+	// +y; S=2, N|S=18, N=16); the rail/road cross runs the SE axis
+	// (+x; SE=1, SE|NW=9, NW=8).  60° hex crossing pair, replacing the
+	// square N-S × E-W setup.
 	local pl = player_x(0)
-	local public_pl = player_x(1)
 	local wayremover = command_x(tool_remove_way)
 	local remover = command_x(tool_remover)
 	local road = way_desc_x("dirt_road")
 	local rail = way_desc_x("sand_track")
 	local sign = sign_desc_x.get_available_signs(wt_road).filter(@(idx, sign) sign.is_one_way())[0]
+
+	// Rail/road cross at y=3, x=1..3 along the SE axis.
+	local cross_row = [
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 1, 9, 8, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+	]
+
+	// Road column at x=2, y=1..4 along the S axis, unmasked: S=2,
+	// N|S=18 (mid), N=16 (end).  At the crossing tile (2,3) the road
+	// alone is a straight 2-way (18) — this is the topology that makes
+	// the one-way sign valid; the sign only narrows the *masked* dirs.
+	local road_col_full = [
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+	]
+
+	// As road_col_full, but the SE-axis road arm has merged into the
+	// column at (2,3): N|S|SE|NW = 16|2|1|8 = 27, with SE=1 / NW=8 arms.
+	local road_cross_full = [
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  2, 0, 0, 0, 0, 0],
+		[0, 0, 18, 0, 0, 0, 0, 0],
+		[0, 1, 27, 8, 0, 0, 0, 0],
+		[0, 0, 16, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+		[0, 0,  0, 0, 0, 0, 0, 0],
+	]
 
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 1, 0), coord3d(2, 4, 0), road, true), null)
 	ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(2, 3, 0), sign), null)
@@ -130,29 +169,26 @@ function test_sign_build_oneway_at_crossing()
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), rail, true), null)
 
+		// Unmasked: the road is a straight 2-way N|S column even at the
+		// crossing tile (18 at y=3); the rail occupies its own SE axis.
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), road_col_full)
+		ASSERT_WAY_PATTERN(wt_rail, coord3d(0, 0, 0), cross_row)
+
+		// Masked: default one-way orientation masks out the S half,
+		// leaving N=16 (matches the first build in test_sign_build_oneway).
 		ASSERT_WAY_PATTERN_MASKED(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"..4.....",
-				"..5.....",
-				"..4.....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  2, 0, 0, 0, 0, 0],
+				[0, 0, 18, 0, 0, 0, 0, 0],
+				[0, 0, 16, 0, 0, 0, 0, 0],
+				[0, 0, 16, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
 			])
 
-		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				".2A8....",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0), cross_row)
 
 		local w = tile_x(2, 3, 0).find_object(mo_way)
 		ASSERT_TRUE(w.is_crossing())
@@ -160,29 +196,22 @@ function test_sign_build_oneway_at_crossing()
 		// change direction of sign on rail-road crossing, should succeed
 		ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(2, 3, 0), sign), null)
 
+		// Flipping the sign leaves the full topology untouched (still a
+		// 2-way N|S column) and only flips the mask to the S=2 half.
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), road_col_full)
 		ASSERT_WAY_PATTERN_MASKED(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"..4.....",
-				"..5.....",
-				"..1.....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  2, 0, 0, 0, 0, 0],
+				[0, 0, 18, 0, 0, 0, 0, 0],
+				[0, 0,  2, 0, 0, 0, 0, 0],
+				[0, 0, 16, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
 			])
 
-		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0),
-			[
-				"........",
-				"........",
-				"........",
-				".2A8....",
-				"........",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN_MASKED(wt_rail, coord3d(0, 0, 0), cross_row)
 
 		// and remove rail
 		ASSERT_EQUAL(wayremover.work(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), "" + wt_rail), null)
@@ -192,30 +221,23 @@ function test_sign_build_oneway_at_crossing()
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), road, true), null)
 
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"..4.....",
-				"..5.....",
-				".2F8....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
-			])
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), road_cross_full)
 
 		local w = tile_x(2, 3, 0).find_object(mo_way)
 		ASSERT_FALSE(w.is_crossing())
+		// One-way mask survives the road merge: still facing S (from
+		// the second build above), so the opposite N half is dropped
+		// from the 27 junction, leaving SE|S|NW = 1|2|8 = 11.
 		ASSERT_WAY_PATTERN_MASKED(wt_road, coord3d(0, 0, 0),
 			[
-				"........",
-				"..4.....",
-				"..5.....",
-				".2B8....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  2, 0, 0, 0, 0, 0],
+				[0, 0, 18, 0, 0, 0, 0, 0],
+				[0, 1, 11, 8, 0, 0, 0, 0],
+				[0, 0, 16, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
+				[0, 0,  0, 0, 0, 0, 0, 0],
 			])
 
 		// change direction of sign on road crossing, should fail
@@ -233,17 +255,9 @@ function test_sign_build_oneway_at_crossing()
 	// remove sign, try to build again (should fail because of crossing)
 	{
 		ASSERT_EQUAL(remover.work(pl, coord3d(2, 3, 0)), null)
-		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
-			[
-				"........",
-				"..4.....",
-				"..5.....",
-				".2F8....",
-				"..1.....",
-				"........",
-				"........",
-				"........"
-			])
+		// Removing the sign drops the mask; the road junction itself is
+		// unchanged (still the 27 cross).
+		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), road_cross_full)
 
 		ASSERT_EQUAL(tile_x(2, 3, 0).find_object(mo_roadsign), null)
 
