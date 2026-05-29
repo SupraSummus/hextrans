@@ -2013,7 +2013,7 @@ const char *tool_change_city_size_t::work( player_t *, koord3d pos )
 		city = welt->find_nearest_city(pos.get_2d());
 	}
 	if(city) {
-		const int delta = std::atoi(default_param);
+		const int delta = atoi_null(default_param);
 		city->change_size( delta );
 
 		// update the links from other cities to this city
@@ -2033,7 +2033,7 @@ const char *tool_change_city_size_t::work( player_t *, koord3d pos )
 const char *tool_set_climate_t::get_tooltip(player_t const*) const
 {
 	char temp[1024];
-	sprintf( temp, translator::translate( "Set tile climate %s" ), translator::translate( ground_desc_t::get_climate_name_from_bit((climate)atoi(default_param)) ) );
+	sprintf( temp, translator::translate( "Set tile climate %s" ), translator::translate( ground_desc_t::get_climate_name_from_bit((climate)atoi_null(default_param)) ) );
 	return tooltip_with_price( temp,  welt->get_settings().cst_alter_climate );
 }
 
@@ -2186,7 +2186,7 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 	}
 
 	// calculate new height to use:
-	bool raising = atoi(default_param) > 0;
+	bool raising = atoi_null(default_param) > 0;
 	koord k = pos.get_2d();
 	sint8 new_water_height;
 	grund_t *gr = welt->lookup_kartenboden(k);
@@ -3504,7 +3504,7 @@ void tool_build_tunnel_t::mark_tiles(  player_t *player, const koord3d &start, c
 /* removes a way like a driving car ... */
 char const* tool_wayremover_t::get_tooltip(player_t const*) const
 {
-	switch(atoi(default_param)) {
+	switch(atoi_null(default_param)) {
 		case road_wt: return translator::translate("remove roads");
 		case tram_wt:
 		case track_wt: return translator::translate("remove tracks");
@@ -3848,7 +3848,7 @@ const char* tool_build_wayobj_t::get_tooltip(const player_t *) const
 		return NULL;
 	}
 	else {
-		waytype_t wt = (waytype_t)atoi( default_param );
+		waytype_t wt = (waytype_t)atoi_null( default_param );
 		sprintf( toolstr, translator::translate("Remove wayobj %s"), translator::translate(weg_t::waytype_to_string(wt)) );
 		return toolstr;
 	}
@@ -3899,7 +3899,7 @@ bool tool_build_wayobj_t::init( player_t *player )
 	}
 	else {
 		desc = NULL;
-		wt = (waytype_t)atoi( default_param );
+		wt = (waytype_t)atoi_null( default_param );
 		return wt != 0;
 	}
 }

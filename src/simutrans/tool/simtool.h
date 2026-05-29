@@ -44,6 +44,11 @@ char *tooltip_with_price_length(const char * tip, sint64 price, sint64 length);
 
 void open_error_msg_win(const char* error);
 
+// atoi() that returns 0 on NULL.  default_param fields received over the
+// network deserialise empty strings to NULL via memory_rw_t::rdwr_str,
+// and atoi(NULL) is UB.
+static inline int atoi_null(const char *s) { return s ? atoi(s) : 0; }
+
 /************************ general tool *******************************/
 
 // query tile info: default tool
@@ -147,7 +152,7 @@ public:
 	char const* get_tooltip(player_t const*) const OVERRIDE { return tooltip_with_price("Built artifical slopes", welt->get_settings().cst_set_slope); }
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	char const* check_pos(player_t*, koord3d) OVERRIDE;
-	char const* work(player_t* const player, koord3d const k) OVERRIDE { return tool_set_slope_work(player, k, default_param ? atoi(default_param) : 0); }
+	char const* work(player_t* const player, koord3d const k) OVERRIDE { return tool_set_slope_work(player, k, atoi_null(default_param)); }
 	bool init(player_t*) OVERRIDE { return default_param != NULL; }
 };
 
@@ -216,7 +221,7 @@ public:
 class tool_change_city_size_t : public tool_t {
 public:
 	tool_change_city_size_t() : tool_t(TOOL_CHANGE_CITY_SIZE | GENERAL_TOOL) {}
-	char const* get_tooltip(player_t const*) const OVERRIDE { return translator::translate( atoi(default_param)>=0 ? "Grow city" : "Shrink city" ); }
+	char const* get_tooltip(player_t const*) const OVERRIDE { return translator::translate( atoi_null(default_param)>=0 ? "Grow city" : "Shrink city" ); }
 	bool init(player_t*) OVERRIDE;
 	char const* work(player_t*, koord3d) OVERRIDE;
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
@@ -226,7 +231,7 @@ public:
 class tool_change_water_height_t : public tool_t {
 public:
 	tool_change_water_height_t() : tool_t(TOOL_CHANGE_WATER_HEIGHT | GENERAL_TOOL) {}
-	char const* get_tooltip(player_t const*) const OVERRIDE { return translator::translate( atoi(default_param)>=0 ? "Increase water height" : "Decrease water height" ); }
+	char const* get_tooltip(player_t const*) const OVERRIDE { return translator::translate( atoi_null(default_param)>=0 ? "Increase water height" : "Decrease water height" ); }
 	bool init(player_t*) OVERRIDE;
 	image_id get_icon(player_t *player) const OVERRIDE { return (!env_t::networkmode  ||  player->is_public_service()) ? icon : IMG_EMPTY; }
 	char const* work(player_t*, koord3d) OVERRIDE;
@@ -847,13 +852,13 @@ class tool_change_game_speed_t : public tool_t {
 public:
 	tool_change_game_speed_t() : tool_t(TOOL_CHANGE_GAME_SPEED | SIMPLE_TOOL) {}
 	char const* get_tooltip(player_t const*) const OVERRIDE {
-		int factor = atoi(default_param);
+		int factor = atoi_null(default_param);
 		return factor>0 ? translator::translate("Accelerate time") : translator::translate("Deccelerate time");
 	}
 	bool init( player_t *player ) OVERRIDE {
 		if(  !env_t::networkmode  ||  player->is_public_service()  ) {
 			// in networkmode only for public player
-			welt->change_time_multiplier( atoi(default_param) );
+			welt->change_time_multiplier( atoi_null(default_param) );
 		}
 		return false;
 	}
@@ -1244,8 +1249,7 @@ public:
 	char const* get_tooltip(player_t const*) const OVERRIDE { return translator::translate("6WORLD_CHOOSE"); }
 	bool is_selected() const OVERRIDE { return false; }
 	bool init( player_t * ) OVERRIDE {
-		assert(  default_param  );
-		sint16 level = clamp(atoi(default_param), 0, 16);
+		sint16 level = clamp(atoi_null(default_param), 0, 16);
 		welt->get_settings().set_traffic_level(level);
 		return false;
 	}
