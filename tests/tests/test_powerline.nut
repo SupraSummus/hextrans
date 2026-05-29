@@ -9,7 +9,6 @@
 //
 
 
-// test_powerline_connect: HEX-PORT PENDING.
 function test_powerline_connect()
 {
 	local pl = player_x(0)
@@ -19,11 +18,14 @@ function test_powerline_connect()
 
 	ASSERT_TRUE(powerline != null)
 
+	// Old square N/E/S/W became hex N / SE / S / NW (4 of the 6 hex
+	// edges; the NE-SW axis is left out, it has no powerline support
+	// yet).  Ribi bits: SE=1, S=2, NW=8, N=16.
 	local center = coord3d(3, 4, 0)
 	local north = center + dir.to_coord(dir.north)
-	local east  = center + dir.to_coord(dir.east)
+	local east  = center + dir.to_coord(dir.southeast)
 	local south = center + dir.to_coord(dir.south)
-	local west  = center + dir.to_coord(dir.west)
+	local west  = center + dir.to_coord(dir.northwest)
 
 	// preconditions
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
@@ -34,16 +36,17 @@ function test_powerline_connect()
 
 		ASSERT_TRUE(powerline_x(center.x, center.y, center.z).is_connected(powerline_x(center.x, center.y, center.z)))
 
+		// lone tile at (3,4): no powerline neighbours.
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"........",
-				"........",
-				"...0....",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
+				[0, 0, 0, 0, 0, 0, 0, 0],
 			])
 	}
 
@@ -55,16 +58,17 @@ function test_powerline_connect()
 
 		ASSERT_TRUE(powerline_x(center.x, center.y, center.z).is_connected(powerline_x(north.x, north.y, north.z)))
 
+		// (3,3) connects S=2; (3,4) connects N=16.
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"........",
-				"...4....",
-				"...1....",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 2,  0, 0, 0, 0],
+				[0, 0, 0, 16, 0, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
 			])
 		ASSERT_EQUAL(pl.get_current_maintenance(), 2*maint_per_tile)
 	}
@@ -75,16 +79,17 @@ function test_powerline_connect()
 
 		ASSERT_TRUE(powerline_x(center.x, center.y, center.z).is_connected(powerline_x(east.x, east.y, east.z)))
 
+		// (3,4) now also connects SE=1 -> N|SE = 17; (4,4) connects NW=8.
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"........",
-				"...4....",
-				"...38...",
-				"........",
-				"........",
-				"........"
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 2,  0, 0, 0, 0],
+				[0, 0, 0, 17, 8, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
+				[0, 0, 0, 0,  0, 0, 0, 0],
 			])
 		ASSERT_EQUAL(pl.get_current_maintenance(), 3*maint_per_tile)
 	}
@@ -94,16 +99,20 @@ function test_powerline_connect()
 
 		ASSERT_TRUE(powerline_x(center.x, center.y, center.z).is_connected(powerline_x(south.x, south.y, south.z)))
 
+		// (3,4) now also connects S=2 -> N|SE|S = 19.  In axial coords
+		// (4,4) and (3,5) are themselves hex-adjacent (SW step), so the
+		// SE and S arms auto-connect: (4,4) gets NW|SW = 12, (3,5) gets
+		// N|NE = 48.
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"........",
-				"...4....",
-				"...78...",
-				"...1....",
-				"........",
-				"........"
+				[0, 0, 0, 0,  0,  0, 0, 0],
+				[0, 0, 0, 0,  0,  0, 0, 0],
+				[0, 0, 0, 0,  0,  0, 0, 0],
+				[0, 0, 0, 2,  0,  0, 0, 0],
+				[0, 0, 0, 19, 12, 0, 0, 0],
+				[0, 0, 0, 48, 0,  0, 0, 0],
+				[0, 0, 0, 0,  0,  0, 0, 0],
+				[0, 0, 0, 0,  0,  0, 0, 0],
 			])
 		ASSERT_EQUAL(pl.get_current_maintenance(), 4*maint_per_tile)
 	}
@@ -113,23 +122,32 @@ function test_powerline_connect()
 
 		ASSERT_TRUE(powerline_x(center.x, center.y, center.z).is_connected(powerline_x(west.x, west.y, west.z)))
 
+		// (3,4) now also connects NW=8 -> N|SE|S|NW = 27.  The NW arm
+		// (2,4) is hex-adjacent to the N arm (3,3) (NE step), so they
+		// auto-connect too: (2,4) gets SE|NE = 33, (3,3) gets S|SW = 6.
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
-				"........",
-				"........",
-				"........",
-				"...4....",
-				"..2F8...",
-				"...1....",
-				"........",
-				"........"
+				[0, 0, 0,  0,  0,  0, 0, 0],
+				[0, 0, 0,  0,  0,  0, 0, 0],
+				[0, 0, 0,  0,  0,  0, 0, 0],
+				[0, 0, 0,  6,  0,  0, 0, 0],
+				[0, 0, 33, 27, 12, 0, 0, 0],
+				[0, 0, 0,  48, 0,  0, 0, 0],
+				[0, 0, 0,  0,  0,  0, 0, 0],
+				[0, 0, 0,  0,  0,  0, 0, 0],
 			])
 		ASSERT_EQUAL(pl.get_current_maintenance(), 5*maint_per_tile)
 	}
 
-	// clean up
-	ASSERT_EQUAL(wayremover.work(pl, coord3d(2, 4, 0), coord3d(4, 4, 0), "" + wt_power), null)
-	ASSERT_EQUAL(wayremover.work(pl, coord3d(3, 3, 0), coord3d(3, 5, 0), "" + wt_power), null)
+	// Clean up tile by tile.  A line-drag remove only deletes powerline
+	// tiles whose connections lie entirely along the drag (others are
+	// kept as crossings, see tool_wayremover_t::do_work).  Under hex the
+	// star arms auto-connect to each other diagonally, so every tile
+	// reads as a crossing and a 2-line drag would remove nothing; a
+	// single-tile remove forces a full delete (rem == 0).
+	foreach (t in [center, north, east, south, west]) {
+		ASSERT_EQUAL(wayremover.work(pl, t, t, "" + wt_power), null)
+	}
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 
 	RESET_ALL_PLAYER_FUNDS()
