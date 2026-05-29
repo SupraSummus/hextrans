@@ -24,7 +24,7 @@ void sound_reader_t::register_obj(obj_desc_t *&data)
 
 obj_desc_t * sound_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	const uint16 v = decode_uint16(p);

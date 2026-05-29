@@ -37,7 +37,7 @@ uint16 rescale_probability(const uint16 p)
 
 obj_desc_t *factory_field_class_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	uint16 v = decode_uint16(p);
@@ -67,7 +67,7 @@ obj_desc_t *factory_field_class_reader_t::read_node(FILE *fp, obj_node_info_t &n
 
 obj_desc_t *factory_field_group_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	uint16 v = decode_uint16(p);
@@ -158,7 +158,7 @@ void factory_field_group_reader_t::register_obj(obj_desc_t *&data)
 
 obj_desc_t *factory_smoke_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	sint16 x = decode_sint16(p);
@@ -181,7 +181,7 @@ obj_desc_t *factory_smoke_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 
 obj_desc_t *factory_supplier_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	// old versions of PAK files have no version stamp.
@@ -214,7 +214,7 @@ obj_desc_t *factory_supplier_reader_t::read_node(FILE *fp, obj_node_info_t &node
 
 obj_desc_t *factory_product_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	// old versions of PAK files have no version stamp.
@@ -249,7 +249,7 @@ obj_desc_t *factory_product_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 
 obj_desc_t *factory_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	// old versions of PAK files have no version stamp.

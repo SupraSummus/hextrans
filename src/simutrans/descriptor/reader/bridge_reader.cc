@@ -30,7 +30,7 @@ void bridge_reader_t::register_obj(obj_desc_t *&data)
 
 obj_desc_t *bridge_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	auto p = node_body(fp, node.size, get_type_name());
+	node_body p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	// old versions of PAK files have no version stamp.

@@ -99,7 +99,7 @@ inline uint64 decode_uint64(char *&data)
 
 /// Owns the bytes of one pak node body plus a bounds-checked cursor
 /// over them.  Constructed in each reader's read_node() with
-/// `auto p = node_body(fp, node.size, get_type_name());`;
+/// `node_body p(fp, node.size, get_type_name());`;
 /// decode_*(node_body&) free overloads dispatch to its bounds-checked
 /// readers.
 class node_body
