@@ -143,7 +143,7 @@ all_tests <- [
 	test_player_headquarters,
 	test_player_name,
 	test_player_lines,
-	// test_powerline_connect: HEX-PORT PENDING.
+	test_powerline_connect,
 	test_powerline_build_below_powerbridge,
 	test_powerline_build_powerbridge_above_powerline,
 	test_powerline_build_transformer,

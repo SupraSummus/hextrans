@@ -55,12 +55,12 @@ replaced by named `*_double` constants and the
 the `2*slope.east` literals migrate to `slope.southeast_double` /
 `slope.northwest_double` (whichever the hex axis intent is).
 
-**Powerline 3rd hex axis.**  `test_powerline_connect` and
-`test_powerline_ways` each expect crossings / powerlines on the 2
-square-era axes (N-S and old E-W).  Under hex there are 3 axes and
-the 3rd (NE-SW) has no powerline crossing sprite or connection FSM
-support (`leitung2.cc` diagonal-image table is keyed on 4 old-combo
-values).  Restore after the crossing-cluster / 3rd-axis work lands.
+**Powerline 3rd hex axis.**  `test_powerline_ways` builds powerlines
+along a diagonal road and across the NE-SW direction.  Under hex there
+are 3 axes and the 3rd (NE-SW) has no powerline crossing sprite or
+connection FSM support (`leitung2.cc` diagonal-image table is keyed on
+4 old-combo values).  Restore after the crossing-cluster / 3rd-axis
+work lands.
 
 **Runway layout.**  `test_way_runway_build_rw_flat / _tw_flat /
 _mixed_flat` bake a 4-direction airport layout (runway + taxiway
