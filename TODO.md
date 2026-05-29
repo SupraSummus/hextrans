@@ -831,11 +831,12 @@ until the next pak-loader bug or a CI gate motivates it.
 
 ## fuzz_pak CMake source-list inheritance fragility
 
-`src/fuzz/CMakeLists.txt` builds `fuzz_pak` by copying the
-simutrans target's `SOURCES` / `COMPILE_DEFINITIONS` /
-`COMPILE_OPTIONS` / `LINK_LIBRARIES` via `get_target_property`,
-because the readers must all link to populate the
-`obj_reader_t::registered_readers` table.  This works today but
+`src/fuzz/CMakeLists.txt` builds `fuzz_pak` (and now `fuzz_command`,
+which reuses the same `_SIM_*` variables) by copying the simutrans
+target's `SOURCES` / `COMPILE_DEFINITIONS` / `COMPILE_OPTIONS` /
+`LINK_LIBRARIES` via `get_target_property`, because the readers must
+all link to populate the `obj_reader_t::registered_readers` table.
+This works today but
 silently misses anything added through INTERFACE properties,
 target-level `$<...>` generator-expression sources, or new
 backend-specific quirks; a future regression would appear as
@@ -847,9 +848,10 @@ extracting the per-backend `main()` (currently in
 `simsys_posix.cc` / `simsys_s2.cc` / `simsys_w.cc`) into its own
 file so it can be added to the executable target only — the
 `SIMUTRANS_NO_MAIN` guard in `simsys_posix.cc` is an interim shim
-that survives only as long as fuzz_pak is linux-only.  Trigger:
-when a propagation gap actually bites, or when another tool grows
-a similar "link the whole simutrans source set" need.
+that survives only as long as the fuzzers are linux-only.  The
+second consumer (`fuzz_command`) now exists, so the dedup is no
+longer hypothetical; do it when a propagation gap actually bites or
+when touching this CMake file for another reason.
 
 ## Pak-fuzzer per-iteration teardown
 
@@ -867,6 +869,63 @@ longjmp out of `log_t::set_fatal_hook` skips RAII unwinding (UB in
 strict C++, harmless in practice but reinforces the leak).
 Trigger: when active-fuzz RSS growth or strict leak checking
 becomes a blocker.
+
+## Command-handling fuzzer: go fork-based for the real campaign
+
+`src/fuzz/fuzz_command.cc` fuzzes network command *handling* (the
+post-parse surface `fuzz_network` doesn't reach): it stands up one
+real world and applies a fuzzed sequence of `nwc_tool_t` commands per
+input, driving `do_command` → `tool->init`/`work`.  Input is a
+hand-rolled byte reader (no libprotobuf-mutator / FuzzTest dependency
+yet).
+
+Throwaway benchmarks during bring-up settled the engine question, so
+the numbers live here rather than as code.  Against pak64 (124-4) on a
+32x32 map, in-process per-input world reset runs **~2 execs/sec** at
+full world-gen, **~5** with cities/factories/tourist attractions off
+(`karte_t::init` terrain/climate/grid alloc is the floor), and RSS
+grows ~1.36 MB **per world rebuilt** and never returns.  That growth
+is reset churn, not per-command, so a client streaming commands is not
+a slow-DoS vector; and LeakSanitizer attributes only ~13 KB of it to
+genuine lost pointers (one-time standup + a freed-only-at-shutdown
+translator list) — the rest is reachable freelist/pool retention LSan
+does not flag, so it is not a pluggable leak.  Standing the world up
+once and `fork()`ing per test (kernel COW snapshot) ran **~94
+execs/sec even under ASAN** with parent RSS flat (~20-45× in-process,
+retention gone because each child reclaims its pages on exit).
+
+So a real campaign wants **fork-after-init** (AFL++ fork mode or
+Centipede); the in-process libFuzzer build stays the CI corpus-replay
+gate and structured-input dev surface.  Concrete next steps: (1) wire
+the harness to AFL++'s `aflpp_driver` with a deferred forkserver
+(`__AFL_INIT()` after standup — the harness already pins
+`env_t::num_threads=1` so the fork is safe) and re-measure without the
+ASAN fork tax; (2) add a structured input layer (libprotobuf-mutator
+keeps the existing CMake+CI infra; FuzzTest if the in-C++ domain
+ergonomics are worth the build integration) so bytes reach handlers
+instead of bouncing off `create_tool` returning NULL; (3) add a second
+narrow harness for the documented pre-auth surface (`init_tool` /
+`rdwr_custom_data` with attacker `tool_id` before any auth check — see
+the comment at `network_cmd_ingame.cc`'s `init_tool`), which needs no
+world and so sidesteps all of the above.  Seed corpus: the
+`tests/*.nut` scenario scripts already drive real tool sequences.  Run
+with `ASAN_OPTIONS=detect_leaks=0`.
+
+## Sweep the unguarded atoi(default_param) tool sites
+
+`fuzz_command` found `tool_build_wayobj_t::init` calling
+`atoi(default_param)` on a NULL `default_param` (an empty network
+string deserialises to NULL in `memory_rw_t::rdwr_str`), a
+wire-reachable server crash (fixed on the `fix/wayobj-atoi-null`
+branch off `main`).  But `simtool.cc` has ~13 more unguarded
+`atoi(default_param)` /
+`strcmp(default_param, …)` sites (e.g. lines ~882, 925, 1137, 2016,
+2189, 2618, 3507, 6902, 8919) against ~4 that already NULL-check —
+`default_param` is fully attacker-controlled and frequently NULL over
+the wire.  Next move: let the structured fuzzer (above) drive each
+tool to confirm which are reachable with NULL/empty `default_param`
+and crash, then guard those (don't blind-guard all 17 — that is
+upstream-divergence noise; fix the reachable ones).
 
 ## image_reader dedup-table UAF on failed-sibling delete
 

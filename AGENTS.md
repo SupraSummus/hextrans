@@ -550,6 +550,17 @@ sanitizer-detected bugs fail the run.  Per-iteration descriptor
 state still leaks (no teardown of the pakset registry), so runs
 need `ASAN_OPTIONS=detect_leaks=0` — tracked in `TODO.md`.
 
+`src/fuzz/fuzz_command.cc` is the libFuzzer harness for network
+command *handling* — the post-parse surface (`nwc_tool_t::do_command`
+→ `tool->init`/`work`) that `fuzz_network` does not reach.  Unlike the
+two parser-only harnesses it stands up a real `karte_t` and so needs a
+pakset + base files on disk at runtime (`SIMUTRANS_FUZZ_BASE` /
+`SIMUTRANS_FUZZ_PAK`; same full-source inheritance + fatal-hook
+recovery as fuzz_pak).  It is a POC, not yet in CI; the in-process
+per-input world reset is too slow for a real campaign (~2-5
+execs/sec), so the planned campaign mode is a fork-after-init engine —
+see `TODO.md` for the measurements and next steps.
+
 Claude Code on the web checks out a shallow clone — `git log` only
 reaches back a handful of commits and `git blame` on older lines
 returns "(grafted)". Run `git fetch --unshallow origin` when the
