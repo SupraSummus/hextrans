@@ -4,15 +4,18 @@
  */
 
 /*
- * Minimal perf-test rig for pakset *loading*.
+ * Perf-test rig for pakset *loading*.
  *
  * Drives the same descriptor-read path the in-game loader uses
  * (`pakset_manager_t::load_pak_from_fp`, the entry after `dr_fopen`),
  * once per `.pak` file under each directory given on the command line,
  * and reports wall time over a few iterations.  Like `fuzz_pak` it needs
- * only `dbg` plus the null renderer and the throwing fatal hook — no
- * `karte_t`, no env/translator/pakset setup — because the read phase is
- * self-contained.
+ * only `dbg`, a renderer, and the throwing fatal hook — no `karte_t`, no
+ * env/translator/pakset setup — because the read phase is self-contained.
+ * Under the default colour build (COLOUR_DEPTH=16, see CMakeLists) it binds
+ * the real simgraph16 software renderer so the per-pixel decode and
+ * register_image run — the representative consumer load; a COLOUR_DEPTH=0
+ * build binds the null renderer and skips pixel work.
  *
  * Each timed iteration runs in a forked child.  Reading a pak registers
  * descriptors into the readers' own static tables (hausbauer_t,
@@ -23,17 +26,16 @@
  * preloaded file bytes are shared copy-on-write so re-reading the disk
  * isn't repaid per iteration.
  *
- * Scope: this measures the per-file decode + node-tree build + image
- * registration phase, which is the part that scales with tile size /
- * pakset size.  It deliberately does NOT run `finish_loading`
- * (xref resolution + checksum); that phase is comparatively cheap, is
- * private to pakset_manager, and needs a complete, consistent pakset to
- * succeed.  File bytes are slurped into memory once up front, so the
- * timed loop measures parsing rather than disk I/O.
+ * Scope: this measures the per-file decode + pixel-decode + image
+ * registration phase, which dominates a real load.  It deliberately does
+ * NOT run `finish_loading` (xref resolution + checksum); that phase is
+ * comparatively cheap, is private to pakset_manager, and needs a complete,
+ * consistent pakset to succeed.  File bytes are slurped into memory once up
+ * front, so the timed loop measures parsing rather than disk I/O.
  *
- * Build: configure with -DSIMUTRANS_BACKEND=none -DSIMUTRANS_BUILD_BENCH=ON
- * and build the `bench_pak` target.  `tools/bench_pak.py` does the
- * configure + build + fetch-paksets + run end to end.
+ * Build: `tools/bench_pak.py` does the configure + build + fetch-paksets +
+ * run end to end (default backend sdl2 → COLOUR_DEPTH=16; --backend none
+ * for the decode-only number).
  */
 
 #include <algorithm>
