@@ -122,13 +122,13 @@ jobs:
       # Builds the libFuzzer harnesses under src/fuzz/ and replays each
       # committed corpus in one-shot mode (-runs=0): every file is
       # consumed once, no mutation.  Any input that crashes / leaks /
-      # trips ASAN/UBSAN fails the job, so each committed corpus file
-      # pins one fixed bug as a regression.  Active mutation fuzzing
-      # is out-of-band — the same binaries take -max_total_time=N to
-      # explore.  All three run with detect_leaks=1: fuzz_pak now tears
-      # down the descriptor DAG per iteration (pakset_manager_t::
-      # free_all_descriptors), so the baseline is clean and a leak in
-      # replay is a real regression.
+      # trips ASAN/UBSAN fails the job.  The corpus holds generated
+      # smoke seeds (build/wiring check) and minimized bug reproducers
+      # (each pins one fixed defect); active mutation is out-of-band via
+      # -max_total_time=N.  See documentation/fuzz-corpora.md.  All three
+      # run with detect_leaks=1: fuzz_pak tears down the descriptor DAG
+      # per iteration (pakset_manager_t::free_all_descriptors), so the
+      # baseline is clean and a leak in replay is a real regression.
       run: |
         export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
         cmake -S . -B build-fuzz \
@@ -144,8 +144,11 @@ jobs:
           ./build-fuzz/src/fuzz/fuzz_pak -runs=0 src/fuzz/corpus/pak/
         # fuzz_command_preauth: detect_leaks=1.  The harness resets
         # socket_list_t each iteration so the one standing client slot
-        # no longer leaks; the longjmp recovery only drops an in-flight
-        # command on a *fatal*, which the smoke corpus does not trigger.
+        # no longer leaks, and the fatal hook throws (like fuzz_pak)
+        # while read_from_packet is exception-safe (unique_ptr), so a
+        # command-driven fatal unwinds and frees the in-flight command/
+        # packet rather than leaking — leak detection holds under active
+        # mutation too, not just this replay.
         ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=1" \
           ./build-fuzz/src/fuzz/fuzz_command_preauth -runs=0 src/fuzz/corpus/command_preauth/
     - name: Run HTTP e2e suite

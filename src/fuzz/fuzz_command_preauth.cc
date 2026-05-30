@@ -10,10 +10,11 @@
  * like fuzz_nettool, but links the full simutrans source set so the
  * dispatch reaches `NWC_TOOL` and the other nwc_* types outside
  * NETTOOL=1.  On `NWC_TOOL` the harness then calls `init_tool()`
- * directly — the same call `clone()` makes before its auth check at
- * `network_cmd_ingame.cc:1178`, exposing `create_tool(attacker_tool_id)`
+ * directly — the same call `nwc_tool_t::clone()` makes before its
+ * auth check, exposing `create_tool(attacker_tool_id)`
  * and the per-tool `rdwr_custom_data` overrides to attacker bytes.
- * See `network_cmd_ingame.cc:1133` for the current overrides.
+ * See the "Pre-auth parse surface" note above `nwc_tool_t::init_tool`
+ * in network_cmd_ingame.cc for the current overrides.
  *
  * No `karte_t`, no pakset.  Standup is `dbg` + null `gfx`, plus the
  * minimum global state a real server exposes to the wire parser:
@@ -23,12 +24,16 @@
  * `do_command` / `init` / `work` need a world and live in
  * fuzz_command.cc instead.
  *
- * `dbg->fatal` is routed through a longjmp so an input-driven fatal
- * reads as rejection.  `FUZZ_COMMAND_PREAUTH_FATAL_ABORTS=1` flips it
- * to abort for security-focused sweeps.
+ * `dbg->fatal` is routed through a C++ throw so an input-driven fatal
+ * reads as rejection (same recovery idiom as fuzz_pak).  The production
+ * parse path is exception-safe — `read_from_packet` owns the in-flight
+ * command via a unique_ptr, so unwinding frees it and its packet — so
+ * the harness just calls the real entry point and catches.
+ * `FUZZ_COMMAND_PREAUTH_FATAL_ABORTS=1` flips the hook to abort for
+ * security-focused sweeps.
  */
 
-#include <setjmp.h>
+#include <memory>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/socket.h>
@@ -54,8 +59,7 @@
 extern uint16 network_server_port;
 
 
-static jmp_buf       fuzz_recovery;
-static volatile bool fuzz_in_iteration = false;
+namespace { struct fuzz_fatal {}; }
 
 
 static void fuzz_fatal_hook(const char * /*buffer*/)
@@ -64,10 +68,7 @@ static void fuzz_fatal_hook(const char * /*buffer*/)
 	log_t::set_fatal_hook(NULL);
 	dbg->fatal("fuzz_command_preauth", "pre-auth fatal (see prior message)");
 #else
-	if (fuzz_in_iteration) {
-		longjmp(fuzz_recovery, 1);
-	}
-	// Fatal during one-time standup: nothing to recover to.
+	throw fuzz_fatal{};
 #endif
 }
 
@@ -118,25 +119,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 		p->recv();
 	}
 
-	// read_from_packet owns p from here (either stashes it in
-	// nwc->packet or deletes on parse failure), runs the per-command
-	// rdwr inside `receive(p)`, and covers every ingame nwc_* type via
-	// its dispatch switch.
-	fuzz_in_iteration = true;
-	if (setjmp(fuzz_recovery) == 0) {
-		network_command_t *nwc = network_command_t::read_from_packet(p);
-		if (nwc != NULL) {
-			// clone() runs init_tool() before its auth check; we hit
-			// the same path here without needing a karte_t.
-			if (nwc->get_id() == NWC_TOOL) {
-				static_cast<nwc_tool_t *>(nwc)->init_tool();
-			}
-			delete nwc;
+	// Call the real read_from_packet (it consumes p) and hold the result
+	// in a unique_ptr, so a fatal-turned-throw — in the parse, or in the
+	// NWC_TOOL init_tool() path clone() runs pre-auth — unwinds leak-clean.
+	try {
+		std::unique_ptr<network_command_t> nwc(network_command_t::read_from_packet(p));
+		if (nwc != nullptr  &&  nwc->get_id() == NWC_TOOL) {
+			static_cast<nwc_tool_t *>(nwc.get())->init_tool();
 		}
 	}
-	// else: longjmp'd out of a command-driven fatal; packet/nwc leak
-	// this iteration (detect_leaks=0).
-	fuzz_in_iteration = false;
+	catch (const fuzz_fatal &) {
+		// rejected via a throwing dbg->fatal; the unwind already freed it.
+	}
 
 	// remove_client closes the socket via network_close_socket(); no
 	// explicit close(sv[1]) here would be a double-close.  reset() then
