@@ -299,219 +299,138 @@ function test_terraform_raise_lower_land_below_way()
 }
 
 
-/// Helper function: Raise / lower land along the edge of a rectangular region
-function terraform_volcano(pl, pos, size, h)
+// Assert that, within tiles [qa..qb]x[ra..rb], exactly the coords in
+// `water` (array of [q, r]) are flat water and every other tile is dry
+// mediterran (the map's base climate).  Catches under-flooding, the
+// flood escaping its basin, and a drained tile left stale-classified.
+function assert_water_exactly(qa, ra, qb, rb, water)
 {
-	local raise = h > 0
-	local tool = raise ? command_x.grid_raise : command_x.grid_lower
-
-	for (local dz = 0; raise ? dz<h : dz>h; dz += raise?1:-1) {
-		for (local i = 0; i<size; ++i) {
-			tool(pl, pos + coord3d(i,      0,      dz))
-			tool(pl, pos + coord3d(size,   i,      dz))
-			tool(pl, pos + coord3d(size-i, size,   dz))
-			tool(pl, pos + coord3d(0,      size-i, dz))
+	for (local r = ra; r <= rb; r++) {
+		for (local q = qa; q <= qb; q++) {
+			local want_water = false
+			foreach (w in water) {
+				if (w[0] == q && w[1] == r) want_water = true
+			}
+			local sq = square_x(q, r)
+			if (want_water) {
+				ASSERT_TRUE(sq.get_ground_tile().is_water())
+				ASSERT_EQUAL(sq.get_ground_tile().get_slope(), slope.flat)
+				ASSERT_EQUAL(sq.get_climate(), cl_water)
+			}
+			else {
+				ASSERT_FALSE(sq.get_ground_tile().is_water())
+				ASSERT_EQUAL(sq.get_climate(), cl_mediterran)
+			}
 		}
 	}
 }
 
-// test_terraform_raise_lower_water_level: HEX-PORT PENDING.
+// The water-height tool rejects a non-integer default_param at init;
+// work() then throws "Error during initializing tool".  `no_param` runs
+// the zero-argument work() overload (NULL default_param).
+function assert_water_init_fails(pl, param, no_param = false)
+{
+	local caught = false
+	try {
+		local tool = command_x(tool_change_water_height)
+		no_param ? tool.work(pl, coord3d(0, 0, 0)) : tool.work(pl, coord3d(0, 0, 0), param)
+	}
+	catch (e) {
+		caught = true
+		ASSERT_EQUAL(e, "Error during initializing tool")
+	}
+	ASSERT_TRUE(caught)
+}
+
 function test_terraform_raise_lower_water_level()
 {
 	local pl = player_x(0)
-	local public_pl = player_x(1)
 
-	// invalid default_param
-	{
-		local error_caught = false
-		try {
-			ASSERT_EQUAL(command_x(tool_change_water_height).work(pl, coord3d(0, 0, 0)), "")
-		}
-		catch (e) {
-			error_caught = true
-			ASSERT_EQUAL(e, "Error during initializing tool")
-		}
-		ASSERT_TRUE(error_caught)
-
-		error_caught = false
-		try {
-			ASSERT_EQUAL(command_x(tool_change_water_height).work(pl, coord3d(0, 0, 0), ""), "")
-		}
-		catch (e) {
-			error_caught = true
-			ASSERT_EQUAL(e, "Error during initializing tool")
-		}
-		ASSERT_TRUE(error_caught)
-
-		error_caught = false
-		try {
-			ASSERT_EQUAL(command_x(tool_change_water_height).work(pl, coord3d(0, 0, 0), "foo"), "")
-		}
-		catch (e) {
-			error_caught = true
-			ASSERT_EQUAL(e, "Error during initializing tool")
-		}
-		ASSERT_TRUE(error_caught)
-
-		error_caught = false
-		try {
-			ASSERT_EQUAL(command_x(tool_change_water_height).work(pl, coord3d(0, 0, 0), ".5"), "")
-		}
-		catch (e) {
-			error_caught = true
-			ASSERT_EQUAL(e, "Error during initializing tool")
-		}
-		ASSERT_TRUE(error_caught)
-	}
+	// init rejects a missing or non-integer default_param
+	assert_water_init_fails(pl, null, true)
+	assert_water_init_fails(pl, "")
+	assert_water_init_fails(pl, "foo")
+	assert_water_init_fails(pl, ".5")
 
 	// invalid pos
 	{
 		ASSERT_EQUAL(command_x(tool_change_water_height).work(pl, coord3d(-1, -1, -1), "0"), "Cannot alter water")
 	}
 
-	// near map border
-	{
-		ASSERT_EQUAL(command_x(tool_change_water_height).work(pl, coord3d(5, 5, 0), "0"), "Cannot alter water")
-		ASSERT_EQUAL(command_x(tool_change_water_height).work(pl, coord3d(5, 5, 0), "0"), "Cannot alter water")
-	}
-
-	terraform_volcano(public_pl, coord3d(5, 5, 0), 3, 1)
-
-	// lower water level on ground, should fail
+	// lowering water on dry ground always fails, with or without ctrl
 	{
 		local chg_water = command_x(tool_change_water_height)
 		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "0"), "Cannot alter water")
 		chg_water.set_flags(2)
-
 		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "0"), "Cannot alter water")
 		chg_water.set_flags(2)
 		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "0"), "Cannot alter water")
 	}
 
-	// raise water level on ground, should make shallow water first (i.e. tile with cl_water)
+	// single hex pit: raise makes shallow water on the floor (cl_water),
+	// for free; the 1-high rim contains the flood; drain restores land.
 	{
+		lower_hex_tile(pl, 6, 6, -1) // (6,6) flat at z=-1, rim sloping down to it
 		local old_cash = pl.get_current_cash()
 		local chg_water = command_x(tool_change_water_height)
 
 		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "1"), null)
-		ASSERT_EQUAL(square_x(6, 6).get_climate(), cl_water)
+
+		// (6,6) is the only water tile; the rim contains the flood
+		assert_water_exactly(4, 4, 8, 8, [[6, 6]])
+		// the surface sits flush on the dug floor at z=-1 (shallow, nothing
+		// raised above it), and the change is free
+		ASSERT_TRUE(square_x(6, 6).get_tile_at_height(-1) != null)
+		ASSERT_EQUAL(square_x(6, 6).get_tile_at_height(0), null)
 		ASSERT_EQUAL(pl.get_current_cash(), old_cash)
 
+		// raising the surface to the rim level would overflow: refused,
+		// still free, nothing changed
 		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "1"), "Cannot alter water")
 		ASSERT_EQUAL(pl.get_current_cash(), old_cash)
+		assert_water_exactly(4, 4, 8, 8, [[6, 6]])
 
+		// drain back to dry land
 		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "0"), null)
-		ASSERT_EQUAL(square_x(6, 6).get_climate(), cl_mediterran)
+		assert_water_exactly(4, 4, 8, 8, [])
+
+		raise_hex_tile(pl, 6, 6, -1)
 	}
 
-	// make double height volcano
-	terraform_volcano(public_pl, coord3d(5, 5, 0), 3, 1)
-
+	// S-axis pair pit: water poured into one floor tile spills across the
+	// shared hex edge into the other; draining one drains both.
 	{
+		lower_hex_tile_pair_S(pl, 6, 6, -1)
 		local chg_water = command_x(tool_change_water_height)
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "1"), null)
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "1"), null)
-		ASSERT_EQUAL(tile_x(5, 6, 1).get_slope(), slope.east)
 
-		ASSERT_EQUAL(square_x(6, 6).get_climate(), cl_water)
-		ASSERT_TRUE(square_x(6, 6).get_tile_at_height(1) != null)
-
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 1), "0"), null)
-		ASSERT_EQUAL(tile_x(5, 6, 0).get_slope(), 2*slope.east) // make sure single height slopes are changed to double again
+		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "1"), null)
+		assert_water_exactly(4, 4, 8, 9, [[6, 6], [6, 7]])
 
 		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "0"), null)
+		assert_water_exactly(4, 4, 8, 9, [])
+
+		raise_hex_tile_pair_S(pl, 6, 6, -1)
 	}
 
-	terraform_volcano(public_pl, coord3d(5, 5, 0), 3, -2)
-
-	// make 1-high barrier
-	terraform_volcano(public_pl, coord3d(2, 2, 0), 7, 2)
-	terraform_volcano(public_pl, coord3d(5, 5, 0), 1, 1)
-	terraform_volcano(public_pl, coord3d(3, 5, 0), 1, 1)
-	terraform_volcano(public_pl, coord3d(7, 5, 0), 1, 1)
-
-	//
+	// ctrl modifier: with ctrl held, level ground at the same height is
+	// left alone — the flood does not spill onto the equally-flat floor
+	// neighbour even though they share an edge.  Only the poured tile
+	// becomes water.
 	{
+		lower_hex_tile_pair_S(pl, 6, 6, -1)
 		local chg_water = command_x(tool_change_water_height)
 		chg_water.set_flags(2) // ctrl
 
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 3, 0), "1"), null)
-		ASSERT_EQUAL(square_x(4, 3).get_climate(), cl_mediterran)
-		ASSERT_EQUAL(square_x(5, 3).get_climate(), cl_water)
-		ASSERT_EQUAL(square_x(6, 3).get_climate(), cl_mediterran)
+		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "1"), null)
+		assert_water_exactly(4, 4, 8, 9, [[6, 6]])
 
-		// FIXME this gives different water on the center tile vs other tiles?
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 3, 0), "1"), null)
-		ASSERT_EQUAL(square_x(3, 4).get_climate(), cl_water)
-		ASSERT_EQUAL(square_x(3, 5).get_climate(), cl_mediterran)
-
-		// cannot drain with ctrl active
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 4, 1), "0"), "Cannot alter water")
+		// draining the lone water tile (no ctrl) restores it
 		chg_water.set_flags(0)
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 4, 1), "0"), null)
+		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "0"), null)
+		assert_water_exactly(4, 4, 8, 9, [])
 
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 3, 0), "1"), null)
-		ASSERT_EQUAL(square_x(3, 5).get_climate(), cl_water)
-		ASSERT_EQUAL(square_x(7, 5).get_climate(), cl_water)
-		ASSERT_EQUAL(square_x(3, 7).get_climate(), cl_water)
-		ASSERT_EQUAL(square_x(7, 7).get_climate(), cl_water)
-
-		// Using tool on very shallow water should give 1-tile islands
-		chg_water.set_flags(2)
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 5, 1), "0"), null)
-		ASSERT_EQUAL(square_x(5, 5).get_climate(), cl_mediterran)
-		ASSERT_EQUAL(square_x(4, 5).get_climate(), cl_mediterran)
-		ASSERT_EQUAL(square_x(6, 5).get_climate(), cl_mediterran)
-		ASSERT_EQUAL(square_x(5, 4).get_climate(), cl_water)
-		ASSERT_EQUAL(square_x(5, 6).get_climate(), cl_water)
-
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 5, 1), "1"), null)
-
-		// draining without ctrl should leave 2 small basins
-		chg_water.set_flags(0)
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 5, 1), "0"), null)
-		ASSERT_EQUAL(square_x(5, 3).get_climate(), cl_water)
-		ASSERT_EQUAL(square_x(5, 4).get_climate(), cl_mediterran)
-		ASSERT_EQUAL(square_x(5, 6).get_climate(), cl_mediterran)
-		ASSERT_EQUAL(square_x(5, 7).get_climate(), cl_water)
-
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 7, 0), "0"), null)
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 3, 0), "0"), null)
+		raise_hex_tile_pair_S(pl, 6, 6, -1)
 	}
-
-	terraform_volcano(public_pl, coord3d(5, 5, 1), 1, 1)
-	terraform_volcano(public_pl, coord3d(3, 5, 1), 1, 1)
-	terraform_volcano(public_pl, coord3d(7, 5, 1), 1, 1)
-
-
-	// water also spills across tile edges and diagonals if low enough
-	{
-		local chg_water = command_x(tool_change_water_height)
-
-		command_x.grid_lower(pl, coord3d(5, 5, 2))
-		command_x.grid_lower(pl, coord3d(6, 6, 2))
-
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 7, 0), "1"), null)
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 7, 1), "1"), null)
-
-		ASSERT_EQUAL(square_x(6, 3).get_climate(), cl_water)
-
-		// note: This also drains the other basin 1 level
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 7, 1), "0"), null)
-		ASSERT_EQUAL(square_x(5, 3).get_tile_at_height(1), null)
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 7, 0), "0"), null)
-		ASSERT_EQUAL(chg_water.work(pl, coord3d(5, 3, 0), "0"), null)
-
-		command_x.grid_raise(pl, coord3d(5, 5, 1))
-		command_x.grid_raise(pl, coord3d(6, 6, 1))
-	}
-
-	// clean up
-
-	terraform_volcano(public_pl, coord3d(2, 2, 2), 7, -2)
-	terraform_volcano(public_pl, coord3d(5, 5, 2), 1, -2)
-	terraform_volcano(public_pl, coord3d(3, 5, 2), 1, -2)
-	terraform_volcano(public_pl, coord3d(7, 5, 2), 1, -2)
 
 	RESET_ALL_PLAYER_FUNDS()
 }

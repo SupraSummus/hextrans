@@ -45,15 +45,28 @@ call sites (`test_building_rotate_harbour`, the "east-west direction"
 block in `test_depot_build_on_bridge_end` and the matching block in
 `test_halt_build_on_bridge_end`, `test_powerline_remove_powerbridge`)
 migrated to `slope.southeast_narrow` / `slope.northwest_narrow`, the hex axis they were
-already projecting onto.  `test_terraform_raise_lower_water_level`
-still uses `2*slope.east`; left untouched because that function is
-already HEX-PORT PENDING and needs a holistic rewrite.  Note the
-literal `2*slope.east` no longer denotes a real terrain slope under
-hex's base-4 encoding — square-era `2 * narrow == double` is gone,
-replaced by named `*_double` constants and the
-`slope_t::narrow_to_double()` helper — so when that test comes back,
-the `2*slope.east` literals migrate to `slope.southeast_double` /
-`slope.northwest_double` (whichever the hex axis intent is).
+already projecting onto.
+
+**Deep-water grid-height clobber in `tool_change_water_height_t`.**
+The hex apply loop ends with `set_grid_hgt_nocheck(kt, c, hn[c])` for
+all six corners, `hn[c] = max(new_water_height, h0[c])`.  Upstream
+square (`origin/simutrans`) never writes the grid array here — it keeps
+`grid_hgts` at the sea floor and tracks the surface only via
+`set_hoehe` / `set_water_hgt_nocheck`, so terrain survives a fill/drain
+cycle.  The hex version raises the shared vertices to the water surface
+once water goes deep, which loses the floor (drain can't restore it)
+and reshapes the dry neighbours that derive slopes from those vertices.
+Observable by digging a 2-deep hex pit, pouring twice, then draining:
+the rim flips double→single on the deep fill and never returns, and the
+floor ends at `-1` not `-2`.  Candidate fix: write the floor `h0[c]`,
+not `hn[c]` (`hn==h0` for shallow/drain, so only deep water changes).
+Blocking a blind fix: whether the flooded tile's own slope is stored
+(`set_grund_hang`) or derived from the grid under the partially-landed
+per-vertex model (see "Per-vertex height storage"), and whether deep
+water still renders flat with the floor left in the grid — not
+verifiable headless.  When fixed, add the deep-water subcase to
+`test_terraform_raise_lower_water_level`: 2-deep pit, assert rim is
+`*_double` shallow / `*_narrow` deep, drain, assert full restore.
 
 **Powerline 3rd hex axis.**  `test_powerline_ways` builds powerlines
 along a diagonal road and across the NE-SW direction.  Under hex there
@@ -61,17 +74,6 @@ are 3 axes and the 3rd (NE-SW) has no powerline crossing sprite or
 connection FSM support (`leitung2.cc` diagonal-image table is keyed on
 4 old-combo values).  Restore after the crossing-cluster / 3rd-axis
 work lands.
-
-**Flood-fill / region walkers.**
-`tool_change_water_height_t` in `simtool.cc` is hex-aware (6-neighbour
-flood, shared-edge corner heights on the *current* tile per
-`vertex_owners`, six-corner apply + `set_grid_hgt_nocheck`).  Scenario
-`test_terraform_raise_lower_water_level` stays commented out: it still
-uses a rectangular `terraform_volcano` scaffold and square-shaped
-flood expectations — restore after a hex-shaped scaffold (a hex ring
-of 6R cells at axial distance R from the centre) replaces the 4-side
-square ring, and the per-subcase coord and flood-pattern assertions
-get rewritten.
 
 **Missing `terraform=` in `command_x.build_way`.**
 `command_x.build_way` in the Squirrel API has no `terraform=` flag,

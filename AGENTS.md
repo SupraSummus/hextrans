@@ -353,10 +353,13 @@ hit all 6 vertices of the centre tile, each shared with one of the 6
 surrounding tiles (which inherit edge slopes for free).
 `raise_hex_tile_pair_S` is the 2-tile S-axis variant — `(q, r)` and
 `(q, r+1)` share 2 vertices across their common edge.
-`lower_hex_tile{,_pair_S}` reverse the lift. The square-era
-4-grid_raise scaffold (raise the 4 NW corners of a 2x2 grid square)
-does not produce a flat hex tile — it hits only 4 of the 6 vertices,
-leaving an alternating-corner slope.
+`lower_hex_tile{,_pair_S}` reverse the lift, and applied to flat
+ground (`z=-1`) instead dig a flat-floored pit one level down —
+`test_terraform_raise_lower_water_level` uses that as a watertight
+basin: water poured into the floor stays contained by the 0-height
+rim. The square-era 4-grid_raise scaffold (raise the 4 NW corners of
+a 2x2 grid square) does not produce a flat hex tile — it hits only 4
+of the 6 vertices, leaving an alternating-corner slope.
 
 When the test wants an edge-narrow slope on a single tile (e.g. for
 a tunnel mouth or bridge ramp) without lifting the whole tile,
