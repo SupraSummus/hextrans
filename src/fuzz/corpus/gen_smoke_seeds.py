@@ -7,7 +7,7 @@
 # well-formed nwc_* packets reaches the deeper handler surface much
 # faster than one starting from /dev/urandom.  Crash reproducers come
 # from -minimize_crash=1 on actual fuzzer findings, not from this
-# script.
+# script.  Full corpus-commit policy: documentation/fuzz-corpora.md.
 
 import struct
 from pathlib import Path
@@ -23,10 +23,10 @@ NWC_CHAT         = 3
 NWC_JOIN         = 4
 NWC_SYNC         = 5
 NWC_GAME         = 6
-NWC_TOOL         = 7
-NWC_READY        = 8
-NWC_PAKSETINFO   = 9
-NWC_CHECK        = 10
+NWC_READY        = 7
+NWC_TOOL         = 8
+NWC_CHECK        = 9
+NWC_PAKSETINFO   = 10
 NWC_SERVICE      = 11
 NWC_AUTH_PLAYER  = 12
 NWC_CHG_PLAYER   = 13

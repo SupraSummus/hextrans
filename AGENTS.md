@@ -433,6 +433,11 @@ Longer-form design and planning docs live under `documentation/`:
     `karte_t::destroy()` (event dispatch nests inside
     `karte_t::step`), and the `tool_t` dispatch path that fixes
     it.  Describes live behaviour.
+  - `documentation/fuzz-corpora.md` — what goes in
+    `src/fuzz/corpus/` and what stays out-of-band: the committed
+    corpus is a regression-and-wiring gate (generated smoke seeds +
+    minimized bug reproducers), not a coverage corpus, and the
+    grown mutation corpus is not committed.
 
 ## Upstream documentation pointers
 
@@ -524,11 +529,14 @@ including the incremental-read state machine inside `recv()`.  Build
 with clang + `-DSIMUTRANS_BUILD_FUZZERS=ON` and the existing
 sanitizer flags; the target is parser-only (nettool source subset,
 no `karte_t`).  CI replays `src/fuzz/corpus/nettool/` through it in
-`-runs=0` mode — each committed corpus file pins one fixed bug as a
-regression and a new crash there fails the job.  Active mutation is
+`-runs=0` mode — the committed corpus is generated smoke seeds plus
+minimized bug reproducers (each repro pins one fixed defect), and any
+crash / leak / sanitizer hit fails the job.  Active mutation is
 out-of-band: the same binary takes `-max_total_time=N corpus/` to
 explore, and a crash gets minimised via `-minimize_crash=1 -runs=...
 crash-input` and committed under `src/fuzz/corpus/nettool/`.  The
+corpus-commit policy (what goes in, what stays out-of-band) is in
+`documentation/fuzz-corpora.md`.  The
 ingame multiplayer server links the full source set rather than the
 NETTOOL subset; its wire surface is covered by `fuzz_command_preauth`
 (below).
@@ -598,32 +606,41 @@ see `TODO.md` for the measurements and next steps.
 
 `src/fuzz/fuzz_command_preauth.cc` is the libFuzzer harness for the
 pre-auth network surface of the ingame multiplayer server: wire bytes
-through `packet_t::recv()` → `network_command_t::read_from_packet()`
-(the full ingame dispatch including `nwc_tool_t` / `nwc_chg_player_t`
-/ `nwc_scenario_*`, which sit outside `fuzz_nettool`'s NETTOOL=1
+through `packet_t::recv()`, then the real `read_from_packet` (the
+full ingame dispatch including `nwc_tool_t` / `nwc_chg_player_t` /
+`nwc_scenario_*`, which sit outside `fuzz_nettool`'s NETTOOL=1
 subset), then for `NWC_TOOL` a direct `init_tool()` call to fire
 `create_tool(attacker_tool_id)` and the per-tool `rdwr_custom_data`
 overrides — the same path that `nwc_tool_t::clone` runs *before* the
-authentication check at `network_cmd_ingame.cc:1178`.  No `karte_t`,
-no pakset — `dbg` + null `gfx` and the longjmp fatal hook, plus the
+authentication check.  No `karte_t`,
+no pakset — `dbg` + null `gfx` and the throwing fatal hook, plus the
 minimum global state a real server exposes to the wire parser:
 `env_t::server` set (so `nwc_service_t::rdwr` doesn't short-circuit
 and the post-rdwr `failed()` paths enable in nwc_nick / nwc_chat /
 nwc_sync / nwc_game / nwc_check), and the receiving socket registered
 via `socket_list_t::add_client` per iteration (so paths that look the
 sender up don't trip an assert).  Runs at ~9000 execs/sec and is the
-CI replay gate for the pre-auth attack surface.  The CI replay path
-runs with `ASAN_OPTIONS=detect_leaks=1`: the harness calls
-`socket_list_t::reset()` after each iteration, which now deletes the
-client slot (it previously only reset slot state, so the one standing
-`socket_info_t` leaked for the process lifetime).  Active *mutation*
-campaigns still want `detect_leaks=0`, because a command-driven
-`dbg->fatal` longjmps over the in-flight `nwc_*` / packet (raw
-pointers, so unlike fuzz_pak's stack `node_body` they wouldn't be
-reclaimed by switching the hook to a throw either).  A first-contact
-finding from this harness — `nwc_nick_t` /
-`nwc_chat_t` calling `get_client(get_client_id(sender))` without
-guarding the OOB sentinel — is tracked in `TODO.md`.
+CI replay gate for the pre-auth attack surface.
+
+`detect_leaks=1` is meaningful here under *both* CI replay and active
+mutation, using the same recovery idiom as `fuzz_pak`: the fatal hook
+throws (`fuzz_fatal`) and the production parse path is exception-safe,
+so an input-driven `dbg->fatal` deep in `rdwr` unwinds the stack
+leak-clean rather than leaking the in-flight command.  The load-bearing
+production change is in `read_from_packet`: it owns the command in a
+`std::unique_ptr` while `receive()` parses (and `receive()` has already
+adopted the packet into `nwc->packet`), so a throw mid-`rdwr` frees
+both, and the normal receive-failure return frees both without a manual
+delete.  The harness then calls the real `read_from_packet` — full
+interface, not a reimplemented dispatch — holds the result in its own
+`unique_ptr` for the one allocation that lands *after* it returns
+(`init_tool`'s tool, which `~nwc_tool_t` frees on unwind), and catches
+`fuzz_fatal` at the iteration boundary.  The per-iteration
+`socket_list_t::reset()` deletes the client slot so no standing
+`socket_info_t` leaks either.  A first-contact finding from this
+harness — `nwc_nick_t` / `nwc_chat_t` calling
+`get_client(get_client_id(sender))` without guarding the OOB
+sentinel — is tracked in `TODO.md`.
 
 Claude Code on the web checks out a shallow clone — `git log` only
 reaches back a handful of commits and `git blame` on older lines

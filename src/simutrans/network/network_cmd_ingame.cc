@@ -3,6 +3,8 @@
  * (see LICENSE.txt)
  */
 
+#include <memory>
+
 #include "network_cmd_ingame.h"
 #include "network.h"
 #include "network_file_transfer.h"
@@ -59,6 +61,9 @@ network_command_t* network_command_t::read_from_packet(packet_t *p)
 		default:
 			dbg->warning("network_command_t::read_from_socket", "received unknown packet id %d", p->get_id());
 	}
+	// `owned` frees the command — and the packet receive() adopts into it —
+	// on any early return or exception; only the success path releases it.
+	std::unique_ptr<network_command_t> owned(nwc);
 	if (nwc == NULL) {
 		// Unknown / unsupported wire id: free p before returning so a
 		// malicious peer can't drive the server out of memory by
@@ -70,10 +75,9 @@ network_command_t* network_command_t::read_from_packet(packet_t *p)
 	}
 	if (!nwc->receive(p) ||  p->has_failed()) {
 		dbg->warning("network_command_t::read_from_packet", "error while reading cmd from packet");
-		delete nwc;
-		nwc = NULL;
+		return NULL;
 	}
-	else if (env_t::server) {
+	if (env_t::server) {
 		// The wire-supplied our_client_id is attacker-controlled.
 		// Identify the sender by its socket instead, so any later
 		// auth check (nwc_auth_player_t, nwc_chg_player_t,
@@ -82,7 +86,7 @@ network_command_t* network_command_t::read_from_packet(packet_t *p)
 		// or indexing past the socket list.
 		nwc->our_client_id = socket_list_t::get_client_id(p->get_sender());
 	}
-	return nwc;
+	return owned.release();
 }
 
 
