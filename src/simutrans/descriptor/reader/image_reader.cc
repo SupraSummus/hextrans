@@ -259,9 +259,8 @@ bool image_reader_t::image_has_valid_data(const image_t *image_in, bool &player_
 				return false;
 			}
 
-			// Inspect the colored run for player-colour markers (0x8000..0x800F)
-			// instead of just skipping it, clamped to `end` so a corrupt run
-			// length can't read past the buffer; the check below still rejects it.
+			// Scan the colored run for player-colour markers (0x8000..0x800F),
+			// clamped to `end` so a corrupt run length can't read past the buffer.
 			runlen = *src++ & ~TRANSPARENT_RUN;
 			const PIXVAL *run_end = src + runlen;
 			for( const PIXVAL *scan_end = run_end < end ? run_end : end;  src < scan_end;  ++src  ) {

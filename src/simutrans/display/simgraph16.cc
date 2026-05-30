@@ -2005,10 +2005,9 @@ static image_id simgraph16_register_image(const image_t *image_in)
 	}
 	image->player_flags = 0xFFFF; // recode all player colors
 
-	// Does the image use player colors?  image_reader_t computes this while
-	// walking the RLE for validation (image_in->player_colored != -1) so the
-	// load path doesn't re-walk every pixel here; only runtime-built images
-	// (ground_desc) arrive unknown and get scanned.
+	// player_colored is precomputed by image_reader_t (see image.h); only
+	// runtime-built images arrive unknown (-1) and are scanned here.  Keep this
+	// scan in step with image_reader_t::image_has_valid_data's.
 	if(  image_in->player_colored == 1  ) {
 		image->recode_flags |= FLAG_HAS_PLAYER_COLOR;
 	}
