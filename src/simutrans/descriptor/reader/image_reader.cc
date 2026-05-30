@@ -144,10 +144,13 @@ adjust_image:
 	desc->x = 0;
 	desc->y = 0;
 #else
-	if (!image_has_valid_data(desc)) {
+	bool player_colored = false;
+	if (!image_has_valid_data(desc, player_colored)) {
 		delete desc;
 		return NULL;
 	}
+	// Cache the player-colour verdict so register_image() needn't re-scan.
+	desc->player_colored = player_colored ? 1 : 0;
 #endif
 
 	// check for left corner
@@ -242,17 +245,11 @@ adjust_image:
 
 #define TRANSPARENT_RUN (0x8000u)
 
-bool image_reader_t::image_has_valid_data(image_t *image_in) const
+bool image_reader_t::image_has_valid_data(const image_t *image_in, bool &player_colored) const
 {
-	PIXVAL *src = image_in->data;
-	PIXVAL *end = image_in->data + image_in->len;
-
-	// Detect player-colour markers (0x8000..0x800F) while we already walk the
-	// RLE here, so the renderer's register_image() doesn't re-walk every pixel
-	// at load.  The colored-run scan replaces the bare `src += runlen` skip;
-	// it is clamped to `end` so a corrupt run length can't read past the
-	// buffer (the post-advance `src >= end` check below still rejects it).
-	bool player_colored = false;
+	const PIXVAL *src = image_in->data;
+	const PIXVAL *end = image_in->data + image_in->len;
+	player_colored = false;
 
 	for( int y = 0;  y < image_in->h;  ++y  ) {
 		// decode line
@@ -262,8 +259,11 @@ bool image_reader_t::image_has_valid_data(image_t *image_in) const
 				return false;
 			}
 
+			// Inspect the colored run for player-colour markers (0x8000..0x800F)
+			// instead of just skipping it, clamped to `end` so a corrupt run
+			// length can't read past the buffer; the check below still rejects it.
 			runlen = *src++ & ~TRANSPARENT_RUN;
-			PIXVAL *run_end = src + runlen;
+			const PIXVAL *run_end = src + runlen;
 			for( const PIXVAL *scan_end = run_end < end ? run_end : end;  src < scan_end;  ++src  ) {
 				if(  *src >= 0x8000  &&  *src < 0x8010  ) {
 					player_colored = true;
@@ -279,6 +279,5 @@ bool image_reader_t::image_has_valid_data(image_t *image_in) const
 		} while(  runlen!=0  ); // end of row: runlen == 0
 	}
 
-	image_in->player_colored = player_colored ? 1 : 0;
 	return src == end;
 }

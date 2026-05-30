@@ -30,7 +30,10 @@ public:
 #endif
 
 private:
-	bool image_has_valid_data(image_t *img) const;
+	/// Validate the RLE structure; also reports via @p player_colored whether
+	/// any pixel is a player-colour marker, computed in the same walk so the
+	/// renderer needn't re-scan at load.
+	bool image_has_valid_data(const image_t *img, bool &player_colored) const;
 
 	/// Identical pixel data is loaded once and shared; keyed by adler32.
 	static inthashtable_tpl<uint32, image_t *> images_adlers;
