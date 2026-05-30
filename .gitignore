@@ -25,6 +25,8 @@ build-fuzz
 /simutrans/pak*
 /simutrans/PAK*
 /simutrans/text
+/simutrans/save
+/simutrans/*.sve
 *.bdf
 *.zip
 *.vcxproj.*

@@ -140,6 +140,23 @@ struct byte_reader_t {
 };
 
 
+// Map a fuzz selector + index onto the dense, valid tool-id space.  The
+// three id classes (GENERAL/SIMPLE/DIALOGE) are sparse high-bit points
+// in the 16-bit id range, so a raw 16-bit read almost never lands on a
+// real tool and the iteration bounces off create_tool() returning NULL.
+// Folding the index modulo each class's *_COUNT keeps the decode inside
+// the populated range; create_tool() still returns NULL for the handful
+// of deprecated / holey ids it covers (UNUSED_*), which the caller skips.
+uint16_t fuzz_tool_id(uint8_t class_sel, uint8_t index)
+{
+	switch (class_sel % 3) {
+		case 0:  return GENERAL_TOOL | (index % GENERAL_TOOL_COUNT);
+		case 1:  return SIMPLE_TOOL  | (index % SIMPLE_TOOL_COUNT);
+		default: return DIALOGE_TOOL | (index % DIALOGE_TOOL_COUNT);
+	}
+}
+
+
 // Stand up the engine far enough that create_tool() yields real tools
 // and karte_t::init() can build a world.  Mirrors the relevant slice of
 // simu_main() (simmain.cc) — see that function for the canonical order.
@@ -217,18 +234,44 @@ bool standup_engine()
 }
 
 
+// World-lifecycle tools re-enter karte_t::init / load / stop / switch_server
+// synchronously from init().  On a server that is the deferred-dispatch hazard
+// in documentation/world-mutation-deferral.md; in this single-process harness it
+// also tears down the very world the loop is driving, so the next command (and
+// the harness's own teardown) run against freed state — a teardown-ordering
+// artifact, not a command-handler bug.  Out of scope for the in-process handler
+// fuzzer; the fork-after-init campaign in TODO.md covers them, one world per child.
+bool is_world_lifecycle_tool(uint16_t tool_id)
+{
+	switch (tool_id) {
+		case SIMPLE_TOOL | TOOL_QUIT:
+		case SIMPLE_TOOL | TOOL_WORK_WORLD:
+		case SIMPLE_TOOL | TOOL_LOAD_SCENARIO:
+			return true;
+		default:
+			return false;
+	}
+}
+
+
 // Decode and apply a fuzzed sequence of nwc_tool_t commands to a live world.
 void apply_command_sequence(karte_t *welt, const uint8_t *data, size_t size)
 {
 	byte_reader_t r(data, size);
 
 	for (int cmd_count = 0; cmd_count < MAX_COMMANDS_PER_INPUT && !r.empty(); cmd_count++) {
-		uint16_t    tool_id = r.u16();
+		uint8_t     class_sel = r.u8();
+		uint8_t     tool_idx  = r.u8();
+		uint16_t    tool_id = fuzz_tool_id(class_sel, tool_idx);
 		uint8_t     pl      = r.u8() & 1;            // public(1)/human(0)
 		sint16      x       = (sint16)((r.u8() % (FUZZ_MAP_SIZE + 4)) - 2); // allow slight OOB
 		sint16      y       = (sint16)((r.u8() % (FUZZ_MAP_SIZE + 4)) - 2);
 		std::string param   = r.str();
 		bool        is_init = (r.u8() & 1) != 0;
+
+		if (is_world_lifecycle_tool(tool_id)) {
+			continue; // re-enters world init/load/stop — see note above
+		}
 
 		tool_t *t = create_tool(tool_id);
 		if (t == NULL) {
@@ -304,6 +347,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 
 	karte_t *welt = new karte_t();   // sets the global karte_t::world
 	welt->init(&sets, NULL);
+
+	// do_command is the *server* applying a network command, so model a
+	// server: networkmode gates the tool init/work paths (ownership checks
+	// enable, and the GUI-window branches a real server never runs — e.g.
+	// dialog_enlarge_map_t::init's `if(!networkmode)` map re-gen — are
+	// skipped, which is where the headless harness would otherwise dangle a
+	// settings window across worlds).  Set after init(): karte_t::init() calls
+	// network_core_shutdown() when networkmode is already set, clearing it.
+	env_t::networkmode = true;
 
 	apply_command_sequence(welt, data, size);
 
