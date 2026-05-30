@@ -853,26 +853,6 @@ second consumer (`fuzz_command`) now exists, so the dedup is no
 longer hypothetical; do it when a propagation gap actually bites or
 when touching this CMake file for another reason.
 
-## Pak-fuzzer per-iteration teardown
-
-`fuzz_pak` (`src/fuzz/fuzz_pak.cc`) leaks every descriptor it
-constructs because there's no per-iteration teardown of
-`pakset_manager_t::loaded` / `unresolved` / the desc trees
-themselves, so the CI replay path needs `ASAN_OPTIONS=detect_leaks=0`
-and active fuzz RSS grows linearly.  Fix is a
-`pakset_manager_t::reset()` that drops the loaded registry and
-deletes the desc trees; tricky because readers share image pointers
-via `images_adlers` deduplication, so a naive delete double-frees.
-`read_nodes` already skips freeing image descs on its error path for
-exactly this reason, so `reset()` has to be the one place that owns
-image teardown (drop `images_adlers` first, then delete uniquely).
-The same boundary would also wire `longjmp`-driven `dbg->fatal`
-recovery in `fuzz_pak.cc` to a destructor-safe path — today the
-longjmp out of `log_t::set_fatal_hook` skips RAII unwinding (UB in
-strict C++, harmless in practice but reinforces the leak).
-Trigger: when active-fuzz RSS growth or strict leak checking
-becomes a blocker.
-
 ## Command-handling fuzzer: go fork-based for the real campaign
 
 `src/fuzz/fuzz_command.cc` fuzzes network command *handling* (the
@@ -947,7 +927,14 @@ the same `get_name()`-is-non-null assumption is spread across the
 register paths, so the fix wants to be one guard, not one per site —
 reject a desc with a null name in `read_nodes` after `read_node`
 returns (the descs that legitimately lack a name need enumerating
-first), or make the name accessor never return null.
+first), or make the name accessor never return null.  A sibling of this
+bug is a present-but-wrong-type name child: `get_name()` does
+`get_child<text_desc_t>(0)` and downcasts unconditionally, so a node
+whose child 0 is some other desc is read as a `text_desc_t`.  The
+`TRACK_DESCRIPTORS` virtual dtor makes that downcast visible to UBSAN's
+`-fsanitize=vptr` (disabled in `fuzz_pak` to keep the teardown vtable
+scoped to destruction — re-enabling it is a ready detector once the
+guard above lands).
 
 The rest are narrower per-reader decodes: invalid `waytype_t` enum
 loads in `crossing_reader` (value is sound, only used in a
@@ -959,6 +946,27 @@ in `building_reader`'s `2 + size.x*size.y*layouts` child-count test
 first behind the null-name guard, a minimized seed per fix as above.
 The crash artifacts are not committed — rerun the campaign to
 resurface them.
+
+## TRACK_DESCRIPTORS engine teardown: verify and extend to reload
+
+`free_all_descriptors()` is wired into `simu_main`'s shutdown under
+`TRACK_DESCRIPTORS` (after `gfx->exit()`) and is compile-verified, but
+its leak-cleanliness on a real engine run is not — this env can't run
+the GUI.  The risk is a static descriptor-holder still dereferencing a
+freed node *after* the free call (`skinverwaltung_t`, the tool lists,
+anything registered at static init), which would surface as an ASAN
+use-after-free at exit.  Next move: build `-DSIMUTRANS_TRACK_DESCRIPTORS=ON`
+with ASAN, run a headless load-then-quit, and resolve any post-free
+deref by reordering the call or clearing the offending holder before it.
+
+The production payoff that motivated the engine-side option is freeing
+on *pakset reload* (GUI pakset switch, server map reload), where the
+loading registries are overwritten without freeing the previous
+descriptors — a real in-process leak / RSS growth, not just an exit-time
+diagnostic.  Once the shutdown path is confirmed clean, call
+`free_all_descriptors()` at the reload site, guarded by the same
+no-live-world precondition (descriptors must not be referenced by an
+existing `karte_t` when freed).
 
 ## libcurl rollback gate retirement
 

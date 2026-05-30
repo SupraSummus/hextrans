@@ -66,6 +66,7 @@
 #include "network/network.h" // must be before any "windows.h" is included via bzlib2.h ...
 #include "dataobj/loadsave.h"
 #include "dataobj/environment.h"
+#include "dataobj/pakset_manager.h"
 #include "dataobj/tabfile.h"
 #include "dataobj/scenario.h"
 #include "dataobj/settings.h"
@@ -1745,6 +1746,15 @@ int simu_main(int argc, char** argv)
 	gfx->exit();
 
 	close_midi();
+
+#ifdef TRACK_DESCRIPTORS
+	// World and renderer are gone, so nothing should still reference the
+	// pakset descriptors: free the DAG for a clean LeakSanitizer report at
+	// exit.  After gfx->exit() so the renderer's image table (holding
+	// image_t* from register_image) is down first.  See TODO for the static
+	// holders that may still need ordering once this runs under a real game.
+	pakset_manager_t::free_all_descriptors();
+#endif
 
 #if 0
 	// free all list memories (not working, since there seems to be unitialized list still waiting for automated destruction)

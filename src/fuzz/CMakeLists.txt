@@ -108,7 +108,11 @@ add_executable(fuzz_pak
 
 target_sources(fuzz_pak PRIVATE ${_SIM_SOURCES_ABS})
 target_include_directories(fuzz_pak PRIVATE ${_SIM_INCLUDES})
-target_compile_definitions(fuzz_pak PRIVATE ${_SIM_DEFS} SIMUTRANS_NO_MAIN=1)
+# TRACK_DESCRIPTORS compiles in the per-iteration descriptor teardown
+# (obj_desc_t gains a virtual dtor; operator new/delete feed a tracking
+# table freed by free_all_descriptors).  Always on for this target so the
+# leak baseline stays clean regardless of the engine build option.
+target_compile_definitions(fuzz_pak PRIVATE ${_SIM_DEFS} SIMUTRANS_NO_MAIN=1 TRACK_DESCRIPTORS=1)
 target_compile_options(fuzz_pak PRIVATE ${_SIM_OPTS})
 target_link_libraries(fuzz_pak PRIVATE ${_SIM_LIBS})
 
@@ -119,6 +123,15 @@ endif ()
 
 target_link_options(fuzz_pak PRIVATE -fsanitize=fuzzer)
 target_compile_options(fuzz_pak PRIVATE -fsanitize=fuzzer-no-link)
+
+# The TRACK_DESCRIPTORS virtual dtor makes obj_desc_t polymorphic, which would
+# otherwise switch on UBSAN's -fsanitize=vptr for every get_child<T> downcast —
+# turning the descriptor teardown into an unrelated type-confusion checker and
+# changing what this harness reports.  Keep the vtable scoped to destruction:
+# disable vptr so the finding surface matches the non-polymorphic shipping
+# build.  (The get_child downcast assumption is tracked separately; ASAN still
+# catches any out-of-bounds manifestation.)
+target_compile_options(fuzz_pak PRIVATE -fno-sanitize=vptr)
 
 
 #

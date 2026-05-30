@@ -12,6 +12,8 @@
 #include "../simloadingscreen.h"
 #include "../descriptor/ground_desc.h"
 #include "../descriptor/reader/obj_reader.h"
+#include "../descriptor/reader/image_reader.h"
+#include "../descriptor/reader/factory_reader.h"
 #include "../descriptor/vehicle_desc.h"
 #include "../utils/simstring.h"
 #include "../utils/cbuffer.h"
@@ -40,6 +42,53 @@ void pakset_manager_t::register_reader(obj_reader_t *reader)
 	registered_readers->put(reader->get_type(), reader);
 	//printf("This program can read %s objects\n", get_type_name());
 }
+
+
+#ifdef TRACK_DESCRIPTORS
+// Descriptor teardown (TRACK_DESCRIPTORS only).  The table is file-local so
+// obj_desc.h's operator new/delete can feed it through these hooks without a
+// pakset_manager dependency.  A hashtable for O(1) untrack on the load's
+// frequent error-path deletes.
+static ptrhashtable_tpl<obj_desc_t *, bool> tracked_descs;
+
+void obj_desc_track_new(void *ptr)
+{
+	tracked_descs.set(static_cast<obj_desc_t *>(ptr), true);
+}
+
+void obj_desc_track_delete(void *ptr)
+{
+	tracked_descs.remove(static_cast<obj_desc_t *>(ptr));
+}
+
+void pakset_manager_t::free_all_descriptors()
+{
+	// Snapshot and clear the table before deleting, since each delete runs
+	// the untrack hook and would otherwise mutate it mid-iteration.  Deletion
+	// is flat, not recursive through children (~obj_desc_t frees only the
+	// children pointer array; each child is freed by its own entry), so a
+	// shared image node is freed once and deep input can't blow the stack.
+	// The virtual destructor dispatches each delete to its concrete type.
+	vector_tpl<obj_desc_t *> nodes(tracked_descs.get_count());
+	for(auto const& e : tracked_descs) {
+		nodes.append(e.key);
+	}
+	tracked_descs.clear();
+
+	// Drop the per-load registries (borrowed pointers, no delete) and the
+	// image-dedup cache + factory carry-over before freeing the nodes, so
+	// nothing holds a soon-to-dangle pointer afterwards.
+	loaded.clear();
+	unresolved.clear();
+	fatals.clear();
+	image_reader_t::clear_dedup_cache();
+	factory_field_group_reader_t::clear_incomplete();
+
+	for(obj_desc_t *node : nodes) {
+		delete node;
+	}
+}
+#endif
 
 
 const char* pakset_manager_t::get_doubled_warning_message()
@@ -370,7 +419,22 @@ bool pakset_manager_t::read_nodes(FILE *fp, obj_desc_t *&data, int node_depth, u
 			return false;
 		}
 
-		if (node.nchildren != 0) {
+		// Note: a TRACK_DESCRIPTORS build already recorded this node in
+		// obj_desc_t::operator new, so no bookkeeping is needed here.
+
+		if (node.nchildren != 0  &&  data->children != NULL) {
+			// A pixel-deduped image hands back a shared desc that already owns
+			// a children array whose elements are registered for xref
+			// resolution; don't overwrite it.  Consume this occurrence's child
+			// subtrees to keep the cursor aligned.  Malformed input only —
+			// valid images carry no children.
+			for (int i = 0; i < node.nchildren; i++) {
+				if (!skip_nodes(fp, version)) {
+					return false;
+				}
+			}
+		}
+		else if (node.nchildren != 0) {
 			data->children = new obj_desc_t *[node.nchildren];
 			data->nchildren = node.nchildren;
 

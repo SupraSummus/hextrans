@@ -40,6 +40,12 @@ protected:
 public:
 	/// @copydoc obj_reader_t::read_node
 	obj_desc_t *read_node(FILE *fp, obj_node_info_t &node) OVERRIDE;
+
+#ifdef TRACK_DESCRIPTORS
+	/// Drop a field_class_desc stashed mid-read but never consumed by
+	/// register_obj (free_all_descriptors frees the desc it points at).
+	static void clear_incomplete() { incomplete_field_class_desc = NULL; }
+#endif
 };
 
 

@@ -62,6 +62,7 @@ option(ENABLE_WATERWAY_SIGNS "Allow private signs on watersways" OFF)
 option(AUTOJOIN_PUBLIC "Join when making things public" OFF)
 option(SIMUTRANS_USE_REVISION "Use the given revision number" OFF)
 option(SIMUTRANS_USE_OWN_PAKINSTALL "Use built-in pakset installer instead of scripted" OFF)
+option(SIMUTRANS_TRACK_DESCRIPTORS "Track descriptor allocations so the pakset DAG can be freed (leak-clean/sanitizer builds; adds per-node weight, not for shipping)" OFF)
 
 if(NOT SIMUTRANS_DEBUG_LEVEL)
 	set(SIMUTRANS_DEBUG_LEVEL $<CONFIG:Debug>)

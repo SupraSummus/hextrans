@@ -139,8 +139,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 	fuzz_in_iteration = false;
 
 	// remove_client closes the socket via network_close_socket(); no
-	// explicit close(sv[1]) here would be a double-close.
+	// explicit close(sv[1]) here would be a double-close.  reset() then
+	// deletes the (now inactive) slot so the per-iteration accounting
+	// balances — without it socket_list_t::list retains one socket_info_t
+	// for the process lifetime and detect_leaks=1 flags the standing slot.
 	socket_list_t::remove_client(sv[1]);
+	socket_list_t::reset();
 
 	return 0;
 }

@@ -11,9 +11,24 @@
 #include "../simdebug.h"
 #include "../simtypes.h"
 
+/// Allocation hooks for the TRACK_DESCRIPTORS teardown (see
+/// pakset_manager.cc, which owns the table).  Defining them out of line keeps
+/// obj_desc.h free of a pakset_manager dependency; the shipping build links
+/// the empty inlines and pays nothing.
+#ifdef TRACK_DESCRIPTORS
+void obj_desc_track_new(void *ptr);
+void obj_desc_track_delete(void *ptr);
+#else
+inline void obj_desc_track_new(void *) {}
+inline void obj_desc_track_delete(void *) {}
+#endif
+
 /**
  * Basis of all desc_t classes, which are loaded from the .pak files.
- * No virtual methods are allowed!
+ *
+ * Non-polymorphic in the shipping build (tens of thousands of nodes, no
+ * vtable wanted).  A TRACK_DESCRIPTORS build makes the destructor virtual so
+ * free_all_descriptors can delete each node through its concrete type.
  */
 class obj_desc_t
 {
@@ -22,16 +37,23 @@ class obj_desc_t
 public:
 	obj_desc_t() : children(), nchildren() {}
 
+#ifdef TRACK_DESCRIPTORS
+	virtual
+#endif
 	~obj_desc_t() { delete [] children; }
 
 	void* operator new(size_t size)
 	{
-		return ::operator new(size);
+		void *p = ::operator new(size);
+		obj_desc_track_new(p);
+		return p;
 	}
 
 	void* operator new(size_t size, size_t extra)
 	{
-		return ::operator new(size + extra);
+		void *p = ::operator new(size + extra);
+		obj_desc_track_new(p);
+		return p;
 	}
 
 	/*
@@ -41,6 +63,7 @@ public:
 	*/
 	void operator delete(void* ptr)
 	{
+		obj_desc_track_delete(ptr);
 		return ::operator delete(ptr);
 	}
 
