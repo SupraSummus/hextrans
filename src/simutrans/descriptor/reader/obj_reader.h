@@ -13,6 +13,7 @@
 #include "../objversion.h"
 #include "../../simdebug.h"
 #include "../../simtypes.h"
+#include "../../tpl/array_tpl.h"
 #include "../../dataobj/pakset_manager.h"
 
 
@@ -94,6 +95,95 @@ inline uint64 decode_uint64(char *&data)
 		static classname *instance() { return &the_instance; } \
 	private: \
 		static classname the_instance
+
+
+/// Owns one pak node's bytes and a bounds-checked cursor over them.
+/// decode_*(node_body_t&) overloads read through it.
+class node_body_t
+{
+public:
+	/// fread @p size bytes from @p fp; short read leaves a bool-false cursor.
+	node_body_t(FILE* fp, size_t size, const char* type_name)
+		: buf_(size),
+		  pos_(NULL),
+		  type_name_(type_name)
+	{
+		if (size > 0 && fread(buf_.begin(), size, 1, fp) != 1) {
+			buf_.clear();
+			return;
+		}
+		pos_ = buf_.begin();
+	}
+
+	/// false on short fread.
+	explicit operator bool() const { return pos_ != NULL; }
+
+	/// Bounds-checked absolute seek from the buffer start.
+	void seek(size_t off)
+	{
+		if (buf_.begin() + off > buf_.end()) {
+			dbg->fatal(type_name_,
+				"seek to offset %zu past buffer end %zu",
+				off, (size_t)buf_.get_count());
+		}
+		pos_ = buf_.begin() + off;
+	}
+
+	/// Bounds-checked `p += n`.
+	node_body_t& operator+=(size_t n) { require(n); pos_ += n; return *this; }
+
+	/// Bounds-checked single-byte skip (`p++`); return value unused.
+	node_body_t& operator++(int) { require(1); ++pos_; return *this; }
+
+	/// Bounds-checked: returns the cursor, then advances @p n bytes (tail reads).
+	char* read_bytes(size_t n) { require(n); char* p = pos_; pos_ += n; return p; }
+
+	uint8 read_uint8()   { require(1); return (uint8)*pos_++; }
+	uint16 read_uint16() { require(2); uint16 v = (uint16)(uint8)pos_[0] | (uint16)(uint8)pos_[1] << 8; pos_ += 2; return v; }
+	uint32 read_uint32()
+	{
+		require(4);
+		uint32 v =
+			(uint32)(uint8)pos_[0]       |
+			(uint32)(uint8)pos_[1] <<  8 |
+			(uint32)(uint8)pos_[2] << 16 |
+			(uint32)(uint8)pos_[3] << 24;
+		pos_ += 4;
+		return v;
+	}
+	uint64 read_uint64()
+	{
+		require(8);
+		uint64 v = 0;
+		for (int i = 0; i < 8; ++i) {
+			v |= (uint64)(uint8)pos_[i] << (i * 8);
+		}
+		pos_ += 8;
+		return v;
+	}
+
+private:
+	void require(size_t n) const
+	{
+		if (pos_ + n > buf_.end()) {
+			dbg->fatal(type_name_,
+				"short read at offset %zu of %zu: need %zu, have %zu",
+				(size_t)(pos_ - buf_.begin()), (size_t)buf_.get_count(),
+				n, (size_t)(buf_.end() - pos_));
+		}
+	}
+
+	array_tpl<char> buf_;
+	char* pos_;
+	const char* type_name_;
+};
+
+/// decode_*(node_body_t&) overloads, chosen over the char*& ones by
+/// argument type so reader call sites stay `decode_uint16(p)`.
+inline uint8  decode_uint8(node_body_t& b)  { return b.read_uint8(); }
+inline uint16 decode_uint16(node_body_t& b) { return b.read_uint16(); }
+inline uint32 decode_uint32(node_body_t& b) { return b.read_uint32(); }
+inline uint64 decode_uint64(node_body_t& b) { return b.read_uint64(); }
 
 
 class obj_reader_t
