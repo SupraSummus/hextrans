@@ -62,14 +62,6 @@ connection FSM support (`leitung2.cc` diagonal-image table is keyed on
 4 old-combo values).  Restore after the crossing-cluster / 3rd-axis
 work lands.
 
-**Runway layout.**  `test_way_runway_build_rw_flat / _tw_flat /
-_mixed_flat` bake a 4-direction airport layout (runway + taxiway
-cross at 90°).  The `ai_passenger.cc` airport builder was ported
-to a hex diamond (taxiway crosses on N-S and old-E-W = hex SE-NW,
-with 4 of 6 hex edges used), but the runway/taxiway geometry
-tests assume the square 3x3.  Restore after a proper hex airport
-layout is designed.
-
 **Flood-fill / region walkers.**
 `tool_change_water_height_t` in `simtool.cc` is hex-aware (6-neighbour
 flood, shared-edge corner heights on the *current* tile per
@@ -505,7 +497,7 @@ into the N-approach hold pattern.  The 16-step `circle_koord` table
 is itself hand-rolled for 4-direction airports — widening the
 switch alone isn't enough; the table needs new step sequences for
 the NE/SW approach geometries.  The AI airport builder lays only
-N-S and SE-NW (see "Runway layout" above), so the path is
+N-S and SE-NW (see "Airport layout" below), so the path is
 reachable from player-built NE/SW runways and pre-port savegames,
 not from AI gameplay.  Lands together with a hex-aware hold-pattern
 geometry — likely 6-direction symmetric circles rather than 4.
@@ -810,11 +802,11 @@ a half-built case until this FSM is ported too — visible as
 unpredictable collisions when both axes go green-yellow on a
 real Y.
 
-*Airport layout.*  Tracked separately under `Runway layout` in
-the test section above — `ai_passenger.cc:499` builds a hex
-diamond using 4 of 6 hex edges, which compiles and produces
-something playable but is not a real hex airport.  Lands together
-with the other items here when crossroads design lands.
+*Airport layout.*  `ai_passenger.cc:499` builds a hex diamond
+using 4 of 6 hex edges (taxiway crosses on N-S and old-E-W = hex
+SE-NW), which compiles and produces something playable but is not
+a real hex airport.  Lands together with the other items here when
+crossroads design lands.
 
 ## Pak reader child-count expectations are implicit
 

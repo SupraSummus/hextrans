@@ -240,9 +240,9 @@ all_tests <- [
 	test_way_road_cityroad_replace_by_normal_road,
 	test_way_road_cityroad_replace_keep_existing,
 	test_way_road_make_public,
-	// test_way_runway_build_rw_flat: HEX-PORT PENDING.
-	// test_way_runway_build_tw_flat: HEX-PORT PENDING.
-	// test_way_runway_build_mixed_flat: HEX-PORT PENDING.
+	test_way_runway_build_rw_flat,
+	test_way_runway_build_tw_flat,
+	test_way_runway_build_mixed_flat,
 	test_way_tram_build_flat,
 	test_way_tram_build_parallel,
 	test_way_tram_build_on_road,
