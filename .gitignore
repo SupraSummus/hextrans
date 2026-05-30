@@ -52,3 +52,6 @@ src/linux/com.simutrans.Simutrans.metainfo.xml
 src/android/AndroidAppSettings.cfg
 /configure
 /run-automated-tests.sh
+
+# profiling artifacts
+callgrind.out.*

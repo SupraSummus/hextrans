@@ -265,9 +265,17 @@ static void usage(const char *argv0)
 int main(int argc, char **argv)
 {
 	dbg = new log_t(NULL, false, false, false, NULL, NULL);
-	// image_reader_t calls gfx->register_image() per IMG node; bind the
-	// null renderer so it doesn't NPE.
+	// image_reader_t calls gfx->register_image() per IMG node.  Under a
+	// colour build (COLOUR_DEPTH != 0, the representative consumer config)
+	// bind the real simgraph16 software renderer so register_image runs its
+	// player-colour scan and array growth — the load-time image work a
+	// client does; the heavy rezoom/recode is deferred to draw and isn't
+	// reached.  A headless COLOUR_DEPTH=0 build has only the null renderer.
+#if COLOUR_DEPTH != 0
+	gfx = simgraph_select(SIMGRAPH_TYPE_SOFTWARE);
+#else
 	gfx = simgraph_select(SIMGRAPH_TYPE_NULL);
+#endif
 	log_t::set_fatal_hook(bench_fatal_hook);
 
 	int iterations = 5;

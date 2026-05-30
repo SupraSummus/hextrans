@@ -13,11 +13,16 @@ Usage:
     tools/bench_pak.py --dir PATH      # bench an arbitrary pakset dir too
 
 Paksets are downloaded once (~5-40 MB each) into build-bench/paks/ and
-reused.  The headless bench build lives in build-bench/ and is configured
-with -DSIMUTRANS_BACKEND=none -DSIMUTRANS_BUILD_BENCH=ON.
+reused.  The bench build lives in build-bench/ and is configured with
+-DSIMUTRANS_BACKEND=sdl2 -DSIMUTRANS_BUILD_BENCH=ON so it measures a
+representative consumer load: COLOUR_DEPTH=16, the real simgraph16
+renderer, full per-pixel decode + register_image (see src/bench/).  It
+runs headless (no display) — only image *registration* happens, not
+drawing.  Use --backend none for the pure decode+decompress number with
+no pixel work.
 
-Scope: this measures the per-file decode + node-tree build + image
-registration phase, the part that scales with tile size.  It does not run
+Scope: this measures the per-file decode + pixel-decode + image
+registration phase, the part that dominates a real load.  It does not run
 xref resolution / checksum (see src/bench/bench_pak.cc).
 """
 import argparse
@@ -43,13 +48,13 @@ PAKSETS = {
 }
 
 
-def configure_and_build():
-    """Configure the headless bench build dir (idempotent) and build bench_pak."""
+def configure_and_build(backend: str):
+    """Configure the bench build dir (idempotent) and build bench_pak."""
     if not (BUILD / "CMakeCache.txt").exists():
-        print(f"Configuring {BUILD.name}/ ...")
+        print(f"Configuring {BUILD.name}/ (backend={backend}) ...")
         subprocess.check_call(
             ["cmake", "-S", str(ROOT), "-B", str(BUILD),
-             "-DSIMUTRANS_BACKEND=none", "-DSIMUTRANS_BUILD_BENCH=ON",
+             f"-DSIMUTRANS_BACKEND={backend}", "-DSIMUTRANS_BUILD_BENCH=ON",
              "-DCMAKE_BUILD_TYPE=Release"],
         )
     print("Building bench_pak ...")
@@ -106,12 +111,15 @@ def main():
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--dir", action="append", default=[],
                     help="also bench an arbitrary pakset directory (repeatable)")
+    ap.add_argument("--backend", default="sdl2", choices=["sdl2", "none"],
+                    help="bench build backend: sdl2 = representative colour "
+                         "load (default), none = decode-only, no pixel work")
     ap.add_argument("--no-build", action="store_true",
                     help="skip configure/build, use the existing binary")
     args = ap.parse_args()
 
     if not args.no_build:
-        configure_and_build()
+        configure_and_build(args.backend)
     if not BIN.exists():
         sys.exit(f"bench_pak: binary not found at {BIN} (run without --no-build)")
 
