@@ -389,7 +389,7 @@ static bool read_node_info(obj_node_info_t& node, FILE* const f, uint32 const ve
 		}
 		node.size = decode_uint32(p);
 
-		// Reject a hostile large-record size before node_body allocates
+		// Reject a hostile large-record size before node_body_t allocates
 		// a buffer for it.  A size merely past EOF but under the cap is
 		// caught later by the body fread, which short-reads.
 		if (node.size > MAX_NODE_BODY_SIZE) {

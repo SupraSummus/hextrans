@@ -4,6 +4,7 @@
  */
 
 #include <stdio.h>
+#include "../../simdebug.h"
 
 #include "../image_array.h"
 
@@ -13,7 +14,7 @@
 
 obj_desc_t * imagelist2d_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	node_body p(fp, node.size, get_type_name());
+	node_body_t p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	image_array_t *desc = new image_array_t();

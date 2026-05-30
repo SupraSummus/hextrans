@@ -37,12 +37,12 @@ void image_reader_t::clear_dedup_cache()
 
 obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	node_body p(fp, node.size, get_type_name());
+	node_body_t p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
-	// version byte sits at offset 6; old versions stored 0 there
-	// since the node size header was uint16 and couldn't reach 65535.
 	p.seek(6);
+	// always zero in old version, since length was always less than 65535
+	// because a node could not hold more data
 	uint8 version = decode_uint8(p);
 	p.seek(0);
 
@@ -54,15 +54,17 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 #endif
 
 	if(version==0) {
-		if (node.size < 11) {
-			dbg->fatal("image_reader_t::read_node", "malformed v0 image node: size %u < 11", node.size);
-		}
 		desc->x = decode_uint8(p);
 		desc->w = decode_uint8(p);
 		desc->y = decode_uint8(p);
 		desc->h = decode_uint8(p);
 		uint32 len = decode_uint32(p);
-		p.require((size_t)len * 2); // cap alloc against bytes present (pixels are uint16)
+		// cap alloc against bytes present (pixels are uint16); the headless
+		// build skips the read loop, so a hostile len would otherwise alloc
+		// far past the node body before any bounds check fires.
+		if ((uint64)len * 2 > node.size) {
+			dbg->fatal("image_reader_t::read_node", "image len %u exceeds node body %u", len, node.size);
+		}
 		desc->alloc(len);
 		desc->imageid = IMG_EMPTY;
 		p += 2; // dummys
@@ -75,11 +77,8 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		p.seek(12);
 
 		if (desc->h > 0) {
-			// bounds-check the whole pixel span once, then walk it with
-			// the unchecked raw decode_uint16.
-			char* src = p.read_bytes((size_t)desc->len * 2);
 			for (uint i = 0; i < desc->len; i++) {
-				uint16 data = decode_uint16(src);
+				uint16 data = decode_uint16(p);
 				if(data>=0x8000u  &&  data<=0x800Fu) {
 					// player color offset changed
 					data ++;
@@ -89,16 +88,15 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		}
 	}
 	else if(version<=2) {
-		if (node.size < 10) {
-			dbg->fatal("image_reader_t::read_node", "malformed v%u image node: size %u < 10", version, node.size);
-		}
 		desc->x = decode_sint16(p);
 		desc->y = decode_sint16(p);
 		desc->w = decode_uint8(p);
 		desc->h = decode_uint8(p);
 		p++; // skip version information
 		uint16 len = decode_uint16(p);
-		p.require((size_t)len * 2); // cap alloc against bytes present (pixels are uint16)
+		if ((uint64)len * 2 > node.size) {
+			dbg->fatal("image_reader_t::read_node", "image len %u exceeds node body %u", len, node.size);
+		}
 		desc->alloc(len);
 		desc->zoomable = decode_uint8(p) != 0;
 		desc->imageid = IMG_EMPTY;
@@ -106,16 +104,12 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		skip_reading_pixels_if_no_graphics;
 		uint16* dest = desc->data;
 		if (desc->h > 0) {
-			char* src = p.read_bytes((size_t)desc->len * 2);
 			for (uint i = 0; i < desc->len; i++) {
-				*dest++ = decode_uint16(src);
+				*dest++ = decode_uint16(p);
 			}
 		}
 	}
 	else if(version==3) {
-		if (node.size < 10) {
-			dbg->fatal("image_reader_t::read_node", "malformed v3 image node: size %u < 10", node.size);
-		}
 		desc->x = decode_sint16(p);
 		desc->y = decode_sint16(p);
 		desc->w = decode_sint16(p);
@@ -128,9 +122,8 @@ obj_desc_t *image_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		skip_reading_pixels_if_no_graphics;
 		uint16* dest = desc->data;
 		if (desc->h > 0) {
-			char* src = p.read_bytes((size_t)desc->len * 2);
 			for (uint i = 0; i < desc->len; i++) {
-				*dest++ = decode_uint16(src);
+				*dest++ = decode_uint16(p);
 			}
 		}
 	}

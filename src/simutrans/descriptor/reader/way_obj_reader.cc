@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include "../../simdebug.h"
+#include "../../utils/simstring.h"
 
 #include "../way_obj_desc.h"
 #include "../../obj/wayobj.h"
@@ -35,7 +36,7 @@ bool way_obj_reader_t::successfully_loaded() const
 
 obj_desc_t * way_obj_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 {
-	node_body p(fp, node.size, get_type_name());
+	node_body_t p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	// old versions of PAK files have no version stamp.

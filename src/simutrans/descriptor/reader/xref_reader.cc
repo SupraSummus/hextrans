@@ -18,7 +18,7 @@ obj_desc_t *xref_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		dbg->error("xref_reader_t::read_node", "node.size %u < 5", node.size);
 		return NULL;
 	}
-	node_body p(fp, node.size, get_type_name());
+	node_body_t p(fp, node.size, get_type_name());
 	if (!p) return NULL;
 
 	// The name is the NUL-terminated tail of the body, but a hostile
@@ -31,6 +31,7 @@ obj_desc_t *xref_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 	desc->fatal = (decode_uint8(p) != 0);
 	memcpy(desc->name, p.read_bytes(name_len), name_len);
 	desc->name[name_len] = '\0';
+
 	return desc;
 }
 

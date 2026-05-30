@@ -17,8 +17,9 @@
  * we route them through `log_t::set_fatal_hook` to a C++ exception
  * that unwinds back to the per-iteration recovery point, so they read
  * as input rejection instead.  Throwing (rather than longjmp) runs the
- * destructors of stack objects live across the fatal — notably the
- * reader's `node_body` buffer — so they don't leak under detect_leaks=1.
+ * destructors of stack objects live across the fatal, and the
+ * free_all_descriptors() below reclaims the in-flight descriptor a fatal
+ * orphaned, so a rejected input stays clean under detect_leaks=1.
  */
 
 #include <stddef.h>
@@ -66,7 +67,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 	}
 	catch (const fuzz_fatal &) {
 		// reader rejected the input via dbg->fatal; the throw unwound the
-		// reader stack (freeing node_body buffers etc.) on the way here.
+		// reader stack on the way here.
 	}
 
 	// Delete the descriptors this input built (including those orphaned by

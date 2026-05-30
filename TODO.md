@@ -961,9 +961,10 @@ checking the count against the bytes remaining — a hostile value
 drives a multi-GB `new[]`, and in headless builds the copy-site
 bounds check that would otherwise catch the short read is skipped,
 so the alloc is the only guard point.  `image_reader` is fixed and
-shows the shape (`node_body::require(len * 2)` before alloc); the
+shows the shape (cap `len * 2` against `node.size` before alloc); the
 vehicle pixel arrays and building tile lists still need the same
-guard, ideally via one shared call site rather than per-reader.
+guard, ideally via a `node_body_t` bytes-remaining accessor rather
+than per-reader.
 Trigger: fuzz_pak active mutation surfaces the next one on top of
 the seeded corpus.
 

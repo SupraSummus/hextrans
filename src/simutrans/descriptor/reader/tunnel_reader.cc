@@ -7,6 +7,8 @@
 
 #include "../../simdebug.h"
 
+#include "../../dataobj/ribi.h"
+
 #include "../intro_dates.h"
 #include "../tunnel_desc.h"
 #include "../obj_desc.h"
@@ -64,7 +66,7 @@ obj_desc_t * tunnel_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 		return desc;
 	}
 
-	node_body p(fp, node.size, get_type_name());
+	node_body_t p(fp, node.size, get_type_name());
 	if (!p) {
 		delete desc;
 		return NULL;
