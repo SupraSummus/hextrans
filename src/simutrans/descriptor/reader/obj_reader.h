@@ -182,6 +182,16 @@ public:
 		return complain(2);
 	}
 
+	/// Bulk little-endian uint16 read: one bounds check then a flat loop, so
+	/// the compiler vectorises it (a per-element read_uint16 loop won't).
+	void read_uint16_block(uint16* dest, size_t count)
+	{
+		const uint8* src = (const uint8*)read_bytes(count * 2);
+		for (size_t i = 0; i < count; i++) {
+			dest[i] = (uint16)(src[2 * i] | (src[2 * i + 1] << 8));
+		}
+	}
+
 	inline uint32 read_uint32()
 	{
 		if (ptr + 3 < end) {
