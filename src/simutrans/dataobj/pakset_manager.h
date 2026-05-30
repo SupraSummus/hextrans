@@ -80,6 +80,17 @@ public:
 	/// not closed; @p display_name is used only for diagnostics.
 	static bool load_pak_from_fp(FILE *fp, const char *display_name);
 
+#ifdef TRACK_DESCRIPTORS
+	/// Delete every descriptor recorded since the last call and drop the
+	/// loading registries, releasing the whole pakset DAG (per fuzz
+	/// iteration, on pakset unload, or at shutdown for a clean LeakSanitizer
+	/// report).  Compiled in only for a TRACK_DESCRIPTORS build, and only
+	/// safe to call when nothing else still references the descriptors (no
+	/// live world).  The obj_desc_t allocation hooks that feed it live in
+	/// pakset_manager.cc.
+	static void free_all_descriptors();
+#endif
+
 	/// special error handling for double objects
 	static void doubled(const char *what, const char *name);
 

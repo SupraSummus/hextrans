@@ -208,20 +208,25 @@ void log_t::error(const char *who, const char *format, ...)
  */
 void log_t::fatal(const char* who, const char* format, ...)
 {
-	va_list argptr;
-	va_start(argptr, format);
-	cbuffer_t msg;
-	msg.vprintf(format, argptr);
-	va_end(argptr);
-
 	char buffer[8192];
-	snprintf(buffer, sizeof(buffer),
-		"FATAL ERROR: %s - %s\n"
-		"Aborting program execution ...\n"
-		"\n"
-		"For help with this error or to file a bug report please see the Simutrans forum at\n"
-		"https://forum.simutrans.com\n",
-		who, (const char *)msg);
+	{
+		// scope msg so its heap buffer is freed before custom_fatal: a
+		// fatal hook that longjmps out (the network fuzz harnesses do)
+		// would skip the destructor and leak the cbuffer.
+		va_list argptr;
+		va_start(argptr, format);
+		cbuffer_t msg;
+		msg.vprintf(format, argptr);
+		va_end(argptr);
+
+		snprintf(buffer, sizeof(buffer),
+			"FATAL ERROR: %s - %s\n"
+			"Aborting program execution ...\n"
+			"\n"
+			"For help with this error or to file a bug report please see the Simutrans forum at\n"
+			"https://forum.simutrans.com\n",
+			who, (const char *)msg);
+	}
 
 	custom_fatal(buffer);
 }

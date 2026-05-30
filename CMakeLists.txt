@@ -375,6 +375,10 @@ if (SIMUTRANS_USE_OWN_PAKINSTALL)
 	target_compile_definitions(simutrans PRIVATE USE_OWN_PAKINSTALL=1)
 endif ()
 
+if (SIMUTRANS_TRACK_DESCRIPTORS)
+	target_compile_definitions(simutrans PRIVATE TRACK_DESCRIPTORS=1)
+endif ()
+
 if (APPLE)
 	target_compile_definitions(simutrans PRIVATE ALT_SDL_DIR=1)
 endif (APPLE)

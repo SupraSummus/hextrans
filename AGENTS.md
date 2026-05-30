@@ -550,11 +550,40 @@ reader's `gfx->register_image` doesn't NPE.  Defensive `dbg->fatal`
 sites in the readers (e.g. "Cannot handle too new node version")
 would normally abort the iteration and drown real findings under
 expected aborts; the harness routes them through
-`log_t::set_fatal_hook` to a `longjmp` back into the per-iteration
-recovery point, so they read as input-rejection and only
-sanitizer-detected bugs fail the run.  Per-iteration descriptor
-state still leaks (no teardown of the pakset registry), so runs
-need `ASAN_OPTIONS=detect_leaks=0` — tracked in `TODO.md`.
+`log_t::set_fatal_hook` to a C++ exception that unwinds back to the
+per-iteration recovery point, so they read as input-rejection and
+only sanitizer-detected bugs fail the run.  Throwing (rather than
+`longjmp`) runs the destructors of stack objects live across the
+fatal — notably the reader's `node_body` buffer — so they don't leak.
+The harness runs with `ASAN_OPTIONS=detect_leaks=1` and calls
+`pakset_manager_t::free_all_descriptors()` after each input, which
+deletes the whole descriptor DAG and drops the load registries + the
+`images_adlers` dedup cache, so the baseline is clean and an active
+campaign surfaces only genuinely new leaks (RSS stays flat instead of
+growing per iteration).
+
+That teardown is the `TRACK_DESCRIPTORS` build (the
+`SIMUTRANS_TRACK_DESCRIPTORS` CMake option, forced on for `fuzz_pak`;
+off and zero-cost in the shipping engine and in `makeobj`).  Under the
+macro `obj_desc_t` gains a virtual destructor, so `delete` on a tracked
+node dispatches to the concrete type (e.g. `image_t::~image_t` frees
+`data`) — exhaustively correct for every desc type, with no per-reader
+enumeration.  `obj_desc_t::operator new` is the chokepoint that records
+each node into a file-local pointer set in `pakset_manager.cc` (so a
+desc orphaned by a fatal before `read_nodes` returns is still reclaimed,
+and a deduped image node is recorded once); the hooks are free functions,
+so `obj_desc.h` keeps no `pakset_manager` dependency.  Deletion is flat,
+never recursive through `children`, so no double-free and no stack blow
+on deep input.  The same `free_all_descriptors()` is wired into
+`simu_main`'s shutdown (after `gfx->exit()`) so a `TRACK_DESCRIPTORS`
+engine build can exit leak-clean.
+
+One wrinkle worth knowing: the virtual destructor makes `obj_desc_t`
+polymorphic, which would otherwise switch on UBSAN's `-fsanitize=vptr`
+for every `get_child<T>` downcast and turn the teardown into an unrelated
+type-confusion checker.  `fuzz_pak` compiles with `-fno-sanitize=vptr` to
+keep the vtable scoped to destruction; the `get_child` downcast
+assumption is tracked separately (see the `get_name()` cluster).
 
 `src/fuzz/fuzz_command.cc` is the libFuzzer harness for network
 command *handling* — the post-parse surface (`nwc_tool_t::do_command`
@@ -583,12 +612,16 @@ and the post-rdwr `failed()` paths enable in nwc_nick / nwc_chat /
 nwc_sync / nwc_game / nwc_check), and the receiving socket registered
 via `socket_list_t::add_client` per iteration (so paths that look the
 sender up don't trip an assert).  Runs at ~9000 execs/sec and is the
-CI replay gate for the pre-auth attack surface.  Runs with
-`ASAN_OPTIONS=detect_leaks=0` — the longjmp recovery drops the
-in-flight `nwc_*` on a command-driven fatal, and the one-time
-`socket_info_t` slot in `socket_list_t::list` is never freed (a
-single 80-byte leak, not per-iteration; `add_client` reuses inactive
-slots).  A first-contact finding from this harness — `nwc_nick_t` /
+CI replay gate for the pre-auth attack surface.  The CI replay path
+runs with `ASAN_OPTIONS=detect_leaks=1`: the harness calls
+`socket_list_t::reset()` after each iteration, which now deletes the
+client slot (it previously only reset slot state, so the one standing
+`socket_info_t` leaked for the process lifetime).  Active *mutation*
+campaigns still want `detect_leaks=0`, because a command-driven
+`dbg->fatal` longjmps over the in-flight `nwc_*` / packet (raw
+pointers, so unlike fuzz_pak's stack `node_body` they wouldn't be
+reclaimed by switching the hook to a throw either).  A first-contact
+finding from this harness — `nwc_nick_t` /
 `nwc_chat_t` calling `get_client(get_client_id(sender))` without
 guarding the OOB sentinel — is tracked in `TODO.md`.
 

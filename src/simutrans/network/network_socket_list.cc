@@ -159,8 +159,9 @@ void socket_list_t::change_state(uint32 id, socket_info_t::connection_state_t ne
 void socket_list_t::reset()
 {
 	for(socket_info_t* const i : list) {
-		i->reset();
+		delete i; // dtor calls reset(): closes the socket, frees packet + send queue
 	}
+	list.clear();
 	connected_clients = 0;
 	playing_clients = 0;
 	server_sockets = 0;
