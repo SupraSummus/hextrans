@@ -878,19 +878,80 @@ execs/sec even under ASAN** with parent RSS flat (~20-45× in-process,
 retention gone because each child reclaims its pages on exit).
 
 So a real campaign wants **fork-after-init** (AFL++ fork mode or
-Centipede); the in-process libFuzzer build stays the CI corpus-replay
-gate and structured-input dev surface.  Concrete next steps: (1) wire
-the harness to AFL++'s `aflpp_driver` with a deferred forkserver
+Centipede); the in-process libFuzzer build is the structured-input dev
+surface.  It is *not* wired into CI yet (unlike `fuzz_nettool` / `fuzz_pak`
+/ `fuzz_command_preauth`): a `-runs=0` replay gate is feasible and would
+lock in the handler fixes below, but it needs more plumbing than the
+others — the `fuzz_command` target added to the "Replay fuzz corpora"
+step, pak64 + base files on disk in that job (the parser-only fuzzers
+need neither), `detect_leaks=0` (per the incomplete per-world teardown
+above, vs the others' `detect_leaks=1`), an absolute `SIMUTRANS_FUZZ_BASE`,
+and a committed seed corpus under `src/fuzz/corpus/command/` (a generator
+hitting each fixed tool + the minimized repros).  Concrete next steps:
+(1) wire the harness to AFL++'s `aflpp_driver` with a deferred forkserver
 (`__AFL_INIT()` after standup — the harness already pins
 `env_t::num_threads=1` so the fork is safe) and re-measure without the
-ASAN fork tax; (2) add a structured input layer (libprotobuf-mutator
-keeps the existing CMake+CI infra; FuzzTest if the in-C++ domain
-ergonomics are worth the build integration) so bytes reach handlers
-instead of bouncing off `create_tool` returning NULL.  Seed corpus:
+ASAN fork tax; (2) deepen the structured input layer.  Tool *selection*
+now folds the fuzz bytes onto the dense valid id space (`fuzz_tool_id`),
+so iterations reach a real handler instead of bouncing off `create_tool`
+returning NULL; the remaining gap is the per-tool payload — `default_param`
+is a raw fuzzed string and `custom_data` is not fuzzed at all, so
+`two_click_tool_t` start-pos / click-pair state and the int-parsed params
+of the change_* tools stay shallow.  A grammar (libprotobuf-mutator keeps
+the existing CMake+CI infra; FuzzTest if the in-C++ domain ergonomics are
+worth the build integration) would model the click-pair sequence and the
+custom_data blob per tool.  Seed corpus:
 the `tests/*.nut` scenario scripts already drive real tool sequences.
 Run with `ASAN_OPTIONS=detect_leaks=0`.  The pre-auth surface
 (`init_tool` / `rdwr_custom_data` with attacker `tool_id` before any
 auth check) is covered by `fuzz_command_preauth` and lives in CI.
+
+Harness fidelity caveats worth keeping in mind when reading its findings.
+`SIMUTRANS_FUZZ_BASE` must be an *absolute* path for `-fork` mode: standup
+does a relative `dr_chdir`, so a re-exec'd child (already inside the data
+dir from the parent's chdir) would chdir to a non-existent nested dir and
+fatal — every fork child then aborts during standup and the run reports
+bogus crashes.  The harness sets `env_t::networkmode = true` *after* each
+`welt->init()` (init calls `network_core_shutdown()` which clears it) to
+model the server `do_command` environment — without it the
+`if(!networkmode)` GUI-window branches a real server never runs (e.g.
+`dialog_enlarge_map_t::init`'s map re-gen) fire and dangle a settings
+window across worlds, which surfaces as a `settings_general_stats_t::read`
+use-after-free that is a harness artifact, not a server bug.  Tools that
+re-enter `karte_t::init`/`load`/`stop`/`switch_server` synchronously
+(`TOOL_QUIT`, `TOOL_WORK_WORLD`, `TOOL_LOAD_SCENARIO`) are skipped — see
+`is_world_lifecycle_tool`.
+
+## Network tool handlers: attacker default_param / pos hardening
+
+With `fuzz_command` now reaching real handlers (`fuzz_tool_id` folds the
+fuzz bytes onto the dense valid id space), it enumerates two classes of
+pre-existing crash in the network-broadcast tool handlers, where the
+single-player invariant (GUI supplies a well-formed `default_param` and an
+on-map `pos`) does not hold for an attacker-controlled `nwc_tool_t`.  The
+NULL-`default_param` derefs found so far are fixed (the `*::init` guards in
+`simtool.cc` and the NULL guards in `way_builder_t::get_desc` /
+`roadsign_t::find_desc` / `hausbauer_t::find_tile`, matching the existing
+bridge/tunnel ones), plus `tool_change_line_t::init`'s terminator over-read
+and `tool_transformer_t::work` / `tool_build_depot_t::get_waytype`'s
+unchecked tile lookups.  Two sub-classes remain, each a per-site missing
+guard rather than one central fix (a `do_command` bounds gate would wrongly
+reject the non-positional tools that legitimately carry `koord3d::invalid`):
+
+*Off-map `pos` → NULL ground deref.*  `welt->lookup_kartenboden(pos)` /
+`welt->lookup(pos)` derefed without an `if(gr)` guard in tool `work()`s;
+~13 of 64 lookup sites in `simtool.cc` already guard, the rest are
+candidates.  Next move: continue the campaign, add `if(!gr) return "";`
+per offending site (the pattern the guarded sites already use).
+
+*`default_param` length-assumption over-reads.*  The build-chain work()s
+(`tool_build_factory_t::work` at `simtool.cc:6296`, and the
+`tool_build_house_t` / `tool_city_chain_t` / `tool_build_land_chain_t`
+siblings) do `default_param+2` / `default_param[1]` guarded only by
+`strempty` (length > 0), so a 1-char param reads past the buffer.  Next
+move: tighten the guard to the format's real minimum length
+(`strlen(default_param) >= 3`, as `tool_load_scenario_t::init` already
+does) at each site.
 
 ## Descriptor-driven allocation OOM in pak readers
 
