@@ -20,5 +20,5 @@ cmake --build build -j "$(nproc)"
 
 exec build/simutrans/simutrans \
 	-set_basedir simutrans \
-	-set_pakdir simutrans/pak128/ \
+	-set_pakdir pak128 \
 	"$@"
