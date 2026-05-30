@@ -8,6 +8,7 @@ __pycache__/
 build
 build-headless
 build-fuzz
+build-bench
 /vcpkg*
 /config.*
 /makeobj/makeobj

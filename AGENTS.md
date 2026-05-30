@@ -518,6 +518,25 @@ module like `tools.nwc_protocol_test.test_auth_player` to run one
 group). The same step in CI also runs under ASAN/UBSAN; sanitizer
 hits on forged packets fail loudly.
 
+`tools/bench_pak.py` is the pakset-loading perf rig.  It builds
+`src/bench/bench_pak.cc` (a plain `main` linked against the full
+simutrans source set, like `fuzz_pak`, in a headless `build-bench/`
+configured with `-DSIMUTRANS_BACKEND=none -DSIMUTRANS_BUILD_BENCH=ON`),
+fetches pak64 / pak128 / pak192.comic into `build-bench/paks/`, and times
+loading each.  The binary drives `load_pak_from_fp` per `.pak` file with
+the same minimal setup fuzz_pak uses (`dbg` + null `gfx` + throwing fatal
+hook), measuring the decode + node-tree build + image-registration phase
+that scales with tile size — not `finish_loading` (xref resolution /
+checksum), which is private and needs a complete pakset.  File bytes are
+slurped in once so the timed loop is parse, not disk.  Each timed
+iteration runs in a forked child: reading a pak populates the readers'
+own static tables (`hausbauer_t`, vehiclebuilder, …) with no clean
+in-process reset, so an in-process reload would walk freed descriptors —
+fork-after-preload gives every iteration pristine tables, with the
+preloaded bytes shared copy-on-write.  Point it at an arbitrary pakset
+with `--dir PATH`; `--json` for machine-readable output.  Not in CI (a
+perf number, not a pass/fail gate).
+
 `src/fuzz/fuzz_nettool.cc` is the libFuzzer harness for the wire
 parser as it is compiled in the standalone `nettool` binary
 (`NETTOOL=1`).  It drives the production `recv()` end to end via a

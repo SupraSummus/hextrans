@@ -431,3 +431,13 @@ if (SIMUTRANS_BUILD_FUZZERS)
 	endif ()
 	add_subdirectory(src/fuzz EXCLUDE_FROM_ALL)
 endif ()
+
+#
+# Perf-test rig for pakset loading (plain executable; requires the
+# headless backend, gcc or clang).  Configure with
+# -DSIMUTRANS_BACKEND=none -DSIMUTRANS_BUILD_BENCH=ON.
+#
+option(SIMUTRANS_BUILD_BENCH "Build the pakset-loading perf-test rig (bench_pak)" OFF)
+if (SIMUTRANS_BUILD_BENCH)
+	add_subdirectory(src/bench EXCLUDE_FROM_ALL)
+endif ()
