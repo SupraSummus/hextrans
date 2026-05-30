@@ -1068,3 +1068,19 @@ where the mirror supports it closes the swap itself. Deferred:
 needs a per-mirror TLS check (sourceforge / github / codeberg do;
 some of the smaller hosts may not) so it can't be a blind
 find-replace.
+
+## Pakset colour-load hot spots
+
+Profiling a colour build with `tools/bench_pak.py` (default sdl2 backend),
+after the image-pixel-read vectorise, two passes still dominate the load.
+`simgraph16_register_image` re-walks every pixel run at load only to set
+`FLAG_HAS_PLAYER_COLOR` / `FLAG_HAS_TRANSPARENT_COLOR` (~25% of load); those
+flags are read at draw, not load, so they could move to a lazy first
+`recode_img` and drop from the load path — next move: relocate the scan and
+confirm no draw path reads the flags before the first recode.
+
+image_reader's per-image `adler32` dedup hash (~27% of load) catches only
+6–20% of images as duplicates on pak64/128/192, so most of it is spent
+hashing uniques.  Next move: prototype a cheap pre-key (len + a few sampled
+bytes) gating the full hash, or an opt-out, and measure hit rate vs cost
+against the memory/image-count it trades.
