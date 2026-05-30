@@ -247,6 +247,13 @@ bool image_reader_t::image_has_valid_data(image_t *image_in) const
 	PIXVAL *src = image_in->data;
 	PIXVAL *end = image_in->data + image_in->len;
 
+	// Detect player-colour markers (0x8000..0x800F) while we already walk the
+	// RLE here, so the renderer's register_image() doesn't re-walk every pixel
+	// at load.  The colored-run scan replaces the bare `src += runlen` skip;
+	// it is clamped to `end` so a corrupt run length can't read past the
+	// buffer (the post-advance `src >= end` check below still rejects it).
+	bool player_colored = false;
+
 	for( int y = 0;  y < image_in->h;  ++y  ) {
 		// decode line
 		uint16 runlen = *src++;
@@ -256,7 +263,13 @@ bool image_reader_t::image_has_valid_data(image_t *image_in) const
 			}
 
 			runlen = *src++ & ~TRANSPARENT_RUN;
-			src += runlen;
+			PIXVAL *run_end = src + runlen;
+			for( const PIXVAL *scan_end = run_end < end ? run_end : end;  src < scan_end;  ++src  ) {
+				if(  *src >= 0x8000  &&  *src < 0x8010  ) {
+					player_colored = true;
+				}
+			}
+			src = run_end;
 
 			if (src >= end) {
 				return false;
@@ -266,5 +279,6 @@ bool image_reader_t::image_has_valid_data(image_t *image_in) const
 		} while(  runlen!=0  ); // end of row: runlen == 0
 	}
 
+	image_in->player_colored = player_colored ? 1 : 0;
 	return src == end;
 }

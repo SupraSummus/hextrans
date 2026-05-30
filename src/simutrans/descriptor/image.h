@@ -39,6 +39,12 @@ public:
 	uint8 zoomable;   ///< some images may not be zoomed i.e. icons
 	PIXVAL *data;     ///< RLE encoded image data
 
+	/// Does data[] use player-colour markers (0x8000..0x800F)?  -1 = unknown,
+	/// 0 = no, 1 = yes.  image_reader_t fills this in while validating the RLE
+	/// so the renderer's register_image() can skip re-scanning every pixel;
+	/// runtime-built images (e.g. ground_desc) leave it -1 and get scanned.
+	sint8 player_colored = -1;
+
 	image_t(size_t len_=0) : data(NULL)
 	{
 		if (len_) {
