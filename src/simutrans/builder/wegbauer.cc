@@ -2272,9 +2272,16 @@ bool way_builder_t::intern_calc_route_runways(koord3d start3d, const koord3d zie
 			return false;
 		}
 		weg = to->get_weg(air_wt);
-		if(  weg  &&  weg->get_desc()->get_styp()==type_runway  &&  (ribi_t::is_threeway(weg->get_ribi_unmasked()|ribi_straight))  &&  (weg->get_ribi_unmasked()|ribi_straight)!=ribi_t::all  ) {
-			// only fourway crossings of runways allowed, no threeways => fail
-			return false;
+		if(  weg  &&  weg->get_desc()->get_styp()==type_runway  ) {
+			// Runways may only join/cross edge-to-edge.  Reject a dangling
+			// end: a direction whose 180°-opposite is unset, i.e. the tile's
+			// combined ribi isn't symmetric under backward().  The square code
+			// tested `== ribi_t::all` (a full 4-way +); a hex crossing fills
+			// 2-3 full axes, never all 6 edges.
+			const ribi_t::ribi combined = weg->get_ribi_unmasked() | ribi_straight;
+			if(  combined != ribi_t::backward(combined)  ) {
+				return false;
+			}
 		}
 		from = to;
 	}

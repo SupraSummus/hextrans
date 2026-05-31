@@ -45,15 +45,28 @@ call sites (`test_building_rotate_harbour`, the "east-west direction"
 block in `test_depot_build_on_bridge_end` and the matching block in
 `test_halt_build_on_bridge_end`, `test_powerline_remove_powerbridge`)
 migrated to `slope.southeast_narrow` / `slope.northwest_narrow`, the hex axis they were
-already projecting onto.  `test_terraform_raise_lower_water_level`
-still uses `2*slope.east`; left untouched because that function is
-already HEX-PORT PENDING and needs a holistic rewrite.  Note the
-literal `2*slope.east` no longer denotes a real terrain slope under
-hex's base-4 encoding — square-era `2 * narrow == double` is gone,
-replaced by named `*_double` constants and the
-`slope_t::narrow_to_double()` helper — so when that test comes back,
-the `2*slope.east` literals migrate to `slope.southeast_double` /
-`slope.northwest_double` (whichever the hex axis intent is).
+already projecting onto.
+
+**Deep-water grid-height clobber in `tool_change_water_height_t`.**
+The hex apply loop ends with `set_grid_hgt_nocheck(kt, c, hn[c])` for
+all six corners, `hn[c] = max(new_water_height, h0[c])`.  Upstream
+square (`origin/simutrans`) never writes the grid array here — it keeps
+`grid_hgts` at the sea floor and tracks the surface only via
+`set_hoehe` / `set_water_hgt_nocheck`, so terrain survives a fill/drain
+cycle.  The hex version raises the shared vertices to the water surface
+once water goes deep, which loses the floor (drain can't restore it)
+and reshapes the dry neighbours that derive slopes from those vertices.
+Observable by digging a 2-deep hex pit, pouring twice, then draining:
+the rim flips double→single on the deep fill and never returns, and the
+floor ends at `-1` not `-2`.  Candidate fix: write the floor `h0[c]`,
+not `hn[c]` (`hn==h0` for shallow/drain, so only deep water changes).
+Blocking a blind fix: whether the flooded tile's own slope is stored
+(`set_grund_hang`) or derived from the grid under the partially-landed
+per-vertex model (see "Per-vertex height storage"), and whether deep
+water still renders flat with the floor left in the grid — not
+verifiable headless.  When fixed, add the deep-water subcase to
+`test_terraform_raise_lower_water_level`: 2-deep pit, assert rim is
+`*_double` shallow / `*_narrow` deep, drain, assert full restore.
 
 **Powerline 3rd hex axis.**  `test_powerline_ways` builds powerlines
 along a diagonal road and across the NE-SW direction.  Under hex there
@@ -61,25 +74,6 @@ are 3 axes and the 3rd (NE-SW) has no powerline crossing sprite or
 connection FSM support (`leitung2.cc` diagonal-image table is keyed on
 4 old-combo values).  Restore after the crossing-cluster / 3rd-axis
 work lands.
-
-**Runway layout.**  `test_way_runway_build_rw_flat / _tw_flat /
-_mixed_flat` bake a 4-direction airport layout (runway + taxiway
-cross at 90°).  The `ai_passenger.cc` airport builder was ported
-to a hex diamond (taxiway crosses on N-S and old-E-W = hex SE-NW,
-with 4 of 6 hex edges used), but the runway/taxiway geometry
-tests assume the square 3x3.  Restore after a proper hex airport
-layout is designed.
-
-**Flood-fill / region walkers.**
-`tool_change_water_height_t` in `simtool.cc` is hex-aware (6-neighbour
-flood, shared-edge corner heights on the *current* tile per
-`vertex_owners`, six-corner apply + `set_grid_hgt_nocheck`).  Scenario
-`test_terraform_raise_lower_water_level` stays commented out: it still
-uses a rectangular `terraform_volcano` scaffold and square-shaped
-flood expectations — restore after a hex-shaped scaffold (a hex ring
-of 6R cells at axial distance R from the centre) replaces the 4-side
-square ring, and the per-subcase coord and flood-pattern assertions
-get rewritten.
 
 **Missing `terraform=` in `command_x.build_way`.**
 `command_x.build_way` in the Squirrel API has no `terraform=` flag,
@@ -505,7 +499,7 @@ into the N-approach hold pattern.  The 16-step `circle_koord` table
 is itself hand-rolled for 4-direction airports — widening the
 switch alone isn't enough; the table needs new step sequences for
 the NE/SW approach geometries.  The AI airport builder lays only
-N-S and SE-NW (see "Runway layout" above), so the path is
+N-S and SE-NW (see "Airport layout" below), so the path is
 reachable from player-built NE/SW runways and pre-port savegames,
 not from AI gameplay.  Lands together with a hex-aware hold-pattern
 geometry — likely 6-direction symmetric circles rather than 4.
@@ -810,11 +804,11 @@ a half-built case until this FSM is ported too — visible as
 unpredictable collisions when both axes go green-yellow on a
 real Y.
 
-*Airport layout.*  Tracked separately under `Runway layout` in
-the test section above — `ai_passenger.cc:499` builds a hex
-diamond using 4 of 6 hex edges, which compiles and produces
-something playable but is not a real hex airport.  Lands together
-with the other items here when crossroads design lands.
+*Airport layout.*  `ai_passenger.cc:499` builds a hex diamond
+using 4 of 6 hex edges (taxiway crosses on N-S and old-E-W = hex
+SE-NW), which compiles and produces something playable but is not
+a real hex airport.  Lands together with the other items here when
+crossroads design lands.
 
 ## Pak reader child-count expectations are implicit
 
