@@ -240,6 +240,9 @@ bool way_builder_t::waytype_available( const waytype_t wtyp, uint16 time )
 const way_desc_t *way_builder_t::get_desc(const char * way_name, const uint16 time)
 {
 //DBG_MESSAGE("way_builder_t::get_desc","return desc for %s in (%i)",way_name, time/12);
+	if(  way_name == NULL  ) {
+		return NULL;
+	}
 	const way_desc_t *desc = desc_table.get(way_name);
 	if(  desc  &&  desc->is_available(time)  ) {
 		return desc;

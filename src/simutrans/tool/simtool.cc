@@ -7813,6 +7813,10 @@ bool tool_change_convoi_t::init( player_t *player )
 	char tool=0;
 	uint16 convoi_id = 0;
 
+	if(  default_param == NULL  ) {
+		return false;
+	}
+
 	// skip the rest of the command
 	const char *p = default_param;
 	while(  *p  &&  *p<=' '  ) {
@@ -7971,6 +7975,10 @@ bool tool_change_convoi_t::init( player_t *player )
 bool tool_change_line_t::init( player_t *player )
 {
 	uint16 line_id = 0;
+
+	if(  default_param == NULL  ) {
+		return false;
+	}
 
 	// skip the rest of the command
 	const char *p = default_param;
@@ -8210,6 +8218,10 @@ bool tool_change_depot_t::init( player_t *player )
 	koord pos2d;
 	sint8 z;
 	uint16 convoi_id;
+
+	if(  default_param == NULL  ) {
+		return false;
+	}
 
 	// skip the rest of the command
 	const char *p = default_param;
@@ -8497,6 +8509,9 @@ bool tool_change_traffic_light_t::init( player_t *player )
 	koord pos2d;
 	sint8 z;
 	uint16 ns, ticks;
+	if(  default_param == NULL  ) {
+		return false;
+	}
 	if(  5!=sscanf( default_param, "%hi,%hi,%hhi,%hu,%hu", &pos2d.x, &pos2d.y, &z, &ns, &ticks )  ) {
 		return false;
 	}
@@ -8557,6 +8572,9 @@ bool tool_change_city_t::init( player_t *player )
 	}
 	koord k;
 	sint16 allow_growth;
+	if(  default_param == NULL  ) {
+		return false;
+	}
 	if(  3!=sscanf( default_param, "g%hi,%hi,%hi", &k.x, &k.y, &allow_growth )  ) {
 		return false;
 	}
@@ -8591,6 +8609,9 @@ bool tool_rename_t::init(player_t *player)
 
 	// skip the rest of the command
 	const char *p = default_param;
+	if(  p == NULL  ) {
+		return false;
+	}
 	const char what = *p++;
 	switch(  what  ) {
 		case 'h':
@@ -8712,6 +8733,9 @@ bool tool_rename_t::init(player_t *player)
 bool tool_change_permission_t::init(player_t *player)
 {
 	uint16 id = 0, perms = 0;
+	if(  default_param == NULL  ) {
+		return false;
+	}
 	const char *p = default_param;
 
 	id = atoi(p);
@@ -8728,6 +8752,9 @@ bool tool_change_permission_t::init(player_t *player)
 
 bool tool_recolour_t::init(player_t *)
 {
+	if(  default_param == NULL  ) {
+		return false;
+	}
 	// skip the rest of the command
 	const char *p = default_param;
 	const char what = *p++;
