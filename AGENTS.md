@@ -521,6 +521,37 @@ module like `tools.nwc_protocol_test.test_auth_player` to run one
 group). The same step in CI also runs under ASAN/UBSAN; sanitizer
 hits on forged packets fail loudly.
 
+`tools/bench_pak.py` is the pakset-loading perf rig.  It builds
+`src/bench/bench_pak.cc` (a plain `main` linked against the full
+simutrans source set, like `fuzz_pak`, in `build-bench/`) and times
+`load_pak_from_fp` per `.pak` file over pak64 / pak128 / pak192.comic
+(fetched into `build-bench/paks/`).  It measures the decode + pixel-decode
++ image-registration phase — not `finish_loading` (xref resolution /
+checksum), which is private and needs a complete pakset.  File bytes are
+slurped in once so the timed loop is parse, not disk.  Each timed
+iteration runs in a forked child: reading a pak populates the readers'
+own static tables (`hausbauer_t`, vehiclebuilder, …) with no clean
+in-process reset, so an in-process reload would walk freed descriptors —
+fork-after-preload gives every iteration pristine tables, with the
+preloaded bytes shared copy-on-write.  Point it at an arbitrary pakset
+with `--dir PATH`; `--json` for machine-readable output.  Not in CI (a
+perf number, not a pass/fail gate).
+
+Representative-config note: by default it configures
+`-DSIMUTRANS_BACKEND=sdl2` (`COLOUR_DEPTH=16`), which is the load a
+consumer machine actually does — the per-pixel `decode_uint16` loop in
+`image_reader.cc` (gated on `COLOUR_DEPTH != 0`) plus
+`simgraph16_register_image`'s player-colour scan dominate, and a
+`COLOUR_DEPTH=0` headless build skips all of it (`goto adjust_image`),
+under-measuring the real load ~6×.  The bench runs headless (no display):
+the bench CMakeLists swaps the SDL windowing sources (`simsys_s2`,
+`clipboard_s2`, `sdl2_sound`) out of the inherited list for the headless
+ones, since `simgraph16`'s `register_image` only populates software image
+tables — no framebuffer needed.  `simsys_posix.cc` carries a
+`SIMSYS_POSIX_ALLOW_COLOUR_DEPTH` opt-in for exactly this combination (it
+never draws).  `--backend none` gives the pure decode+decompress number
+with no pixel work.
+
 `src/fuzz/fuzz_nettool.cc` is the libFuzzer harness for the wire
 parser as it is compiled in the standalone `nettool` binary
 (`NETTOOL=1`).  It drives the production `recv()` end to end via a

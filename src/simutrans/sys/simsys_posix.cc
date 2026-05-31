@@ -24,7 +24,12 @@
 
 static bool sigterm_received = false;
 
-#if COLOUR_DEPTH != 0
+#if COLOUR_DEPTH != 0  &&  !defined(SIMSYS_POSIX_ALLOW_COLOUR_DEPTH)
+// The headless posix backend has no framebuffer (dr_textur_init returns
+// NULL), so a graphical build that actually draws must not use it.  The
+// pakset-loading bench (src/bench) is the one exception: it drives the
+// COLOUR_DEPTH=16 simgraph16 image path to measure a representative
+// consumer load but never draws, so it opts in via the macro above.
 #error "Posix only compiles with color depth=0"
 #endif
 
@@ -56,8 +61,9 @@ resolution dr_query_screen_resolution()
 }
 
 // open the window
-int dr_os_open(int, int, sint16)
+int dr_os_open(scr_size, sint16)
 {
+	// no display; report a nonzero width so callers treat init as ok
 	return 1;
 }
 

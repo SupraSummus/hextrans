@@ -8,6 +8,7 @@
 
 
 #include <stdio.h>
+#include <string.h>
 
 #include "../obj_node_info.h"
 #include "../objversion.h"
@@ -153,7 +154,7 @@ public:
 	}
 
 	/// Bounds-checked: returns the cursor, then advances @p n bytes (tail reads).
-	char* read_bytes(size_t n)
+	inline char* read_bytes(size_t n)
 	{
 		if (ptr + n <= end) {
 			char* p = (char *)ptr;
@@ -164,18 +165,18 @@ public:
 		return 0;
 	}
 
-	void read_uint16_block(uint16 *dest, size_t n)
+	inline void read_uint16_block(uint16* dest, size_t count)
 	{
-		uint8* cpy_end = ptr + 2 * n;
-		if (cpy_end <= end) {
-			while (ptr < cpy_end) {
-				uint16 v = *ptr++;
-				v |= (uint16)*ptr++ << 8;
-				*dest++ = v;
-			}
-			return;
+		const uint8* src = (const uint8*)read_bytes(count * 2);
+#ifdef SIM_BIG_ENDIAN
+		// File format is little-endian; byte-swap each value into place.
+		for (size_t i = 0; i < count; i++) {
+			dest[i] = (uint16)(src[2 * i] | (src[2 * i + 1] << 8));
 		}
-		complain(2*n);
+#else
+		// Little-endian host: the block is already in target byte order.
+		memcpy(dest, src, count * 2);
+#endif
 	}
 
 	inline uint8 read_uint8()
