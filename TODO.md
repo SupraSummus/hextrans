@@ -768,6 +768,58 @@ all 6 directions in `iter_building_cells` /
 swap.  Soft trigger — only matters once residual misalignment is
 the visible artefact in-engine.
 
+## City growth anisotropy
+
+City footprints come out elongated rather than round.
+`tools/city_anisotropy.py` measures it: `--run` generates a flat empty
+map (via the `-flatmap` headless hook), grid-seeds cities, grows each,
+and dumps their building tiles; it maps the axial `(q, r)` through the
+flat-top basis and reports the gyration tensor in both the axial and
+physical frame plus the m=2/m=4/m=6 angular modes.  Reporting both
+frames is the point — physical elongation with a round axial blob means
+the basis shear, physical elongation with an elongated axial blob means
+the growth algorithm itself biases a direction.  The tool's
+`--self-test` validates the math (an axial-isotropic disk reads as
+physical aspect sqrt3 at bearing 60 deg).
+
+Baseline on a flat 192x192, cities spaced 40 apart so footprints stay
+clear of each other (25 cities, ~100 tiles each): physical aspect mean
+1.68, axial aspect mean 1.38, bearing-alignment R = 0.86, mean bearing
+53 deg.  So the elongation is systematic (R near 1, a consistent
+physical direction near the predicted 60 deg), and BOTH sources
+contribute: physical 1.68 > axial 1.38 says the basis shear is the
+larger share, but axial 1.38 > 1 means the algorithm also biases an
+axial direction.  The aspect number is only honest at spacing that
+keeps neighbours from colliding — pack them tighter and competition for
+ground inflates it (spacing 30 reads ~2.3).  Re-run after each fix
+below to attribute the change.
+
+Four engine sites inject the bias, in rough priority order.  The rule
+matcher checks each city rule in only 4 orientations
+(`stadt_t::bewerte_pos` / `bewerte_loc` in `world/simcity.cc`, the
+inline 90/180/270 x/y-swap), but flat-top hex has 6-fold symmetry, so
+two of the six neighbour directions are never tested — the same square
+rotation that `koord::rotate90` already `dbg->fatal`s on, slipping
+through because `bewerte_loc` rotates inline.  Building orientation
+drops two directions too: `layout_to_ribi[layout & 3]` is 4-way and
+the NE/SW comment at `simcity.cc:2596` confirms they are unwired.
+`build()` draws candidate tiles from a square axial AABB
+(`lo`/`ur`), which is a sheared 60-deg rhombus in physical space.  And
+the `cityrules.tab` patterns themselves encode square adjacency over a
+7x7 window.  Next move: widen `bewerte_pos` to the 6 hex rotations
+first (largest share of the *axial* bias, unambiguous engine fix) and
+re-measure the axial aspect; then wire NE/SW through the townhall/
+building layout.  The basis-shear share is not a bug to fix in the
+growth code — it is the algorithm treating axial space as Euclidean
+(square AABB, Manhattan-ish reasoning); the durable fix is to make the
+candidate sampling and distance use the physical metric.
+
+The flat map the baseline needs is produced by the `-flatmap N` test
+hook in `simmain.cc`'s default-map path (size N, no mountains/rivers/
+cities); it only fires under the headless none-backend build and saves
+on `-until` quit like any new world.  `tools/city_anisotropy.py`
+generates and caches it automatically.
+
 ## Building / crossing cluster
 
 Buildings and intersections that bake the square 4-axis crossroads
