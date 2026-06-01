@@ -820,9 +820,11 @@ in-map city shows it.
 
 The flat map the baseline needs is produced by the `-flatmap N` test
 hook in `simmain.cc`'s default-map path (size N, no mountains/rivers/
-cities); it only fires under the headless none-backend build and saves
-on `-until` quit like any new world.  `tools/city_anisotropy.py`
-generates and caches it automatically.
+cities); it only fires under the headless none-backend build.  An empty
+flat map needs no simulation, so the hook saves it directly and sets
+`quit_simutrans` rather than running the loop to `-until` (which crawled
+the quit month in NORMAL mode and hung in teardown).
+`tools/city_anisotropy.py` generates and caches it automatically.
 
 ## Building / crossing cluster
 

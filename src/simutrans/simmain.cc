@@ -1561,9 +1561,15 @@ int simu_main(int argc, char** argv)
 		sets.set_traffic_level(7);
 		// Test hook: -flatmap N generates an empty, perfectly flat NxN
 		// map (no mountains, rivers, cities or industry) for measurement
-		// harnesses such as tools/city_anisotropy.py.  The generated
-		// world saves on -until quit like any other new world.
+		// harnesses such as tools/city_anisotropy.py.  An empty flat map
+		// needs no simulation, so we save it directly below and quit
+		// rather than running the interactive loop to -until: that crawls
+		// through the quit month in NORMAL mode (set_fast_forward does not
+		// stick across set_pause here) and the headless quit path then
+		// hangs in teardown.
+		bool is_flatmap = false;
 		if(  const char *fm = args.gimme_arg("-flatmap", 1)  ) {
+			is_flatmap = true;
 			sint32 n = atoi(fm);
 			if(  n < 8  ) { n = 64; }
 			sets.set_size(n, n);
@@ -1588,6 +1594,17 @@ int simu_main(int argc, char** argv)
 		welt->step();
 
 		env_t::autosave = old_autosave;
+
+		if(  is_flatmap  ) {
+			// save under the name the reload-on-quit path reads on next start
+			std::string pak_save( "autosave-" );
+			pak_save.append( env_t::pak_name );
+			pak_save.erase( pak_save.length()-1 );
+			pak_save.append( ".sve" );
+			dr_chdir( env_t::user_dir );
+			welt->save( pak_save.c_str(), true, SAVEGAME_VER_NR, false );
+			env_t::quit_simutrans = true;  // skip the interactive loop below
+		}
 	}
 	else {
 		// override freeplay setting when provided on command line
