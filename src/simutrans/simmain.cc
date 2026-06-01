@@ -383,6 +383,7 @@ void print_help()
 		" -freeplay           play with endless money\n"
 		" -fullscreen         starts simutrans in fullscreen mode\n"
 		" -fps COUNT          framerate (from 5 to 100)\n"
+		" -fast               run flat out: fast-forward with no inter-tick delay\n"
 		" -h | -help | --help displays this help\n"
 		" -lang CODE          starts with specified language\n"
 		" -load NAME          loads savegame with name 'NAME' from Simutrans 'save' directory\n"
@@ -1719,6 +1720,14 @@ int simu_main(int argc, char** argv)
 		if(  !env_t::networkmode  &&  !env_t::server  ) {
 			welt->set_pause( pause_after_load );
 			pause_after_load = false;
+
+			// -fast: run flat out. set_fast_forward still throttles toward
+			// max_acceleration, so uncap it too; then idle_time falls to 0
+			// and steps run back-to-back. The test harness passes this.
+			if(  args.has_arg("-fast")  ) {
+				env_t::max_acceleration = 0x7FFF;
+				welt->set_fast_forward( true );
+			}
 		}
 
 		dbg->message("simu_main()", "Running world, pause=%i, fast forward=%i ... ", welt->is_paused(), welt->is_fast_forward() );
