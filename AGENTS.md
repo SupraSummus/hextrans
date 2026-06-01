@@ -504,6 +504,22 @@ already did, so warm runs are dominated by sim startup. Pass substring
 filters to narrow the run: `tools/test.py halt` runs only tests whose
 name contains "halt". This is the cmake-Debug fast loop.
 
+The harness launches the engine with `-fast` (fast-forward + uncapped
+`max_acceleration`, so `idle_time` collapses to 0 and sim steps run
+back-to-back instead of at the ~5 steps/s NORMAL throttle of
+`3200/time_multiplier` in `karte_t::step`). `run-automated-tests.sh`
+defaults this on; `SIM_FAST= tools/test.py …` opts back into the
+throttle for comparison. Most tests run synchronously inside the
+scenario's `start()` and never wait on game time, but the
+`sleep()`-bound convoy tests in `test_transport` / `test_way_road`
+cost ~65s under the throttle, and `-fast` drops the full suite from
+~75s to ~3.5s. Fast-forward is the *more* reproducible mode for these:
+the loop advances game time in fixed 100ms quanta (`sync_step(100)` in
+`karte_t::interactive`), whereas NORMAL derives `delta_t` from
+wall-clock × `time_multiplier` (`interrupt_check` in `simintr.cc`), so
+the tick sequence the tests observe is machine-speed-independent under
+`-fast`. Assertions are unchanged; only timing moves.
+
 CI (`.github/workflows/run-tests.yml`) runs the same scenario suite
 under clang+ASAN+UBSAN on every push, so any hex regression surfaces
 there. The local fast loop trades sanitizer coverage for speed; reach
