@@ -782,37 +782,41 @@ the growth algorithm itself biases a direction.  The tool's
 `--self-test` validates the math (an axial-isotropic disk reads as
 physical aspect sqrt3 at bearing 60 deg).
 
-Baseline on a flat 192x192, cities spaced 40 apart so footprints stay
-clear of each other (25 cities, ~100 tiles each): physical aspect mean
-1.68, axial aspect mean 1.38, bearing-alignment R = 0.86, mean bearing
-53 deg.  So the elongation is systematic (R near 1, a consistent
-physical direction near the predicted 60 deg), and BOTH sources
-contribute: physical 1.68 > axial 1.38 says the basis shear is the
-larger share, but axial 1.38 > 1 means the algorithm also biases an
-axial direction.  The aspect number is only honest at spacing that
-keeps neighbours from colliding — pack them tighter and competition for
-ground inflates it (spacing 30 reads ~2.3).  Re-run after each fix
-below to attribute the change.
+Measured on a flat 192x192, cities spaced 40 apart so footprints stay
+clear of each other (25 cities, ~100 tiles each).  Pre-fix baseline:
+physical aspect mean 1.68, axial 1.38, bearing-alignment R = 0.86, mean
+bearing 53 deg — systematic elongation along the predicted 60 deg.  Two
+fixes have landed.  Widening `bewerte_pos`/`bewerte_loc` from 4 square
+rotations to the 6 hex rotations took axial 1.38 -> 1.35 (small; the
+rule rotation was a minor axial-bias share).  Making `build()`'s
+candidate-start sampling physical-metric — confine the rule-search
+start to the physical disk inscribed in the `[lo,ur]` box-rhombus,
+radius^2 = 3*min(dx,dy)^2/16, using `koord.h`'s `physical_distance_sq`
+(Euclidean, distinct from the hex-step `koord_distance`) — took physical
+aspect 1.67 -> 1.16 and dropped R 0.89 -> 0.44, i.e. the residual
+elongation is now random-direction rather than systematic.  Axial aspect
+rose to 1.67 as intended: the footprint is now axial-elongated along the
+physically-short axis to cancel the basis shear, so it comes out round in
+physical space.  Side effect: confining growth to the disk packs cities
+a little denser (~100 footprint tiles per city now vs ~130), since the
+rhombus-tip tiles no longer get built; acceptable, and revisit only if a
+pakset shows it as visibly cramped.  The
+aspect number is only honest at spacing that keeps neighbours from
+colliding — pack them tighter and competition for ground inflates it
+(spacing 30 reads ~2.3).  Re-run after each fix to attribute the change.
 
-Four engine sites inject the bias, in rough priority order.  The rule
-matcher checks each city rule in only 4 orientations
-(`stadt_t::bewerte_pos` / `bewerte_loc` in `world/simcity.cc`, the
-inline 90/180/270 x/y-swap), but flat-top hex has 6-fold symmetry, so
-two of the six neighbour directions are never tested — the same square
-rotation that `koord::rotate90` already `dbg->fatal`s on, slipping
-through because `bewerte_loc` rotates inline.  Building orientation
-drops two directions too: `layout_to_ribi[layout & 3]` is 4-way and
-the NE/SW comment at `simcity.cc:2596` confirms they are unwired.
-`build()` draws candidate tiles from a square axial AABB
-(`lo`/`ur`), which is a sheared 60-deg rhombus in physical space.  And
-the `cityrules.tab` patterns themselves encode square adjacency over a
-7x7 window.  Next move: widen `bewerte_pos` to the 6 hex rotations
-first (largest share of the *axial* bias, unambiguous engine fix) and
-re-measure the axial aspect; then wire NE/SW through the townhall/
-building layout.  The basis-shear share is not a bug to fix in the
-growth code — it is the algorithm treating axial space as Euclidean
-(square AABB, Manhattan-ish reasoning); the durable fix is to make the
-candidate sampling and distance use the physical metric.
+Remaining sources, lower priority now that the footprint is ~round.
+Building/townhall orientation still drops two directions:
+`layout_to_ribi[layout & 3]` is 4-way and the NE/SW comment at
+`simcity.cc:2596` confirms they are unwired — next move is wiring NE/SW
+through the townhall placement + a 3rd building-layout axis (needs
+pakset building images, same blocker as the depot 3rd-axis entry).
+The `cityrules.tab` patterns also encode square adjacency over a 7x7
+window; rewriting them for hex neighbour topology is the deeper rule-
+data fix, do it only if a residual directional bias re-appears after
+the layout wiring.  One outlier remains in the measurement: map-edge
+cities read aspect ~2 (border clips the disk); ignore unless an
+in-map city shows it.
 
 The flat map the baseline needs is produced by the `-flatmap N` test
 hook in `simmain.cc`'s default-map path (size N, no mountains/rivers/

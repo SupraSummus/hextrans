@@ -372,14 +372,31 @@ def _ensure_flat_map(size):
     gen.mkdir(parents=True)
     (gen / "simuconf.tab").write_text("frames_per_second=100\nfast_forward_frames_per_second=100\nautosave=0\n")
     print("generating flat %dx%d map ..." % (size, size))
-    subprocess.run(
+    # -until triggers the autosave but the headless process does not reliably
+    # quit afterwards, so poll for the (atomically renamed) .sve and kill the
+    # process once it lands rather than waiting on self-exit.
+    saved = gen / "autosave-pak.sve"
+    proc = subprocess.Popen(
         ["../build-headless/simutrans/simutrans", "-use_workdir",
          "-set_userdir", str(gen), "-objects", "pak", "-lang", "en",
          "-debug", "1", "-flatmap", str(size), "-until", "1930.7"],
-        cwd=ROOT / "simutrans", timeout=1200,
+        cwd=ROOT / "simutrans",
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    saved = gen / "autosave-pak.sve"
-    if not saved.exists():
+    deadline = time.time() + 1200
+    try:
+        while True:
+            if saved.exists() and saved.stat().st_size > 0:
+                break
+            if proc.poll() is not None or time.time() > deadline:
+                break
+            time.sleep(2)
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    if not (saved.exists() and saved.stat().st_size > 0):
         raise SystemExit("flat-map generation produced no save")
     shutil.copyfile(saved, out)
     return out

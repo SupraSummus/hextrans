@@ -245,6 +245,21 @@ static inline uint32 shortest_distance(const koord &a, const koord &b)
 	return koord_distance(a, b);
 }
 
+// Squared *physical* (Euclidean) distance between two axial coords, as
+// integer so the sim stays cross-platform deterministic.  Distinct from
+// koord_distance above: that counts hex steps (a hexagonal "circle"),
+// this is the round circle in screen space after the flat-top basis
+// e_q=(sqrt3/2,1/2), e_r=(0,1).  |q*e_q + r*e_r|^2 expands to the integer
+// form below.  Use it wherever "how round in physical space" is the
+// question (city-footprint shaping, real-distance gameplay metrics) and
+// koord_distance's hexagonal balls would skew the answer.
+static inline uint32 physical_distance_sq(const koord &a, const koord &b)
+{
+	const sint32 dq = a.x - b.x;
+	const sint32 dr = a.y - b.y;
+	return (uint32)(dq * dq + dq * dr + dr * dr);
+}
+
 // multiply the value by the distance weight
 static inline uint32 weight_by_distance(const sint32 value, const uint32 distance)
 {
