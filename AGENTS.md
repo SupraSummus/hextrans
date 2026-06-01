@@ -512,6 +512,15 @@ when reproducing a sanitizer-class CI failure. Real-game GUI play is
 still not testable in this env; flag assumptions that depend on a
 human at the keyboard.
 
+`tools/city_anisotropy.py` measures how non-round city footprints come
+out under the hex grid (see `TODO.md` → "City growth anisotropy").  It
+maps grown-city tiles through the flat-top basis and reports the
+gyration tensor in both the axial and physical frame, separating the
+basis shear from genuine algorithmic bias.  `--run` generates a flat
+map via the `-flatmap N` hook in `simmain.cc` (a gated test flag in the
+default-map path; needs the headless none-backend build) and grows
+cities on it; `--self-test` validates the math with no engine.
+
 `tools/nwc_protocol_test/` is the multiplayer wire-protocol suite —
 black-box tests that spawn a headless server, send one hand-rolled
 NWC_* packet, and assert on the parsed reply. Plain `unittest`,

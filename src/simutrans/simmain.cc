@@ -1558,6 +1558,20 @@ int simu_main(int argc, char** argv)
 		sets.set_factory_count(3);
 		sets.set_tourist_attractions(1);
 		sets.set_traffic_level(7);
+		// Test hook: -flatmap N generates an empty, perfectly flat NxN
+		// map (no mountains, rivers, cities or industry) for measurement
+		// harnesses such as tools/city_anisotropy.py.  The generated
+		// world saves on -until quit like any other new world.
+		if(  const char *fm = args.gimme_arg("-flatmap", 1)  ) {
+			sint32 n = atoi(fm);
+			if(  n < 8  ) { n = 64; }
+			sets.set_size(n, n);
+			sets.set_city_count(0);
+			sets.set_factory_count(0);
+			sets.set_tourist_attractions(0);
+			sets.set_max_mountain_height(0.0);
+			sets.set_river_number(0);
+		}
 		welt->init(&sets,0);
 
 		//  start in June ...
