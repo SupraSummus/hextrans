@@ -25,6 +25,9 @@ Usage:
     tools/city_anisotropy.py --run               # generate flat map, measure
     tools/city_anisotropy.py --run --single      # one city instead of a grid
     tools/city_anisotropy.py --run --map M.sve   # measure on an existing map
+    tools/city_anisotropy.py --series            # m=2 vs footprint size, to
+                                                 # split founding-skeleton bias
+                                                 # from intrinsic street texture
 
 A coord dump is whitespace-separated "q r" pairs, one per line; lines
 that do not parse as two integers are ignored, so the raw scenario
@@ -292,7 +295,7 @@ function get_info_text(pl)   {{ return "probe" }}
 function get_result_text(pl) {{ return "probe" }}
 function is_tool_allowed(pl, tool_id, wt, name) {{ return true }}
 
-WAIT <- 10
+WAIT <- {wait}
 tick <- 0
 gx <- 0
 sz <- null
@@ -416,19 +419,23 @@ def _seed_grid(map_size, spacing=16, margin=8):
     return seeds
 
 
-def _write_scenario(map_sve, seeds, pop):
+def _write_scenario(map_sve, seeds, pop, wait=10):
     scen = HOME / "simutrans" / "addons" / "pak" / "scenario" / _SCENARIO_NAME
     scen.mkdir(parents=True, exist_ok=True)
     # Per seed: found a city (public player), then grow it by the citizen
     # delta (human player — public-player change_size does not grow).  Literal
     # coords, not a city_list_x()/get_pos() loop, which did not drive growth.
-    seed_src = "\n".join(
-        ('\tcommand_x(tool_add_city).work(player_x(1), coord3d(%d, %d, 0), "0")\n'
-         '\tcommand_x(tool_change_city_size).work(player_x(0), coord3d(%d, %d, 0), "%d")'
-         % (x, y, x, y, pop))
-        for x, y in seeds)
+    # A seed may be (x, y) -- grow by the shared `pop` delta -- or (x, y, p)
+    # to grow that city by its own delta (the --series size spread).
+    def one(seed):
+        x, y = seed[0], seed[1]
+        p = seed[2] if len(seed) > 2 else pop
+        return ('\tcommand_x(tool_add_city).work(player_x(1), coord3d(%d, %d, 0), "0")\n'
+                '\tcommand_x(tool_change_city_size).work(player_x(0), coord3d(%d, %d, 0), "%d")'
+                % (x, y, x, y, p))
+    seed_src = "\n".join(one(s) for s in seeds)
     (scen / "scenario.nut").write_text(
-        _SCENARIO_TMPL.format(seeds=seed_src, begin=_BEGIN, end=_END))
+        _SCENARIO_TMPL.format(seeds=seed_src, begin=_BEGIN, end=_END, wait=wait))
     shutil.copyfile(map_sve, scen / "map.sve")
     return scen
 
@@ -504,35 +511,40 @@ def _circular_spread(bearings_deg, period=180.0):
     return mean, R
 
 
-def cmd_run(argv):
-    def opt(name, default):
-        return argv[argv.index(name) + 1] if name in argv else default
+def _opt(argv, name, default):
+    return argv[argv.index(name) + 1] if name in argv else default
 
-    pop = int(opt("--pop", "7000"))
-    timeout = int(opt("--timeout", "900"))
-    min_tiles = int(opt("--min-tiles", "25"))
-    map_size = int(opt("--map-size", "160"))
+
+def _drive(map_sve, seeds, pop, wait, timeout):
+    """Write the probe scenario, run the sim, and return the parsed cities."""
+    _write_scenario(map_sve, seeds, pop, wait)
+    out = _run_scenario(timeout)
+    for ln in out.splitlines():
+        if "ANISO_ERROR" in ln:
+            raise SystemExit(ln.strip())
+    return _parse_multi_dump(out)
+
+
+def cmd_run(argv):
+    pop = int(_opt(argv, "--pop", "7000"))
+    timeout = int(_opt(argv, "--timeout", "900"))
+    min_tiles = int(_opt(argv, "--min-tiles", "25"))
+    map_size = int(_opt(argv, "--map-size", "160"))
     # spacing must keep neighbours clear of each other: at pop 7000 a city
     # spans ~110 tiles (radius ~7), and < ~40 lets footprints collide, which
     # inflates the aspect and is no longer measuring the growth rule alone.
-    spacing = int(opt("--spacing", "40"))
+    spacing = int(_opt(argv, "--spacing", "40"))
 
     _ensure_harness()
     # default: generate a flat empty map of the requested size and grid-seed it
-    map_sve = Path(opt("--map", "")) if "--map" in argv else _ensure_flat_map(map_size)
+    map_sve = Path(_opt(argv, "--map", "")) if "--map" in argv else _ensure_flat_map(map_size)
     if "--single" in argv:
         seeds = [(map_size // 2, map_size // 2)]
     else:
         seeds = _seed_grid(map_size, spacing)
-    _write_scenario(map_sve, seeds, pop)
     print("running probe: map=%s  seeds=%d  growth delta=%d citizens/city"
           % (map_sve.name, len(seeds), pop))
-    out = _run_scenario(timeout)
-    if "ANISO_ERROR" in out:
-        for ln in out.splitlines():
-            if "ANISO_ERROR" in ln:
-                raise SystemExit(ln.strip())
-    cities = _parse_multi_dump(out)
+    cities = _drive(map_sve, seeds, pop, 10, timeout)
 
     rows = []
     for (cq, cr), info in sorted(cities.items()):
@@ -571,6 +583,85 @@ def cmd_run(argv):
     return 0
 
 
+def cmd_series(argv):
+    """Grow cities to a spread of target sizes, then correlate the m=2 / R
+    residual against measured footprint size.
+
+    Discriminator for the leftover anisotropy (see TODO "City growth
+    anisotropy"): if m=2 DECAYS as cities get larger, the bias lives in the
+    fixed founding skeleton (townhall + initial road cross on axial axes),
+    whose relative weight shrinks as the city grows around it.  If m=2 holds
+    flat at a nonzero floor, it is intrinsic street-grid texture -- the
+    correct reading for a city, not a defect to drive to zero."""
+    pops = [int(p) for p in _opt(argv, "--pops", "750,1500,3000,6000,12000").split(",")]
+    timeout = int(_opt(argv, "--timeout", "1800"))
+    min_tiles = int(_opt(argv, "--min-tiles", "20"))
+    map_size = int(_opt(argv, "--map-size", "192"))
+    spacing = int(_opt(argv, "--spacing", "40"))
+    # bigger deltas need more growth steps to materialise; wait generously so
+    # every cohort reaches a settled footprint before the sweep.
+    wait = int(_opt(argv, "--wait", "60"))
+    nbins = int(_opt(argv, "--bins", "5"))
+
+    _ensure_harness()
+    map_sve = Path(_opt(argv, "--map", "")) if "--map" in argv else _ensure_flat_map(map_size)
+    base = _seed_grid(map_size, spacing)
+    # interleave the target sizes across the grid so no cohort clusters in one
+    # region (which would confound size with map-edge clipping).
+    seeds = [(x, y, pops[i % len(pops)]) for i, (x, y) in enumerate(base)]
+    print("running series: map=%s  seeds=%d  size cohorts=%s citizens"
+          % (map_sve.name, len(seeds), pops))
+    cities = _drive(map_sve, seeds, pops[0], wait, timeout)
+
+    pts = []  # (n_tiles, m2, aspect, bearing)
+    for (cq, cr), info in cities.items():
+        tiles = info["tiles"]
+        if len(tiles) < min_tiles:
+            continue
+        res = analyze(tiles, center_qr=info["th"])
+        pts.append((len(tiles), res["modes"][2]["amp"],
+                    res["physical"]["aspect"], res["physical"]["bearing_deg"]))
+    pts.sort()
+    if len(pts) < nbins:
+        raise SystemExit("only %d cities measured; need >= %d for binning"
+                         % (len(pts), nbins))
+
+    print("\nmeasured %d cities; m=2 / aspect / R binned by footprint size:\n"
+          % len(pts))
+    print("  size bin (tiles)    n   mean_tiles   m=2     aspect    R")
+    # equal-count quantile bins
+    for b in range(nbins):
+        lo_i = b * len(pts) // nbins
+        hi_i = (b + 1) * len(pts) // nbins
+        chunk = pts[lo_i:hi_i]
+        if not chunk:
+            continue
+        ns = [c[0] for c in chunk]
+        m2s = [c[1] for c in chunk]
+        asp = [c[2] for c in chunk]
+        _, R = _circular_spread([c[3] for c in chunk])
+        print("  %4d - %4d        %3d   %8.0f   %.3f   %6.2f   %.3f"
+              % (ns[0], ns[-1], len(chunk), sum(ns) / len(chunk),
+                 sum(m2s) / len(chunk), sum(asp) / len(chunk), R))
+
+    # Pearson correlation of m=2 vs size across all cities.
+    n = len(pts)
+    xs = [c[0] for c in pts]
+    ys = [c[1] for c in pts]
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    sxx = sum((x - mx) ** 2 for x in xs)
+    syy = sum((y - my) ** 2 for y in ys)
+    r = sxy / math.sqrt(sxx * syy) if sxx > 0 and syy > 0 else 0.0
+    print("\n  Pearson r(size, m=2) = %+.3f" % r)
+    print("\ninterpretation:")
+    print("  * m=2 falls with size (r << 0)  -> founding-skeleton bias,")
+    print("    reducible via the NE/SW townhall + 3rd-layout wiring (pakset-gated)")
+    print("  * m=2 flat with size (r ~ 0)     -> intrinsic street texture,")
+    print("    the correct reading for a city; not a defect to remove")
+    return 0
+
+
 def main(argv):
     if "--self-test" in argv:
         return _self_test()
@@ -580,6 +671,8 @@ def main(argv):
             coords = parse_coord_dump(f.read())
         print(format_report(analyze(coords)))
         return 0
+    if "--series" in argv:
+        return cmd_series(argv)
     if "--run" in argv:
         return cmd_run(argv)
     print(__doc__)

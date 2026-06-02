@@ -793,8 +793,7 @@ candidate-start sampling physical-metric — confine the rule-search
 start to the physical disk inscribed in the `[lo,ur]` box-rhombus,
 radius^2 = 3*min(dx,dy)^2/16, using `koord.h`'s `physical_distance_sq`
 (Euclidean, distinct from the hex-step `koord_distance`) — took physical
-aspect 1.67 -> 1.16 and dropped R 0.89 -> 0.44, i.e. the residual
-elongation is now random-direction rather than systematic.  Axial aspect
+aspect 1.67 -> 1.16, i.e. the gross elongation is gone.  Axial aspect
 rose to 1.67 as intended: the footprint is now axial-elongated along the
 physically-short axis to cancel the basis shear, so it comes out round in
 physical space.  Side effect: confining growth to the disk packs cities
@@ -805,18 +804,31 @@ aspect number is only honest at spacing that keeps neighbours from
 colliding — pack them tighter and competition for ground inflates it
 (spacing 30 reads ~2.3).  Re-run after each fix to attribute the change.
 
-Remaining sources, lower priority now that the footprint is ~round.
-Building/townhall orientation still drops two directions:
-`layout_to_ribi[layout & 3]` is 4-way and the NE/SW comment at
-`simcity.cc:2596` confirms they are unwired — next move is wiring NE/SW
-through the townhall placement + a 3rd building-layout axis (needs
-pakset building images, same blocker as the depot 3rd-axis entry).
-The `cityrules.tab` patterns also encode square adjacency over a 7x7
-window; rewriting them for hex neighbour topology is the deeper rule-
-data fix, do it only if a residual directional bias re-appears after
-the layout wiring.  One outlier remains in the measurement: map-edge
-cities read aspect ~2 (border clips the disk); ignore unless an
-in-map city shows it.
+The round envelope hides a residual the gyration aspect cannot see: the
+per-city m=2 angular-density mode (not a hex symmetry; the square-shear
+fingerprint) plateaus at ~0.23 for cities >= 50 tiles while aspect falls
+1.38 -> ~1.10 as they grow.  The tool's `--series` mode separates the two
+behaviours — it grows a spread of city sizes and correlates m=2 against
+footprint size, on the logic that a fixed founding skeleton dilutes as
+the city grows around it while intrinsic texture is scale-invariant.  A
+flat m=2 floor is therefore street-grid texture, the correct reading for
+a city with straight streets, not a removable bias; and both engine
+layers that place tiles are isotropic anyway (rule matching is 6-fold
+symmetric, and `physical_distance_sq` = q^2+qr+r^2 makes the `build()`
+start-sampling disk a true physical circle).  Don't re-try symmetrising
+the cityrules to full dihedral D6 (mirror each chiral rule on top of the
+6 rotations) — measured, no effect on m=2 or R.
+
+The one reducible piece is the small founding-skeleton excess in tiny
+cities (m=2 ~0.3-0.4 below ~50 tiles): the townhall and initial road
+cross sit on axial axes because `layout_to_ribi[layout & 3]` is 4-way,
+with NE/SW unwired (comment at `simcity.cc:2596`).  Wiring NE/SW through
+townhall placement + a 3rd building-layout axis would trim it but needs
+pakset building images (same blocker as the depot 3rd-axis entry) and
+only helps small cities — low priority; re-run `--series` after that art
+lands to confirm the small-city m=2 excess flattens.  Map-edge cities
+read aspect ~2 (border clips the disk); ignore unless an in-map city
+shows it.
 
 The flat map the baseline needs is produced by the `-flatmap N` test
 hook in `simmain.cc`'s default-map path (size N, no mountains/rivers/
