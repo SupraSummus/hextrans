@@ -535,7 +535,10 @@ gyration tensor in both the axial and physical frame, separating the
 basis shear from genuine algorithmic bias.  `--run` generates a flat
 map via the `-flatmap N` hook in `simmain.cc` (a gated test flag in the
 default-map path; needs the headless none-backend build) and grows
-cities on it; `--self-test` validates the math with no engine.
+cities on it; `--series` grows a spread of city sizes and correlates the
+m=2 angular mode against footprint size (a scale-invariant m=2 floor is
+intrinsic street texture, a decaying one is founding-skeleton bias);
+`--self-test` validates the math with no engine.
 
 `tools/nwc_protocol_test/` is the multiplayer wire-protocol suite —
 black-box tests that spawn a headless server, send one hand-rolled
