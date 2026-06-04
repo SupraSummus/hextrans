@@ -71,6 +71,28 @@ work, not engine blockers.  `FENCE_IMAGE_COUNT = 7` is a recent
 case: the engine carves the full hex back-wall mask now, and the
 visual side waits on the pakset commit that fills indices 3..13.
 
+Leading sometimes means a bigger engine change than a slot count, and
+building footprint orientation is the case to know.  Today
+`building_desc_t::get_size`/`get_x`/`get_y` derive a building's per-layout
+footprint as only two shapes — a rectangle and its transpose, keyed on
+`layout & 1` — a square-grid 90°-rotation artifact, both axis-aligned in
+`(q, r)`.  Hex's 3rd axis (NE–SW) is a *diagonal* of that rectangle, so
+under the current model a multi-tile building has no NE/SW orientation;
+only a 1×1 footprint (a single hex, 6 real edges) does.  This is a
+missing *engine* capability, not a pakset gate: orienting a multi-tile
+building to all 6 hex directions needs the footprint model extended to a
+genuine axial rotation of the cell set (per-layout cell lists, or a
+parallelogram footprint), and that is engine work to do independent of
+any pak — the pakset supplies images once it exists.  Until then the
+cheap slice is the layout→direction mapping, correct for 1×1 buildings
+as-is and ungated by sprite count: the townhall road seed in
+`check_bau_townhall` orients over all 6 hex faces for any 1×1 townhall
+(`adjust_layout` folds a missing NE/SW orientation onto an available
+image, so even pak64's 1-layout townhall seeds isotropically).
+Multi-tile 3rd-axis orientation is deferred engine work; the depot
+3rd-axis and powerline crossing entries in `TODO.md` need the same
+footprint extension.
+
 ## Diff against the upstream `simutrans` branch
 
 The pre-port upstream is tracked on the local `simutrans` branch
