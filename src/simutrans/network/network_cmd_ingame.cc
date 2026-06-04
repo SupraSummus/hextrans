@@ -1063,6 +1063,12 @@ nwc_tool_t::nwc_tool_t(player_t *player, tool_t *tool_, koord3d pos_, uint32 syn
 	tool_id = tool_->get_id();
 	wt = tool_->get_waytype();
 	default_param = tool_->get_default_param(player);
+	if(  default_param == NULL  ) {
+		// Same NULL -> "" guard as rdwr below, for the local origin: a
+		// non-network-safe tool queued during sync_step (call_work_api ->
+		// command_queue_append) is rebuilt via init_tool() with no wire trip.
+		default_param = "";
+	}
 	init = init_;
 	tool_client_id = 0;
 	flags = tool_->flags;
@@ -1117,6 +1123,13 @@ void nwc_tool_t::rdwr()
 	packet->rdwr_short(tool_id);
 	packet->rdwr_short(wt);
 	packet->rdwr_str(default_param);
+	if(  packet->is_loading()  &&  default_param == NULL  ) {
+		// rdwr_str yields a NULL plainstring for a len==0 wire string, and the
+		// wire can't tell an empty param from "no param" anyway. Normalise to ""
+		// so tools never see a NULL here; they treat "" and NULL identically
+		// (the strempty() guards in simtool).
+		default_param = "";
+	}
 	packet->rdwr_bool(init);
 	packet->rdwr_long(tool_client_id);
 	packet->rdwr_byte(flags);
