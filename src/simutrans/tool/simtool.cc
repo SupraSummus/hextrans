@@ -5931,7 +5931,7 @@ const char *tool_build_depot_t::work( player_t *player, koord3d pos )
  */
 bool tool_build_house_t::init( player_t * )
 {
-	if (default_param && strlen(default_param) < 3) {
+	if (!strempty(default_param) && strlen(default_param) < 3) {
 		return false;
 	}
 
@@ -5973,7 +5973,7 @@ const char *tool_build_house_t::work( player_t *player, koord3d pos )
 		return "";
 	}
 	int rotation;
-	if(  !default_param || default_param[1]=='#'  ) {
+	if(  strempty(default_param) || default_param[1]=='#'  ) {
 		rotation = simrand(desc->get_all_layouts());
 	}
 	else if(  default_param[1]=='A'  ) {
@@ -6002,7 +6002,7 @@ const char *tool_build_house_t::work( player_t *player, koord3d pos )
 		climate_bits cl = (default_param  &&  default_param[0]=='1') ? ALL_CLIMATES : desc->get_allowed_climate_bits();
 
 		bool hat_platz = welt->square_is_free( k, desc->get_x(rotation), desc->get_y(rotation), NULL, cl );
-		if(!hat_platz  &&  size.y!=size.x  &&  desc->get_all_layouts()>1  &&  (default_param==NULL  ||  default_param[1]=='#'  ||  default_param[1]=='A')) {
+		if(!hat_platz  &&  size.y!=size.x  &&  desc->get_all_layouts()>1  &&  (strempty(default_param)  ||  default_param[1]=='#'  ||  default_param[1]=='A')) {
 			// try other rotation too ...
 			rotation = (rotation+1) % desc->get_all_layouts();
 			hat_platz = welt->square_is_free( k, desc->get_x(rotation), desc->get_y(rotation), NULL, cl );
