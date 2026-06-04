@@ -2592,33 +2592,38 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 			}
 		}
 
-		// Now built the new townhall (remember old orientation)
+		// Orient a 1x1 townhall's founding over all 6 hex faces, ungated by
+		// sprite count: adjust_layout() folds a missing NE/SW orientation
+		// onto an available image.  Multi-tile keeps its shipped axis-aligned
+		// orientations (AGENTS.md: NE/SW needs a footprint-model change).
 		sint16 layout = old_layout;
+		const bool is_single = desc->get_size() == koord(1, 1);
+		const uint8 norient = is_single ? 6 : desc->get_all_layouts();
 		if (old_layout == -1 || neugruendung) {
-			layout = simrand(desc->get_all_layouts());
+			layout = simrand(norient);
 		}
 		else {
-			layout = old_layout % desc->get_all_layouts();
+			layout = old_layout % norient;
 		}
-		// on which side should we place the road?
-		uint8 dir = ribi_t::layout_to_ribi[layout & 3];
+		// road faces the orientation's hex edge
+		uint8 dir = ribi_t::layout_to_ribi[layout % 6];
 		if (neugruendung || umziehen) {
-			// HEX-PORT: old "eastwest" combo = E|W, mapped to hex SE|NW
-			// (same displacement vectors under the rename).
-			// "northsouth" combo unchanged (N|S).  Townhall placement
-			// still uses 4-rotation layout via layout_to_ribi[0..3];
-			// the 2 hex-only directions (NE, SW) aren't yet wired
-			// through the townhall placement logic.
-			best_pos = townhall_placefinder_t(welt, dir).find_place(pos, desc->get_x(layout) + (dir & (ribi_t::southeast | ribi_t::northwest) ? 1 : 0), desc->get_y(layout) + (dir & (ribi_t::north | ribi_t::south) ? 1 : 0), desc->get_allowed_climate_bits());
+			// A 1x1 townhall reserves no road strip (the loop below seeds the
+			// road on a neighbour), so place it on the clicked tile with no
+			// padding/offset -- founding stays put whatever dir is drawn.
+			// Multi-tile keeps the strip reservation and the building offset.
+			const sint16 pad_x = (!is_single && (dir & (ribi_t::southeast | ribi_t::northwest))) ? 1 : 0;
+			const sint16 pad_y = (!is_single && (dir & (ribi_t::north | ribi_t::south))) ? 1 : 0;
+			best_pos = townhall_placefinder_t(welt, is_single ? 0 : dir).find_place(pos, desc->get_x(layout) + pad_x, desc->get_y(layout) + pad_y, desc->get_allowed_climate_bits());
 			// check, if the was something found
 			if (best_pos == koord::invalid) {
 				dbg->error("stadt_t::check_bau_townhall", "no better position found!");
 				return;
 			}
-			if (dir == ribi_t::northwest) {
+			if (!is_single && dir == ribi_t::northwest) {
 				best_pos.x++;
 			}
-			if (dir == ribi_t::north) {
+			if (!is_single && dir == ribi_t::north) {
 				best_pos.y++;
 			}
 		}
@@ -2629,7 +2634,7 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 		DBG_MESSAGE("stadt_t::check_bau_townhall()", "add townhall (bev=%i, ptr=%p)", buildings.get_sum_weight(),welt->lookup_kartenboden(best_pos)->first_no_way_obj());
 
 		// if not during initialization
-		koord offset(dir == ribi_t::northwest, dir == ribi_t::north);
+		koord offset(!is_single && dir == ribi_t::northwest, !is_single && dir == ribi_t::north);
 		if (!new_town) {
 			cbuffer_t buf;
 			buf.printf(translator::translate("%s wasted\nyour money with a\nnew townhall\nwhen it reached\n%i inhabitants."), name.c_str(), get_einwohner());
@@ -2648,8 +2653,12 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 			koord origin = new_gb->get_pos().get_2d();
 			townhall_road = koord::invalid;
 
-			for (sint8 i = 0; i < 4; i++) {
-				uint8 dir = ribi_t::layout_to_ribi[(layout + i)&3];
+			// Seed the road on the orientation's face, falling through the
+			// rest if blocked.  All 6 hex faces for a 1x1 townhall; the 4
+			// axis-aligned faces for a multi-tile footprint (no NE/SW edge).
+			const sint8 ndir = is_single ? 6 : 4;
+			for (sint8 i = 0; i < ndir; i++) {
+				uint8 dir = ribi_t::layout_to_ribi[(layout + i) % ndir];
 				switch (dir) {
 				case ribi_t::southeast:
 					road0.x = road1.x = size.x;
@@ -2665,6 +2674,14 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 					road0.y = road1.y = -1;
 					road0.x = -neugruendung;
 					road1.x = size.x - umziehen;
+					break;
+				case ribi_t::northeast:
+					// single tile at the hex (1,-1) neighbour (1x1 only)
+					road0 = road1 = koord(1, -1);
+					break;
+				case ribi_t::southwest:
+					// single tile at the hex (-1,1) neighbour (1x1 only)
+					road0 = road1 = koord(-1, 1);
 					break;
 				case ribi_t::south:
 				default:

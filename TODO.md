@@ -782,53 +782,36 @@ the growth algorithm itself biases a direction.  The tool's
 `--self-test` validates the math (an axial-isotropic disk reads as
 physical aspect sqrt3 at bearing 60 deg).
 
-Measured on a flat 192x192, cities spaced 40 apart so footprints stay
-clear of each other (25 cities, ~100 tiles each).  Pre-fix baseline:
-physical aspect mean 1.68, axial 1.38, bearing-alignment R = 0.86, mean
-bearing 53 deg — systematic elongation along the predicted 60 deg.  Two
-fixes have landed.  Widening `bewerte_pos`/`bewerte_loc` from 4 square
-rotations to the 6 hex rotations took axial 1.38 -> 1.35 (small; the
-rule rotation was a minor axial-bias share).  Making `build()`'s
-candidate-start sampling physical-metric — confine the rule-search
-start to the physical disk inscribed in the `[lo,ur]` box-rhombus,
-radius^2 = 3*min(dx,dy)^2/16, using `koord.h`'s `physical_distance_sq`
-(Euclidean, distinct from the hex-step `koord_distance`) — took physical
-aspect 1.67 -> 1.16, i.e. the gross elongation is gone.  Axial aspect
-rose to 1.67 as intended: the footprint is now axial-elongated along the
-physically-short axis to cancel the basis shear, so it comes out round in
-physical space.  Side effect: confining growth to the disk packs cities
-a little denser (~100 footprint tiles per city now vs ~130), since the
-rhombus-tip tiles no longer get built; acceptable, and revisit only if a
-pakset shows it as visibly cramped.  The
-aspect number is only honest at spacing that keeps neighbours from
-colliding — pack them tighter and competition for ground inflates it
-(spacing 30 reads ~2.3).  Re-run after each fix to attribute the change.
+The gross elongation is fixed.  Pre-fix baseline (flat 192x192, 25
+cities spaced 40 to stay clear of each other): physical aspect 1.68
+along ~60°.  Two fixes landed: `bewerte_pos`/`bewerte_loc` widened from
+4 to 6 rotations, and `build()`'s candidate-start sampling confined to
+the physical disk inscribed in the `[lo,ur]` box-rhombus (radius^2 =
+3*min(dx,dy)^2/16 via `koord.h`'s `physical_distance_sq`, the Euclidean
+metric, not the hex-step `koord_distance`).  Physical aspect is now
+~1.16 (round); axial rose to ~1.67, the footprint deliberately
+axial-elongated to cancel the basis shear.  Two caveats when re-running:
+the disk confinement packs cities denser (~100 tiles vs ~130 — revisit
+only if a pakset looks cramped), and the aspect number is only honest at
+spacing that keeps neighbours from colliding (spacing 30 reads ~2.3 from
+competition for ground).
 
-The round envelope hides a residual the gyration aspect cannot see: the
-per-city m=2 angular-density mode (not a hex symmetry; the square-shear
-fingerprint) plateaus at ~0.23 for cities >= 50 tiles while aspect falls
-1.38 -> ~1.10 as they grow.  The tool's `--series` mode separates the two
-behaviours — it grows a spread of city sizes and correlates m=2 against
-footprint size, on the logic that a fixed founding skeleton dilutes as
-the city grows around it while intrinsic texture is scale-invariant.  A
-flat m=2 floor is therefore street-grid texture, the correct reading for
-a city with straight streets, not a removable bias; and both engine
-layers that place tiles are isotropic anyway (rule matching is 6-fold
-symmetric, and `physical_distance_sq` = q^2+qr+r^2 makes the `build()`
-start-sampling disk a true physical circle).  Don't re-try symmetrising
-the cityrules to full dihedral D6 (mirror each chiral rule on top of the
-6 rotations) — measured, no effect on m=2 or R.
-
-The one reducible piece is the small founding-skeleton excess in tiny
-cities (m=2 ~0.3-0.4 below ~50 tiles): the townhall and initial road
-cross sit on axial axes because `layout_to_ribi[layout & 3]` is 4-way,
-with NE/SW unwired (comment at `simcity.cc:2596`).  Wiring NE/SW through
-townhall placement + a 3rd building-layout axis would trim it but needs
-pakset building images (same blocker as the depot 3rd-axis entry) and
-only helps small cities — low priority; re-run `--series` after that art
-lands to confirm the small-city m=2 excess flattens.  Map-edge cities
-read aspect ~2 (border clips the disk); ignore unless an in-map city
-shows it.
+The per-city m=2 angular-density mode (not a hex symmetry) is the only
+residual the gyration aspect can't see, and it is now understood, not
+pending.  It used to be elevated in small cities (~0.3-0.4 below ~50
+tiles) by the founding skeleton: pak64's 1-layout townhall always seeded
+its road South (bearings {30°,90°} — a 2-fold set, exactly what m=2
+reads).  Seeding the founding road isotropically over all 6 hex faces
+(`check_bau_townhall`) fixed that — `--series` now reads m=2 ~0.18 for
+small cities rising to ~0.32 for large (Pearson r = +0.26), i.e. the
+remaining m=2 is intrinsic street-layout texture (houses lining up along
+straight streets, read from building-tile coords) that grows with the
+street network, not a removable bias.  Both tile-placement layers are
+isotropic anyway (rule matching is 6-fold symmetric; `physical_distance_sq`
+= q^2+qr+r^2 makes the `build()` sampling disk a true physical circle).
+Don't chase it further: symmetrising the cityrules to full dihedral D6
+was measured to do nothing, and the multi-tile-townhall NE/SW orientation
+AGENTS.md flags is a footprint-model change, not an m=2 lever.
 
 The flat map the baseline needs is produced by the `-flatmap N` test
 hook in `simmain.cc`'s default-map path (size N, no mountains/rivers/
