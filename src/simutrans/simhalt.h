@@ -323,6 +323,11 @@ private:
 	uint16 permissions;
 
 	/**
+	 * What players own parts of this station?
+	 */
+	uint16 owners;
+
+	/**
 	 * What is that for a station (for the image)
 	 */
 	stationtyp station_type;
@@ -588,7 +593,7 @@ public:
 	 * @param relink_factories if true call verbinde_fabriken, if not true take care of factory connections yourself
 	 */
 	bool add_grund(grund_t *gb, bool relink_factories = true);
-	bool rem_grund(grund_t *gb);
+	bool rem_grund(grund_t *gb, player_t *pl);
 
 	uint32 get_capacity(uint8 typ) const { return capacity[typ]; }
 
@@ -730,6 +735,8 @@ public:
 	void set_permissions(uint16 perms);
 
 	uint16 get_permissions() const { return permissions; }
+
+	uint16 get_owners() const { return owners; }
 
 	// create an unique name: better to be called with valid handle, although it will work without
 	char* create_name(koord k, char const* typ);

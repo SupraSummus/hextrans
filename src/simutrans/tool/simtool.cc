@@ -113,7 +113,10 @@
  * Using these constants assues a valid and correct text identifier is choosen.
  */
 
-
+ /**
+  * Message returned when a player cannot modify the field due to wrong ownership
+  */
+static const char* const NOTICE_WRONG_OWNER = "Das Feld gehoert\neinem anderen Spieler\n";
 
 /**
  * Message returned when a player cannot afford to complete an action.
@@ -337,7 +340,7 @@ static grund_t *tool_intern_koord_to_weg_grund(player_t *player, karte_t *welt, 
 	// tram
 	if(wt==tram_wt) {
 		weg_t *way = gr->get_weg(track_wt);
-		if (way  &&  way->get_desc()->get_styp() == type_tram &&  way->get_removal_error(player)==NULL) {
+		if (way  &&  way->get_desc()->get_styp() == type_tram  &&  way->get_removal_error(player)==NULL) {
 			return gr;
 		}
 		else {
@@ -345,11 +348,11 @@ static grund_t *tool_intern_koord_to_weg_grund(player_t *player, karte_t *welt, 
 		}
 	}
 
-
 	// has some rail or monorail?
 	if(  !gr->hat_weg(wt)  ) {
 		return NULL;
 	}
+
 	// check for ownership
 	if(gr->get_weg(wt)->get_removal_error(player)!=NULL){
 		// the way owner is not me, but we must check wayobj owner in some cases:
@@ -625,9 +628,10 @@ DBG_MESSAGE("tool_remover()",  "removing roadsign at (%s)", pos.get_str());
 DBG_MESSAGE("tool_remover()", "bound=%i",halt.is_bound());
 	if (gr->is_halt()  &&  halt.is_bound()  &&  fabrik_t::get_fab(k)==NULL  &&  type == obj_t::undefined) {
 		// halt and not a factory (oil rig etc.)
-		const player_t* owner = halt->get_owner();
-		if(  player_t::check_owner( owner, player )  ) {
-			return haltestelle_t::remove(player, gr->get_pos());
+		if (gebaeude_t* gb = gr->find<gebaeude_t>()) {
+			if (player_t::check_owner(gb->get_owner(), player)) {
+				return haltestelle_t::remove(player, gr->get_pos());
+			}
 		}
 	}
 
@@ -7116,7 +7120,7 @@ uint8 tool_merge_stop_t::is_valid_pos( player_t *player, const koord3d &pos, con
 		return 0;
 	}
 
-	// check halt ownership
+	// check halt ownership automatically
 	halthandle_t h = haltestelle_t::get_halt(pos,player,false);
 	if(  h.is_bound()  ) {
 		//  allow to merge two public stops too
@@ -7128,8 +7132,8 @@ uint8 tool_merge_stop_t::is_valid_pos( player_t *player, const koord3d &pos, con
 		}
 	}
 
-	// not a halt at all ...
-	error = NOTICE_UNSUITABLE_GROUND;
+	// not a halt at all or wrong owner
+	error = bd->is_halt() ? NOTICE_WRONG_OWNER: NOTICE_UNSUITABLE_GROUND;
 	return 0;
 }
 
@@ -7146,12 +7150,13 @@ void tool_merge_stop_t::mark_tiles( player_t *player, const koord3d &start, cons
 		win_set_static_tooltip( NULL );
 	}
 
+#if 0
 	// check ownership
 	if (!halt_be_merged_from->get_owner()->is_public_service() || halt_be_merged_from->get_owner() != halt_be_merged_to->get_owner()) {
 		win_set_static_tooltip( "Das Feld gehoert\neinem anderen Spieler\n" );
 		return;
 	}
-
+#endif
 	for(haltestelle_t::tile_t const& i : halt_be_merged_from->get_tiles()) {
 		for(haltestelle_t::tile_t const& j : halt_be_merged_to->get_tiles()) {
 			uint32 dist = koord_distance( i.grund->get_pos(), j.grund->get_pos() );
@@ -7189,10 +7194,12 @@ const char *tool_merge_stop_t::do_work( player_t *player, const koord3d &last_po
 		return NULL;
 	}
 
+#if 0
 	// check ownership
 	if(!player->is_public_service()  &&  halt_be_merged_from->get_owner() != halt_be_merged_to->get_owner()) {
 		return "Das Feld gehoert\neinem anderen Spieler\n";
 	}
+#endif
 
 	for(haltestelle_t::tile_t const& i : halt_be_merged_from->get_tiles()) {
 		for(haltestelle_t::tile_t const& j : halt_be_merged_to->get_tiles()) {
@@ -7219,6 +7226,14 @@ const char *tool_merge_stop_t::do_work( player_t *player, const koord3d &last_po
 	}
 	else {
 		return "Too far away to merge stations!";
+	}
+
+	// make we merge to the other
+	if (halt_be_merged_to->get_owner() == player) {
+		// if not, swap them ...
+		halthandle_t h = halt_be_merged_to;
+		halt_be_merged_to = halt_be_merged_from;
+		halt_be_merged_from = h;
 	}
 
 	// and now just do it ...
@@ -8908,7 +8923,7 @@ bool tool_work_world_t::init(player_t*)
 		destroy_all_win(true);
 		welt->type_of_generation = karte_t::NEW_WORLD;
 		env_t::default_settings.reset_after_global_settings_reload();
-		return true;
+		return false;	// unsafe tools must return false even on success!
 	}
 	else if (what == 'l') {
 		destroy_all_win(true);
@@ -8926,7 +8941,7 @@ bool tool_work_world_t::init(player_t*)
 				welt->announce_server(karte_t::SERVER_ANNOUNCE_HELLO);
 			}
 			welt->type_of_generation = strstart(filename, "net:") ? karte_t::CLIENT_WORLD : karte_t::LOADED_WORLD;
-			return true;
+			return false;	// unsafe tools must return false even on success!
 		}
 	}
 	else if (what == 's') {
@@ -8948,7 +8963,7 @@ bool tool_work_world_t::init(player_t*)
 		DBG_MESSAGE("loadsave_frame_t::item_action", "save world %li ms", dr_time() - start_save);
 		welt->set_dirty();
 		welt->reset_timer();
-		return true;
+		return false;	// unsafe tools must return false even on success!
 	}
 	return false;
 }
