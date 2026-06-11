@@ -493,6 +493,10 @@ public:
 	uint32 get_buildings()  const { return buildings.get_count(); }
 	sint32 get_unemployed() const { return bev - arb; }
 	sint32 get_homeless()   const { return bev - won; }
+	/// total housing provided by the residential buildings of the city (10 citizens per building level and tile)
+	sint32 get_housing()    const { return won; }
+	/// total jobs provided by the commercial and industrial buildings of the city (20 jobs per building level and tile)
+	sint32 get_jobs()       const { return arb; }
 
 	const char *get_name() const { return name; }
 	void set_name( const char *name );

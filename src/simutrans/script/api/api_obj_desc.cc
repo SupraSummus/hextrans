@@ -519,6 +519,12 @@ void export_goods_desc(HSQUIRRELVM vm)
 	 */
 	register_method(vm, &building_desc_t::get_capacity, "get_capacity");
 	/**
+	 * Level of the building. For city buildings this drives the population
+	 * and job accounting of the city the building belongs to.
+	 * @return building level
+	 */
+	register_method(vm, &building_desc_t::get_level, "get_level");
+	/**
 	 * @return whether station building can be built underground
 	 */
 	register_method(vm, &building_desc_t::can_be_built_underground, "can_be_built_underground");

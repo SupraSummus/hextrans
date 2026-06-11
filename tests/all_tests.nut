@@ -261,4 +261,5 @@ all_tests <- [
 	test_wayobj_upgrade_downgrade,
 	test_wayobj_upgrade_change_owner,
 	test_wayobj_electrify_depot,
+	test_city_population_ledger // keep last: grows a city across the whole map
 ]
