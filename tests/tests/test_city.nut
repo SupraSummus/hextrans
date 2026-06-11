@@ -223,3 +223,94 @@ function test_city_change_size_to_minimum()
 
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+function test_city_population_ledger()
+{
+	local pl = player_x(1)
+
+	// recompute the city population ledger from the map: every tile of a
+	// residential city building houses level*10 citizens, every tile of a
+	// commercial/industrial one provides level*20 jobs.
+	// stadt_t::build_city_house() maintains the same numbers incrementally.
+	local check_ledger = function(city, where) {
+		local sum_res = 0
+		local sum_jobs = 0
+		for (local x = 0; x < 16; x++) {
+			for (local y = 0; y < 16; y++) {
+				local b = square_x(x, y).get_ground_tile().find_object(mo_building)
+				if (b == null) {
+					continue
+				}
+				local d = b.get_desc()
+				local t = d.get_type()
+				if (t == building_desc_x.city_res) {
+					sum_res += d.get_level()
+				}
+				else if (t == building_desc_x.city_com || t == building_desc_x.city_ind) {
+					sum_jobs += d.get_level()
+				}
+			}
+		}
+		ASSERT_EQUAL("housing " + where + ": " + city.get_housing(), "housing " + where + ": " + (sum_res * 10))
+		ASSERT_EQUAL("jobs " + where + ": " + city.get_jobs(), "jobs " + where + ": " + (sum_jobs * 20))
+	}
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(pl, coord3d(8, 8, 0), "0"), null)
+	local city = city_x(8, 8)
+	check_ledger(city, "after founding")
+
+	// plant the test-only 2x2 residential building; this also goes through
+	// stadt_t::build_city_house and must keep the ledger consistent
+	ASSERT_EQUAL(command_x(tool_build_house).work(pl, coord3d(4, 8, 0), "1ATEST_RES_2x2"), null)
+	check_ledger(city, "after planting 2x2")
+
+	// grow the city until renovation replaces a TEST_RES_2x2 by a smaller
+	// building.  TEST_RES_2x2 is the only multi-tile city building
+	// available, so a renovation of it necessarily goes through the
+	// leftover-tile conversion in build_city_house.
+	local count_2x2_tiles = function() {
+		local n = 0
+		for (local x = 0; x < 16; x++) {
+			for (local y = 0; y < 16; y++) {
+				local b = square_x(x, y).get_ground_tile().find_object(mo_building)
+				if (b != null && b.get_desc().get_name() == "TEST_RES_2x2") {
+					n++
+				}
+			}
+		}
+		return n
+	}
+
+	local shrunk = false
+	local seen_max = count_2x2_tiles()
+	for (local i = 0; i < 300 && !shrunk; i++) {
+		city.change_size(100)
+		local n = count_2x2_tiles()
+		if (n < seen_max) {
+			// one of the 2x2 buildings was replaced by something smaller
+			shrunk = true
+		}
+		else if (n > seen_max) {
+			seen_max = n
+		}
+	}
+	ASSERT_TRUE(shrunk) // if this fails, growth never renovated a 2x2; test setup issue, not a ledger bug
+
+	check_ledger(city, "after renovation")
+
+	// clean up: removing the townhall removes the city and all its buildings
+	local cp = city.get_pos()
+	local th_tile = square_x(cp.x, cp.y).get_ground_tile()
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(cp.x, cp.y, th_tile.z)), null)
+	for (local x = 0; x < 16; x++) {
+		for (local y = 0; y < 16; y++) {
+			local tile = square_x(x, y).get_ground_tile()
+			if (tile.get_way(wt_road) != null) {
+				local p = coord3d(x, y, tile.z)
+				command_x(tool_remove_way).work(pl, p, p, "" + wt_road)
+			}
+		}
+	}
+	RESET_ALL_PLAYER_FUNDS()
+}

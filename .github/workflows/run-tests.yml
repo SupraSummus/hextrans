@@ -41,6 +41,11 @@ jobs:
         popd
     - name: Install language files
       run: tools/get_lang_files.sh
+    - name: Build test addon pak
+      run: |
+        CC="ccache clang" CXX="ccache clang++" make -C src/makeobj -j$(nproc)
+        mkdir -p ~/simutrans/addons/pak
+        build/default/makeobj/makeobj QUIET PAK ~/simutrans/addons/pak/test_city_buildings.pak tests/addon/
     - name: Link tests as scenario
       run: |
         mkdir -p ~/simutrans/addons/pak/scenario

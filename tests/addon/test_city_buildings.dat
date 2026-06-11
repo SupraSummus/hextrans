@@ -1,0 +1,22 @@
+# Test-only city buildings for the automated test scenario.
+# Compiled with makeobj and loaded as a pak64 addon (the test runner
+# starts the game with -addons).  The headless test run renders
+# nothing, so the buildings carry no images.
+#
+# TEST_RES_2x2 is the only multi-tile city building in the test
+# environment.  City renovation can therefore only ever replace it by
+# a *smaller* (1x1) building, which exercises the leftover-tile
+# conversion path of stadt_t::build_city_house and its population
+# bookkeeping (test_city_population_ledger).  The high chance makes
+# city growth pick it often.
+
+obj=building
+name=TEST_RES_2x2
+type=res
+level=1
+chance=255
+dims=2,2,1
+backimage[0][0][0][0][0][0]=-
+backimage[0][0][1][0][0][0]=-
+backimage[0][1][0][0][0][0]=-
+backimage[0][1][1][0][0][0]=-
