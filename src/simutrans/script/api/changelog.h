@@ -9,6 +9,8 @@
  *
  * @section api-trunk Current trunk
  *
+ * - Added @ref city_x::get_housing, @ref city_x::get_jobs, @ref city_x::get_homeless, @ref city_x::get_unemployed
+ * - Added @ref building_desc_x::get_level
  * - Added @ref command_x::grid_lower, @ref command_x::grid_raise
  * - Added @ref settings::has_double_slopes, @ref settings::get_way_height_clearance
  * - Added @ref tile_x::is_crossing
