@@ -3311,12 +3311,15 @@ gebaeude_t* stadt_t::build_city_house(koord3d base_pos, const building_desc_t* h
 
 			switch (oldgb->get_tile()->get_desc()->get_type()) {
 				case building_desc_t::city_res:
+					won -= oldgb->get_tile()->get_desc()->get_level() * 10;
 					hr = hausbauer_t::get_residential(max_level, welt->get_timeline_year_month(), welt->get_climate(kpos), cl, 1, 1, exclude_desc);
 					break;
 				case building_desc_t::city_com:
+					arb -= oldgb->get_tile()->get_desc()->get_level() * 20;
 					hr = hausbauer_t::get_commercial(max_level, welt->get_timeline_year_month(), welt->get_climate(kpos), cl, 1, 1, exclude_desc);
 					break;
 				case building_desc_t::city_ind:
+					arb -= oldgb->get_tile()->get_desc()->get_level() * 20;
 					hr = hausbauer_t::get_industrial(max_level, welt->get_timeline_year_month(), welt->get_climate(kpos), cl, 1, 1, exclude_desc);
 					break;
 				default:
@@ -3335,6 +3338,8 @@ gebaeude_t* stadt_t::build_city_house(koord3d base_pos, const building_desc_t* h
 					case building_desc_t::city_ind: arb += hr->get_level() * 20; break;
 					default: break;
 				}
+				// the deficit from any tile left empty is absorbed; aim for the original level again
+				max_level = level;
 			}
 			else {
 				// nothing found => try next building with higher level and make this nature again.
