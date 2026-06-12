@@ -126,6 +126,7 @@ all_tests <- [
 	test_halt_build_separate,
 	test_halt_build_near_factory,
 	test_halt_build_near_factories,
+	test_halt_coverage_is_hex_disc,
 	test_halt_build_on_tunnel_entrance,
 	test_halt_build_on_bridge_end,
 	test_halt_build_on_depot,

@@ -851,37 +851,35 @@ void ai_passenger_t::walk_city(linehandle_t const line, grund_t* const start, in
 				int covered_tiles=0;
 				int house_tiles=0;
 				uint16 const cov = welt->get_settings().get_station_coverage();
-				for (sint16 y = to->get_pos().y - cov; y <= to->get_pos().y + cov + 1; ++y) {
-					for (sint16 x = to->get_pos().x - cov; x <= to->get_pos().x + cov + 1; ++x) {
-						const planquadrat_t *pl = welt->access(koord(x,y));
-						// check, if we have a passenger stop already here
-						if(pl  &&  pl->get_haltlist_count()>0) {
-							const halthandle_t *hl=pl->get_haltlist();
-							for( uint8 own=0;  own<pl->get_haltlist_count();  own++  ) {
-								if(  hl[own]->is_enabled(goods_manager_t::INDEX_PAS)  ) {
-									// our stop => nothing to do
+				for (koord d : hex_disc(cov)) {
+					const planquadrat_t *pl = welt->access(to->get_pos().get_2d()+d);
+					// check, if we have a passenger stop already here
+					if(pl  &&  pl->get_haltlist_count()>0) {
+						const halthandle_t *hl=pl->get_haltlist();
+						for( uint8 own=0;  own<pl->get_haltlist_count();  own++  ) {
+							if(  hl[own]->is_enabled(goods_manager_t::INDEX_PAS)  ) {
+								// our stop => nothing to do
 #ifdef AUTOJOIN_PUBLIC
-									// we leave also public stops alone
-									if(  hl[own]->get_owner()==this  ||  hl[own]->get_owner()==welt->get_public_player()  ) {
+								// we leave also public stops alone
+								if(  hl[own]->get_owner()==this  ||  hl[own]->get_owner()==welt->get_public_player()  ) {
 #else
-									if(  hl[own]->get_owner()==this  ) {
+								if(  hl[own]->get_owner()==this  ) {
 #endif
-										covered_tiles ++;
-										break;
-									}
+									covered_tiles ++;
+									break;
 								}
 							}
 						}
-						// check for houses
-						if(pl  &&  pl->get_kartenboden()->get_typ()==grund_t::fundament) {
-							house_tiles++;
-						}
+					}
+					// check for houses
+					if(pl  &&  pl->get_kartenboden()->get_typ()==grund_t::fundament) {
+						house_tiles++;
 					}
 				}
 				// now decide, if we build here
 				// just using the ration of covered tiles versus house tiles
-				int const max_tiles = cov * 2 + 1;
-				if(  covered_tiles<(max_tiles*max_tiles)/3  &&  house_tiles>=3  ) {
+				int const max_tiles = 3*cov*(cov+1) + 1; // tiles in the hex disc
+				if(  covered_tiles<max_tiles/3  &&  house_tiles>=3  ) {
 					// ok, lets do it
 					const building_desc_t* bs = hausbauer_t::get_random_station(building_desc_t::generic_stop, road_wt, welt->get_timeline_year_month(), haltestelle_t::PAX);
 					if(  call_general_tool( TOOL_BUILD_STATION, to->get_pos().get_2d(), bs->get_name() )  ) {

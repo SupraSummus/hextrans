@@ -308,4 +308,48 @@ static inline koord operator - (const koord &a)
 {
 	return koord(-a.x, -a.y);
 }
+
+
+// All axial offsets within hex distance r of the origin — the hex disc
+// koord_distance(koord(0, 0), d) <= r.  A plain (-r..r)^2 double loop
+// is NOT a disc in axial coords: it reaches 2r hex steps along the
+// third (NE–SW) axis.  Rows run dy = -r..r; within a row, dx covers
+// the axial square clipped by |dx + dy| <= r.
+//
+//   for (koord d : hex_disc(radius)) { ... center + d ... }
+class hex_disc
+{
+	sint16 r;
+
+	static sint16 min_dx(sint16 dy, sint16 r) { return dy < 0 ? -r - dy : -r; }
+	static sint16 max_dx(sint16 dy, sint16 r) { return dy > 0 ? r - dy : r; }
+
+public:
+	explicit hex_disc(sint16 radius) : r(radius) {}
+
+	class iterator
+	{
+		koord d;
+		sint16 r;
+
+	public:
+		iterator(koord start, sint16 radius) : d(start), r(radius) {}
+		koord operator * () const { return d; }
+		bool operator != (const iterator &other) const { return d != other.d; }
+		iterator &operator ++ ()
+		{
+			if (d.x < max_dx(d.y, r)) {
+				d.x++;
+			}
+			else {
+				d.y++;
+				d.x = min_dx(d.y, r);
+			}
+			return *this;
+		}
+	};
+
+	iterator begin() const { return iterator(koord(min_dx(-r, r), -r), r); }
+	iterator end()   const { return iterator(koord(min_dx(r + 1, r), r + 1), r); }
+};
 #endif
