@@ -1233,8 +1233,9 @@ void haltestelle_t::reconnect_factories()
 		koord const p = i.grund->get_pos().get_2d();
 
 		uint16 const cov = welt->get_settings().get_station_coverage();
-		for(fabrik_t* const fab : fabrik_t::sind_da_welche(p - koord(cov, cov), p + koord(cov, cov))) {
-			if (connect_factory(fab)) {
+		for (koord d : hex_disc(cov)) {
+			fabrik_t *const fab = fabrik_t::get_fab(p + d);
+			if (fab  &&  connect_factory(fab)) {
 				// also connect the factory to this halt
 				fab->link_halt(self);
 			}
@@ -3499,14 +3500,11 @@ bool haltestelle_t::add_grund(grund_t *gr, bool relink_factories)
 	// after that, the surrounding ground will know of this station
 	bool insert_unsorted = !relink_factories;
 	uint16 const cov = welt->get_settings().get_station_coverage();
-	for (int y = -cov; y <= cov; y++) {
-		for (int x = -cov; x <= cov; x++) {
-			koord p=pos+koord(x,y);
-			planquadrat_t *plan = welt->access(p);
-			if(plan) {
-				plan->add_to_haltlist( self, insert_unsorted);
-				plan->get_kartenboden()->set_flag(grund_t::dirty);
-			}
+	for (koord d : hex_disc(cov)) {
+		planquadrat_t *plan = welt->access(pos + d);
+		if(plan) {
+			plan->add_to_haltlist( self, insert_unsorted);
+			plan->get_kartenboden()->set_flag(grund_t::dirty);
 		}
 	}
 
@@ -3607,13 +3605,11 @@ bool haltestelle_t::rem_grund(grund_t *gr, player_t *pl_)
 		}
 
 		uint16 const cov = welt->get_settings().get_station_coverage();
-		for (int y = -cov; y <= cov; y++) {
-			for (int x = -cov; x <= cov; x++) {
-				planquadrat_t *pl = welt->access( gr->get_pos().get_2d()+koord(x,y) );
-				if(pl) {
-					pl->remove_from_haltlist(self);
-					pl->get_kartenboden()->set_flag(grund_t::dirty);
-				}
+		for (koord d : hex_disc(cov)) {
+			planquadrat_t *pl = welt->access( gr->get_pos().get_2d()+d );
+			if(pl) {
+				pl->remove_from_haltlist(self);
+				pl->get_kartenboden()->set_flag(grund_t::dirty);
 			}
 		}
 
@@ -3643,9 +3639,8 @@ void haltestelle_t::mark_unmark_coverage(const bool mark) const
 {
 	// iterate over all tiles
 	uint16 const cov = welt->get_settings().get_station_coverage();
-	koord  const size(cov * 2 + 1, cov * 2 + 1);
 	for(tile_t const& i : tiles) {
-		welt->mark_area(i.grund->get_pos() - size / 2, size, mark);
+		welt->mark_area_hex(i.grund->get_pos(), cov, mark);
 	}
 }
 

@@ -628,9 +628,6 @@ public:
 	 */
 	void get_fields_list( vector_tpl<grund_t*> &fields_list ) const;
 
-	/// @returns a vector of factories within a rectangle
-	static vector_tpl<fabrik_t *> & sind_da_welche(koord min, koord max);
-
 	// hier die methoden zum parametrisieren der Fabrik
 
 	/// Builds buildings (gebaeude_t) for the factory.

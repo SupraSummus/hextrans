@@ -20,6 +20,7 @@ zeiger_t::zeiger_t(loadsave_t *file) : obj_no_info_t()
 	foreground_image = IMG_EMPTY;
 	area = koord(0,0);
 	offset = koord(0,0);
+	hex_radius = -1;
 	image_offset = koord(0,0);
 	rdwr(file);
 }
@@ -33,7 +34,17 @@ zeiger_t::zeiger_t(koord3d pos, player_t *player) :
 	foreground_image = IMG_EMPTY;
 	area = koord(0,0);
 	offset = koord(0,0);
+	hex_radius = -1;
 	image_offset = koord(0,0);
+}
+
+
+void zeiger_t::mark_at( koord3d pos, bool marking ) const
+{
+	welt->mark_area( pos - offset, area, marking );
+	if(  hex_radius >= 0  ) {
+		welt->mark_area_hex( pos, hex_radius, marking );
+	}
 }
 
 
@@ -55,7 +66,7 @@ void zeiger_t::change_pos(koord3d k )
 			if(  gr->get_halt().is_bound()  ) {
 				gr->get_halt()->mark_unmark_coverage( false );
 			}
-			welt->mark_area( get_pos()- offset, area, false );
+			mark_at( get_pos(), false );
 		}
 		if(  get_pos().x >= welt->get_size().x-1  ||  get_pos().y >= welt->get_size().y-1  ) {
 			// the raise and lower tool actually can go to size!
@@ -76,7 +87,7 @@ void zeiger_t::change_pos(koord3d k )
 				if(  gr->get_halt().is_bound()  &&  env_t::station_coverage_show  ) {
 					gr->get_halt()->mark_unmark_coverage( true );
 				}
-				welt->mark_area( k-offset, area, true );
+				mark_at( k, true );
 			}
 		}
 	}
@@ -117,19 +128,20 @@ void zeiger_t::set_image_offset(koord new_image_offset)
 }
 
 
-void zeiger_t::set_area(koord new_area, bool center, koord new_offset)
+void zeiger_t::set_area(koord new_area, bool center, koord new_offset, sint16 new_hex_radius)
 {
 	if (center) {
 		new_offset = new_area/2;
 	}
 
-	if(new_area==area  &&  new_offset==offset) {
+	if(new_area==area  &&  new_offset==offset  &&  new_hex_radius==hex_radius) {
 		return;
 	}
-	welt->mark_area( get_pos()-offset, area, false );
+	mark_at( get_pos(), false );
 	area = new_area;
 	offset = new_offset;
-	welt->mark_area( get_pos()-offset, area, true );
+	hex_radius = new_hex_radius;
+	mark_at( get_pos(), true );
 }
 
 bool zeiger_t::has_managed_lifecycle() const {

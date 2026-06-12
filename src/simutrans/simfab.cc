@@ -1110,25 +1110,6 @@ void fabrik_t::remove_field_at(koord pos)
 }
 
 
-vector_tpl<fabrik_t *> &fabrik_t::sind_da_welche(koord min_pos, koord max_pos)
-{
-	static vector_tpl <fabrik_t*> factory_list(16);
-	factory_list.clear();
-
-	for(int y=min_pos.y; y<=max_pos.y; y++) {
-		for(int x=min_pos.x; x<=max_pos.x; x++) {
-			fabrik_t *fab=get_fab(koord(x,y));
-			if(fab) {
-				if (factory_list.append_unique(fab)) {
-//DBG_MESSAGE("fabrik_t::sind_da_welche()","appended factory %s at (%i,%i)",gr->first_obj()->get_fabrik()->get_desc()->get_name(),x,y);
-				}
-			}
-		}
-	}
-	return factory_list;
-}
-
-
 /**
  * if name==NULL translate desc factory name in game language
  */

@@ -194,7 +194,7 @@ hexes have NO due-N or due-S corner; the 6 vertices sit at angles
 clockwise starting from the SE neighbour, matching the EDGE convention
 above.
 
-## Axial coords vs physical hex symmetry (tentative — one case so far)
+## Axial coords vs physical hex symmetry (two cases so far)
 
 `koord(q, r)` is axial, not Cartesian.  `(1, 1)` is NOT a neighbour —
 it's two edge-steps (SE+S).  Square-grid intuition treats it as
@@ -213,9 +213,15 @@ behavioural difference between two inputs looks like anisotropy,
 worth checking whether the inputs sit in the same symmetry class
 before reaching for a router/detection fix.
 
-Not validated beyond the one case — refresh from PR #201 if a
-similar question arises, and update this section if a second case
-either confirms the framing or shows it's the wrong abstraction.
+The stop-catchment port is a second, confirming instance: the legacy
+square catchment loop over `(-cov..cov)^2` has its `(±cov, ±cov)`
+corners at 2·cov hex steps (60°-pair sums) but its `(±cov, ∓cov)`
+corners exactly on the rim (120°-pair sums) — the two diagonal corner
+families sit in different symmetry classes, which is why an axial
+square is not a hex disc.  `hex_disc` in `koord.h` iterates the
+true disc (`for (koord d : hex_disc(r))`); reach for it in any "all
+tiles within n steps" loop.  Refresh from PR #201 if a finer symmetry
+question arises.
 
 ## Critical findings driving priority
 

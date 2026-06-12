@@ -230,6 +230,10 @@ public:
 	/// cursor marks this area
 	koord cursor_area;
 
+	/// if >= 0 the cursor additionally marks the hex disc of this radius
+	/// (station coverage preview)
+	sint16 cursor_hex_radius;
+
 	
 	/// cursor offset within marked area (only effective if cursor_centered != false)
 	koord cursor_offset;
@@ -280,7 +284,7 @@ public:
 
 	static uint16 const dummy_id = 0xFFFFU;
 
-	tool_t(uint16 const id) : id(id), cursor_area(1,1)
+	tool_t(uint16 const id) : id(id), cursor_area(1,1), cursor_hex_radius(-1)
 	{
 		cursor = icon = IMG_EMPTY;
 		ok_sound = NO_SOUND;

@@ -5012,6 +5012,7 @@ bool tool_build_station_t::init( player_t * )
 			cursor_area = koord( bdsc->get_x(rotation), bdsc->get_y(rotation) );
 			cursor_centered = false;
 			cursor_offset = koord(0,0);
+			cursor_hex_radius = -1;
 			if (bdsc->get_type()==building_desc_t::flat_dock  &&  rotation >= 2 ) {
 				cursor_offset = cursor_area - koord(1,1);
 			}
@@ -5022,10 +5023,11 @@ bool tool_build_station_t::init( player_t * )
 	}
 	else {
 set_area_cov:
-		uint16 const cov = welt->get_settings().get_station_coverage() * 2 + 1;
-		cursor_area = koord(cov, cov);
-		cursor_centered = true;
+		// coverage preview: the hex disc around the cursor tile
+		cursor_area = koord(1, 1);
+		cursor_centered = false;
 		cursor_offset = koord(0,0);
+		cursor_hex_radius = welt->get_settings().get_station_coverage();
 	}
 	return true;
 }
