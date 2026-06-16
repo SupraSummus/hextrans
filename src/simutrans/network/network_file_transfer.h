@@ -48,4 +48,11 @@ const char *network_http_get ( const char *address, const char *name, cbuffer_t&
 const char* network_http_get_file( const char* address, const char* name, const char *filename );
 
 
+/**
+ * Parses a Content-Length header value.
+ * @returns a non-negative value on success, or -1 on error (e.g. missing/invalid/out-of-range value).
+ */
+sint32 parse_content_length(const char *content_length_str);
+
+
 #endif
