@@ -793,6 +793,9 @@ const building_tile_desc_t *hausbauer_t::find_tile(const char *name, int org_idx
 	if (org_idx < 0) {
 		return NULL;
 	}
+	if (name == NULL) {
+		return NULL;
+	}
 
 	const building_desc_t *desc = desc_table.get(name);
 

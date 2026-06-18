@@ -209,7 +209,7 @@ public:
 
 	static const roadsign_desc_t *roadsign_search(roadsign_desc_t::types flag, const waytype_t wt, const uint16 time);
 
-	static const roadsign_desc_t *find_desc(const char *name) { return table.get(name); }
+	static const roadsign_desc_t *find_desc(const char *name) { return name ? table.get(name) : NULL; }
 
 	static const vector_tpl<const roadsign_desc_t*>& get_available_signs(const waytype_t wt);
 };
