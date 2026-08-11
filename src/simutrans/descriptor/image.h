@@ -37,6 +37,13 @@ public:
 	scr_coord_val h;  ///< height of data[] image
 	image_id imageid; ///< Graphics renderer image id
 	uint8 zoomable;   ///< some images may not be zoomed i.e. icons
+
+	/// Player-colour markers (0x8000..0x800F) present in data[]?  -1 unknown,
+	/// 0 no, 1 yes; image_reader_t sets it during RLE validation so
+	/// register_image() needn't rescan.  Runtime-built images (ground_desc)
+	/// leave it -1 and are scanned there.  Keep beside zoomable (free padding).
+	sint8 player_colored = -1;
+
 	PIXVAL *data;     ///< RLE encoded image data
 
 	image_t(size_t len_=0) : data(NULL)

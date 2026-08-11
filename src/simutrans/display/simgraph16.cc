@@ -343,7 +343,7 @@ struct imd {
 
 // Flags for recoding
 #define FLAG_HAS_PLAYER_COLOR (1)
-#define FLAG_HAS_TRANSPARENT_COLOR (2)
+// bit (2) was FLAG_HAS_TRANSPARENT_COLOR: set at register but never read; dropped
 #define FLAG_ZOOMABLE (4)
 #define FLAG_REZOOM (8)
 //#define FLAG_POSITION_CHANGED (16)
@@ -2005,29 +2005,32 @@ static image_id simgraph16_register_image(const image_t *image_in)
 	}
 	image->player_flags = 0xFFFF; // recode all player colors
 
-	// find out if there are really player colors
-	for(  PIXVAL *src = image_in->data, y = 0;  y < image_in->h;  ++y  ) {
-		uint16 runlen;
+	// player_colored is precomputed by image_reader_t (see image.h); only
+	// runtime-built images arrive unknown (-1) and are scanned here.  Keep this
+	// scan in step with image_reader_t::image_has_valid_data's.
+	if(  image_in->player_colored == 1  ) {
+		image->recode_flags |= FLAG_HAS_PLAYER_COLOR;
+	}
+	else if(  image_in->player_colored < 0  ) {
+		for(  PIXVAL *src = image_in->data, y = 0;  y < image_in->h;  ++y  ) {
+			uint16 runlen;
 
-		// decode line
-		runlen = *src++;
-		do {
-			// clear run .. nothing to do
+			// decode line
 			runlen = *src++;
-			if(  runlen & TRANSPARENT_RUN  ) {
-				image->recode_flags |= FLAG_HAS_TRANSPARENT_COLOR;
-				runlen &= ~TRANSPARENT_RUN;
-			}
-			// no this many color pixel
-			while(  runlen--  ) {
-				// get rgb components
-				PIXVAL s = *src++;
-				if(  s>=0x8000  &&  s<0x8010  ) {
-					image->recode_flags |= FLAG_HAS_PLAYER_COLOR;
+			do {
+				// clear run .. nothing to do
+				runlen = *src++ & ~TRANSPARENT_RUN;
+				// no this many color pixel
+				while(  runlen--  ) {
+					// get rgb components
+					PIXVAL s = *src++;
+					if(  s>=0x8000  &&  s<0x8010  ) {
+						image->recode_flags |= FLAG_HAS_PLAYER_COLOR;
+					}
 				}
-			}
-			runlen = *src++;
-		} while(  runlen!=0  ); // end of row: runlen == 0
+				runlen = *src++;
+			} while(  runlen!=0  ); // end of row: runlen == 0
+		}
 	}
 
 	for(  uint8 i = 0;  i < MAX_PLAYER_COUNT;  i++  ) {
