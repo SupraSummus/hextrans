@@ -85,13 +85,23 @@ bool route_t::append_straight_route(karte_t *welt, koord3d dest )
 	route.reserve( route.get_count()+koord_distance(pos,ziel)+2 );
 	DBG_MESSAGE("route_t::append_straight_route()","start from (%i,%i) to (%i,%i)",pos.x,pos.y,dest.x,dest.y);
 	while(pos!=ziel) {
-		// shortest way
-		if(abs(pos.x-ziel.x)>=abs(pos.y-ziel.y)) {
-			pos.x += (pos.x>ziel.x) ? -1 : 1;
+		// shortest way: of the neighbours one hex step closer to the target take the one
+		// nearest to it physically, which keeps the line straight; exact ties fall to
+		// the first in koord::neighbours order
+		koord next = pos + koord::neighbours[0];
+		uint32 next_steps = koord_distance(next, ziel);
+		uint32 next_phys = physical_distance_sq(next, ziel);
+		for(  size_t i=1;  i<lengthof(koord::neighbours);  i++  ) {
+			const koord k = pos + koord::neighbours[i];
+			const uint32 steps = koord_distance(k, ziel);
+			const uint32 phys = physical_distance_sq(k, ziel);
+			if(  steps<next_steps  ||  (steps==next_steps  &&  phys<next_phys)  ) {
+				next = k;
+				next_steps = steps;
+				next_phys = phys;
+			}
 		}
-		else {
-			pos.y += (pos.y>ziel.y) ? -1 : 1;
-		}
+		pos = next;
 		if(!welt->is_within_limits(pos)) {
 			break;
 		}
