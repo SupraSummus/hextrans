@@ -270,9 +270,12 @@ void ai_t::clean_marker( koord place, koord size )
 	}
 	for(  pos.y=place.y;  pos.y<=place.y+size.y;  pos.y++  ) {
 		for(  pos.x=place.x;  pos.x<=place.x+size.x;  pos.x++  ) {
+			// the footprint can reach past the map edge
 			grund_t *gr = welt->lookup_kartenboden(pos);
-			zeiger_t *z = gr->find<zeiger_t>();
-			delete z;
+			if(  gr  ) {
+				zeiger_t *z = gr->find<zeiger_t>();
+				delete z;
+			}
 		}
 	}
 }
@@ -293,9 +296,11 @@ void ai_t::set_marker( koord place, koord size )
 	for(  pos.y=place.y;  pos.y<=place.y+size.y;  pos.y++  ) {
 		for(  pos.x=place.x;  pos.x<=place.x+size.x;  pos.x++  ) {
 			grund_t *gr = welt->lookup_kartenboden(pos);
-			zeiger_t *z = new zeiger_t(gr->get_pos(), this);
-			z->set_image( skinverwaltung_t::belegtzeiger->get_image_id(0) );
-			gr->obj_add( z );
+			if(  gr  ) {
+				zeiger_t *z = new zeiger_t(gr->get_pos(), this);
+				z->set_image( skinverwaltung_t::belegtzeiger->get_image_id(0) );
+				gr->obj_add( z );
+			}
 		}
 	}
 }
