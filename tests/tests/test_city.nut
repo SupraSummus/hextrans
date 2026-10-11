@@ -197,3 +197,87 @@ function test_city_change_size_to_minimum()
 	clear_townhall_and_roads(player_x(1), 1, 1)
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+// A 1x1 townhall seeds its road on one neighbour tile.  With every
+// neighbour but `seed` flooded the seed lands on `seed`, and on the
+// townhall's NE or SW face that goes through stadt_t::build_road, which
+// decides what the new city road joins.  `seed` touches a stop or depot on
+// a dead end, built from a road that leaves along `road_to`.
+//   kind      "depot", or the name of a stop
+//   road_to   direction of the building's road
+//   seed_dir  direction from the building to the seed tile
+//   town_dir  direction from the seed tile to the townhall (NE or SW)
+//   joins     whether the seed road is to connect to the building
+function check_city_seed_next_to_building(kind, road_to, seed_dir, town_dir, joins)
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local site = coord3d(8, 8, 0)
+	local out = site + dir.to_coord(road_to)
+	local seed = site + dir.to_coord(seed_dir)
+	local townhall = seed + dir.to_coord(town_dir)
+
+	ASSERT_EQUAL(command_x.build_way(pl, site, out, road, true), null)
+	if (kind == "depot") {
+		ASSERT_EQUAL(command_x.build_depot(pl, site, get_depot_by_wt(wt_road)), null)
+	}
+	else {
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, site, kind), null)
+	}
+	ASSERT_EQUAL(way_dirs_at(site, wt_road), road_to)
+
+	local flooded = []
+	foreach (d in dir.nsew) {
+		local c = townhall + dir.to_coord(d)
+		if (c.x == seed.x && c.y == seed.y) continue
+		ASSERT_EQUAL(command_x(tool_set_climate).work(pl, c, c, "" + cl_water), null)
+		flooded.append(c)
+	}
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, townhall, "0"), null)
+
+	ASSERT_TRUE(tile_x(seed.x, seed.y, seed.z).get_way(wt_road) != null)
+	if (joins) {
+		ASSERT_EQUAL(way_dirs_at(site, wt_road), road_to | seed_dir)
+		ASSERT_EQUAL(way_dirs_at(seed, wt_road), dir.backward(seed_dir))
+	}
+	else {
+		ASSERT_EQUAL(way_dirs_at(site, wt_road), road_to)
+		ASSERT_EQUAL(way_dirs_at(seed, wt_road), 0)
+	}
+
+	// clean up
+	clear_townhall_and_roads(public_pl, townhall.x, townhall.y)
+	foreach (c in flooded) {
+		ASSERT_EQUAL(command_x(tool_set_climate).work(pl, c, c, "" + cl_mediterran), null)
+	}
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, site), null)
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, site, out, "" + wt_road), null)
+}
+
+
+// building_desc_t::adjust_layout folds a NE terminal stop onto layout 0
+// (S) and a SW one onto layout 1 (SE), so the stored layout names the
+// wrong side.  The city road has to go by the way: it must not bend the
+// terminal from the folded side.  A through stop on a NE-SW dead end takes
+// the city road at its open end, and not across the platform.
+function test_city_road_seed_next_to_stop()
+{
+	check_city_seed_next_to_building("CarStop", dir.northeast, dir.south,     dir.southwest, false)
+	check_city_seed_next_to_building("CarStop", dir.southwest, dir.southeast, dir.northeast, false)
+	check_city_seed_next_to_building("BusStop", dir.southwest, dir.northeast, dir.northeast, true)
+	check_city_seed_next_to_building("BusStop", dir.southwest, dir.southeast, dir.northeast, false)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+function test_city_road_seed_next_to_depot()
+{
+	check_city_seed_next_to_building("depot", dir.northeast, dir.south,     dir.southwest, false)
+	check_city_seed_next_to_building("depot", dir.southwest, dir.southeast, dir.northeast, false)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
