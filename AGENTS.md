@@ -481,6 +481,10 @@ Longer-form design and planning docs live under `documentation/`:
   - `documentation/hex-vertex-storage.md` — per-vertex height
     storage on the hex grid, canonical ownership rule and storage
     layout.  Describes live behaviour.
+  - `documentation/map-shape.md` — the W×H×D hexagon world
+    (#280): bounding-rhombus storage with a validity predicate,
+    save/load, world-creation dialog and image frame, rotation.
+    Design plus a PR-sized plan.
   - `documentation/world-mutation-deferral.md` — why GUI handlers
     can't synchronously call `welt->init()` / `welt->load()` /
     `karte_t::destroy()` (event dispatch nests inside
