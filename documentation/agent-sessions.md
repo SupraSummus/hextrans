@@ -63,11 +63,25 @@ and merge `main` into any that conflict.
 Deleting merged branches is the maintainer's call;
 list them for the maintainer.
 
+Test what lands, not what was branched.
+When `main` moved under an open PR in a way that touches the same code
+(an upstream stage, a change to the same subsystem),
+rebase the orchestrator's or agent's own branch onto `main`
+and let CI run again before merging;
+an upstream-stage branch gets `main` merged into it instead,
+since rebasing would rewrite upstream history.
+Agents rebase onto the latest `main` before their final test run.
+Read the `TODO.md` edits in each diff against the backlog already on `main`:
+an agent branched before an entry landed may add it a second time.
+
 ## Ordering
 
 Upstream stages go in before fixes that rewrite code
 the same stage also rewrites;
 small local fixes elsewhere run in parallel with the stages.
+Consecutive upstream stages pipeline:
+stage N+1 branches from stage N's branch while stage N is in review,
+and the merge commit keeps the shared upstream history identical.
 Refactors without a hex reason are not carried
 (AGENTS.md → "Diff against the upstream `simutrans` branch").
 
