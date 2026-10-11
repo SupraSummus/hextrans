@@ -21,9 +21,6 @@ class overtaker_t;
 class vehicle_base_t : public obj_t
 {
 protected:
-	// offsets for different directions
-	static sint8 dxdy[16];
-
 	// to make the length on diagonals configurable
 	// Number of vehicle steps along a diagonal...
 	// remember to subtract one when stepping down to 0
@@ -57,6 +54,14 @@ protected:
 	uint8 disp_lane:3;
 
 	sint8 dx, dy;
+
+	/**
+	 * Sets dx, dy to the screen offsets per step for travel along @p dir
+	 * (both 0 unless it is a single hex edge).
+	 * The only mapping from direction to dx, dy: calc_set_direction()
+	 * and loading a saved direction both go through it.
+	 */
+	void set_dxdy(ribi_t::ribi dir);
 
 	// number of steps in this tile (255 per tile)
 	uint8 steps, steps_next;

@@ -19,17 +19,31 @@
  * any vehicle (including city cars and pedestrians)
  * will go this distance per sync step.
  * (however, the real dirs are only calculated during display, these are the old ones)
+ *
+ * HEX-PORT: under flat-top axial coords the 6 neighbour displacements
+ * project onto the existing 2:1 isometric viewport as:
+ *   N  (0,-1): screen (+2, -1) — "normal" tile step
+ *   S  (0, 1): screen (-2, +1) — "normal" tile step
+ *   SE (1, 0): screen (+2, +1) — takes over the old square "east"
+ *   NW (-1,0): screen (-2, -1) — takes over the old square "west"
+ *   NE (1,-1): screen (+4,  0) — visual-length of old square diagonals
+ *   SW (-1,1): screen (-4,  0) — visual-length of old square diagonals
+ *
+ * Keyed by the hex edge, not by ribi_t::get_dir(): that slot index puts
+ * SE and NW on the old square-diagonal slots, which are (0,2) and (0,-2).
  */
-sint8 vehicle_base_t::dxdy[ 8*2 ] = {
-	-2,  1, // s
-	-2, -1, // w
-	-4,  0, // sw
-	 0,  2, // se
-	 2, -1, // n
-	 2,  1, // e
-	 4,  0, // ne
-	 0, -2  // nw
-};
+void vehicle_base_t::set_dxdy(ribi_t::ribi dir)
+{
+	switch(dir) {
+		case ribi_t::north:     dx =  2; dy = -1; break;
+		case ribi_t::south:     dx = -2; dy =  1; break;
+		case ribi_t::southeast: dx =  2; dy =  1; break;
+		case ribi_t::northwest: dx = -2; dy = -1; break;
+		case ribi_t::northeast: dx =  4; dy =  0; break;
+		case ribi_t::southwest: dx = -4; dy =  0; break;
+		default:                dx =  0; dy =  0; break;
+	}
+}
 
 
 // Constants
@@ -354,19 +368,12 @@ void vehicle_base_t::get_screen_offset( int &xoff, int &yoff, const sint16 raste
 
 // calcs new direction and applies it to the vehicles
 //
-// HEX-PORT: under flat-top axial coords the 6 neighbour displacements
-// project onto the existing 2:1 isometric viewport as:
-//   N  (0,-1): screen (+2, -1) — "normal" tile step
-//   S  (0, 1): screen (-2, +1) — "normal" tile step
-//   SE (1, 0): screen (+2, +1) — takes over the old square "east"
-//   NW (-1,0): screen (-2, -1) — takes over the old square "west"
-//   NE (1,-1): screen (+4,  0) — visual-length of old square diagonals
-//   SW (-1,1): screen (-4,  0) — visual-length of old square diagonals
-// So 4 of 6 hex edges are "normal" and 2 (NE, SW) reuse the
-// diagonal-step timing from the square-era projection.  The legacy
-// (1,1) and (-1,-1) square-diagonal cases are dead under hex (hex
-// distance 2, never appears from adjacent-tile pathfinding) — kept
-// only as defensive fallback logging until the viewport port lands.
+// HEX-PORT: 4 of 6 hex edges are "normal" and 2 (NE, SW) reuse the
+// diagonal-step timing from the square-era projection; dx, dy per
+// edge are in set_dxdy().  The legacy (1,1) and (-1,-1) square-diagonal
+// cases are dead under hex (hex distance 2, never appears from
+// adjacent-tile pathfinding) — kept only as defensive fallback logging
+// until the viewport port lands.
 ribi_t::ribi vehicle_base_t::calc_set_direction(const koord3d& start, const koord3d& ende)
 {
 	ribi_t::ribi direction = ribi_t::none;
@@ -376,43 +383,32 @@ ribi_t::ribi vehicle_base_t::calc_set_direction(const koord3d& start, const koor
 
 	if(dj < 0 && di == 0) {          // N
 		direction = ribi_t::north;
-		dx = 2;
-		dy = -1;
 		steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	} else if(dj > 0 && di == 0) {   // S
 		direction = ribi_t::south;
-		dx = -2;
-		dy = 1;
 		steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	} else if(di < 0 && dj == 0) {   // NW (was square "west")
 		direction = ribi_t::northwest;
-		dx = -2;
-		dy = -1;
 		steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	} else if(di >0 && dj == 0) {    // SE (was square "east")
 		direction = ribi_t::southeast;
-		dx = 2;
-		dy = 1;
 		steps_next = VEHICLE_STEPS_PER_TILE - 1;
 	} else if(di > 0 && dj < 0) {    // NE
 		direction = ribi_t::northeast;
-		dx = 4;
-		dy = 0;
 		steps_next = diagonal_vehicle_steps_per_tile - 1;
 	} else if(di < 0 && dj > 0) {    // SW
 		direction = ribi_t::southwest;
-		dx = -4;
-		dy = 0;
 		steps_next = diagonal_vehicle_steps_per_tile - 1;
 	} else {
 		// (1,1) or (-1,-1): hex distance 2, should not occur from
 		// adjacent-tile movement.  Fallback to none + zero offset;
 		// the viewport port will remove this branch.
-		direction = ribi_t::none;
 		dx = 0;
 		dy = (dj > 0) ? 2 : -2;
 		steps_next = diagonal_vehicle_steps_per_tile - 1;
+		return ribi_t::none;
 	}
+	set_dxdy(direction);
 	return direction;
 }
 
