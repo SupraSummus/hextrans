@@ -870,6 +870,18 @@ flat map needs no simulation, so the hook saves it directly and sets
 the quit month in NORMAL mode and hung in teardown).
 `tools/city_anisotropy.py` generates and caches it automatically.
 
+City road triangles at branch starts.
+`stadt_t::build_road` connects a new road tile to every adjacent road tile.
+On the hex grid a tile beside a straight road touches two of its tiles,
+so the first tile of a side street closes a triangle
+where the square grid gave a T junction.
+Next move: count such triangles in grown cities
+by extending the `tools/city_anisotropy.py` dump to road tiles,
+and if they are common,
+skip a neighbour that is adjacent to one already connected.
+Limiting a city to two road axes (closed PR #122) is not the fix:
+it stops rule-driven growth along the third axis.
+
 ## Building / crossing cluster
 
 Buildings and intersections that bake the square 4-axis crossroads
@@ -1112,11 +1124,14 @@ allocation (`desc->alloc(decode_*(p))`, `new[count]`) without first
 checking the count against the bytes remaining — a hostile value
 drives a multi-GB `new[]`, and in headless builds the copy-site
 bounds check that would otherwise catch the short read is skipped,
-so the alloc is the only guard point.  `image_reader` is fixed and
-shows the shape (cap `len * 2` against `node.size` before alloc); the
-vehicle pixel arrays and building tile lists still need the same
-guard, ideally via a `node_body_t` bytes-remaining accessor rather
-than per-reader.
+so the alloc is the only guard point.
+`image_reader` versions 0–2 are fixed and show the shape:
+cap `len * 2` against `node.size` before the alloc.
+Version 3 still calls `desc->alloc((node.size-10)/2)`
+before it reads the node's tenth byte,
+so a 9-byte node wraps the unsigned subtraction into a ~4 GiB request.
+Next move: reject `node.size < 10` before that alloc.
+No other reader allocates from a decoded count today.
 Trigger: fuzz_pak active mutation surfaces the next one on top of
 the seeded corpus.
 
