@@ -20,11 +20,13 @@ void way_reader_t::register_obj(obj_desc_t *&data)
 {
 	way_desc_t *desc = static_cast<way_desc_t *>(data);
 
-	// just calculate those once
-	desc->diagonals = (desc->get_diagonal_image_id(ribi_t::northeast,0,false) != IMG_EMPTY || desc->get_diagonal_image_id(ribi_t::northeast,0,true) != IMG_EMPTY);
-	desc->close_diagonals = (desc->get_close_diagonal_image_id(0,0,false) != IMG_EMPTY || desc->get_close_diagonal_image_id(0,0,true) != IMG_EMPTY);
-	desc->switches = desc->get_child<image_list_t>(2)->get_count() > 16 || desc->get_child<image_list_t>(desc->image_list_base_index(false, true))->get_count() > 16;
-	desc->double_slopes = desc->get_child<image_list_t>(3)->get_count() > 4 || desc->get_child<image_list_t>(desc->image_list_base_index(false, true) + 1)->get_count() > 4;
+	// Hex has no square diagonal, close-diagonal or extended switch
+	// sprites; the 64-slot ribi lists would make upstream's count
+	// tests always true.  double_slopes is the explicit v9 .dat key
+	// read in read_node and is not recomputed here.
+	desc->diagonals = false;
+	desc->close_diagonals = false;
+	desc->switches = false;
 
 	// find out if we really have front images
 	desc->front_images =false;

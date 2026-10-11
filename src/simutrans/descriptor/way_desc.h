@@ -235,7 +235,8 @@ public:
 		if (front  &&  !front_images) {
 			return IMG_EMPTY;
 		}
-		assert(ribi_t::is_bend(ribi));
+		// no is_bend() assert: leitung2 still indexes this list with
+		// the legacy square bend values 3/6/9/12
 		const uint16 n = image_list_base_index(season, front) + 2;
 		return get_child<image_list_t>(n)->get_image_id(ribi / 3 - 1);
 	}
