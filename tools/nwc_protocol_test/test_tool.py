@@ -33,6 +33,7 @@ def build(*,
           map_counter: int = 0,
           exec_flag: bool = True,
           last_sync_step: int = 0,
+          checklist: tuple[int, int, int, int, int] = (0, 0, 0, 0, 0),
           custom_data: bytes = b"") -> bytes:
     if tool_client_id is None:
         tool_client_id = our_client_id
@@ -40,7 +41,7 @@ def build(*,
     body += struct.pack("<II", sync_step, map_counter)       # network_world_command_t
     body += struct.pack("<B", 1 if exec_flag else 0)         # network_broadcast_world_command_t
     body += struct.pack("<I", last_sync_step)                # nwc_tool_t
-    body += struct.pack("<IIHHH", 0, 0, 0, 0, 0)             # checklist_t
+    body += struct.pack("<IIHHH", *checklist)                # checklist_t
     body += struct.pack("<B", player_nr & 0xFF)
     body += struct.pack("<hhb", pos_x, pos_y, pos_z)
     body += struct.pack("<Hh", tool_id, wt)
