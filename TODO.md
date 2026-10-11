@@ -970,15 +970,17 @@ and its double-track and station-extension code
 is built on square offsets and the old straight ribis 5 / 10.
 Hide it from the AI picker until then.
 
-Nothing exercises the AIs in tests.
-A headless run with an AI goods and an AI passenger player on a 128×128 map
-trips the `end_connect_hub.is_bound()` assert
+`-ai_soak SIZE [SEED]` (see AGENTS.md) runs both AIs unattended and deterministically.
+On 128×128, 6 of seeds 1–15 abort in the first game month
+at the `start_connect_hub` / `end_connect_hub` asserts
 in `ai_passenger_t::create_air_transport_vehicle`
-within the first game year.
-Next move: a test hook
-(fixed seed, AI players, no start-up banner —
-its modal dialog runs the world at normal speed and defeats `-fast`)
-that CI runs for a few game years under ASAN.
+(a SIGSEGV in `ai_passenger_t::step` in NDEBUG builds; seeds 3, 7, 13 and 15 hit both).
+`get_our_hub` accepts a halt only inside the square city rectangle,
+and the airport halt's first tile lies one row north of it,
+so the AI looks for another hub, fails to build one and ignores the failure.
+Next move: a hex-aware hub test and `return false` instead of the asserts,
+then run seeds 1–3 to 1933.1 in CI (the busy AI phase;
+both AIs go bankrupt within a few game years after that).
 
 ## Pak reader child-count expectations are implicit
 
