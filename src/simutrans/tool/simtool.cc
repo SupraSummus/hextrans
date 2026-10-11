@@ -2216,7 +2216,7 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 	// if not water then raise = set water height to ground height, lower = error
 	else if(  raising  ) {
 		slope_t::type slope = gr->get_grund_hang();
-		new_water_height = gr->get_hoehe() + max( max( corner_sw(slope), corner_se(slope) ),max( corner_ne(slope), corner_nw(slope) ) );
+		new_water_height = gr->get_hoehe() + slope_t::max_diff(slope);
 	}
 	else {
 		return "Cannot alter water";

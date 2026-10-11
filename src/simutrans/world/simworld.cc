@@ -372,12 +372,8 @@ void karte_t::cleanup_grounds_loop( sint16 x_min, sint16 x_max, sint16 y_min, si
 			sint8 water_hgt = get_water_hgt_nocheck(k);
 
 			if(  height < water_hgt) {
-				const sint8 disp_hn_sw = max( height + corner_sw(slope), water_hgt );
-				const sint8 disp_hn_se = max( height + corner_se(slope), water_hgt );
-				const sint8 disp_hn_ne = max( height + corner_ne(slope), water_hgt );
-				const sint8 disp_hn_nw = max( height + corner_nw(slope), water_hgt );
+				slope = slope_t::raise_base( slope, water_hgt - height );
 				height = water_hgt;
-				slope = encode_corners(disp_hn_sw - height, disp_hn_se - height, disp_hn_ne - height, disp_hn_nw - height);
 			}
 
 			if(  max_hgt_nocheck(k) <= water_hgt  ) {

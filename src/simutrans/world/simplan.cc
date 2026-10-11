@@ -367,11 +367,7 @@ void planquadrat_t::correct_water()
 	gr = get_kartenboden();
 	if(  gr  &&  gr->get_typ() != grund_t::wasser  &&  gr->get_disp_height() < water_hgt  &&  welt->max_hgt(k) > water_hgt  ) {
 		sint8 disp_hneu = water_hgt;
-		sint8 disp_hn_sw = max( gr->get_hoehe() + corner_sw(slope), water_hgt );
-		sint8 disp_hn_se = max( gr->get_hoehe() + corner_se(slope), water_hgt );
-		sint8 disp_hn_ne = max( gr->get_hoehe() + corner_ne(slope), water_hgt );
-		sint8 disp_hn_nw = max( gr->get_hoehe() + corner_nw(slope), water_hgt );
-		const slope_t::type sneu = encode_corners(disp_hn_sw - disp_hneu, disp_hn_se - disp_hneu, disp_hn_ne - disp_hneu, disp_hn_nw - disp_hneu);
+		const slope_t::type sneu = slope_t::raise_base( slope, disp_hneu - gr->get_hoehe() );
 		gr->set_hoehe( disp_hneu );
 		gr->set_grund_hang( (slope_t::type)sneu );
 	}
