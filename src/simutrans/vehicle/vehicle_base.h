@@ -28,6 +28,9 @@ protected:
 	static uint8 old_diagonal_vehicle_steps_per_tile;
 	static uint16 diagonal_multiplier;
 
+	/// steps_next of a tile crossed along the displacement @p start -> @p ende
+	static uint8 calc_chord_steps_next(const koord3d& start, const koord3d& ende);
+
 	// [0]=xoff [1]=yoff
 	static sint8 driveleft_base_offsets[8][2];
 	static sint8 overtaking_base_offsets[8][2];
@@ -140,6 +143,10 @@ public:
 	{
 		return ribi_type(from, to);
 	}
+
+	/// Direction through a tile for the displacement @p start -> @p ende;
+	/// what calc_set_direction() stores in `direction`.
+	static ribi_t::ribi calc_chord_direction(const koord3d& start, const koord3d& ende);
 
 	ribi_t::ribi calc_set_direction(const koord3d& start, const koord3d& ende);
 

@@ -31,6 +31,7 @@ include("tests/test_slope")
 include("tests/test_terraform")
 include("tests/test_transport")
 include("tests/test_trees")
+include("tests/test_vehicle")
 include("tests/test_way_bridge")
 include("tests/test_way_rail")
 include("tests/test_way_road")
@@ -222,6 +223,7 @@ all_tests <- [
 	test_trees_plant_single_max_per_square,
 	test_trees_plant_single_occupied,
 	test_trees_plant_forest,
+	test_vehicle_tile_length_all_hex_directions,
 	test_way_bridge_build_ground,
 	test_way_bridge_build_at_slope,
 	test_way_bridge_build_at_slope_stacked,

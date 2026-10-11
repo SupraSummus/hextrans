@@ -684,8 +684,8 @@ legacy square-iso pair (`(±2, ±1)` for the four edges that survive
 the rename, `(±4, 0)` for NE/SW); under the hex lattice N/S
 neighbours are at screen distance `2u` while NE/SW are at `u·√10`
 ≈ `3.16u`, so NE/SW vehicles visibly drift off-tile mid-hop on
-straight segments.  Rebase the per-edge offsets on the lattice and
-match the diagonal-step substep count to the longer hex chord.
+straight segments.  Rebase the per-edge offsets on the lattice; every
+edge crosses a tile in the same number of steps.
 
 Two more per-direction tables still follow the old square model.
 `driveleft_base_offsets` and `overtaking_base_offsets` (`vehicle_base.cc`)
@@ -693,11 +693,29 @@ are keyed by `get_dir()`,
 so SE/NW traffic gets the square-diagonal lane rows
 instead of the rows the old east/west edges used.
 Next move: key them by ribi, the way `set_dxdy` does.
-`vehicle_t::initialise_journey` resets `steps_next` from `is_single(direction)`,
-which holds for every hex edge,
-so NE/SW vehicles get 255 instead of the diagonal value after each departure;
-`convoi_t` and `vehicle_base_t` use `is_bend(direction)` the same way.
-Next move: one helper for `steps_next` shared with `calc_set_direction`.
+`convoi_t` and `vehicle_base_t` use `is_bend(direction)` for "the vehicle is
+on a bend", which is false for every hex direction.
+Next move: ask `steps_next`, which is the only record of a bend after loading.
+
+**Bend tile length.**
+A vehicle crosses a tile on the chord from the middle of its entry edge
+to the middle of its exit edge.
+On the square grid every bend was a 90 degree corner,
+and `diagonal_vehicle_steps_per_tile` (181 of 256) stands for its length.
+A hex bend is one of two:
+a 60 degree change of heading (edges 120 degrees apart, 0.87 of a straight
+run, about 221 steps) or a 120 degree one (edges 60 degrees apart, 0.5,
+128 steps).
+`calc_chord_steps_next` instead tells bends from straight runs by the chord
+from the tile before to the tile after:
+the 60 degree bends are off-axis and take the 181 steps,
+the 120 degree bends have an on-axis chord and take the full 256, like
+straight travel (a bus crosses a SE-SW bend tile in 42 script steps, a
+SE-S bend tile in 28).
+Next move: derive `steps_next` from the turn between the two edge steps
+(256, 221, 128), retire `diagonal_vehicle_steps_per_tile` and the pakset
+`diagonal_multiplier`, and add bends of both kinds to
+`test_vehicle_tile_length_all_hex_directions`.
 
 Minimap (`gui/minimap.cc`) now hex-projects in isometric mode:
 `map_to_screen_coord` / `screen_to_map_coord` use the `(3u, u)` /

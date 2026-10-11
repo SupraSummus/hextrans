@@ -320,6 +320,9 @@ void vehicle_t::initialise_journey(route_t::index_t start_route_index, bool reca
 		// always set pos_next
 		pos_next = r.at(route_index);
 		assert(get_pos() == r.at(start_route_index));
+		// the vehicle stays in its tile: refresh its length as hop() set it,
+		// from the tile before this one to the next
+		steps_next = calc_chord_steps_next(r.at(start_route_index > 0 ? start_route_index - 1 : 0), pos_next);
 	}
 	else {
 		// set pos_next
@@ -343,12 +346,6 @@ void vehicle_t::initialise_journey(route_t::index_t start_route_index, bool reca
 		set_yoff( (dy<0) ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
 
 		calc_image();
-	}
-	if ( ribi_t::is_single(direction) ) {
-		steps_next = VEHICLE_STEPS_PER_TILE - 1;
-	}
-	else {
-		steps_next = diagonal_vehicle_steps_per_tile - 1;
 	}
 }
 
