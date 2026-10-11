@@ -738,7 +738,7 @@ image_id grund_t::get_back_image(uint8 wall) const
 //   * `nbr_a/b`    — the same two world vertices named on the neighbour
 //                    tile (each shared hex vertex has 3 (tile, corner)
 //                    owners; pick the one whose tile is the neighbour
-//                    — see `vertex_owners()` in `dataobj/koord.cc`).
+//                    — see `vertex_owners()` in `dataobj/koord_hex.cc`).
 struct back_wall_geometry_t {
 	koord nbr;
 	ribi_t::ribi nbr_ribi;

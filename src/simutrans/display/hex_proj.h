@@ -129,22 +129,17 @@ inline koord hex_round_to_axial(double q_f, double r_f)
 	// and keep the screen-closest.  Squared screen distance from
 	// fractional `(q_f, r_f)` to integer `(q, r)` in u² units is
 	// `(3·dq)² + (dq + 2·dr)²` (= `hex_screen_dx/dy` with u = 1).
-	// The 7 offsets are `koord::neighbours[]` (SE, S, SW, NW, N, NE)
-	// preceded by (0, 0) for the centre — duplicated locally because
-	// hex_proj.h ships with a standalone test that doesn't link
-	// `koord.cc`.
-	static const sint8 dq_window[7] = {  0,  1,  0, -1, -1,  0,  1 };
-	static const sint8 dr_window[7] = {  0,  0,  1,  1,  0, -1, -1 };
-	double best_q = rx, best_r = rz, best_d2 = HUGE_VAL;
-	for (int i = 0; i < 7; i++) {
-		const double cq = rx + dq_window[i];
-		const double cr = rz + dr_window[i];
+	auto screen_d2 = [=](double cq, double cr) {
 		const double dq = cq - q_f, dr = cr - r_f;
-		const double d2 = (3.0 * dq) * (3.0 * dq) + (dq + 2.0 * dr) * (dq + 2.0 * dr);
+		return (3.0 * dq) * (3.0 * dq) + (dq + 2.0 * dr) * (dq + 2.0 * dr);
+	};
+	double best_q = rx, best_r = rz, best_d2 = screen_d2(rx, rz);
+	for (const koord &n : koord::neighbours) {
+		const double d2 = screen_d2(rx + n.x, rz + n.y);
 		if (d2 < best_d2) {
 			best_d2 = d2;
-			best_q = cq;
-			best_r = cr;
+			best_q = rx + n.x;
+			best_r = rz + n.y;
 		}
 	}
 	return koord((sint16)best_q, (sint16)best_r);

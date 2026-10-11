@@ -1,11 +1,6 @@
-# Standalone self-test for the per-vertex storage helpers added to
-# src/simutrans/dataobj/koord.{h,cc}.  Not wired into the main build.
-#
-# The test duplicates the helper implementations rather than linking
-# the full koord.cc (which drags in loadsave / scr_coord / simrandom).
-# Keep the two copies in sync — the canonical source of truth is
-# koord.cc; this tool exists to exercise the invariants that would
-# otherwise only be testable through a pakset-running scenario test.
+# Standalone self-test for the per-vertex storage helpers in
+# src/simutrans/dataobj/koord_hex.cc, built against that file directly.
+# Not wired into the main build.
 #
 #   make           # build ./hex_vertex_test
 #   make run       # build and run the self-test
@@ -13,9 +8,11 @@
 
 CXX      ?= g++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic
+INCLUDES ?= -I ../../src
+SOURCES   = hex_vertex_test.cc ../../src/simutrans/dataobj/koord_hex.cc
 
-hex_vertex_test: hex_vertex_test.cc
-	$(CXX) $(CXXFLAGS) -o $@ $<
+hex_vertex_test: $(SOURCES) ../../src/simutrans/dataobj/koord.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(SOURCES)
 
 .PHONY: run clean
 run: hex_vertex_test

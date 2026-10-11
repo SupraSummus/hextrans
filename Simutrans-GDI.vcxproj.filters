@@ -60,6 +60,9 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\dataobj\koord.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\dataobj\koord_hex.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\dataobj\loadsave.cc">
       <Filter>Source Files</Filter>
     </ClCompile>

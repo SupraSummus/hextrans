@@ -1,9 +1,7 @@
 # Standalone self-test for the hex projection helpers in
-# src/simutrans/display/hex_proj.h.  Not wired into the main build.
-#
-# The test includes hex_proj.h directly — the helpers are header-only
-# and pure (the only dependency is koord, also header-only).  No
-# duplicated bodies to keep in sync.
+# src/simutrans/display/hex_proj.h, built against the header and
+# src/simutrans/dataobj/koord_hex.cc directly.  Not wired into the
+# main build.
 #
 #   make           # build ./hex_proj_test
 #   make run       # build and run the self-test
@@ -12,9 +10,10 @@
 CXX      ?= g++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic
 INCLUDES ?= -I ../../src
+SOURCES   = hex_proj_test.cc ../../src/simutrans/dataobj/koord_hex.cc
 
-hex_proj_test: hex_proj_test.cc ../../src/simutrans/display/hex_proj.h
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ hex_proj_test.cc
+hex_proj_test: $(SOURCES) ../../src/simutrans/display/hex_proj.h ../../src/simutrans/dataobj/koord.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(SOURCES)
 
 .PHONY: run clean
 run: hex_proj_test

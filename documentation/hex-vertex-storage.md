@@ -25,7 +25,7 @@ canonical owner out of the three, and how do we lay out the storage?
 
 Of the three (tile, corner) names for a world vertex, we pick the one
 whose tile is lex-smallest under `(x, y)` ordering.  Working this out
-from `vertex_owners()` in `src/simutrans/dataobj/koord.cc` gives a
+from `vertex_owners()` in `src/simutrans/dataobj/koord_hex.cc` gives a
 short table — at any tile `(q, r)`, the corners `E` and `SE` are
 always canonical, and the other four corners are just aliases for an
 E-or-SE corner of a neighbour:

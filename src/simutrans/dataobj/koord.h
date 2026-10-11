@@ -34,7 +34,7 @@ class loadsave_t;
  *     Flat-top hexes have NO due-N or due-S corner; the 6 vertices
  *     sit at angles 0°, 60°, 120°, 180°, 240°, 300° from the centre.
  * koord::neighbours[] is ordered clockwise starting from the SE
- * neighbour, see koord.cc.  Edge labels in the comments there refer
+ * neighbour, see koord_hex.cc.  Edge labels in the comments there refer
  * to the EDGE convention above.  Bit position in ribi_t::ribi matches
  * the neighbours[] index — iterating bits 0..5 visits neighbours in
  * the same order.
@@ -53,8 +53,8 @@ public:
 	koord() : x(0), y(0) {}
 
 	koord(sint16 xp, sint16 yp) : x(xp), y(yp) {}
-	koord(ribi_t::ribi ribi);   // defined in koord.cc
-	koord(slope_t::type slope); // uphill direction of a slope (koord.cc)
+	koord(ribi_t::ribi ribi);   // defined in koord_hex.cc
+	koord(slope_t::type slope); // uphill direction of a slope (koord_hex.cc)
 
 	// Static factory for the displacement of a hex-edge ribi.  Enum
 	// literals (e.g. `ribi_t::northwest`) convert to both `ribi_t::ribi`

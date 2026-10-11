@@ -13,6 +13,7 @@ target_sources(simutrans PRIVATE
 		src/simutrans/dataobj/gameinfo.cc
 		src/simutrans/dataobj/height_map_loader.cc
 		src/simutrans/dataobj/koord.cc
+		src/simutrans/dataobj/koord_hex.cc
 		src/simutrans/dataobj/koord3d.cc
 		src/simutrans/dataobj/loadsave.cc
 		src/simutrans/dataobj/marker.cc
