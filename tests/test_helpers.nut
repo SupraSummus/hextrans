@@ -319,3 +319,24 @@ function get_depot_by_wt(waytype)
 
 	return null
 }
+
+
+// Directions (ribi) of the way of waytype `wt` on the tile at `pos`; 0 if
+// there is none.  `pos` is a coord3d.
+function way_dirs_at(pos, wt)
+{
+	return tile_x(pos.x, pos.y, pos.z).get_way_dirs(wt)
+}
+
+
+// Two flat road descriptors of different speed, [slower, faster], for
+// tests that build a road and then upgrade it.
+function get_slow_and_fast_road()
+{
+	local ways = way_desc_x.get_available_ways(wt_road, st_flat)
+	ways.sort(@(a, b) a.get_topspeed() <=> b.get_topspeed())
+
+	ASSERT_TRUE(ways.len() >= 2)
+	ASSERT_TRUE(ways[0].get_topspeed() < ways[1].get_topspeed())
+	return [ways[0], ways[1]]
+}

@@ -492,6 +492,142 @@ function test_halt_build_terminal_stop_all_directions()
 }
 
 
+// building_desc_t::adjust_layout folds layouts 4 / 5 (NE / SW) onto 0 / 1
+// (S / SE) for a descriptor with 4 or fewer layouts, so the stored layout
+// of a NE or SW terminal stop reads as an S or SE one.  The road builder
+// must take the direction from the way instead: the road along the stop's
+// own axis stays buildable, a road from any other side is refused.
+function test_halt_terminal_stop_third_axis()
+{
+	local pl = player_x(0)
+	local roads = get_slow_and_fast_road()
+	local stop = coord3d(8, 8, 0)
+
+	foreach (face in [dir.northeast, dir.southwest]) {
+		// dead end whose only exit is `face`
+		local out = stop + dir.to_coord(face)
+		ASSERT_EQUAL(command_x.build_way(pl, stop, out, roads[0], true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, stop, "CarStop"), null)
+		ASSERT_EQUAL(way_dirs_at(stop, wt_road), face)
+
+		// upgrade the road into the stop along its axis
+		ASSERT_EQUAL(command_x.build_way(pl, stop, out, roads[1], true), null)
+		ASSERT_EQUAL(tile_x(stop.x, stop.y, stop.z).get_way(wt_road).get_desc().get_name(), roads[1].get_name())
+		ASSERT_EQUAL(way_dirs_at(stop, wt_road), face)
+		ASSERT_EQUAL(way_dirs_at(out, wt_road), dir.backward(face))
+
+		// no road from the other five sides, the stop stays a dead end
+		foreach (d in dir.nsew) {
+			if (d == face) continue
+			local side = stop + dir.to_coord(d)
+			ASSERT_EQUAL(command_x.build_way(pl, side, stop, roads[0], true), "A building blocks the construction")
+			ASSERT_EQUAL(way_dirs_at(stop, wt_road), face)
+			ASSERT_EQUAL(way_dirs_at(side, wt_road), 0)
+		}
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, stop, out, "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// BusStop is pak64's 2-layout through stop.  On a NE-SW road it has to
+// stay passable along the road and closed to the four sides.
+function test_halt_through_stop_third_axis()
+{
+	local pl = player_x(0)
+	local roads = get_slow_and_fast_road()
+	local mid = coord3d(8, 8, 0)
+	local sw = mid + dir.to_coord(dir.southwest)
+	local ne = mid + dir.to_coord(dir.northeast)
+
+	ASSERT_EQUAL(command_x.build_way(pl, sw, ne, roads[0], true), null)
+	ASSERT_EQUAL(command_x(tool_build_station).work(pl, mid, "BusStop"), null)
+	ASSERT_EQUAL(way_dirs_at(mid, wt_road), dir.northeast_southwest)
+
+	// extend the road through the platform at both ends
+	local far_sw = sw + dir.to_coord(dir.southwest)
+	local far_ne = ne + dir.to_coord(dir.northeast)
+	ASSERT_EQUAL(command_x.build_way(pl, far_sw, far_ne, roads[1], true), null)
+	ASSERT_EQUAL(way_dirs_at(far_sw, wt_road), dir.northeast)
+	ASSERT_EQUAL(way_dirs_at(sw, wt_road), dir.northeast_southwest)
+	ASSERT_EQUAL(way_dirs_at(mid, wt_road), dir.northeast_southwest)
+	ASSERT_EQUAL(way_dirs_at(ne, wt_road), dir.northeast_southwest)
+	ASSERT_EQUAL(way_dirs_at(far_ne, wt_road), dir.southwest)
+	ASSERT_EQUAL(tile_x(mid.x, mid.y, mid.z).get_way(wt_road).get_desc().get_name(), roads[1].get_name())
+
+	// no road from the sides
+	foreach (d in [dir.southeast, dir.south, dir.northwest, dir.north]) {
+		local side = mid + dir.to_coord(d)
+		ASSERT_EQUAL(command_x.build_way(pl, side, mid, roads[0], true), "A building blocks the construction")
+		ASSERT_EQUAL(way_dirs_at(mid, wt_road), dir.northeast_southwest)
+		ASSERT_EQUAL(way_dirs_at(side, wt_road), 0)
+	}
+
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, far_sw, far_ne, "" + wt_road), null)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// A stop whose road is gone has no way to read its direction from and
+// falls back to the stored layout.  That is exact for the directions
+// adjust_layout does not fold (S, SE, N, NW for a terminal stop, N-S and
+// SE-NW for a through one).  A NE or SW terminal stop folds onto S or SE
+// and loses its direction together with its road.
+function test_halt_stop_reconnect_after_road_removed()
+{
+	local pl = player_x(0)
+	local road = get_slow_and_fast_road()[0]
+	local stop = coord3d(8, 8, 0)
+
+	// terminal: only the stop's own side takes a road again
+	foreach (face in [dir.south, dir.southeast, dir.north, dir.northwest]) {
+		local out = stop + dir.to_coord(face)
+		ASSERT_EQUAL(command_x.build_way(pl, stop, out, road, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, stop, "CarStop"), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, out, out, "" + wt_road), null)
+		ASSERT_EQUAL(way_dirs_at(stop, wt_road), 0)
+
+		foreach (d in dir.nsew) {
+			if (d == face) continue
+			local side = stop + dir.to_coord(d)
+			ASSERT_EQUAL(command_x.build_way(pl, side, stop, road, true), "A building blocks the construction")
+		}
+		ASSERT_EQUAL(command_x.build_way(pl, out, stop, road, true), null)
+		ASSERT_EQUAL(way_dirs_at(stop, wt_road), face)
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, stop, out, "" + wt_road), null)
+	}
+
+	// through: only the stop's own axis takes a road again
+	foreach (axis in [[dir.south, dir.north], [dir.southeast, dir.northwest]]) {
+		local far = stop + dir.to_coord(axis[0])
+		local near = stop + dir.to_coord(axis[1])
+		ASSERT_EQUAL(command_x.build_way(pl, far, near, road, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, stop, "BusStop"), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, far, far, "" + wt_road), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, near, near, "" + wt_road), null)
+		ASSERT_EQUAL(way_dirs_at(stop, wt_road), 0)
+
+		foreach (d in dir.nsew) {
+			if (d == axis[0] || d == axis[1]) continue
+			local side = stop + dir.to_coord(d)
+			ASSERT_EQUAL(command_x.build_way(pl, side, stop, road, true), "A building blocks the construction")
+		}
+		ASSERT_EQUAL(command_x.build_way(pl, far, near, road, true), null)
+		ASSERT_EQUAL(way_dirs_at(stop, wt_road), axis[0] | axis[1])
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, far, near, "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_halt_build_multi_mode()
 {
 	local pl = player_x(0)
