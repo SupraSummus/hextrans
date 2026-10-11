@@ -215,6 +215,17 @@ public:
 		            min( corner_nw(high) - corner_nw(low), corner_ne(high) - corner_ne(low) ) );
 	}
 
+	/// Slope of the same ground once its base height goes up by @p by
+	/// levels and everything below the new base is clamped to it, as
+	/// water at that level does: each of the 6 corner heights drops by
+	/// @p by, to at least 0.  All 6 corners, E and W included.
+	static type raise_base(type x, sint8 by) {
+		return (type)encode_corners_hex(
+			max(corner_e(x)  - by, 0), max(corner_se(x) - by, 0),
+			max(corner_sw(x) - by, 0), max(corner_w(x)  - by, 0),
+			max(corner_nw(x) - by, 0), max(corner_ne(x) - by, 0));
+	}
+
 	/// Project a 6-corner hex slope onto a 4-corner subset by absorbing
 	/// the 2 hex-only corners (E, W) into their adjacent square corners
 	/// (E → max with SE and NE, W → max with SW and NW), dropping E
