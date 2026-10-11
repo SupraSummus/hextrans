@@ -481,11 +481,21 @@ Longer-form design and planning docs live under `documentation/`:
   - `documentation/hex-vertex-storage.md` — per-vertex height
     storage on the hex grid, canonical ownership rule and storage
     layout.  Describes live behaviour.
+  - `documentation/map-shape.md` — the W×H×D hexagon world
+    (#280): bounding-rhombus storage with a validity predicate,
+    save/load, world-creation dialog and image frame, rotation.
+    Design plus a PR-sized plan; step 1 (`map_shape_t`) is live.
   - `documentation/world-mutation-deferral.md` — why GUI handlers
     can't synchronously call `welt->init()` / `welt->load()` /
     `karte_t::destroy()` (event dispatch nests inside
     `karte_t::step`), and the `tool_t` dispatch path that fixes
     it.  Describes live behaviour.
+  - `documentation/upstream-125-merge.md` — staged plan for merging
+    upstream 125: per-file conflict classes, what to take, skip or
+    neutralise.  Planning doc; delete it when the last stage lands.
+  - `documentation/agent-sessions.md` — how a session runs parallel
+    agents: where work comes from, one branch and PR per fix group,
+    review and merge rules.
   - `documentation/fuzz-corpora.md` — what goes in
     `src/fuzz/corpus/` and what stays out-of-band: the committed
     corpus is a regression-and-wiring gate (generated smoke seeds +
@@ -553,6 +563,8 @@ fetches pak64 on first invocation (~30 MB, cached) and skips setup it
 already did, so warm runs are dominated by sim startup. Pass substring
 filters to narrow the run: `tools/test.py halt` runs only tests whose
 name contains "halt". This is the cmake-Debug fast loop.
+The engine's user dir for these runs lives under `build/test-data/`,
+so parallel worktrees don't share scenario or test-pak links.
 
 The harness launches the engine with `-fast` (fast-forward + uncapped
 `max_acceleration`, so `idle_time` collapses to 0 and sim steps run
@@ -581,10 +593,20 @@ human at the keyboard.
 `tools/hex_*_test/` are standalone C++ self-tests
 that CI runs before the engine build (`make -C tools/hex_vertex_test run`).
 They compile the production sources they check
-(`dataobj/koord_hex.cc`, `display/hex_proj.h`, `ground/back_image_decode.h`),
+(`dataobj/koord_hex.cc`, `dataobj/map_shape.h`, `display/hex_proj.h`,
+`ground/back_image_decode.h`, `dataobj/height_field_sample.h`),
 never a copy.
 Code that can't build standalone gets split into a dependency-free file first,
 the way `koord_hex.cc` came out of `koord.cc`.
+
+`tools/heightfield_import_test.py` imports synthetic relief images
+through the `-heightfield FILE` hook in `simmain.cc`,
+the path of the new-world dialog's "Load relief"
+(`karte_t::load_heightfield`, then `enlarge_map`).
+The hook prints every tile's base height,
+and the test compares them with a model of the pixel-to-tile mapping
+written in the test itself.
+CI runs it after the scenario suite.
 
 `tools/city_anisotropy.py` measures how non-round city footprints come
 out under the hex grid (see `TODO.md` → "City growth anisotropy").  It

@@ -151,6 +151,11 @@ static const char *const NOTICE_UNSUITABLE_GROUND = "No suitable ground!";
 static const char *const NOTICE_TILE_FULL = "Tile not empty.";
 
 /**
+ * Message returned for a dock longer than one tile that would have to run along the NE-SW axis.
+ */
+static const char *const NOTICE_DOCK_NESW_LENGTH = "A dock longer than one tile cannot run NE-SW yet.";
+
+/**
  * Message returned when a company tries to make a public way when public ways are disabled.
  */
 static const char *const NOTICE_DISABLED_PUBLIC_WAY = "Not allowed to make publicly owned ways!";
@@ -2221,7 +2226,7 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 	// if not water then raise = set water height to ground height, lower = error
 	else if(  raising  ) {
 		slope_t::type slope = gr->get_grund_hang();
-		new_water_height = gr->get_hoehe() + max( max( corner_sw(slope), corner_se(slope) ),max( corner_ne(slope), corner_nw(slope) ) );
+		new_water_height = gr->get_hoehe() + slope_t::max_diff(slope);
 	}
 	else {
 		return "Cannot alter water";
@@ -4387,6 +4392,19 @@ DBG_MESSAGE("tool_station_building_aux()", "building mail office/station buildin
 	return NULL;
 }
 
+/**
+ * Whether a dock that faces the water in direction @p water_dir and
+ * extends @p len tiles beyond its shore tile has no footprint.
+ * building_desc_t knows a rectangle and its transpose, so a footprint runs
+ * along N-S or SE-NW only; a one-tile dock needs none (AGENTS.md, "Engine
+ * encoding leads the pakset").
+ */
+static bool dock_footprint_missing(ribi_t::ribi water_dir, int len)
+{
+	return len > 0  &&  ribi_t::straight_axis(water_dir) == ribi_t::northeast;
+}
+
+
 /* build a dock either small or large */
 const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3d pos, const building_desc_t *desc)
 {
@@ -4399,13 +4417,18 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 	slope_t::type hang = gr->get_grund_hang();
 	// first get the size
 	int len = desc->get_y()-1;
-	koord dx(hang);
+	koord dx(hang); // uphill; the water lies the other way
 	koord last_k = k - dx*len;
+	// the dock faces the water, which lies downhill
+	const ribi_t::ribi water_dir = ribi_t::backward(ribi_type(hang));
 	halthandle_t halt;
 
 	// check, if we can build here ...
 	if(!slope_t::is_axis_slope(hang)) {
 		return "Dock must be built on single slope!";
+	}
+	else if(dock_footprint_missing(water_dir, len)) {
+		return NOTICE_DOCK_NESW_LENGTH;
 	}
 	else {
 		// iterate up to max(len,1) to ensure that there is at least one tile of water
@@ -4464,33 +4487,25 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 	// remove everything from tile
 	gr->obj_loesche_alle(player);
 
+	int layout = ribi_t::ribi_to_layout(water_dir);
 	koord bau_pos = k;
-	int layout = 0;
-	koord dx2;
-	switch(hang) {
-		case slope_t::south_narrow:
-			layout = 0;
-			dx2 = koord::step(ribi_t::northwest);
-			break;
-		case slope_t::east:
-			layout = 1;
-			dx2 = koord::step(ribi_t::north);
-			break;
-		case slope_t::north_narrow:
-			layout = 2;
-			dx2 = koord::step(ribi_t::northwest);
-			bau_pos = last_k;
-			break;
-		case slope_t::west:
-			layout = 3;
-			dx2 = koord::step(ribi_t::north);
-			bau_pos = last_k;
-			break;
+	if(  layout>=2  ) {
+		// the footprint runs from the far end of the dock back to the shore tile
+		bau_pos = last_k;
+	}
+	// neighbouring dock tiles, along the shore
+	koord dx2 = koord::step(ribi_t::northwest);
+	switch(ribi_t::straight_axis(water_dir)) {
+		case ribi_t::northwest: dx2 = koord::step(ribi_t::north);     break;
+		case ribi_t::northeast: dx2 = koord::step(ribi_t::southeast); break;
+		default: break;
 	}
 
 	// handle 16 layouts
 	bool change_layout = false;
 	if(desc->get_all_layouts()==16) {
+		// the images know only the four N-S and SE-NW orientations
+		layout &= 3;
 		if(  layout<2  ) {
 			layout = 15-layout;
 		}
@@ -4655,6 +4670,10 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 			}
 		}
 
+		if(  dock_footprint_missing(ribi_t::nesw[ii], len)  ) {
+			last_error = NOTICE_DOCK_NESW_LENGTH;
+		}
+
 		// error: then remove this direction
 		if(  last_error  ) {
 			water_dir &= ~ribi_t::nesw[ii];
@@ -4705,6 +4724,8 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 	// handle 16 layouts
 	bool change_layout = false;
 	if(desc->get_all_layouts()==16) {
+		// the images know only the four N-S and SE-NW orientations
+		layout &= 3;
 		if(  layout<2  ) {
 			layout = 15-layout;
 		}

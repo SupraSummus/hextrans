@@ -144,6 +144,108 @@ function test_halt_build_harbour()
 }
 
 
+// The six directions a dock can face: [direction to the water, shore slope
+// with that edge low, stored layout of a dock with 4 layouts].  The 4-layout
+// images know S, SE, N and NW; building_desc_t::adjust_layout folds NE and SW
+// onto S and SE, so those two only show up in the footprint.
+function dock_faces()
+{
+	return [
+		[dir.south,     slope.south_narrow,     0],
+		[dir.southeast, slope.southeast_narrow, 1],
+		[dir.north,     slope.north_narrow,     2],
+		[dir.northwest, slope.northwest_narrow, 3],
+		[dir.northeast, slope.northeast_narrow, 0],
+		[dir.southwest, slope.southwest_narrow, 1],
+	]
+}
+
+
+// Turn the `n` tiles in front of the shore tile `k`, along `face`, into
+// water (`climate` = cl_water) or back into land (cl_mediterran).
+function set_dock_water(pl, k, face, n, climate)
+{
+	local v = dir.to_coord(face)
+	for (local i = 1; i <= n; i++) {
+		local t = coord3d(k.x + v.x * i, k.y + v.y * i, 0)
+		ASSERT_EQUAL(command_x(tool_set_climate).work(pl, t, t, "" + climate), null)
+	}
+}
+
+
+// Number of buildings within 4 tiles of `k`.
+function count_buildings_around(k)
+{
+	local n = 0
+	for (local x = k.x - 4; x <= k.x + 4; x++) {
+		for (local y = k.y - 4; y <= k.y + 4; y++) {
+			if (square_x(x, y).get_ground_tile().find_object(mo_building) != null) n++
+		}
+	}
+	return n
+}
+
+
+// The dock of `len` + 1 tiles that starts at the shore tile `k` and runs along
+// `face` is the only building around `k`, and every tile of it has `layout`.
+function ASSERT_DOCK_LINE(k, face, len, layout)
+{
+	local v = dir.to_coord(face)
+	for (local i = 0; i <= len; i++) {
+		local b = square_x(k.x + v.x * i, k.y + v.y * i).get_ground_tile().find_object(mo_building)
+		ASSERT_TRUE(b != null)
+		ASSERT_EQUAL(b.get_layout(), layout)
+	}
+	ASSERT_EQUAL(count_buildings_around(k), len + 1)
+}
+
+
+// A harbour on a shore slope of each hex direction builds along the line of
+// water the slope faces.  pak64's rampShipStop (1 tile, 4 layouts),
+// FreightShipStop (1 tile, 16 layouts), ShipStop (2 tiles) and LargeShipStop
+// (4 tiles) cover the footprint going back to the shore tile for N and NW and
+// the one-tile dock on the NE-SW axis; a longer dock cannot run NE-SW
+// because the footprint has no third axis, and is refused.
+function test_halt_build_harbour_all_directions()
+{
+	local pl = player_x(0)
+	local k = coord3d(8, 8, 0)
+
+	foreach (name in ["rampShipStop", "FreightShipStop", "ShipStop", "LargeShipStop"]) {
+		local len = building_desc_x(name).get_size(0).y - 1
+
+		foreach (f in dock_faces()) {
+			local face = f[0]
+			local layout = f[2]
+			if (name == "FreightShipStop") {
+				// 16 layouts: the same orientations with the "end" bits set
+				layout = layout < 2 ? 15 - layout : 9 - layout
+			}
+			local across = (face == dir.northeast || face == dir.southwest)
+
+			set_dock_water(pl, k, face, max(len, 1), cl_water)
+			ASSERT_EQUAL(command_x.set_slope(pl, k, f[1]), null)
+
+			if (len > 0 && across) {
+				ASSERT_EQUAL(command_x(tool_build_station).work(pl, k, name), "A dock longer than one tile cannot run NE-SW yet.")
+				ASSERT_EQUAL(count_buildings_around(k), 0)
+			}
+			else {
+				ASSERT_EQUAL(command_x(tool_build_station).work(pl, k, name), null)
+				ASSERT_DOCK_LINE(k, face, len, layout)
+
+				ASSERT_EQUAL(command_x(tool_remover).work(pl, k), null)
+				ASSERT_EQUAL(count_buildings_around(k), 0)
+			}
+
+			ASSERT_EQUAL(command_x.set_slope(pl, k, slope.flat), null)
+			set_dock_water(pl, k, face, max(len, 1), cl_mediterran)
+			RESET_ALL_PLAYER_FUNDS()
+		}
+	}
+}
+
+
 function test_halt_build_flat_dock_near_water()
 {
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(0), coord3d(4, 2, 0), coord3d(4, 2, 0), "" + cl_water), null)
@@ -317,6 +419,66 @@ function test_halt_build_flat_dock_occupied()
 	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(8, 8, 0)), null); // remove city
 	clear_seed_roads(player_x(1), 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
+}
+
+
+// A flat dock on a beach facing each hex direction: LakeShipStop is one tile,
+// TEST_FLAT_DOCK_1x3 (tests/test-pak) three.  The long one builds along the
+// line of water for S, SE, N and NW, N and NW with the building starting at
+// the far end, and is refused for NE and SW.
+function test_halt_build_flat_dock_all_directions()
+{
+	local pl = player_x(0)
+	local k = coord3d(8, 8, 0)
+
+	foreach (name in ["LakeShipStop", "TEST_FLAT_DOCK_1x3"]) {
+		local len = building_desc_x(name).get_size(0).y - 1
+
+		foreach (f in dock_faces()) {
+			local face = f[0]
+			local across = (face == dir.northeast || face == dir.southwest)
+
+			set_dock_water(pl, k, face, max(len, 1), cl_water)
+
+			if (len > 0 && across) {
+				ASSERT_EQUAL(command_x(tool_build_station).work(pl, k, name), "A dock longer than one tile cannot run NE-SW yet.")
+				ASSERT_EQUAL(count_buildings_around(k), 0)
+			}
+			else {
+				ASSERT_EQUAL(command_x(tool_build_station).work(pl, k, name), null)
+				ASSERT_DOCK_LINE(k, face, len, f[2])
+
+				ASSERT_EQUAL(command_x(tool_remover).work(pl, k), null)
+				ASSERT_EQUAL(count_buildings_around(k), 0)
+			}
+
+			set_dock_water(pl, k, face, max(len, 1), cl_mediterran)
+			RESET_ALL_PLAYER_FUNDS()
+		}
+	}
+}
+
+
+// Water on a NE-SW side does not make a flat dock ambiguous when it cannot be
+// built there: with water NE and S, a 3-tile dock goes S.
+function test_halt_build_flat_dock_skips_third_axis()
+{
+	local pl = player_x(0)
+	local k = coord3d(8, 8, 0)
+
+	set_dock_water(pl, k, dir.northeast, 2, cl_water)
+	set_dock_water(pl, k, dir.south, 2, cl_water)
+
+	{
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, k, "TEST_FLAT_DOCK_1x3"), null)
+		ASSERT_DOCK_LINE(k, dir.south, 2, 0)
+	}
+
+	// clean up
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, k), null)
+	set_dock_water(pl, k, dir.northeast, 2, cl_mediterran)
+	set_dock_water(pl, k, dir.south, 2, cl_mediterran)
+	RESET_ALL_PLAYER_FUNDS()
 }
 
 

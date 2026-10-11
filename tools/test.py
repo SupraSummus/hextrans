@@ -10,6 +10,10 @@ First run downloads pak64 (~30 MB) into simutrans/pak/; subsequent runs
 reuse it. Other setup (sim symlink, simuconf, scenario symlink) is also
 idempotent — anything already in place is left alone.
 
+The engine's user dir ($XDG_DATA_HOME/simutrans) points into build/, so
+the scenario and test-pak links belong to this checkout and runs in
+parallel worktrees don't repoint each other's.
+
 Requires the cmake build dir at build/ (the session-start hook configures it).
 """
 import json
@@ -20,7 +24,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-HOME = Path.home()
+USER_DATA = ROOT / "build" / "test-data"
 FILTER = ROOT / "tests" / "filter.nut"
 
 
@@ -33,7 +37,7 @@ def ensure_pak():
 
 
 def ensure_simuconf():
-    cfg = HOME / "simutrans" / "simuconf.tab"
+    cfg = USER_DATA / "simutrans" / "simuconf.tab"
     if cfg.exists():
         return
     cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -41,7 +45,7 @@ def ensure_simuconf():
 
 
 def ensure_scenario_link():
-    link = HOME / "simutrans" / "addons" / "pak" / "scenario" / "automated-tests"
+    link = USER_DATA / "simutrans" / "addons" / "pak" / "scenario" / "automated-tests"
     target = ROOT / "tests"
     link.parent.mkdir(parents=True, exist_ok=True)
     if link.is_symlink() and Path(os.readlink(link)) == target:
@@ -83,7 +87,7 @@ def ensure_test_pak():
         [str(ROOT / "build" / "src" / "makeobj" / "makeobj"),
          "QUIET", "PAK", str(pak_out), str(pak_out.parent) + "/"],
     )
-    addons_link = HOME / "simutrans" / "addons" / "pak" / "test-pak.pak"
+    addons_link = USER_DATA / "simutrans" / "addons" / "pak" / "test-pak.pak"
     addons_link.parent.mkdir(parents=True, exist_ok=True)
     if (addons_link.is_symlink()
             and Path(os.readlink(addons_link)) == pak_out):
@@ -120,6 +124,7 @@ def main(argv):
     ensure_test_pak()
     write_filter(patterns)
     env = os.environ.copy()
+    env["XDG_DATA_HOME"] = str(USER_DATA)
     env.setdefault("SDL_VIDEODRIVER", "dummy")
     env.setdefault("ASAN_OPTIONS", "print_stacktrace=1 abort_on_error=1 detect_leaks=0")
     env.setdefault("UBSAN_OPTIONS", "print_stacktrace=1 abort_on_error=1")

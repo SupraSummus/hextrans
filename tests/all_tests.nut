@@ -34,6 +34,7 @@ include("tests/test_squirrel_vm")
 include("tests/test_terraform")
 include("tests/test_transport")
 include("tests/test_trees")
+include("tests/test_vehicle")
 include("tests/test_way_bridge")
 include("tests/test_way_bridge_maintenance")
 include("tests/test_way_bridge_maintenance_auto")
@@ -125,6 +126,7 @@ all_tests <- [
 	test_groundobj_build_on_slope,
 	test_halt_build_rail_single_tile,
 	test_halt_build_harbour,
+	test_halt_build_harbour_all_directions,
 	test_halt_build_flat_dock_near_water,
 	test_halt_build_flat_dock_near_water_multiple_rotations,
 	test_halt_build_flat_dock_near_water_fixed_rotation_valid,
@@ -137,6 +139,8 @@ all_tests <- [
 	test_halt_build_flat_dock_near_cliff,
 	test_halt_build_flat_dock_in_water,
 	test_halt_build_flat_dock_occupied,
+	test_halt_build_flat_dock_all_directions,
+	test_halt_build_flat_dock_skips_third_axis,
 	test_halt_build_air,
 	test_halt_build_multi_tile,
 	test_halt_build_terminal_stop_all_directions,
@@ -223,6 +227,7 @@ all_tests <- [
 	test_terraform_raise_lower_land_at_water_edge,
 	test_terraform_raise_lower_land_below_way,
 	test_terraform_raise_lower_water_level,
+	test_terraform_raise_water_at_e_w_corner,
 	test_transport_generate_pax_invalid_pos,
 	test_transport_generate_pax_walked,
 	test_transport_generate_pax_no_route,
@@ -240,6 +245,7 @@ all_tests <- [
 	test_trees_plant_single_max_per_square,
 	test_trees_plant_single_occupied,
 	test_trees_plant_forest,
+	test_vehicle_tile_length_all_hex_directions,
 	test_way_bridge_build_ground,
 	test_way_bridge_build_at_slope,
 	test_way_bridge_build_at_slope_stacked,

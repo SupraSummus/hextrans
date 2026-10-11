@@ -1,0 +1,30 @@
+# Test-only multi-tile flat dock for the automated test scenario.
+# Baked into test-pak.pak by tools/test.py::ensure_test_pak.  The
+# headless test run renders nothing, so the dock carries no images.
+#
+# No pakset ships a flat dock longer than one tile, so the dock tests
+# would never reach the footprint along the water: its direction, the
+# building position of the far-end layouts, and the refusal on the NE-SW
+# axis, where building_desc_t has no footprint for a multi-tile building.
+# 1x3 in 4 layouts: S, SE, N, NW; NE and SW fold onto the first two.
+
+obj=building
+name=TEST_FLAT_DOCK_1x3
+type=dock
+enables_pax=1
+dims=1,3,4
+# tool_build_station_t::init refuses a building without a cursor skin
+cursor=-
+icon=-
+backimage[0][0][0][0][0][0]=-
+backimage[0][1][0][0][0][0]=-
+backimage[0][2][0][0][0][0]=-
+backimage[1][0][0][0][0][0]=-
+backimage[1][0][1][0][0][0]=-
+backimage[1][0][2][0][0][0]=-
+backimage[2][0][0][0][0][0]=-
+backimage[2][1][0][0][0][0]=-
+backimage[2][2][0][0][0][0]=-
+backimage[3][0][0][0][0][0]=-
+backimage[3][0][1][0][0][0]=-
+backimage[3][0][2][0][0][0]=-
