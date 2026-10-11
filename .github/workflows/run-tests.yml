@@ -24,6 +24,10 @@ jobs:
       # dataobj/koord_hex.cc before the slow Simutrans build runs.
       # ~1 second.
       run: make -C tools/hex_vertex_test run
+    - name: Heightfield sampler self-test
+      # dataobj/height_field_sample.h: pixel-to-tile mapping, corner
+      # positions, shared vertices, no reads past the image.  ~1 second.
+      run: make -C tools/hex_heightfield_test run
     - name: Hex projection self-test
       # Sanity-check the renderer-port screen projection in
       # display/hex_proj.h: forward at unit steps, six-neighbour
@@ -102,6 +106,14 @@ jobs:
         chmod +x run-automated-tests.sh
         ulimit -St 600 # 10 minutes ought to be enough for anybody.
         ./run-automated-tests.sh
+    - name: Run heightfield import test
+      # Builds a map from relief images through the engine's
+      # -heightfield hook (the new-world dialog's "Load relief" path)
+      # and compares the tile heights with an independent model.
+      run: |
+        export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
+        export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
+        python3 tools/heightfield_import_test.py
     - name: Run NWC protocol e2e suite
       # Black-box wire-protocol tests: spawn a headless server, send
       # one hand-rolled packet, parse the reply.  Pins NWC_AUTH_PLAYER
