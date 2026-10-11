@@ -628,7 +628,9 @@ public:
 
 	/// Wind is coming from this direction
 	ribi_t::ribi get_wind_dir() const { return wind_direction;  }
-	ribi_t::ribi get_approach_dir() const { return wind_direction | ribi_t::rotate60(wind_direction);  } // HEX-PORT: rotate90 → rotate60 (hex 60° step)
+	/// Ribis of the runway ends planes take off from: the 3 edges within 60° of the wind,
+	/// i.e. exactly one end of each of the 3 hex axes.  Planes land at the opposite ends.
+	ribi_t::ribi get_approach_dir() const { return wind_direction | ribi_t::rotate60(wind_direction) | ribi_t::rotate60l(wind_direction);  }
 
 	sint8 get_patch_size_percentage() const { return patch_size_percentage; }
 
