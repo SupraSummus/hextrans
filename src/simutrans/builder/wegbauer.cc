@@ -639,9 +639,13 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 		}
 	}
 	else {
-		// check slopes
-		bool ok_slope = slope_allows_way_axis(from->get_weg_hang(), ribi_type(zv));
-		ok_slope &= slope_allows_way_axis(to->get_weg_hang(), ribi_type(zv));
+		// check slopes; flat ground carries any axis, which also keeps a
+		// non-adjacent step (zv off the 6 axes) as permissive as upstream
+		bool ok_slope = from->get_weg_hang() == slope_t::flat  &&  to->get_weg_hang() == slope_t::flat;
+		if(  !ok_slope  ) {
+			ok_slope = slope_allows_way_axis(from->get_weg_hang(), ribi_type(zv))
+			        && slope_allows_way_axis(to->get_weg_hang(), ribi_type(zv));
+		}
 
 		// try terraforming
 		if (!ok_slope) {
