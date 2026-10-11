@@ -367,49 +367,63 @@ void vehicle_base_t::get_screen_offset( int &xoff, int &yoff, const sint16 raste
 }
 
 
-// calcs new direction and applies it to the vehicles
-//
-// HEX-PORT: 4 of 6 hex edges are "normal" and 2 (NE, SW) reuse the
-// diagonal-step timing from the square-era projection; dx, dy per
-// edge are in set_dxdy().  The legacy (1,1) and (-1,-1) square-diagonal
-// cases are dead under hex (hex distance 2, never appears from
-// adjacent-tile pathfinding) — kept only as defensive fallback logging
-// until the viewport port lands.
-ribi_t::ribi vehicle_base_t::calc_set_direction(const koord3d& start, const koord3d& ende)
+// Direction through a tile for the displacement start -> ende: one edge
+// step (tile to next tile) or two (tile before to tile after).
+// A displacement on a hex axis names its edge.  The chords of the 60 degree
+// bends are off-axis and are sorted into NE / SW by their signs, except
+// (1,1) and (-1,-1) (the SE-S and NW-N bends), which give none.
+ribi_t::ribi vehicle_base_t::calc_chord_direction(const koord3d& start, const koord3d& ende)
 {
-	ribi_t::ribi direction = ribi_t::none;
-
-	const sint8 di = ende.x - start.x;
-	const sint8 dj = ende.y - start.y;
+	const sint32 di = ende.x - start.x;
+	const sint32 dj = ende.y - start.y;
 
 	if(dj < 0 && di == 0) {          // N
-		direction = ribi_t::north;
-		steps_next = VEHICLE_STEPS_PER_TILE - 1;
+		return ribi_t::north;
 	} else if(dj > 0 && di == 0) {   // S
-		direction = ribi_t::south;
-		steps_next = VEHICLE_STEPS_PER_TILE - 1;
+		return ribi_t::south;
 	} else if(di < 0 && dj == 0) {   // NW (was square "west")
-		direction = ribi_t::northwest;
-		steps_next = VEHICLE_STEPS_PER_TILE - 1;
+		return ribi_t::northwest;
 	} else if(di >0 && dj == 0) {    // SE (was square "east")
-		direction = ribi_t::southeast;
-		steps_next = VEHICLE_STEPS_PER_TILE - 1;
+		return ribi_t::southeast;
 	} else if(di > 0 && dj < 0) {    // NE
-		direction = ribi_t::northeast;
-		steps_next = diagonal_vehicle_steps_per_tile - 1;
+		return ribi_t::northeast;
 	} else if(di < 0 && dj > 0) {    // SW
-		direction = ribi_t::southwest;
-		steps_next = diagonal_vehicle_steps_per_tile - 1;
-	} else {
-		// (1,1) or (-1,-1): hex distance 2, should not occur from
-		// adjacent-tile movement.  Fallback to none + zero offset;
-		// the viewport port will remove this branch.
-		dx = 0;
-		dy = (dj > 0) ? 2 : -2;
-		steps_next = diagonal_vehicle_steps_per_tile - 1;
-		return ribi_t::none;
+		return ribi_t::southwest;
 	}
+	return ribi_t::none;
+}
+
+
+// Steps to cross a tile along the chord start -> ende.
+// Straight travel takes the same number of steps along all 3 hex axes, as
+// all 6 neighbours are equally far away.  An off-axis chord is a bend that
+// cuts the corner: it keeps the shorter square-era diagonal length, see
+// TODO.md "Bend tile length".
+uint8 vehicle_base_t::calc_chord_steps_next(const koord3d& start, const koord3d& ende)
+{
+	const sint32 di = ende.x - start.x;
+	const sint32 dj = ende.y - start.y;
+
+	const bool on_axis = (di != 0  ||  dj != 0)  &&  (di == 0  ||  dj == 0  ||  di + dj == 0);
+	return (on_axis ? VEHICLE_STEPS_PER_TILE : diagonal_vehicle_steps_per_tile) - 1;
+}
+
+
+// calcs new direction and applies it to the vehicles
+//
+// HEX-PORT: dx, dy per edge are in set_dxdy(), tile length in
+// calc_chord_steps_next().  The (1,1) and (-1,-1) chords come from the
+// SE-S and NW-N bends and keep the legacy square-diagonal screen step
+// (0,+-2) until the viewport port lands.
+ribi_t::ribi vehicle_base_t::calc_set_direction(const koord3d& start, const koord3d& ende)
+{
+	const ribi_t::ribi direction = calc_chord_direction(start, ende);
+
+	steps_next = calc_chord_steps_next(start, ende);
 	set_dxdy(direction);
+	if(direction == ribi_t::none) {
+		dy = (ende.y > start.y) ? 2 : -2;
+	}
 	return direction;
 }
 
