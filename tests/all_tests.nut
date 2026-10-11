@@ -92,6 +92,7 @@ all_tests <- [
 	test_factory_build_with_fields,
 	test_factory_build_climate,
 	test_factory_build_on_water_occupied,
+	test_factory_build_short_param,
 	test_factory_link,
 	test_factory_desc,
 	test_good_is_interchangeable,
