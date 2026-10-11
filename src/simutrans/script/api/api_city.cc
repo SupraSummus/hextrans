@@ -131,6 +131,28 @@ void export_city(HSQUIRRELVM vm)
 	 */
 	register_method(vm, &city_set_name, "set_name", true);
 	/**
+	 * Total housing provided by the residential buildings of the city
+	 * (10 citizens per building level and tile).
+	 * @returns housing provided
+	 */
+	register_method(vm, &stadt_t::get_housing, "get_housing");
+	/**
+	 * Total jobs provided by the commercial and industrial buildings of
+	 * the city (20 jobs per building level and tile).
+	 * @returns jobs provided
+	 */
+	register_method(vm, &stadt_t::get_jobs, "get_jobs");
+	/**
+	 * Citizens without housing.
+	 * @returns number of citizens not yet accounted for by residential buildings
+	 */
+	register_method(vm, &stadt_t::get_homeless, "get_homeless");
+	/**
+	 * Citizens without work.
+	 * @returns number of citizens not yet accounted for by commercial and industrial buildings
+	 */
+	register_method(vm, &stadt_t::get_unemployed, "get_unemployed");
+	/**
 	 * Get monthly statistics of number of citizens.
 	 * @returns array, index [0] corresponds to current month
 	 */
