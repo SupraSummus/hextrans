@@ -328,20 +328,12 @@ bool movingobj_t::check_next_tile( const grund_t *gr ) const
 
 grund_t* movingobj_t::hop_check()
 {
-	/* since we may be going diagonal without any road
-	 * determining the next koord is a little tricky:
-	 * If it is a diagonal, pos_next_next is calculated from current pos,
-	 * Else pos_next_next is a single step from pos_next.
-	 * otherwise objects would jump left/right on some diagonals
+	/* Going straight on repeats the step from the current to the next tile.
+	 * (Not the step of `direction`: that is the chord through the current
+	 * tile, which after a bend is not the step just taken.)
 	 */
 	if (timetochange != 0) {
-		koord k(direction);
-		if(k.x&k.y) {
-			pos_next_next = get_pos() + k;
-		}
-		else {
-			pos_next_next = pos_next + k;
-		}
+		pos_next_next = pos_next + (pos_next.get_2d() - get_pos().get_2d());
 
 		grund_t *gr = welt->lookup_kartenboden(pos_next_next.get_2d());
 		if (check_next_tile(gr)) {
