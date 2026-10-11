@@ -484,7 +484,7 @@ Longer-form design and planning docs live under `documentation/`:
   - `documentation/map-shape.md` — the W×H×D hexagon world
     (#280): bounding-rhombus storage with a validity predicate,
     save/load, world-creation dialog and image frame, rotation.
-    Design plus a PR-sized plan.
+    Design plus a PR-sized plan; step 1 (`map_shape_t`) is live.
   - `documentation/world-mutation-deferral.md` — why GUI handlers
     can't synchronously call `welt->init()` / `welt->load()` /
     `karte_t::destroy()` (event dispatch nests inside
@@ -593,8 +593,8 @@ human at the keyboard.
 `tools/hex_*_test/` are standalone C++ self-tests
 that CI runs before the engine build (`make -C tools/hex_vertex_test run`).
 They compile the production sources they check
-(`dataobj/koord_hex.cc`, `display/hex_proj.h`, `ground/back_image_decode.h`,
-`dataobj/height_field_sample.h`),
+(`dataobj/koord_hex.cc`, `dataobj/map_shape.h`, `display/hex_proj.h`,
+`ground/back_image_decode.h`, `dataobj/height_field_sample.h`),
 never a copy.
 Code that can't build standalone gets split into a dependency-free file first,
 the way `koord_hex.cc` came out of `koord.cc`.

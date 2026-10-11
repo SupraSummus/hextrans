@@ -28,6 +28,11 @@ jobs:
       # dataobj/height_field_sample.h: pixel-to-tile mapping, corner
       # positions, shared vertices, no reads past the image.  ~1 second.
       run: make -C tools/hex_heightfield_test run
+    - name: Hex map shape self-test
+      # Pins map_shape_t in dataobj/map_shape.h: the W×H×D hexagon
+      # predicate, tile count, and 60° rotation of tiles and vertices.
+      # ~1 second.
+      run: make -C tools/hex_map_shape_test run
     - name: Hex projection self-test
       # Sanity-check the renderer-port screen projection in
       # display/hex_proj.h: forward at unit steps, six-neighbour
