@@ -152,6 +152,14 @@ upstream-mergeable, organically sorts the layering, and a candidate
 for upstreaming back. Reach for this tier when a rename is already
 on the table; don't force it where it would be contrived.
 
+*Refactors without a hex reason.* Don't carry them.
+A cleanup that only restyles upstream code
+widens every future merge
+and makes fixes harder to send upstream.
+Offer it on the forum first;
+if upstream declines it, drop it in the fork too.
+The NETTOOL retirement (closed PRs #225, #227, #228) is the worked example.
+
 ## Cross-checking simutrans-extended
 
 `simutrans-extended` is also checked out as a local read-only
