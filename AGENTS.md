@@ -283,6 +283,15 @@ durable context in the commit message or `AGENTS.md`.
 The aim is for `TODO.md` to remain a useful, current map of "what
 still needs doing". A growing TODO file is fine; a stale one is not.
 
+Work that spans several PRs, or waits on a decision,
+also gets a GitHub issue labelled `epic` or `decision`.
+The issue copies the goal and the next moves from `TODO.md`
+and adds what a file can't hold:
+discussion, decisions and progress across PRs.
+`TODO.md` stays complete and wins when the two disagree.
+A PR that finishes an issue closes it with `Closes #N`
+and deletes the matching `TODO.md` entries.
+
 To surface stale entries, blame `TODO.md` and sort paragraphs
 (blank-line separated) by their max `author-time`: the lowest
 non-header values are the entries no edit has touched longest.
