@@ -870,6 +870,49 @@ SE-NW), which compiles and produces something playable but is not
 a real hex airport.  Lands together with the other items here when
 crossroads design lands.
 
+## AI players — site selection still square
+
+The C++ AIs (`player/ai*.cc`) run on hex engine pieces
+(`koord_distance`, the way builder, hex-disc coverage),
+but their hand-written site selection is still square.
+Three sites matter most.
+`ai_t::suche_platz` searches an axial ±cov rectangle around the factory,
+which reaches 2·cov hex steps along ±(1,1),
+so goods-AI rail stations miss the factory catchment
+for about a third of directions;
+reuse the `get_tile_list` + `hex_disc` dilation
+that the road branch of `ai_goods_t::suche_platz1_platz2` already does.
+`ai_passenger_t::walk_city` follows only SE/S/SW/NW roads;
+loop over all 6.
+Harbour→rail fails on NE/SW shores:
+`suche_platz` takes the station length as `abs(size.x+size.y)`,
+which is 0 along NE-SW,
+`find_harbour` derives its second orientation by swapping x and y,
+and `tool_station_dock_aux` orients only N and S shore slopes.
+
+The scripted AIs in `simutrans/ai/` are untouched,
+but the script API's `dir` is already 6-way (`test_dir.nut`),
+so `sqai` is a mechanical port:
+its A* steps over `d = 1, 2, 4, 8` only
+(SE, S, SW, NW, so targets to the north are unreachable),
+its state flags 0x10/0x20 collide with the N/NE bits,
+and its station search scans a square instead of the catchment disc.
+`sqai_rail` needs a redesign:
+its `check_station` reads the removed `dir.east` / `dir.west`,
+and its double-track and station-extension code
+is built on square offsets and the old straight ribis 5 / 10.
+Hide it from the AI picker until then.
+
+Nothing exercises the AIs in tests.
+A headless run with an AI goods and an AI passenger player on a 128×128 map
+trips the `end_connect_hub.is_bound()` assert
+in `ai_passenger_t::create_air_transport_vehicle`
+within the first game year.
+Next move: a test hook
+(fixed seed, AI players, no start-up banner —
+its modal dialog runs the world at normal speed and defeats `-fast`)
+that CI runs for a few game years under ASAN.
+
 ## Pak reader child-count expectations are implicit
 
 `obj_desc_t::get_child` now `dbg->fatal`s on out-of-bounds child
