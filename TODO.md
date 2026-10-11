@@ -18,24 +18,31 @@ entry here when its test is re-enabled.
 
 **`ASSERT_WAY_PATTERN` protocol (for the tests still pending below).**
 `ASSERT_WAY_PATTERN` takes an array-of-arrays of 6-bit ribi integers
-(`-1` = don't care, `0` = no way) and tripwires on string rows because
-Squirrel indexes `row[x]` to ASCII codes (so the legacy `"..5....."`
-shorthand silently produced wrong expected values), and 6-bit hex
-ribis don't fit a single digit besides.  When migrating a pending test,
-the original patterns assume 4-bit square-axis paths, so the actual
-hex-pathfinder route has to be reasoned out (or read off a temporary
-dump) — at least for `wt_road` the builder hugs allowed/buildable tiles
-into a hex staircase rather than the square L-path.  Worked examples:
+(`-1` = don't care, `0` = no way)
+and tripwires on string rows
+because Squirrel indexes `row[x]` to ASCII codes
+(so the legacy `"..5....."` shorthand
+silently produced wrong expected values),
+and 6-bit hex ribis don't fit a single digit besides.
+When migrating a pending test,
+the original patterns assume 4-bit square-axis paths,
+so the actual hex-pathfinder route has to be reasoned out
+(or read off a temporary dump) —
+at least for `wt_road`
+the builder hugs allowed/buildable tiles into a hex staircase
+rather than the square L-path.
+Worked examples:
 `test_way_road_build_{straight, parallel, crossing, below_powerline}`,
 `test_scenario_rules_allow_forbid_tool_stacked_{rect, cube}`,
 `test_way_road_upgrade_{downgrade, crossing}`,
 `test_way_tram_build_{on_road, in_tunel}`,
 `test_way_road_cityroad_*`,
-`test_way_tunnel_build_{straight, up_down, make_public}`; the tunnel
-ones demonstrate the 6-vertex hex-hill scaffold from the AGENTS.md
-primer, and `test_way_tram_build_in_tunel` additionally shows a 2-axis
-tunnel cross (S-axis road + SE-axis tram) threading one buried hex tile
-with ribi 16|2|8|1=27.
+`test_way_tunnel_{build_straight, build_up_down, make_public}`;
+the tunnel ones demonstrate the 6-vertex hex-hill scaffold
+from the AGENTS.md primer,
+and `test_way_tram_build_in_tunel` additionally shows
+a 2-axis tunnel cross (S-axis road + SE-axis tram)
+threading one buried hex tile with ribi 16|2|8|1=27.
 
 **Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner
 diagonals are still admitted as way slopes by the post-slope-way
@@ -81,20 +88,20 @@ so the `terraform_flag` paths in `way_builder_t` (set by city / AI
 builders via `simcity.cc` and `ai*.cc`) have no scenario-test
 coverage.  Add a `terraform` bool mirroring `straight` /
 `keep_city_roads`; wire through the `TOOL_BUILD_WAY` param
-encoding in `script/api/api_command.cc:308-316`.  Lands alongside
+encoding in `script/api/api_command.cc:306-314`.  Lands alongside
 the first scenario test that exercises AI / city-shape
 terraforming — including a regression test for the
 `check_terraforming` widening + corner-index fixes that currently
 have no end-to-end coverage.
 
-**`ASSERT_THROWS` helper for scenario tests.**  47 sites across
-`tests/tests/*.nut` hand-roll the same `local caught = false; try { ...
-} catch (e) { ASSERT_EQUAL(e, "<msg>"); caught = true } ASSERT_TRUE(caught)`
-block to assert a tool call throws an expected message.  Add
-`ASSERT_THROWS(expected_msg, callable)` to `test_helpers.nut` and
-collapse the sites to one line each.  Soft trigger: fold in next time
-a test file in this set is being rewritten anyway (the hex migration
-of the remaining HEX-PORT PENDING tests touches several of them).
+**`ASSERT_THROWS` helper for scenario tests.**
+43 sites across `tests/tests/*.nut` hand-roll the same
+`local caught = false; try { ... } catch (e) { ASSERT_EQUAL(e, "<msg>"); caught = true } ASSERT_TRUE(caught)`
+block to assert a tool call throws an expected message.
+Add `ASSERT_THROWS(expected_msg, callable)` to `test_helpers.nut`
+and collapse the sites to one line each.
+Soft trigger:
+fold in next time a test file in this set is being rewritten anyway.
 
 ## `is_allowed_step` prefer_parallel branches near-duplicated
 
@@ -131,22 +138,26 @@ water-side gate open is now driven by the targeted-corner lift in
 ## Bridge double-height policy: art-permissive
 
 `bridge_desc_t::has_double_start()` and `has_double_ramp()` are
-satisfied by `max_height == 0 || max_height >= 2` — the desc's
-declared height cap, not whether the pakset ships matching `*_Start2`
-/ `*_Ramp2` art.  Under pak64 that art is never shipped; the engine
-still builds planar double-slope and 2× flat-tile bridges and renders
-empty or with the single-edge sprite at the wrong height.  AGENTS.md
-"reuse existing square-tile sprites where they still fit" — crooked
-graphics rather than refusing to build.  `bridge_img_valid` remains
-the one img-side gate (rejects the `(img_t)-1` "no slot for this
-slope" sentinel that catches `all_up_slope` and other shapes the
-get_start switch doesn't cover).  Restore art-presence probes (or
-replace them with explicit per-slot pakset declarations) once Start2
-/ Ramp2 art is shipped.
+satisfied by `max_height == 0 || max_height >= 2` —
+the desc's declared height cap,
+not whether the pakset ships matching `*_Start2` / `*_Ramp2` art.
+Under pak64 that art is never shipped;
+the engine still builds planar double-slope and 2× flat-tile bridges
+and renders empty or with the single-edge sprite at the wrong height.
+Per `AGENTS.md` → "Engine encoding leads the pakset",
+missing pakset art is downstream catch-up work, not an engine blocker —
+crooked graphics rather than refusing to build.
+`bridge_img_valid` remains the one img-side gate
+(rejects the `img_t_count` "no slot for this slope" sentinel
+that catches `all_up_slope`
+and other shapes the get_start switch doesn't cover).
+Restore art-presence probes
+(or replace them with explicit per-slot pakset declarations)
+once Start2 / Ramp2 art is shipped.
 
 ## build_bridge auto-extension misses delta-2 ramps
 
-`bridge_builder_t::build_bridge` (`brueckenbauer.cc:905`) walks
+`bridge_builder_t::build_bridge` (`brueckenbauer.cc:911`) walks
 each endpoint after the bridge is built and, when the bridgehead's
 way ribi is single, runs a 2-tile `way_builder_t::calc_route` to
 lay a connecting road stub on the kartenboden behind the ramp.
@@ -163,15 +174,21 @@ overkill when one flat neighbour is the target, a direct
 ## Way-object slope-up sprites — still 4 of 6 hex edges
 
 `way_obj_writer.cc` iterates `slope = 3, 6, 9, 12` for
-`frontimageup` / `backimageup` under the square-era pattern: 4 of
-6 hex edges, missing the two third-axis edges (raised E+SE and
-raised NE+E pairs, see `koord_hex.cc` neighbour case table).  Needs
-the same widening that `way_writer.cc` got — 18 slots covering
-all 6 hex edges × {narrow, wide, double}, indexed by
-`way_obj_desc::get_slope_image_id`.  Land alongside the first hex
-sloped way-object asset.  `ground_writer.cc` was already widened
-to scan `slope_t::max_slopes` so sparse hex slope indices
-round-trip into `.pak`.
+`frontimageup` / `backimageup` under the square-era pattern:
+4 of 6 hex edges,
+missing the two third-axis edges
+(raised E+SE and raised NE+E pairs,
+see `koord_hex.cc` neighbour case table).
+Needs the same widening that `way_writer.cc` got —
+18 slots covering all 6 hex edges × {narrow, wide, double} —
+plus a re-key of the readers
+`way_obj_desc_t::get_front_slope_image_id` /
+`get_back_slope_image_id`,
+which still switch over the square-era slope values
+4, 12, 28, 36 and their doubles 8, 24, 56, 72.
+Land alongside the first hex sloped way-object asset.
+`ground_writer.cc` was already widened to scan `slope_t::max_slopes`
+so sparse hex slope indices round-trip into `.pak`.
 
 ## Way .dat migration to hex ribi keys
 
@@ -191,13 +208,15 @@ hex SE; pak `S` = lower-left = hex SW; pak `W` = upper-left = hex
 NW).
 
 River ways have a narrow engine-side visibility fallback:
-`way_desc_t::get_image_id` maps missing `type_river` multi-ribi
-slots to an available single-edge river sprite, and `weg_t::calc_image`
-falls back from missing river slope sprites to the flat-ribi path.
-This is not a general way-art shim; it exists because natural map
-generation can create rivers before pak128 has complete 64-slot river
-art.  Delete the fallback when `landscape.rivers` ships real hex flat
-and slope river sprites.
+`way_desc_t::get_image_id` maps missing `type_river` multi-ribi slots
+to an available single-edge river sprite,
+and `weg_t::pick_image_slot` falls back
+from missing river slope sprites to the flat-ribi path.
+This is not a general way-art shim;
+it exists because natural map generation can create rivers
+before pak128 has complete 64-slot river art.
+Delete the fallback when `landscape.rivers`
+ships real hex flat and slope river sprites.
 
 The hex ribi rework didn't bump the on-disk `way_desc` save version
 (the `has_double_slopes=` opt-in did, taking it from 8 to 9, but
@@ -276,17 +295,15 @@ tiles with axial distance ≤ d from the centre, `3d² + 3d + 1` tiles
 every direction, and reduce the world-create UI to a single radius.
 
 Not in flight, flagged so it doesn't get closed off by side-effect.
-It touches every `plan[q + r*W]` indexing site, every map-iteration
-loop, the save format (or leaves corner cells empty for round-trip
-compatibility), the world-create / `enlarge_map_frame` UI which
-currently asks for `(W, H)`, and the `init_perlin_map` cache —
-sized today against rhombus-in-world-space extents and would want
-recomputing for whatever shape we pick.  The
-`koord_random` / `clip_min` / `clip_max` "rhombus in world space"
-caveat under "ribi_t — audit surfaces" is the same question viewed
-from a different direction.  Pick a direction before any of those
-adjacent items gets done in a way that bakes in rhombus
-assumptions.
+It touches every `plan[q + r*W]` indexing site,
+every map-iteration loop,
+the save format (or leaves corner cells empty for round-trip compatibility),
+the world-create / `enlarge_map_frame` UI which currently asks for `(W, H)`,
+and the `init_perlin_map` cache —
+sized today against rhombus-in-world-space extents
+and would want recomputing for whatever shape we pick.
+Pick a direction before any of those adjacent items gets done
+in a way that bakes in rhombus assumptions.
 
 ## Engine → pakset descriptor boundary
 
@@ -310,19 +327,19 @@ design — the seam may move once we see what stays clean.  The
 principle (sim is fully hex) is firm; the location of the projection
 layer is not.
 
-Three writers prototype the new convention — `way` (64-slot ribi
-protocol, `Image[se]` / `Image[se_nw]` / … keys; slope-up subset is
-still 4-cardinal, see "Way slope-up sprites" above), `bridge` (3
-hex-axis segments + 6 hex-edge starts/ramps, hex-aware enum, tripwire
-on pre-port saves; commit `1e21a2a`), and `tunnel` (6 hex-edge
-portals via `hex_keys::edge_names`, low-edge naming matching bridge
-— inverting the upstream high-edge convention so legacy paks render
-permuted, same "loads without fatal but renders wrong" breakage as
-the way ribi key change; broad-portal `l/r/m` neighbours orthogonal
-to direction).  Shared key vocabulary lives in
-`descriptor/writer/hex_keys.h` (`axis_names[3]`, `edge_names[6]`);
-subsequent writers consume the constants on port rather than
-reinvent.
+Three writers prototype the new convention —
+`way` (64-slot ribi protocol, `Image[se]` / `Image[se_nw]` / … keys),
+`bridge` (3 hex-axis segments + 6 hex-edge starts/ramps,
+hex-aware enum, tripwire on pre-port saves; commit `1e21a2a`),
+and `tunnel` (6 hex-edge portals via `hex_keys::edge_names`,
+low-edge naming matching bridge —
+inverting the upstream high-edge convention so legacy paks render permuted,
+same "loads without fatal but renders wrong" breakage as
+the way ribi key change;
+broad-portal `l/r/m` neighbours orthogonal to direction).
+Shared key vocabulary lives in `descriptor/writer/hex_keys.h`
+(`axis_names[3]`, `edge_names[6]`);
+subsequent writers consume the constants on port rather than reinvent.
 
 Four direction-keyed writers still embed their own square-era
 tables.  Each is gated on its first hex pakset asset — mechanical
@@ -330,14 +347,15 @@ key renames without matching art are an invisible no-op, so
 migrations land per-family with the asset that uses them.
 
 **`way_obj_writer.cc`** still iterates the 4-bit ribi space
-(`ribi_codes[26]` covers `0..15` plus 5 crossing variants); the
-matching `way_obj_desc.h:56-60` `ribi_to_extra[16]` table is gated on
-`ribi < 16`.  Widens to the 64-slot ribi-as-key protocol that
-`way_writer` uses; no name vocabulary needed.  The 4-cardinal
-slope-up loop (`slope = 3, 6, 9, 12` for `frontimageup` /
-`backimageup`) is the same square-era pattern called out in "Way
-slope-up sprites" above; both retire alongside the first hex wayobj
-asset.
+(`ribi_codes[26]` covers `0..15` plus 5 crossing variants);
+the matching `way_obj_desc.h:56-60` `ribi_to_extra[16]` table is
+gated on `ribi < 16`.
+Widens to the 64-slot ribi-as-key protocol that `way_writer` uses;
+no name vocabulary needed.
+The 4-cardinal slope-up loop (`slope = 3, 6, 9, 12` for
+`frontimageup` / `backimageup`) is the same square-era pattern
+called out in "Way-object slope-up sprites" above;
+both retire alongside the first hex wayobj asset.
 
 **`crossing_writer.cc`** writes `openimage[ns]` / `openimage[ew]` in
 a 2-axis loop.  Hex has 3 axes, so the keying widens to
@@ -357,7 +375,7 @@ writer grows a third direction tier and pakset art ships.
 Delete the placeholder projection in the same change that
 widens the writer.
 
-**`vehicle_writer.cc:179-181`** has `dir_codes[8]` for sprite-facing
+**`vehicle_writer.cc:178-180`** has `dir_codes[8]` for sprite-facing
 direction; tied to the `ribi_t::_dir` widening tracked in "Vehicle
 direction enum — compound 2-step displacements" below.  Holds with
 the viewport / sprite port.
@@ -451,29 +469,37 @@ from 2-axis to 3-axis is a gameplay choice.
 
 **Vehicle direction enum — compound 2-step displacements.**
 `vehicle_base_t::calc_set_direction(start, end)` is called both with
-adjacent (1-step) and 2-apart (2-step) position pairs — the caller
-decides which based on what it wants, e.g. `calc_set_direction(pos_next,
-pos_next_next)` for the "what direction is the vehicle about to move"
-query vs `calc_set_direction(get_pos(), pos_next_next)` for the "what
-2-tile diagonal is this visually".  Under the square grid that produced
-8 displacement values (4 cardinal 1-steps + 4 diagonal 2-steps), which
-the old enum captured exactly.  Under hex the space explodes: 6
-1-step hex neighbours, 6 "same-direction" 2-steps (2,0)/(2,-2)/...,
-12 "turn" 2-steps like (1,1) from S+SE or (2,-1) from NW+SE, and (0,0)
-for u-turns.  Around 18 distinct visual states in total, none of which
-fit cleanly in the 8-value `ribi_t::_dir` sprite enum either.  The
-current port pattern-matches on the sign of (di, dj) and maps to the
-closest of the 6 hex neighbour ribis; the (1,1) and (-1,-1) cases
-(produced only by S+SE, SE+S, N+NW, NW+N pairs) fall into a defensive
-`ribi_t::none` fallback with dy=±2, dx=0.  Downstream consumers
-(collision avoidance, sprite offsets, disp_lane) will be visually
-wrong in exactly the cases where 2-step compound paths arise.  Proper
-fix is a hex-aware vehicle direction model — likely 12 states (6 hex
-edges × 2 magnitudes for 1-step vs 2-step) or a distinct
-`path_t` that carries both entry and exit edge names — and lands
-together with the viewport / sprite port.  The dir enum in ribi.h
-similarly needs widening; `get_dir()` currently projects 6 hex edges
-onto 4 square sprite slots and drops information.
+adjacent (1-step) and 2-apart (2-step) position pairs —
+the caller decides which based on what it wants,
+e.g. `calc_set_direction(pos_next, pos_next_next)` for the
+"what direction is the vehicle about to move" query
+vs `calc_set_direction(get_pos(), pos_next_next)` for the
+"what 2-tile diagonal is this visually".
+Under the square grid that produced 8 displacement values
+(4 cardinal 1-steps + 4 diagonal 2-steps),
+which the old enum captured exactly.
+Under hex the space explodes:
+6 1-step hex neighbours,
+6 "same-direction" 2-steps (2,0)/(2,-2)/...,
+12 "turn" 2-steps like (1,1) from S+SE or (2,-1) from NE+SE,
+and (0,0) for u-turns.
+Around 18 distinct visual states in total,
+none of which fit cleanly in the 8-value `ribi_t::_dir` sprite enum either.
+The current port pattern-matches on the sign of (di, dj)
+and maps to the closest of the 6 hex neighbour ribis;
+the (1,1) and (-1,-1) cases
+(produced only by S+SE, SE+S, N+NW, NW+N pairs)
+fall into a defensive `ribi_t::none` fallback with dy=±2, dx=0.
+Downstream consumers (collision avoidance, sprite offsets, disp_lane)
+will be visually wrong in exactly the cases where 2-step compound paths arise.
+Proper fix is a hex-aware vehicle direction model —
+likely 12 states (6 hex edges × 2 magnitudes for 1-step vs 2-step)
+or a distinct `path_t` that carries both entry and exit edge names —
+and lands together with the viewport / sprite port.
+The dir enum in ribi.h similarly needs widening;
+`get_dir()` currently maps each of the 6 hex edges onto its
+same-named slot of the 8-value enum
+and returns `dir_invalid` for anything that is not a single edge.
 
 Save-file format: `weg_t`'s in-memory ribi is now two full bytes
 (was a packed 4-bit bitfield that silently truncated hex bits 4-5),
@@ -485,24 +511,30 @@ version bump + a one-shot converter (or clean rejection) before
 any pre-port saved game survives a round-trip.  See also the
 "Save format version bump" section below.
 
-`ribi_t::_dir` sprite enum is still 4-direction; `get_dir()` returns
-`dir_invalid` for NE/SE/SW/NW.  Tied to sprite port.  See also the
-vehicle-direction compound-displacement note above — 18 distinct
-visual states under hex, 8 slots in the current dir enum.
+`ribi_t::_dir` sprite enum is still 4-direction;
+`get_dir()` maps NE/SE/SW/NW onto the same-named slots
+(`dir_northeast` etc.) and returns `dir_invalid` only for `none` and
+multi-bit ribis.
+Tied to sprite port.
+See also the vehicle-direction compound-displacement note above —
+18 distinct visual states under hex, 8 slots in the current dir enum.
 
-**Aircraft landing-circle 4-of-6 runways.**  `aircraft_t::calc_route`
-in `air_vehicle.cc:415` switches on the runway end's `get_weg_ribi`
-to pick an offset into the 16-step `circle_koord` hold-pattern
-table — N=0, NW=4, S=8, SE=12.  NE and SW runways fall through to
-the implicit `offset=0` default and put aircraft on those runways
-into the N-approach hold pattern.  The 16-step `circle_koord` table
-is itself hand-rolled for 4-direction airports — widening the
-switch alone isn't enough; the table needs new step sequences for
-the NE/SW approach geometries.  The AI airport builder lays only
-N-S and SE-NW (see "Airport layout" below), so the path is
-reachable from player-built NE/SW runways and pre-port savegames,
-not from AI gameplay.  Lands together with a hex-aware hold-pattern
-geometry — likely 6-direction symmetric circles rather than 4.
+**Aircraft landing-circle 4-of-6 runways.**
+`air_vehicle_t::calc_route` in `air_vehicle.cc:415` switches on the
+runway end's `get_weg_ribi` to pick an offset into the 16-step
+`circle_koord` hold-pattern table — N=0, NW=4, S=8, SE=12.
+NE and SW runways fall through to the implicit `offset=0` default
+and put aircraft on those runways into the N-approach hold pattern.
+The 16-step `circle_koord` table is itself hand-rolled for
+4-direction airports —
+widening the switch alone isn't enough;
+the table needs new step sequences for the NE/SW approach geometries.
+The AI airport builder lays only N-S and SE-NW
+(see "Airport layout" below),
+so the path is reachable from player-built NE/SW runways
+and pre-port savegames, not from AI gameplay.
+Lands together with a hex-aware hold-pattern geometry —
+likely 6-direction symmetric circles rather than 4.
 
 `do_terraforming` in `wegbauer.cc` has an
 `if (from_slope > slope_t::all_up_one  &&  is_axis_slope(from_slope -
@@ -531,15 +563,23 @@ bbox, slope corners, ribi edges, sprite tables, minimap).  Phase A
 with `tools/hex_proj_test/` as its standalone invariant suite.  The
 remaining renderer work splits into:
 
-**Phase B — per-tile detail.**  Base ground sprites, grid borders,
-markers and cliff back walls all read directly from pakset-provided
-descriptors (`LightTexture`, `Borders`, `Marker`, `Slopes` /
-`Basement`) indexed by raw `slope_t` or `(wall, index)`; the old
-engine-side `synth_overlay` family is gone, the legacy 1D 22-cell
-`Slopes` / `Basement` packing is gone, and the upstream Fabio Gonella
-rock-photo art for cliff faces is preserved under
-`hextrans-pak128/landscape/grounds/back_wall/src/` for future texture
-supervision.
+**Phase B — per-tile detail.**
+Base ground sprites, grid borders and cliff back walls
+read directly from pakset-provided descriptors
+(`LightTexture`, `Borders`, `Slopes` / `Basement`)
+indexed by raw `slope_t` or `(wall, index)`;
+the old engine-side `synth_overlay` family is gone,
+the legacy 1D 22-cell `Slopes` / `Basement` packing is gone,
+and the upstream Fabio Gonella rock-photo art for cliff faces
+is preserved under `hextrans-pak128/landscape/grounds/back_wall/src/`
+for future texture supervision.
+Markers are the exception:
+`ground_desc_t::get_marker_image` still derives the square-era
+base-3 `% 27` key from a `uint8`-truncated slope
+and reads `Marker` through `get_image(index)`,
+while the pakset bakes `Image[<slope_t>][0 front / 1 back]`.
+Key it like `get_border_image` (normalised raw `slope_t`),
+with the back / front half as the second index.
 Climate transitions use
 `vertex_owners` plus `surface_t::vertex_corner_height` /
 `climate_at_clamped` (const members; height uses `canonical_vertex`
@@ -551,8 +591,10 @@ slope alpha (snowline / climate-corner mixing) both read pakset
 share `LightTexture`'s silhouette via `hex_synth.silhouette_mask`
 so source and alpha RLE walks stay in lockstep, and
 `init_ground_textures` tripwires both invariants once at startup.
-The snowline path — `get_alpha_tile(slope)` derives mask =
-`high_corners_of(slope)`, which is an isolated-bit mask on slopes
+The snowline path —
+`get_alpha_tile(slope)` derives its mask from the slope's elevated
+corners (`corner_*(slope) > 0`),
+which is an isolated-bit mask on slopes
 with non-edge-union elevated corners (single-corner-up,
 opposite-corners-up, alternating-corners-up — ~41 of 141 valid
 slopes).  `SlopeTrans`'s bake omits isolated-bit masks (they aren't
@@ -565,9 +607,10 @@ neighbour bit) or by baking the snow-only cells separately from
 the climate-keyed table.
 `simgraph16_draw_base_img_alpha` silently skips when either image
 is `IMG_EMPTY`, matching the rezoomed sister and the contract
-`f9b0a072` relied on.  Drift between the `(slope, water_corners)`
-combos `grund.cc::display` emits and the set `texture-shore/`
-ships is therefore invisible — the overlay just disappears.  The
+`f9b0a072` relied on.
+Drift between the `(slope, water_corners)` combos
+`grund.cc::display_boden` emits and the set `texture_shore/` ships
+is therefore invisible — the overlay just disappears.  The
 "lifted corners can't appear on real terrain" premise was hit in
 practice (the ASAN SEGV that prompted the guard); enumerate the
 combos `display_boden` actually produces vs. those the bake covers
@@ -581,9 +624,8 @@ below; on-slope water and snow now use LightTexture-derived shapes.
 90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
 
 On-slope water tiles now use the same required `LightTexture`
-ground-lightmap path as climate ground.  Deep water still comes from
-the pakset `Water` animation block.  6-edge way / wall / ribi-keyed
-sprite tables remain 4-edge with `rotate60` stubs.
+ground-lightmap path as climate ground.
+Deep water still comes from the pakset `Water` animation block.
 
 Cliff back-wall middle-slope indices 9 / 10 are baked as single-step
 half-cliffs (one corner at 0, one at 1) — placeholder for the legacy
@@ -710,18 +752,18 @@ gated as unreachable) — orthogonal to the projection port.
 `hex_way_axis_t` + the "Depth-clip plane spec" docstring in
 `display/hex_proj.h` define the per-axis vertical plane that splits
 multi-layer way assets into Back / Front layers under hex projection;
-pak-side mirror is in `hextrans-pak128/tools/3d/hex_synth.py`
-(`HEX_DEPTH_CLIP_NORMAL`, `front_back_split`).  The bridge .dat
-contract (`bridge_writer.cc::names`, `bridge_desc_t::img_t`) now
-keys segments and pillars by the 3 axes (`ns`, `ne_sw`, `nw_se`)
-and starts / ramps by the 6 hex edges, so the consumer side
-exists.  Coverage is still partial: `rail_060_bridge_hex` only
-ships 2 of 3 axes (NS and NW-SE) and no ramp / start cells, so
-the NE-SW depth-clip rule is not yet exercised by a real bake.
+pak-side mirror is in `hextrans-pak128/tools/threed/hex_synth.py`
+(`HEX_DEPTH_CLIP_NORMAL`, `front_back_split`).
+The bridge .dat contract
+(`bridge_writer.cc::write_bridge_images`, `bridge_desc_t::img_t`)
+keys segments and pillars by the 3 axes (`n_s`, `ne_sw`, `nw_se`)
+and starts / ramps by the 6 hex edges, so the consumer side exists.
+`rail_060_bridge_hex` now ships all 3 axes plus ramp / start cells
+(pakset `93640ce`, `b01675d`),
+so the NE-SW rule has a real bake to check against.
 Re-evaluate the south-is-Front rule and the +x tie-break for N-S
-when the third-axis bake lands — the rule was sketched against
-pak128's NS bridge convention only, not stress-tested against
-NE-SW / NW-SE bakes that don't exist yet.
+against those NE-SW / NW-SE cells;
+the rule was sketched against pak128's NS bridge convention only.
 
 ## Shore-water tile composition still square
 
@@ -840,29 +882,37 @@ forbidden or projected onto 2 axes).  The traffic-light FSM has
 landed under that policy; depot orientation, collision avoidance,
 and airport layout still need porting against the same choice.
 
-*Depot 3rd-axis layout.*  `tool_build_depot_t::tool_depot_aux` in
-`tool/simtool.cc` picks `layout = 0` (N-S axis) or `layout = 1`
-(SE-NW = old E-W) from the way's ribi.  The 3rd hex axis (NE-SW)
-falls through to layout 0, so depots on NE-SW track render
-mis-oriented.  Real fix is a 3-layout depot descriptor; needs
-`depot_t` rotation handling + pakset depot images for all three
-axes.
+*Depot 3rd-axis layout.*
+`tool_build_depot_t::tool_depot_aux` in `tool/simtool.cc`
+maps a 4-layout depot's dead-end ribi through `ribi_t::ribi_to_layout`,
+so all 6 directions get a layout;
+`building_desc_t::adjust_layout` folds the NE and SW layouts
+onto the images the pakset ships.
+A 2-layout through depot still picks `layout = 0` (N-S axis)
+or `layout = 1` (SE-NW = old E-W) from the way's ribi.
+Its 3rd hex axis (NE-SW) falls through to layout 0,
+so 2-layout depots on NE-SW track render mis-oriented.
+Real fix is a 3-layout depot descriptor;
+needs `depot_t` rotation handling
+and pakset depot images for all three axes.
 
-*Crossroads collision FSM.*  `vehicle_base.cc::is_blocking`
-(`vehicle_base.cc:533`) and the related branches in
-`road_vehicle.cc::can_enter_tile` were written against 4-way
-crossroads — "across" = rotate90, "perpendicular" = rotate90, and
-the right-of-way table assumes two axes meeting at 90°.  The
-`rotate_perpendicular` sweep makes them compile under hex (one
-60° step instead of one 90° step), but a real 3- or 6-arm hex
-crossroads needs the FSM redesigned: which arms have priority,
-how is "across" defined when two arms meet at 60° vs. 120°, what
-does the "exit same side" predicate mean with three axes.
-Lights now signal Y-junctions correctly while vehicles still
-resolve right-of-way against a 2-axis model, so Y-junctions are
-a half-built case until this FSM is ported too — visible as
-unpredictable collisions when both axes go green-yellow on a
-real Y.
+*Crossroads collision FSM.*
+`vehicle_base_t::no_cars_blocking` (`vehicle_base.cc:491`)
+and the related branches in `road_vehicle.cc::can_enter_tile`
+were written against 4-way crossroads —
+"across" = rotate90, "perpendicular" = rotate90,
+and the right-of-way table assumes two axes meeting at 90°.
+The `rotate_perpendicular` sweep makes them compile under hex
+(one 60° step instead of one 90° step),
+but a real 3- or 6-arm hex crossroads needs the FSM redesigned:
+which arms have priority,
+how is "across" defined when two arms meet at 60° vs. 120°,
+what does the "exit same side" predicate mean with three axes.
+Lights now signal Y-junctions correctly
+while vehicles still resolve right-of-way against a 2-axis model,
+so Y-junctions are a half-built case until this FSM is ported too —
+visible as unpredictable collisions
+when both axes go green-yellow on a real Y.
 
 *Airport layout.*  `ai_passenger.cc:499` builds a hex diamond
 using 4 of 6 hex edges (taxiway crosses on N-S and old-E-W = hex
@@ -928,27 +978,32 @@ until the next pak-loader bug or a CI gate motivates it.
 
 ## fuzz_pak CMake source-list inheritance fragility
 
-`src/fuzz/CMakeLists.txt` builds `fuzz_pak` (and now `fuzz_command`,
-which reuses the same `_SIM_*` variables) by copying the simutrans
-target's `SOURCES` / `COMPILE_DEFINITIONS` / `COMPILE_OPTIONS` /
-`LINK_LIBRARIES` via `get_target_property`, because the readers must
-all link to populate the `obj_reader_t::registered_readers` table.
-This works today but
-silently misses anything added through INTERFACE properties,
-target-level `$<...>` generator-expression sources, or new
-backend-specific quirks; a future regression would appear as
-fuzz_pak missing a translation unit rather than a build error.
-Cleaner fix: restructure `simutrans` as `add_library(... OBJECT
-...)` plus a thin executable, and have `fuzz_pak` link the OBJECT
-target via `$<TARGET_OBJECTS:simutrans_objects>`.  Requires
-extracting the per-backend `main()` (currently in
-`simsys_posix.cc` / `simsys_s2.cc` / `simsys_w.cc`) into its own
-file so it can be added to the executable target only — the
-`SIMUTRANS_NO_MAIN` guard in `simsys_posix.cc` is an interim shim
-that survives only as long as the fuzzers are linux-only.  The
-second consumer (`fuzz_command`) now exists, so the dedup is no
-longer hypothetical; do it when a propagation gap actually bites or
-when touching this CMake file for another reason.
+`src/fuzz/CMakeLists.txt` builds `fuzz_pak`
+(and now `fuzz_command` and `fuzz_command_preauth`,
+which reuse the same `_SIM_*` variables)
+by copying the simutrans target's `SOURCES` / `COMPILE_DEFINITIONS` /
+`COMPILE_OPTIONS` / `LINK_LIBRARIES` via `get_target_property`,
+because the readers must all link
+to populate the `obj_reader_t::registered_readers` table.
+This works today
+but silently misses anything added through INTERFACE properties,
+target-level `$<...>` generator-expression sources,
+or new backend-specific quirks;
+a future regression would appear as fuzz_pak missing a translation unit
+rather than a build error.
+Cleaner fix: restructure `simutrans` as `add_library(... OBJECT ...)`
+plus a thin executable,
+and have `fuzz_pak` link the OBJECT target
+via `$<TARGET_OBJECTS:simutrans_objects>`.
+Requires extracting the per-backend `main()`
+(currently in `simsys_posix.cc` / `simsys_s2.cc` / `simsys_w.cc`)
+into its own file so it can be added to the executable target only —
+the `SIMUTRANS_NO_MAIN` guard in `simsys_posix.cc` is an interim shim
+that survives only as long as the fuzzers are linux-only.
+Two more consumers (`fuzz_command`, `fuzz_command_preauth`) now exist,
+so the dedup is no longer hypothetical;
+do it when a propagation gap actually bites
+or when touching this CMake file for another reason.
 
 ## Command-handling fuzzer: go fork-based for the real campaign
 
@@ -1042,7 +1097,7 @@ candidates.  Next move: continue the campaign, add `if(!gr) return "";`
 per offending site (the pattern the guarded sites already use).
 
 *`default_param` length-assumption over-reads.*  The build-chain work()s
-(`tool_build_factory_t::work` at `simtool.cc:6296`, and the
+(`tool_build_factory_t::work` at `simtool.cc:6283`, and the
 `tool_build_house_t` / `tool_city_chain_t` / `tool_build_land_chain_t`
 siblings) do `default_param+2` / `default_param[1]` guarded only by
 `strempty` (length > 0), so a 1-char param reads past the buffer.  Next
@@ -1130,18 +1185,22 @@ existing `karte_t` when freed).
 ## libcurl rollback gate retirement
 
 Legacy in-house HTTP socket code in `network_file_transfer.cc`
-(the `network_http_get` / `_post` / `_get_file` bodies and the
-`parse_http_url` helper, only reachable from those bodies now),
-and the desktop fan-out in `pakset_downloader.cc` (urlmon /
-PowerShell / system curl), all live under `#else USE_CURL` as a
-downstream fallback (`-DSIMUTRANS_USE_CURL=OFF`).  Delete the
-legacy branch together with the cmake / autoconf gate after the
-next release has shipped without a regression report against the
-libcurl path.  The three `network_http_get_file` bugs called out
-in `documentation/libcurl-port.md` (relative-redirect dropout,
-`:80`-double-append, mis-tagged error string) remain present in
-the legacy branch — fixing them there is wasted work ahead of
-retirement.
+(the `network_http_get` / `_post` / `_get_file` bodies)
+and the desktop fan-out in `pakset_downloader.cc`
+(urlmon / PowerShell / system curl)
+live under `#else USE_CURL` as a downstream fallback
+(`-DSIMUTRANS_USE_CURL=OFF`).
+`parse_http_url` is compiled unconditionally,
+but its only caller is the legacy fan-out in `pakset_downloader.cc`,
+so it retires with it.
+Delete the legacy branch together with the cmake / autoconf gate
+after the next release has shipped
+without a regression report against the libcurl path.
+The three `network_http_get_file` bugs called out
+in `documentation/libcurl-port.md`
+(relative-redirect dropout, `:80`-double-append, mis-tagged error string)
+remain present in the legacy branch —
+fixing them there is wasted work ahead of retirement.
 
 ## Pakset download hardening leftovers
 
