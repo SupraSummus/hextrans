@@ -78,8 +78,8 @@ function test_factory_build_pp()
 		// and remove
 		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(3, 4, 0)), null)
 		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(7, 8, 0)), null)
-		// remove street
-		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, tile_x(6, 9, 0), tile_x(8, 9, 0), "" + wt_road), null)
+		// remove street (the hex townhall seeds it on a random face)
+		clear_seed_roads(pl, 7, 8)
 	}
 
 	RESET_ALL_PLAYER_FUNDS()
