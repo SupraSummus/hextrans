@@ -18,9 +18,9 @@
 # reader tables that die with the child.
 #
 # Representative-load note: the cost that dominates a real consumer pakset
-# load is image processing — the per-pixel decode loop in image_reader.cc
-# (gated on COLOUR_DEPTH != 0) plus simgraph16_register_image's player-colour
-# scan.  A COLOUR_DEPTH=0 (SIMUTRANS_BACKEND=none) build skips all of it via
+# load is image processing — the adler32 dedup hash in image_reader.cc plus
+# simgraph16_register_image's player-colour scan.  A COLOUR_DEPTH=0
+# (SIMUTRANS_BACKEND=none) build skips the pixel work via
 # `goto adjust_image`, so it under-measures the real load.  To bench what a
 # consumer machine actually does, configure with SIMUTRANS_BACKEND=sdl2
 # (COLOUR_DEPTH=16, real simgraph16 renderer).  We can't link simsys_s2 (it

@@ -616,12 +616,11 @@ Not in CI (a perf number, not a pass/fail gate).
 Representative-config note:
 by default it configures `-DSIMUTRANS_BACKEND=sdl2` (`COLOUR_DEPTH=16`),
 which is the load a consumer machine actually does —
-the per-pixel `decode_uint16` loop in `image_reader.cc`
-(gated on `COLOUR_DEPTH != 0`)
+the `adler32` dedup hash in `image_reader.cc`
 plus `simgraph16_register_image`'s player-colour scan dominate,
-and a `COLOUR_DEPTH=0` headless build skips all of it
+and a `COLOUR_DEPTH=0` headless build skips the pixel work
 (`goto adjust_image`),
-under-measuring the real load ~6×.
+under-measuring the real load ~4× on pak64.
 The bench runs headless (no display):
 the bench CMakeLists swaps the SDL windowing sources
 (`simsys_s2`, `clipboard_s2`, `sdl2_sound`)
