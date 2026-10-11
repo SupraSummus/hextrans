@@ -693,9 +693,6 @@ are keyed by `get_dir()`,
 so SE/NW traffic gets the square-diagonal lane rows
 instead of the rows the old east/west edges used.
 Next move: key them by ribi, the way `set_dxdy` does.
-`convoi_t` and `vehicle_base_t` use `is_bend(direction)` for "the vehicle is
-on a bend", which is false for every hex direction.
-Next move: ask `steps_next`, which is the only record of a bend after loading.
 
 **Bend tile length.**
 A vehicle crosses a tile on the chord from the middle of its entry edge
@@ -714,8 +711,21 @@ straight travel (a bus crosses a SE-SW bend tile in 42 script steps, a
 SE-S bend tile in 28).
 Next move: derive `steps_next` from the turn between the two edge steps
 (256, 221, 128), retire `diagonal_vehicle_steps_per_tile` and the pakset
-`diagonal_multiplier`, and add bends of both kinds to
-`test_vehicle_tile_length_all_hex_directions`.
+`diagonal_multiplier` together with `is_cutting_corner()`, and add bends of
+both kinds to `test_vehicle_tile_length_all_hex_directions`.
+
+**Chord direction of vehicles.**
+`vehicle_base_t::direction` holds `calc_chord_direction` of the tiles
+before and after the vehicle's tile,
+which sorts the off-axis chords of 60 degree bends into NE / SW or none.
+`vehicle_base_t::calc_direction` is still `ribi_type`,
+which gives none for every off-axis chord,
+so `no_cars_blocking`, the overtaking checks, `can_go_alte_richtung`'s
+"going backwards" test (`simconvoi.cc`) and `road_vehicle_t`'s
+`next_direction` compare chords classified two ways on a bend.
+Next move: make `calc_direction` call `calc_chord_direction` and check the
+bend cases of `no_cars_blocking` with a scenario of two buses meeting on a
+60 degree bend.
 
 Minimap (`gui/minimap.cc`) now hex-projects in isometric mode:
 `map_to_screen_coord` / `screen_to_map_coord` use the `(3u, u)` /

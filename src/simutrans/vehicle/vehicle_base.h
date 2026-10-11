@@ -115,6 +115,10 @@ public:
 	// if true, this convoi needs to restart for correct alignment
 	bool need_realignment() const;
 
+	/// True if this vehicle crosses its tile on a bend, with the short
+	/// diagonal tile length.  The saved steps_next is the only record of it.
+	bool is_cutting_corner() const { return steps_next == diagonal_vehicle_steps_per_tile - 1; }
+
 	uint32 do_drive(uint32 dist); // basis movement code
 
 	inline void set_image( image_id b ) { image = b; }
