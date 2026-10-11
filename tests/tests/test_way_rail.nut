@@ -36,7 +36,7 @@ function test_way_rail_build_through_partial_slope()
 	// nothing was planted on either endpoint, then roll back the slope.
 	local check_reject = function(slope_pos, slope_val, from, to) {
 		ASSERT_EQUAL(command_x.set_slope(pl, slope_pos, slope_val), null)
-		ASSERT_EQUAL(command_x.build_way(pl, from, to, rail, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, from, to, rail, true), "Slope is too steep")
 		ASSERT_EQUAL(tile_x(from.x, from.y, from.z).get_way_dirs(wt_rail), 0)
 		ASSERT_EQUAL(tile_x(to.x,   to.y,   to.z  ).get_way_dirs(wt_rail), 0)
 		ASSERT_EQUAL(command_x.set_slope(pl, slope_pos, slope.flat), null)
@@ -122,7 +122,7 @@ function test_way_rail_terminate_on_slope_off_gradient()
 	ASSERT_EQUAL(tile_x(T.x, T.y, T.z).get_slope(), HEX_SLOPE(0, 0, 0, 1, 1, 0))
 
 	ASSERT_EQUAL(command_x.build_way(pl, T, NW, rail, true), null)
-	ASSERT_EQUAL(command_x.build_way(pl, S, T, rail, true), "")
+	ASSERT_EQUAL(command_x.build_way(pl, S, T, rail, true), "Slope is too steep")
 
 	// cleanup
 	ASSERT_EQUAL(remover.work(pl, tile_x(T.x, T.y, T.z), NW, "" + wt_rail), null)
@@ -362,7 +362,7 @@ function test_way_rail_build_across_half_raised_edge()
 	ASSERT_EQUAL(tile_x(T.x,  T.y,  T.z ).get_slope(), HEX_SLOPE(0, 0, 0, 1, 0, 0))
 	ASSERT_EQUAL(tile_x(SW.x, SW.y, SW.z).get_slope(), HEX_SLOPE(0, 0, 0, 0, 0, 1))
 
-	ASSERT_EQUAL(command_x.build_way(pl, T, SW, rail, true), "")
+	ASSERT_EQUAL(command_x.build_way(pl, T, SW, rail, true), "Slope is too steep")
 	ASSERT_EQUAL(tile_x(T.x,  T.y,  T.z ).get_way_dirs(wt_rail), 0)
 	ASSERT_EQUAL(tile_x(SW.x, SW.y, SW.z).get_way_dirs(wt_rail), 0)
 

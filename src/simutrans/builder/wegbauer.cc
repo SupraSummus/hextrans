@@ -2478,6 +2478,7 @@ const char *way_builder_t::calc_straight_route(koord3d start, const koord3d ziel
 			intern_calc_straight_route(ziel,start);
 		}
 		if (!route.empty() && !validate_route_slopes()) {
+			warn_fail = "Slope is too steep";
 			route.clear();
 			terraform_index.clear();
 		}
@@ -2551,6 +2552,7 @@ uint32 ms = dr_time();
 				return warn_fail;
 			}
 			if (!validate_route_slopes()) {
+				warn_fail = "Slope is too steep";
 				route.clear();
 				terraform_index.clear();
 				return warn_fail;
