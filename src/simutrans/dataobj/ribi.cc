@@ -40,6 +40,16 @@ uint8 ribi_t::ribi_to_layout(ribi single)
 }
 
 
+uint8 ribi_t::axis_to_layout(ribi x)
+{
+	const ribi axis = straight_axis(x);
+	if (axis == none) {
+		dbg->fatal("ribi_t::axis_to_layout", "ribi %d is not straight", x);
+	}
+	return ribi_to_layout(backward(axis));
+}
+
+
 // Runtime-initialised name table: see ribi.h for the column layout.
 char ribi_t::names[64][7] = {};
 

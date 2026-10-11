@@ -4766,7 +4766,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 			if(  !ribi_t::is_straight(ribi)  ) {
 				return p_error;
 			}
-			layout = (ribi & (ribi_t::ribi)(ribi_t::north | ribi_t::south))?0 :1;
+			layout = ribi_t::axis_to_layout(ribi);
 		}
 		else if(  desc->get_all_layouts()==4  ) {
 			// terminal station
@@ -5821,12 +5821,9 @@ const char* tool_build_depot_t::tool_depot_aux(player_t* player, koord3d pos, co
 		if (!ribi_t::is_straight(ribi)) {
 			return "Depots must be built on flat dead-end way tiles!";
 		}
-		// HEX-PORT: 2-layout depots pick layout 0 (N-S axis) or 1
-		// (old E-W axis = hex SE-NW under the 2:1 iso rename).  The
-		// 3rd hex axis (NE-SW) can't be served by a 2-layout depot —
-		// real hex depots need 3 layouts.  See TODO.md → "Building /
-		// crossing cluster".
-		layout = (ribi == (ribi_t::ribi)(ribi_t::southeast | ribi_t::northwest));
+		// A 2-layout depot has no NE-SW image: axis_to_layout gives that
+		// axis a layout which adjust_layout folds onto one of the two.
+		layout = ribi_t::axis_to_layout(ribi);
 	}
 	else {
 		dbg->warning("tool_build_depot_t::tool_depot_aux()", "Broken depot name \"%s\"", desc->get_name());

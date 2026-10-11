@@ -1102,16 +1102,21 @@ void gebaeude_t::cleanup(player_t *player)
 	if(tile->get_desc()->get_all_layouts()>1  &&  tile->get_desc()->is_transport_building()) {
 
 		// realign surrounding buildings...
-		uint32 layout = tile->get_layout();
 
 		// detect if we are connected at far (north/west) end
 		grund_t * gr = welt->lookup( get_pos() );
 		if(gr) {
+			// the platform runs along the axis of the way; the stored layout
+			// only has two of the three hex axes
+			const ribi_t::ribi axis = ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, tile));
+			const koord far_step  = koord::step(axis & ribi_t::lower_half); // S, SE or SW
+			const koord near_step = koord::step(axis & ribi_t::upper_half); // N, NW or NE
+
 			sint8 offset = gr->get_weg_yoff()/TILE_HEIGHT_STEP;
-			gr = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)), offset) );
+			gr = welt->lookup( get_pos()+koord3d( far_step, offset) );
 			if(!gr) {
 				// check whether bridge end tile
-				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)),offset - 1) );
+				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( far_step,offset - 1) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 					gr = gr_tmp;
 				}
@@ -1121,7 +1126,7 @@ void gebaeude_t::cleanup(player_t *player)
 				if(gb  &&  gb->get_tile()->get_desc()->get_all_layouts()>4u) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
-					if((layoutbase & 1u) == (layout & 1u)) {
+					if(ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, gb->get_tile())) == axis) {
 						layoutbase |= 4u; // set far bit on neighbour
 						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
 					}
@@ -1129,10 +1134,10 @@ void gebaeude_t::cleanup(player_t *player)
 			}
 
 			// detect if near (south/east) end
-			gr = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)), offset) );
+			gr = welt->lookup( get_pos()+koord3d( near_step, offset) );
 			if(!gr) {
 				// check whether bridge end tile
-				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)),offset - 1) );
+				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( near_step,offset - 1) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 					gr = gr_tmp;
 				}
@@ -1142,7 +1147,7 @@ void gebaeude_t::cleanup(player_t *player)
 				if(gb  &&  gb->get_tile()->get_desc()->get_all_layouts()>4) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
-					if((layoutbase & 1u) == (layout & 1u)) {
+					if(ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, gb->get_tile())) == axis) {
 						layoutbase |= 2u; // set near bit on neighbour
 						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
 					}
