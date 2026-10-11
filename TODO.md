@@ -300,10 +300,9 @@ ahead of the tree sprite offsets in the renderer port.
 The playable world becomes the W×H×D hexagon of #280,
 stored as its bounding rhombus with a validity predicate;
 `documentation/map-shape.md` has the design and a six-step plan.
-Next move is step 1, `map_shape_t` in `dataobj/map_shape.h`
-with its standalone self-test, which changes no behaviour;
-step 2 then puts `size_d` into `settings_t` and the save,
-and the cut into `surface_t::is_within_limits`.
+Step 1, `map_shape_t` in `dataobj/map_shape.h`, has landed with no caller.
+Next move is step 2: `size_d` in `settings_t` and the save,
+and the cut in `surface_t::is_within_limits`.
 
 ## Engine → pakset descriptor boundary
 

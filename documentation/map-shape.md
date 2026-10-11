@@ -188,7 +188,7 @@ and small `contains` hunks inside upstream loops.
 1. **`map_shape_t` and its self-test.**
    `dataobj/map_shape.h` with `contains`, `contains_vertex`, `tile_count`,
    the extents, `rotated` and `rotate_tile`/`rotate_vertex`.
-   No engine caller.
+   No engine caller.  Landed.
    Test: `tools/hex_map_shape_test` in CI:
    tile count against enumeration, D = 1 is the full rhombus,
    central symmetry, rotation a bijection with period six
