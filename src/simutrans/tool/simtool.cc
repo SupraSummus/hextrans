@@ -3361,6 +3361,29 @@ void tool_build_tunnel_t::calc_route( way_builder_t &bauigel, const koord3d &sta
 	const tunnel_desc_t *desc = tunnel_builder_t::get_desc(default_param);
 	way_builder_t::bautyp_t bt = (way_builder_t::bautyp_t)(desc->get_waytype());
 
+	koord3d local_end = end;
+	if (grund_t::underground_mode == grund_t::ugm_all) {
+		// The clicked height means nothing here: the tunnel leaves start at
+		// the height of its exit edge (flat, or a way slope's low/high edge).
+		// First step as in way_builder_t::intern_calc_straight_route.
+		local_end.z = start.z;
+		if (grund_t* gr = welt->lookup(start)) {
+			const koord d = end.get_2d() - start.get_2d();
+			if (d.x != 0  ||  d.y != 0) {
+				ribi_t::ribi dir = ribi_type(d);
+				if (dir == ribi_t::none) {
+					if (abs(d.x) >= abs(d.y)) {
+						dir = d.x < 0 ? ribi_t::northwest : ribi_t::southeast;
+					}
+					else {
+						dir = d.y < 0 ? ribi_t::north : ribi_t::south;
+					}
+				}
+				local_end.z = gr->get_vmove(dir);
+			}
+		}
+	}
+
 	const way_desc_t *wb = desc->get_way_desc();
 	if(wb==NULL) {
 		// ignore timeline to get consistent results
@@ -3370,7 +3393,7 @@ void tool_build_tunnel_t::calc_route( way_builder_t &bauigel, const koord3d &sta
 	bauigel.init_builder(bt | way_builder_t::tunnel_flag, wb, desc);
 	bauigel.set_keep_existing_faster_ways( !is_ctrl_pressed() );
 	// wegbauer (way builder) tries to find route to 3d coordinate if no ground at end exists or is not kartenboden (map ground)
-	bauigel.calc_straight_route(start,end);
+	bauigel.calc_straight_route(start, local_end);
 }
 
 const char *tool_build_tunnel_t::do_work( player_t *player, const koord3d &start, const koord3d &end )
