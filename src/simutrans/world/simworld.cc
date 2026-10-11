@@ -79,6 +79,7 @@
 #include "../network/network_socket_list.h"
 #include "../network/network_cmd_ingame.h"
 
+#include "../dataobj/height_field_sample.h"
 #include "../dataobj/height_map_loader.h"
 #include "../dataobj/ribi.h"
 #include "../dataobj/translator.h"
@@ -1819,16 +1820,21 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	set_random_mode( MAP_CREATE_RANDOM );
 
 	if(  new_world  &&  !settings.heightfield.empty()  ) {
-		// HEX-PORT: heightfield import is a square-grid concept —
-		// each (x, y) carries one height, but a hex tile owns 6
-		// vertices.  The legacy write loop dropped each value into
-		// the E canonical slot and left SE at groundwater, producing
-		// a half-empty map.  Tripwire over silent shim until a real
-		// hex importer (or a defensible mapping) lands.  See TODO.md.
-		(void)h_field;
-		dbg->fatal("karte_t::enlarge_map",
-			"heightfield import is not hex-aware; setting `heightfield` "
-			"is unsupported.  See TODO.md → 'Per-vertex height storage'.");
+		if(  h_field == NULL  ) {
+			dbg->fatal( "karte_t::enlarge_map", "heightfield '%s' is set, but no height data was loaded", settings.heightfield.c_str() );
+		}
+		// HEX-PORT: same walk as perlin_hoehe_loop plus the south
+		// phantom row — both canonical slots of every tile in
+		// q in [-1, W-1], r in [-1, H] — with the imported relief
+		// sampled at each vertex instead of the noise.
+		for(  sint16 r = -1;  r <= new_size.y;  r++  ) {
+			for(  sint16 q = -1;  q < new_size.x;  q++  ) {
+				const koord tile(q, r);
+				set_grid_hgt_nocheck(tile, hex_corner_t::E,  height_field_vertex_height(h_field, new_size.x, new_size.y, { tile, hex_corner_t::E }));
+				set_grid_hgt_nocheck(tile, hex_corner_t::SE, height_field_vertex_height(h_field, new_size.x, new_size.y, { tile, hex_corner_t::SE }));
+			}
+		}
+		ls.set_progress(2);
 	}
 	else {
 		if(  sets->get_rotation()==0  &&  sets->get_origin_x()==0  &&  sets->get_origin_y()==0) {
