@@ -1020,6 +1020,126 @@ Next move: a hex-aware hub test and `return false` instead of the asserts,
 then run seeds 1–3 to 1933.1 in CI (the busy AI phase;
 both AIs go bankrupt within a few game years after that).
 
+## Square-grid residue — audit backlog
+
+A read-only audit (2026-10) of `tool/`, `builder/`, `vehicle/`, `obj/`,
+`world/`, `dataobj/`, `script/`, `gui/` and `descriptor/`
+found the sites below still reasoning in four directions or axial squares.
+Each paragraph is one PR-sized fix group.
+Groups touching code that an upstream 125 stage rewrites
+wait for that stage (`documentation/upstream-125-merge.md`).
+
+Route heuristics.
+`way_builder_t::calc_distance` is axial Manhattan,
+which overestimates NE/SW distances up to 2× and makes the A* heuristic
+inadmissible there;
+use the hex distance `(|dx| + |dy| + |dx + dy|) / 2`
+on the out-of-box deltas.
+`route_t::postprocess_water_route` can leave a non-adjacent gap
+with its greedy substitution;
+substitute only when the greedy path lands exactly on the end tile.
+Next move: both fixes, with a NE-SW way-building test
+that compares the built length with `koord_distance`.
+
+Neighbourhood loops.
+These "tiles around here" loops walk an axial 3×3 or `(-r..r)²` square,
+which counts the non-adjacent `(1,1)` and `(-1,-1)` as neighbours:
+`suche_nahe_haltestelle`, `tool_station_building_aux`
+and `tool_make_stop_public_t::work` in `simtool.cc`;
+`add_factory_to_fab_map` and
+`factory_builder_t::find_random_construction_site`;
+`tree_builder_t::create_forest` and `spawn_tree_near`;
+the axial ellipse in `world/placefinder.cc`;
+`fabrik_t::add_random_field` field rings;
+and the nearby-name scan in `haltestelle_t::create_name`.
+Next move: replace them with `koord_distance(a, b) <= 1`, `hex_disc(r)`
+or `physical_distance_sq` as the shape needs
+(AGENTS.md → "Axial coords vs physical hex symmetry"),
+one PR, with a test per caller that a `(1,1)` offset is not adjacent.
+
+City growth geometry.
+`stadt_t::evaluate_size_res_com_ind` scores a 5×5 axial rhombus
+and its street update uses an 8-neighbour table that paves `(1,1)`;
+`stadt_t::build_road`'s corner check ignores the E and W corners;
+`stadt_t::orient_city_building` only looks at S, SE, N and NW;
+`stadt_t::new_month` spawns city cars in an axial square;
+`stadt_t::generate_private_cars` is dead.
+Next move: `koord_distance <= 2` for the scoring area,
+`koord::neighbours` for the street update, six corners in `build_road`,
+six neighbours plus `ribi_to_layout` in `orient_city_building`,
+`hex_disc(3)` for car spawning, and delete `generate_private_cars`.
+`tools/city_anisotropy.py --series` before and after
+shows whether the footprint bias moves (see "City growth anisotropy").
+
+Back-wall redraw sets.
+After a height or building change, the tiles whose back walls must be
+redrawn are the SE, S and SW neighbours
+(`calc_back_image` reads NW, N and NE),
+but the refresh loops in `stadt_t::build_city_house`
+and `stadt_t::build_road`, `terraformer_t::raise_to` / `lower_to`,
+`way_builder_t::do_terraforming`, `hausbauer_t::build` / `remove`
+and the `simtool.cc` terraform tools still refresh the square set.
+Next move: one helper that marks the three dependants dirty,
+called from each site.
+
+Map generation metrics.
+`karte_t::calc_climate_map_region` smooths humidity with weights
+that sum to 13 but divides by 16, so climates drift dry,
+and its climate patches are axial ellipses;
+`karte_t::distribute_cities` uses an axial cosine;
+`karte_t::find_squares` looks for axial 5×5 squares;
+`terraformer_t::lower_to` recalculates an axial ring;
+`way_builder_t::build_river` has a square bend test,
+as does the signal spacing in `tool_build_roadsign_t::mark_tiles`.
+Next move: fix the humidity divisor first (a one-line change with a
+measurable effect on climate shares), then port the shapes
+to `hex_disc` / `physical_distance_sq`.
+
+Descriptor visuals.
+`tunnel_desc_t::slope_index` has no `*_double` slopes,
+so tunnel portals vanish at the default `way_height_clearance` 2;
+`objlist_t::intern_add_moving` orders NE movers like the square-era
+NE diagonal;
+the bridge preview in `tool_build_bridge_t::mark_tiles`
+draws the delta-2 ramp with the single-height image
+(`narrow_to_double` is missing).
+Next move: one PR, with a scenario test that counts a portal's image ids
+in the SDL build (headless CI registers no images,
+so gate the assertion on an image being present).
+
+GUI views.
+`world_view_t::internal_draw` lays out the square lattice in every
+info-window view;
+the `gui_building_t` preview, the `minimap_t::draw` viewport-box
+fallback, the station building selector (4 labels, 4 buttons),
+`gui_rotation_item_t` in `extend_edit.cc` (4 rotation labels)
+and the wind box in `settings_climates_stats_t` (0..3) are 4-way.
+Next move: `world_view_t` through `hex_proj` first,
+since every info window uses it.
+
+Script-side constants.
+`simutrans/script/hm_lib/hm_global.nut` keeps upstream's base-3 slope
+constants (`UP=82` is a real hex slope; the hex values are 4097/4098,
+and `N1`..`W2` come from `slope.*_narrow`);
+the `SQAPI_DOC` lists in `api_simple.cc` and `api_settings.cc`
+document removed direction constants;
+`simtool-script-generator.cc` drops NE-SW segments in `write_command`
+and `write_sign_at` assumes the old four-step sign cycle.
+Next move: regenerate the constants from the C++ enums,
+and a round-trip test that exports a NE-SW road with the script generator
+and replays it.
+
+Signals and signs on NE/SW.
+`signal_t` and `roadsign_t` have four image slots and no NE/SW projection,
+so signals, signs and traffic-light arms on NE-SW tracks draw nothing;
+the tunnel-mouth masks clear single edges;
+the private-way image index uses the SE bit (`1 - (dir & 1)`);
+`state_to_direction[state & 7]` reads a 6-entry table.
+Upstream stage 4 (#223) rewrites the same image selection.
+Next move: after stage 4, a `state_to_direction`-style projection
+(NE → N slot, SW → S slot), image index by `straight_axis`,
+and clamp the state on load.
+
 ## Pak reader child-count expectations are implicit
 
 `obj_desc_t::get_child` now `dbg->fatal`s on out-of-bounds child
