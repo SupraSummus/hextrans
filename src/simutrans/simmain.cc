@@ -546,11 +546,63 @@ bool set_pakdir( const char *chkdir )
 
 
 
+// -ai_soak runs unattended, so a fatal error has to end the process.
+// With a display, log_t::custom_fatal would wait for a key on its dialog.
+// SIGABRT gives a non-zero exit status and a backtrace under gdb,
+// as a failed assert does.
+static void ai_soak_fatal(const char *message)
+{
+	fputs( message, stderr );
+	fflush( stderr );
+	abort();
+}
+
+
+// -ai_soak: one line per game month, so a log shows how far a run got.
+// It goes to stderr whatever -debug says (dbg->message needs -debug 3).
+// rng is the state of the game's random number generator: two runs with the
+// same SIZE and SEED must print the same value on every line.
+static void ai_soak_status(const karte_t *welt)
+{
+	int ais = 0; // computer players still alive; slots 0 and 1 are not AIs
+	for(  int i = 2;  i < PLAYER_UNOWNED;  i++  ) {
+		ais += welt->get_player(i) != NULL;
+	}
+	const uint32 month = welt->get_current_month();
+	fprintf( stderr, "ai_soak: %04u.%02u convoys=%u halts=%u cities=%u ais=%d rng=%08x\n",
+		month / 12, month % 12 + 1, welt->convoys().get_count(),
+		haltestelle_t::get_alle_haltestellen().get_count(), welt->get_cities().get_count(),
+		ais, get_random_seed() );
+}
+
+
+// -ai_soak: run the world one game month at a time, with a status line after
+// each.  interactive() sets quit_simutrans whenever it reaches the month it
+// was given, so that flag only stands once the last one is done.
+static void ai_soak_run(karte_t *welt, uint32 quit_month)
+{
+	ai_soak_status( welt );
+	while(  !env_t::quit_simutrans  &&  welt->get_current_month() < quit_month  ) {
+		if(  welt->interactive( welt->get_current_month() + 1 )  ) {
+			break; // stopped from outside, e.g. by SIGTERM
+		}
+		ai_soak_status( welt );
+		env_t::quit_simutrans = false;
+	}
+	env_t::quit_simutrans = true;
+}
+
+
 int simu_main(int argc, char** argv)
 {
 	std::set_new_handler(sim_new_handler);
 
 	args_t args(argc, argv);
+
+	const bool ai_soak = args.has_arg("-ai_soak");
+	if(  ai_soak  ) {
+		log_t::set_fatal_hook( ai_soak_fatal );
+	}
 #ifdef DEBUG
 	if (args.has_arg("-debug")) {
 		// debug init messages
@@ -1579,6 +1631,31 @@ int simu_main(int argc, char** argv)
 			sets.set_max_mountain_height(0.0);
 			sets.set_river_number(0);
 		}
+		// Test hook: -ai_soak SIZE [SEED] runs the computer players
+		// unattended.  It generates a SIZE x SIZE map with cities and
+		// industry from SEED (default: the map number of settings_t),
+		// adds one goods and one passenger AI, and runs flat out to
+		// -until without the start-up banner (its modal loop runs the
+		// world at normal speed).  A fatal error aborts instead of
+		// waiting for a key, and every game month logs a status line
+		// to stderr.
+		if(  ai_soak  ) {
+			const char *size = args.gimme_arg("-ai_soak", 1);
+			sint32 n = size ? atoi(size) : 0;
+			if(  n < 16  ) { n = 128; }
+			sets.set_size(n, n);
+			sets.set_city_count(n/16);
+			sets.set_factory_count(n/8);
+			sets.set_tourist_attractions(n/32);
+			const char *seed = args.gimme_arg("-ai_soak", 2);
+			if(  seed  &&  *seed >= '0'  &&  *seed <= '9'  ) {
+				sets.set_map_number(atoi(seed));
+			}
+			// the map number seeds the terrain noise only; the generator
+			// behind city and industry placement and the game itself is
+			// seeded from the clock above, so pin it too
+			setsimrand(sets.get_map_number(), sets.get_map_number());
+		}
 		welt->init(&sets,0);
 
 		//  start in June ...
@@ -1592,6 +1669,11 @@ int simu_main(int argc, char** argv)
 		welt->step_month(5);
 		welt->step();
 		welt->step();
+
+		if(  ai_soak  ) {
+			welt->change_player_tool(karte_t::new_player, 2, player_t::AI_GOODS, true, true);
+			welt->change_player_tool(karte_t::new_player, 3, player_t::AI_PASSENGER, true, true);
+		}
 
 		env_t::autosave = old_autosave;
 
@@ -1718,7 +1800,7 @@ int simu_main(int argc, char** argv)
 		check_midi();
 
 #if COLOUR_DEPTH != 0
-		if(  new_world  ) {
+		if(  new_world  &&  !ai_soak  ) {
 			dbg->message("simu_main()", "Show banner ... " );
 			ticker::add_msg("Welcome to Simutrans", koord3d::invalid, PLAYER_FLAG | 1);
 			modal_dialogue( new banner_t(), magic_none, welt, never_quit, true );
@@ -1740,8 +1822,9 @@ int simu_main(int argc, char** argv)
 
 			// -fast: run flat out. set_fast_forward still throttles toward
 			// max_acceleration, so uncap it too; then idle_time falls to 0
-			// and steps run back-to-back. The test harness passes this.
-			if(  args.has_arg("-fast")  ) {
+			// and steps run back-to-back. The test harness passes this,
+			// and -ai_soak implies it.
+			if(  args.has_arg("-fast")  ||  ai_soak  ) {
 				env_t::max_acceleration = 0x7FFF;
 				welt->set_fast_forward( true );
 			}
@@ -1751,7 +1834,12 @@ int simu_main(int argc, char** argv)
 		loadgame = ""; // only first time
 
 		// run the loop
-		welt->interactive(quit_month);
+		if(  ai_soak  ) {
+			ai_soak_run(welt, quit_month);
+		}
+		else {
+			welt->interactive(quit_month);
+		}
 
 		new_world = true;
 		welt->get_message()->get_message_flags(&env_t::message_flags[0], &env_t::message_flags[1], &env_t::message_flags[2], &env_t::message_flags[3]);

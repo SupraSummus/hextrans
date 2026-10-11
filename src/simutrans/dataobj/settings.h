@@ -414,6 +414,7 @@ public:
 	sint32 get_size_x() const {return size_x;}
 	sint32 get_size_y() const {return size_y;}
 
+	void set_map_number(sint32 n) {map_number=n;}
 	sint32 get_map_number() const {return map_number;}
 
 	void set_factory_count(sint32 d) { factory_count=d; }
