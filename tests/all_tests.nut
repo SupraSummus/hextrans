@@ -128,7 +128,7 @@ all_tests <- [
 	test_halt_terminal_stop_third_axis,
 	test_halt_through_stop_third_axis,
 	test_halt_stop_reconnect_after_road_removed,
-	test_halt_platform_end_images_third_axis,
+	test_halt_platform_end_layouts_third_axis,
 	test_halt_build_multi_mode,
 	test_halt_build_multi_player,
 	test_halt_build_separate,
