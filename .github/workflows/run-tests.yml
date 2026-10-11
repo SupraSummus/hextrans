@@ -119,6 +119,16 @@ jobs:
         export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
         export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
         python3 tools/heightfield_import_test.py
+    - name: Soak the AI players
+      # Nothing in the scenario suite runs the C++ AIs.  This plays seeds
+      # 1-3 of a generated 128x128 map to January 1933 (the busy phase of
+      # both AIs; they go bankrupt a few game years later) with `-ai_soak`
+      # and fails on any assert, fatal error or sanitizer hit.  See
+      # tools/ai_soak.py and AGENTS.md.
+      run: |
+        export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
+        export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
+        python3 tools/ai_soak.py
     - name: Run NWC protocol e2e suite
       # Black-box wire-protocol tests: spawn a headless server, send
       # one hand-rolled packet, parse the reply.  Pins NWC_AUTH_PLAYER

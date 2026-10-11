@@ -639,6 +639,13 @@ a mismatch is a new source of nondeterminism.
 A full run, from `simutrans/`:
 `SDL_VIDEODRIVER=dummy ../build/simutrans/simutrans -objects pak -nosound
 -nomidi -debug 2 -ai_soak 128 1 -until 1952.1`.
+`tools/ai_soak.py [SEED…] [--until YEAR.MONTH]` wraps that for several seeds
+(default 1–3 to 1933.1, the busy phase of both AIs)
+and exits non-zero on any abort or crash;
+CI runs it after the scenario suite.
+CI's `make` build defines `NDEBUG`,
+so there a failed assert shows up later as a null-handle crash;
+reproduce in a Debug build to get the assert.
 
 `tools/nwc_protocol_test/` is the multiplayer wire-protocol suite —
 black-box tests that spawn a headless server, send one hand-rolled
