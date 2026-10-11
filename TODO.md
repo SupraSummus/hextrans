@@ -659,7 +659,7 @@ artificial slot is empty.  Ship 7 natural + 7 artificial fence
 sprites in the hex pakset and pak64 to refill.
 
 **Phase C — flow-on.**  Per-step vehicle interpolation offsets
-(`vehicle_base_t::calc_set_direction` and friends), label / halt
+(`vehicle_base_t::set_dxdy`, shared by hop time and save/load), label / halt
 screen-anchor positions.  The label / halt group rides along on
 `get_screen_coord` so positions become hex-correct automatically;
 per-tile drawing under each anchor still assumes square geometry
@@ -671,6 +671,18 @@ neighbours are at screen distance `2u` while NE/SW are at `u·√10`
 ≈ `3.16u`, so NE/SW vehicles visibly drift off-tile mid-hop on
 straight segments.  Rebase the per-edge offsets on the lattice and
 match the diagonal-step substep count to the longer hex chord.
+
+Two more per-direction tables still follow the old square model.
+`driveleft_base_offsets` and `overtaking_base_offsets` (`vehicle_base.cc`)
+are keyed by `get_dir()`,
+so SE/NW traffic gets the square-diagonal lane rows
+instead of the rows the old east/west edges used.
+Next move: key them by ribi, the way `set_dxdy` does.
+`vehicle_t::initialise_journey` resets `steps_next` from `is_single(direction)`,
+which holds for every hex edge,
+so NE/SW vehicles get 255 instead of the diagonal value after each departure;
+`convoi_t` and `vehicle_base_t` use `is_bend(direction)` the same way.
+Next move: one helper for `steps_next` shared with `calc_set_direction`.
 
 Minimap (`gui/minimap.cc`) now hex-projects in isometric mode:
 `map_to_screen_coord` / `screen_to_map_coord` use the `(3u, u)` /
