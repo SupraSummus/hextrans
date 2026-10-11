@@ -506,6 +506,11 @@ public:
 	/// (NE / SW) fold onto available images in
 	/// building_desc_t::adjust_layout.
 	static uint8 ribi_to_layout(ribi single);
+	/// Layout of a through building on the axis of the straight @p x:
+	/// its S, SE or SW end, i.e. layout 0, 1 or 5.  The NE-SW axis
+	/// lands on layout 5, which adjust_layout folds onto an available
+	/// image like a NE / SW terminal.
+	static uint8 axis_to_layout(ribi x);
 
 	static bool is_perpendicular(ribi x, ribi y);
 

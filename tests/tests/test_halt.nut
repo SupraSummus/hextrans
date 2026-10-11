@@ -628,6 +628,66 @@ function test_halt_stop_reconnect_after_road_removed()
 }
 
 
+// Images of three adjacent stops with 16 layouts (pak64's GCGTrainStop) on a
+// rail line along `ends` = [lower end, upper end]: first the stops [lower,
+// middle, upper] after the middle one was built first, then [lower, upper]
+// once the middle one is removed.  A 16-layout stop shows an end image on
+// every side no other stop continues the platform on, so the images tell
+// whether the stops found each other along the line.
+function platform_images(ends)
+{
+	local pl = player_x(0)
+	local rail = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local step = dir.to_coord(ends[1])
+	local tiles = []
+	for (local i = -2; i <= 2; i++) {
+		tiles.append(coord3d(8 + step.x * i, 8 + step.y * i, 0))
+	}
+	local image_at = @(t) tile_x(t.x, t.y, t.z).find_object(mo_building).get_image()
+
+	ASSERT_EQUAL(command_x.build_way(pl, tiles[0], tiles[4], rail, true), null)
+	foreach (i in [2, 1, 3]) {
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, tiles[i], "GCGTrainStop"), null)
+	}
+	local built = [image_at(tiles[1]), image_at(tiles[2]), image_at(tiles[3])]
+
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, tiles[2]), null)
+	local cut = [image_at(tiles[1]), image_at(tiles[3])]
+
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, tiles[0], tiles[4], "" + wt_rail), null)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+
+	return { built = built, cut = cut }
+}
+
+
+// The stored layout of a through stop has a bit for the N-S / SE-NW axis
+// only, so a platform on the NE-SW axis has to find its neighbours along
+// the way instead: building the middle stop first and the ends after, then
+// removing the middle one, it has to end up with the images of the same
+// platform on the SE-NW axis.
+function test_halt_platform_end_images_third_axis()
+{
+	local reference = platform_images([dir.southeast, dir.northwest])
+	local third = platform_images([dir.southwest, dir.northeast])
+
+	// the reference is a real platform: the ends differ from the middle,
+	// and from what they show once the middle is gone
+	ASSERT_TRUE(reference.built[0] != reference.built[1])
+	ASSERT_TRUE(reference.built[2] != reference.built[1])
+	ASSERT_TRUE(reference.cut[0] != reference.built[0])
+	ASSERT_TRUE(reference.cut[1] != reference.built[2])
+
+	for (local i = 0; i < 3; i++) {
+		ASSERT_EQUAL(third.built[i], reference.built[i])
+	}
+	for (local i = 0; i < 2; i++) {
+		ASSERT_EQUAL(third.cut[i], reference.cut[i])
+	}
+}
+
+
 function test_halt_build_multi_mode()
 {
 	local pl = player_x(0)
