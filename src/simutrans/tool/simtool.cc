@@ -4341,8 +4341,10 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 	slope_t::type hang = gr->get_grund_hang();
 	// first get the size
 	int len = desc->get_y()-1;
-	koord dx(hang);
+	koord dx(hang); // uphill; the water lies the other way
 	koord last_k = k - dx*len;
+	// the dock faces the water, which lies downhill
+	const ribi_t::ribi water_dir = ribi_t::backward(ribi_type(hang));
 	halthandle_t halt;
 
 	// check, if we can build here ...
@@ -4406,33 +4408,25 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 	// remove everything from tile
 	gr->obj_loesche_alle(player);
 
+	int layout = ribi_t::ribi_to_layout(water_dir);
 	koord bau_pos = k;
-	int layout = 0;
-	koord dx2;
-	switch(hang) {
-		case slope_t::south_narrow:
-			layout = 0;
-			dx2 = koord::step(ribi_t::northwest);
-			break;
-		case slope_t::east:
-			layout = 1;
-			dx2 = koord::step(ribi_t::north);
-			break;
-		case slope_t::north_narrow:
-			layout = 2;
-			dx2 = koord::step(ribi_t::northwest);
-			bau_pos = last_k;
-			break;
-		case slope_t::west:
-			layout = 3;
-			dx2 = koord::step(ribi_t::north);
-			bau_pos = last_k;
-			break;
+	if(  layout>=2  ) {
+		// the footprint runs from the far end of the dock back to the shore tile
+		bau_pos = last_k;
+	}
+	// neighbouring dock tiles, along the shore
+	koord dx2 = koord::step(ribi_t::northwest);
+	switch(ribi_t::straight_axis(water_dir)) {
+		case ribi_t::northwest: dx2 = koord::step(ribi_t::north);     break;
+		case ribi_t::northeast: dx2 = koord::step(ribi_t::southeast); break;
+		default: break;
 	}
 
 	// handle 16 layouts
 	bool change_layout = false;
 	if(desc->get_all_layouts()==16) {
+		// the images know only the four N-S and SE-NW orientations
+		layout &= 3;
 		if(  layout<2  ) {
 			layout = 15-layout;
 		}
@@ -4651,6 +4645,8 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 	// handle 16 layouts
 	bool change_layout = false;
 	if(desc->get_all_layouts()==16) {
+		// the images know only the four N-S and SE-NW orientations
+		layout &= 3;
 		if(  layout<2  ) {
 			layout = 15-layout;
 		}
