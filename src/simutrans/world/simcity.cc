@@ -3701,7 +3701,7 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 	}
 
 	// Artificial-slope cap: opted-in roads do delta-2 (planar double), rest delta-1.
-	const sint8 max_step = welt->get_city_road() && welt->get_city_road()->has_double_slopes() ? 2 : 1;
+	const sint8 max_step = city_road && city_road->has_double_slopes() ? 2 : 1;
 
 	// we must not built on water or runways etc.
 	if (bd->hat_wege() && !bd->hat_weg(road_wt)) {
@@ -4107,7 +4107,6 @@ bool stadt_t::test_and_build_cityroad(koord start, koord end)
 		// was a diagonal
 		return false;
 	}
-	const way_desc_t *city_road = welt->get_city_road();
 	const sint8 max_step = city_road && city_road->has_double_slopes() ? 2 : 1;
 	minivec_tpl<sint8>heights(length);
 	for (sint8 i = 0; i <= length; i++) {
