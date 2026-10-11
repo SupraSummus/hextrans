@@ -553,6 +553,8 @@ fetches pak64 on first invocation (~30 MB, cached) and skips setup it
 already did, so warm runs are dominated by sim startup. Pass substring
 filters to narrow the run: `tools/test.py halt` runs only tests whose
 name contains "halt". This is the cmake-Debug fast loop.
+The engine's user dir for these runs lives under `build/test-data/`,
+so parallel worktrees don't share scenario or test-pak links.
 
 The harness launches the engine with `-fast` (fast-forward + uncapped
 `max_acceleration`, so `idle_time` collapses to 0 and sim steps run
