@@ -295,14 +295,6 @@ triangle it falls in.
 The sample-point choice is square-shaped too, so both move together,
 ahead of the tree sprite offsets in the renderer port.
 
-`stadt_t::build_road` in `world/simcity.cc` asks whether "three
-corners are at the target height" by summing `corner_ne + corner_se
-+ corner_nw + corner_sw == 3`.
-Count over all six corners (`slope_t::max_diff` already covers the
-max half of that condition), and re-derive the threshold for a
-hex tile when the surrounding `ribi_t::nesw` walk moves to the six
-neighbours.
-
 ## Map storage shape — open architectural choice
 
 Tiles are stored as a `W × H` rhombus in axial `(q, r)`, indexed
