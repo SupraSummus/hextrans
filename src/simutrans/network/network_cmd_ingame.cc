@@ -1180,6 +1180,14 @@ network_broadcast_world_command_t* nwc_tool_t::clone(karte_t *welt)
 
 	// scenario scripts only run on server
 	if (socket_list_t::get_client_id(packet->get_sender()) != 0) {
+		// Tools flagged WFL_LOCAL (quit, load or save the world, load a
+		// scenario) are never sent to the server, so a client has no
+		// business asking for one.  `flags` is the sender's own copy; go by
+		// the flags the tool was created with.
+		if (tool->flags & tool_t::WFL_LOCAL) {
+			dbg->warning("nwc_tool_t::clone", "client %d sent local-only tool_id=%s", our_client_id, tool_t::id_to_string(tool_id));
+			return NULL;
+		}
 		// not sent by server, clear flag
 		flags &= ~tool_t::WFL_NO_CHK;
 	}

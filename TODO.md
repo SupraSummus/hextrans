@@ -1351,20 +1351,6 @@ add `if (!desc) return "";` after the groundobj lookup,
 move the stray `*p = 0;` into the `if` that assigns `p`,
 and add an invalid-parameter test for each.
 
-*World-lifecycle tools over the wire (unverified, read from the code).*
-`tool_quit_t`, `tool_load_scenario_t` and `tool_work_world_t`
-set `WFL_LOCAL | WFL_NO_CHK`,
-and `simmenu.h` says such calls never go to the server.
-But `nwc_tool_t::clone` clears `WFL_NO_CHK` only for non-server senders,
-skips the unlock check for `player_nr >= PLAYER_UNOWNED`,
-and `do_command` then calls `init()`,
-so a connected client may make the server quit, load or save.
-`tools/nwc_protocol_test` sends tools with `exec=True`,
-which the server rejects before `clone()`, so it never covers this.
-Next move: a wire test that joins and sends `TOOL_QUIT`
-with `exec=False` and `player_nr=15`;
-if the server quits, have `clone()` drop `WFL_LOCAL` tools from non-server senders.
-
 ## Descriptor-driven allocation OOM in pak readers
 
 Several readers turn a decoded count/length field into an
