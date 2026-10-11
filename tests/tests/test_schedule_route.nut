@@ -934,7 +934,7 @@ function test_schedule_route_height_slope()
 	// a plateau one level up, and the tile before it as the ramp onto it
 	ASSERT_EQUAL(setslope(pl, coord3d(4, 10, 0), slope.all_up_slope), null)
 	ASSERT_EQUAL(setslope(pl, coord3d(5, 10, 0), slope.all_up_slope), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(3, 10, 0), slope.west), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 10, 0), slope.northwest_narrow), null)
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 10, 0), coord3d(5, 10, 1), rail, true), null)
 
 	local sched = sroute_schedule(wt_rail, [coord3d(1, 10, 0), coord3d(5, 10, 1)])
@@ -1008,8 +1008,8 @@ function test_schedule_route_height_bridge_head_sloped()
 	local bd = bridge_desc_x.get_available_bridges(wt_rail)[0]
 	local setslope = command_x.set_slope
 
-	ASSERT_EQUAL(setslope(pl, coord3d(2, 14, 0), slope.east), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(8, 14, 0), slope.west), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(2, 14, 0), slope.southeast_narrow), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(8, 14, 0), slope.northwest_narrow), null)
 	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(2, 14, 0), coord3d(8, 14, 0), bd), null)
 
 	local sched = sroute_schedule(wt_rail, [coord3d(2, 14, 0), coord3d(8, 14, 0)])
@@ -1142,7 +1142,7 @@ function test_schedule_route_corner_slope()
 
 	ASSERT_EQUAL(setslope(pl, coord3d(4, 10, 0), slope.all_up_slope), null)
 	ASSERT_EQUAL(setslope(pl, coord3d(5, 10, 0), slope.all_up_slope), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(3, 10, 0), slope.west), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 10, 0), slope.northwest_narrow), null)
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 10, 0), coord3d(5, 10, 1), rail, true), null)
 
 	local sched = sroute_schedule(wt_rail, [coord3d(1, 10, 0), coord3d(5, 10, 1)])
@@ -1212,7 +1212,7 @@ function test_schedule_route_corner_terminus()
 
 	ASSERT_EQUAL(setslope(pl, coord3d(6, 6, 0), slope.all_up_slope), null)
 	ASSERT_EQUAL(setslope(pl, coord3d(7, 6, 0), slope.all_up_slope), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(5, 6, 0), slope.west), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(5, 6, 0), slope.northwest_narrow), null)
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 6, 0), coord3d(5, 6, 0), rail, true), null)
 
 	local sched = sroute_schedule(wt_rail, [coord3d(3, 6, 0), coord3d(5, 6, 0)])

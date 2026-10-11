@@ -308,7 +308,7 @@ function test_scenario_rules_allow_forbid_tool_stacked_rect()
 
 	// from outside the allowed block across the border -> rejected
 	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 0, 0), coord3d(2, 5, 0), road_desc, false), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 0, 0), coord3d(2, 5, 0), road_desc, false), "Foo Bar 1")
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_inner_chord)
 	}
 
@@ -357,7 +357,7 @@ function test_scenario_rules_allow_forbid_tool_stacked_cube()
 
 	// from outside the allowed block across the border -> rejected
 	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 0, 0), coord3d(2, 5, 0), road_desc, false), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 0, 0), coord3d(2, 5, 0), road_desc, false), "Foo Bar 1")
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), stacked_inner_chord)
 	}
 
