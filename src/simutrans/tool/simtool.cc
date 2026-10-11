@@ -139,6 +139,11 @@ static const char *const NOTICE_UNSUITABLE_GROUND = "No suitable ground!";
 static const char *const NOTICE_TILE_FULL = "Tile not empty.";
 
 /**
+ * Message returned for a dock longer than one tile that would have to run along the NE-SW axis.
+ */
+static const char *const NOTICE_DOCK_NESW_LENGTH = "A dock longer than one tile cannot run NE-SW yet.";
+
+/**
  * Message returned when a company tries to make a public way when public ways are disabled.
  */
 static const char *const NOTICE_DISABLED_PUBLIC_WAY = "Not allowed to make publicly owned ways!";
@@ -4329,6 +4334,19 @@ DBG_MESSAGE("tool_station_building_aux()", "building mail office/station buildin
 	return NULL;
 }
 
+/**
+ * Whether a dock that faces the water in direction @p water_dir and
+ * extends @p len tiles beyond its shore tile has no footprint.
+ * building_desc_t knows a rectangle and its transpose, so a footprint runs
+ * along N-S or SE-NW only; a one-tile dock needs none (AGENTS.md, "Engine
+ * encoding leads the pakset").
+ */
+static bool dock_footprint_missing(ribi_t::ribi water_dir, int len)
+{
+	return len > 0  &&  ribi_t::straight_axis(water_dir) == ribi_t::northeast;
+}
+
+
 /* build a dock either small or large */
 const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3d pos, const building_desc_t *desc)
 {
@@ -4350,6 +4368,9 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 	// check, if we can build here ...
 	if(!slope_t::is_axis_slope(hang)) {
 		return "Dock must be built on single slope!";
+	}
+	else if(dock_footprint_missing(water_dir, len)) {
+		return NOTICE_DOCK_NESW_LENGTH;
 	}
 	else {
 		// iterate up to max(len,1) to ensure that there is at least one tile of water
@@ -4593,6 +4614,10 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 					last_error = NOTICE_TILE_FULL;
 				}
 			}
+		}
+
+		if(  dock_footprint_missing(ribi_t::nesw[ii], len)  ) {
+			last_error = NOTICE_DOCK_NESW_LENGTH;
 		}
 
 		// error: then remove this direction
