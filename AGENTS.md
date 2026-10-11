@@ -223,16 +223,21 @@ true disc (`for (koord d : hex_disc(r))`); reach for it in any "all
 tiles within n steps" loop.  Refresh from PR #201 if a finer symmetry
 question arises.
 
-## Critical findings driving priority
+## Prose line breaks
 
-Per-vertex height storage is the top of the critical path. A hex
-vertex is shared by 3 tiles (vs 4 for a square corner). Storing slopes
-per-tile, like the legacy code does today, will produce inconsistent
-terrain across shared vertices the moment terraforming touches it. The
-fix is to store heights per-vertex and derive slopes — the same
-pattern as the existing `surface_t::grid_hgts` array, but with a
-denser, irregular vertex topology. The terraform, flood-fill and
-climate-transition code can't be ported cleanly until this lands.
+Markdown in this repo uses [Semantic Line Breaks](https://sembr.org/):
+break the line after every sentence,
+and usually after a clause that ends in a comma, semicolon, colon or dash.
+Never break inside a hyphenated word
+or in a way that changes the rendered text.
+Keep lines under 80 characters unless a link or code span needs more.
+A change to one sentence then shows up as a change to one line.
+
+Adopted lazily:
+new or rewritten paragraphs use semantic line breaks,
+the rest stays as it is until someone edits it for a reason.
+No reformatting passes.
+`git diff --word-diff` reads well across both styles.
 
 ## TODO file rules
 
