@@ -51,7 +51,10 @@ private:
 	// marker field
 	marker_t *marker;
 
-	halthandle_t  get_our_hub( const stadt_t *s ) const;
+	/// our hub of the city (a pax bus stop with a tile in the city) or zero;
+	/// *hub_pos is set to the hub's road stop tile inside the city
+	halthandle_t get_our_hub( const stadt_t *s, koord *hub_pos = NULL ) const;
+	koord get_hub_pos( const stadt_t *s ) const;
 
 	koord find_area_for_hub( const koord lo, const koord ru, const koord basis ) const;
 	koord find_place_for_hub( const stadt_t *s ) const;

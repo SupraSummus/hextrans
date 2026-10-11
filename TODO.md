@@ -1065,17 +1065,32 @@ and its double-track and station-extension code
 is built on square offsets and the old straight ribis 5 / 10.
 Hide it from the AI picker until then.
 
-`-ai_soak SIZE [SEED]` (see AGENTS.md) runs both AIs unattended and deterministically.
-On 128×128, 6 of seeds 1–15 abort in the first game month
-at the `start_connect_hub` / `end_connect_hub` asserts
-in `ai_passenger_t::create_air_transport_vehicle`
-(a SIGSEGV in `ai_passenger_t::step` in NDEBUG builds; seeds 3, 7, 13 and 15 hit both).
-`get_our_hub` accepts a halt only inside the square city rectangle,
-and the airport halt's first tile lies one row north of it,
-so the AI looks for another hub, fails to build one and ignores the failure.
-Next move: a hex-aware hub test and `return false` instead of the asserts,
-then run seeds 1–3 to 1933.1 in CI (the busy AI phase;
-both AIs go bankrupt within a few game years after that).
+The passenger AI's hub test and hub search
+(`ai_passenger_t::get_our_hub` and `find_area_for_hub`)
+share the axial `lo`/`ur` rectangle of `stadt_t`,
+a sheared box rather than a hex disc,
+and `find_airport_pos` / `find_harbour_pos` measure "out of town"
+against it too.
+The hub test has to use whatever the search uses,
+or the AI stops finding the hubs it builds.
+Next move: one hex-distance predicate on `stadt_t` for "tile is in the city",
+used by all four together with the city growth geometry group below,
+which decides what shape the city has.
+
+Reusing a harbour or airport the AI already built reads the wrong tile.
+`create_water_transport_vehicle` takes `get_basis_pos()` of a halt
+that has a dock as the dock tile,
+but that is the tile nearest the halt's centre
+(`haltestelle_t::recalc_basis_pos`),
+which can be its bus stop,
+so the route test for the ship would start on land
+and no second ferry from the town gets built.
+The end-city branch of `create_water_transport_vehicle`
+and `create_air_transport_vehicle` also assigns `start_hub = h`
+where it means `end_hub`, as upstream does.
+Next move: take the dock tile from the halt's tiles by station type,
+assign `end_hub`,
+and soak a map where one town gets a second route.
 
 ## Square-grid residue — audit backlog
 
