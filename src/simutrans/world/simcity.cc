@@ -624,6 +624,8 @@ void stadt_t::add_gebaeude_to_stadt(const gebaeude_t* gb, bool ordered)
 		for(grund_t* gr : gb_tiles ) {
 			gebaeude_t* add_gb = gr->find<gebaeude_t>();
 			assert(!buildings.is_contained(add_gb));
+			assert(add_gb->get_pos() == gr->get_pos());
+			assert(add_gb->get_pos().x != 0  && add_gb->get_pos().y != 0  &&  koord_distance(add_gb->get_pos(), get_pos()) < 250);
 			if( ordered ) {
 				buildings.insert_ordered( add_gb, level, compare_gebaeude_pos );
 			}
@@ -3726,14 +3728,15 @@ void stadt_t::generate_private_cars(koord pos, koord target)
 				if(  grund_t* gr = welt->lookup_kartenboden(k) ) {
 					const weg_t* weg = gr->get_weg(road_wt);
 					if (weg != NULL && (
-						weg->get_ribi_unmasked(road_wt) == ribi_t::northsouth ||
-						weg->get_ribi_unmasked(road_wt) == ribi_t::eastwest) &&
-						player_t::check_owner(NULL, w->get_owner()
-						) {
+						weg->get_ribi_unmasked() == ribi_t::northsouth ||
+						weg->get_ribi_unmasked() == ribi_t::eastwest) &&
+						player_t::check_owner(NULL, weg->get_owner()))
+					{
 						// already a car here => avoid congestion
-						if (gr->obj_bei(gr->get_top() - 1)->is_moving()) {
+						if (gr->obj_bei(gr->obj_count() - 1)->is_moving()) {
 							continue;
 						}
+
 						private_car_t* vt = new private_car_t(gr, target);
 						gr->obj_add(vt);
 						city_history_month[0][HIST_CITYCARS]++;

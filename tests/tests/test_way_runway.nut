@@ -88,7 +88,7 @@ function test_way_runway_build_rw_flat()
 	// runway crossing it on the S axis must fail.
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 8, 0), coord3d(10, 8, 0), road, true), null)
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(9, 7, 0), coord3d(9, 9, 0), runway, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(9, 7, 0), coord3d(9, 9, 0), runway, true), "No suitable ground!")
 
 		ASSERT_WAY_PATTERN(wt_road, coord3d(6, 6, 0),
 			[
@@ -202,7 +202,7 @@ function test_way_runway_build_tw_flat()
 	// no taxiways across ways: road on the SE axis (SE=1, NW=8, SE|NW=9).
 	{
 		ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 8, 0), coord3d(10, 8, 0), road, true), null)
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(9, 7, 0), coord3d(9, 9, 0), taxiway, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(9, 7, 0), coord3d(9, 9, 0), taxiway, true), "No suitable ground!")
 
 		ASSERT_WAY_PATTERN(wt_road, coord3d(6, 6, 0),
 			[
