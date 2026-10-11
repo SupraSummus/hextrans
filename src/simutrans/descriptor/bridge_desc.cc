@@ -139,8 +139,8 @@ bridge_desc_t::img_t bridge_desc_t::get_end(slope_t::type test_slope, slope_t::t
  * the hex port the engine accepts double-height geometry whenever the
  * desc isn't explicitly capped via `max_height`, regardless of whether
  * the pakset ships matching art (single-edge art is reused; AGENTS.md
- * pakset-art-out-of-scope).  Missing art renders empty / wrong-height,
- * but the engine builds rather than refuses.
+ * "Engine encoding leads the pakset").  Missing art renders empty /
+ * wrong-height, but the engine builds rather than refuses.
  */
 bool bridge_desc_t::has_double_ramp() const
 {
