@@ -849,6 +849,15 @@ all 6 directions in `iter_building_cells` /
 swap.  Soft trigger — only matters once residual misalignment is
 the visible artefact in-engine.
 
+Docks longer than one tile are refused on the NE-SW axis for now
+(`dock_footprint_missing` in `tool/simtool.cc`, slope and flat docks alike),
+because the footprint cannot follow the water there.
+Next move: once `get_size` has the third axis,
+delete that check and its message,
+and make the NE and SW cases of `test_halt_build_harbour_all_directions`
+and `test_halt_build_flat_dock_all_directions`
+assert the same line of tiles as the other four directions.
+
 ## City growth anisotropy
 
 City footprints come out elongated rather than round.
@@ -993,7 +1002,9 @@ Harbour→rail fails on NE/SW shores:
 `suche_platz` takes the station length as `abs(size.x+size.y)`,
 which is 0 along NE-SW,
 `find_harbour` derives its second orientation by swapping x and y,
-and `tool_station_dock_aux` orients only N and S shore slopes.
+and the dock tool refuses a harbour longer than one tile there
+(see "Multi-tile building footprint");
+the AI should pick a one-tile harbour for such a shore.
 
 The scripted AIs in `simutrans/ai/` are untouched,
 but the script API's `dir` is already 6-way (`test_dir.nut`),
