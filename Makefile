@@ -314,6 +314,7 @@ SOURCES += src/simutrans/dataobj/freelist.cc
 SOURCES += src/simutrans/dataobj/gameinfo.cc
 SOURCES += src/simutrans/dataobj/height_map_loader.cc
 SOURCES += src/simutrans/dataobj/koord.cc
+SOURCES += src/simutrans/dataobj/koord_hex.cc
 SOURCES += src/simutrans/dataobj/koord3d.cc
 SOURCES += src/simutrans/dataobj/loadsave.cc
 SOURCES += src/simutrans/dataobj/marker.cc

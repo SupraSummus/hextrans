@@ -2251,7 +2251,7 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 
 		// Hex flood-fill: tile k shares edge i with neighbour
 		// k_neighbour = k + neighbours[i]; that edge touches corners i
-		// and (i+1)%6 of k (see vertex_owners in koord.cc).
+		// and (i+1)%6 of k (see vertex_owners in koord_hex.cc).
 		for(  int i = stage[array_koord(k.x,k.y)];  i < (int)lengthof(koord::neighbours);  i++  ) {
 			koord k_neighbour = k + koord::neighbours[i];
 			grund_t *gr2 = welt->lookup_kartenboden(k_neighbour);

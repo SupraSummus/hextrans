@@ -165,7 +165,7 @@ overkill when one flat neighbour is the target, a direct
 `way_obj_writer.cc` iterates `slope = 3, 6, 9, 12` for
 `frontimageup` / `backimageup` under the square-era pattern: 4 of
 6 hex edges, missing the two third-axis edges (raised E+SE and
-raised NE+E pairs, see `koord.cc` neighbour case table).  Needs
+raised NE+E pairs, see `koord_hex.cc` neighbour case table).  Needs
 the same widening that `way_writer.cc` got — 18 slots covering
 all 6 hex edges × {narrow, wide, double}, indexed by
 `way_obj_desc::get_slope_image_id`.  Land alongside the first hex
@@ -744,6 +744,13 @@ but this is only a narrow fix for post-port saves.  Once the
 structural changes settle, either reject old upstream saves cleanly or
 write a one-shot square→hex converter (hard because 4 corners do not
 map cleanly to 6).
+
+Nothing tests the terrain save/load round trip end to end,
+including the map-edge and water branches
+of the restore block in `grund_t::rdwr`.
+Land one with the bump:
+a headless check that generates a map with relief and water,
+saves, reloads and compares every vertex height.
 
 Save-format feature gates now have names in `simversion.h` rather
 than floating against `SIM_SAVE_MINOR`.  Continue that convention for

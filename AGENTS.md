@@ -190,7 +190,7 @@ VERTICES / CORNERS (6 per tile): **E, SE, SW, W, NW, NE**. Flat-top
 hexes have NO due-N or due-S corner; the 6 vertices sit at angles
 0°, 60°, 120°, 180°, 240°, 300° from the centre.
 
-`koord::neighbours[]` (in `src/simutrans/dataobj/koord.cc`) is ordered
+`koord::neighbours[]` (in `src/simutrans/dataobj/koord_hex.cc`) is ordered
 clockwise starting from the SE neighbour, matching the EDGE convention
 above.
 
@@ -560,6 +560,14 @@ for the autoconf+ASAN recipe in `documentation/claude-code-web-dev.md`
 when reproducing a sanitizer-class CI failure. Real-game GUI play is
 still not testable in this env; flag assumptions that depend on a
 human at the keyboard.
+
+`tools/hex_*_test/` are standalone C++ self-tests
+that CI runs before the engine build (`make -C tools/hex_vertex_test run`).
+They compile the production sources they check
+(`dataobj/koord_hex.cc`, `display/hex_proj.h`, `ground/back_image_decode.h`),
+never a copy.
+Code that can't build standalone gets split into a dependency-free file first,
+the way `koord_hex.cc` came out of `koord.cc`.
 
 `tools/city_anisotropy.py` measures how non-round city footprints come
 out under the hex grid (see `TODO.md` → "City growth anisotropy").  It
