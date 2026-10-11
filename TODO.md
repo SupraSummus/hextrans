@@ -1096,7 +1096,9 @@ on-map `pos`) does not hold for an attacker-controlled `nwc_tool_t`.  The
 NULL-`default_param` derefs found so far are fixed (the `*::init` guards in
 `simtool.cc` and the NULL guards in `way_builder_t::get_desc` /
 `roadsign_t::find_desc` / `hausbauer_t::find_tile`, matching the existing
-bridge/tunnel ones), plus `tool_change_line_t::init`'s terminator over-read
+bridge/tunnel ones), plus `tool_change_line_t::init`'s terminator over-read,
+the `default_param` length over-reads in the industry build tools
+(`has_factory_param`) and `tool_work_world_t::init`,
 and `tool_transformer_t::work` / `tool_build_depot_t::get_waytype`'s
 unchecked tile lookups.  Two sub-classes remain, each a per-site missing
 guard rather than one central fix (a `do_command` bounds gate would wrongly
@@ -1108,14 +1110,38 @@ reject the non-positional tools that legitimately carry `koord3d::invalid`):
 candidates.  Next move: continue the campaign, add `if(!gr) return "";`
 per offending site (the pattern the guarded sites already use).
 
-*`default_param` length-assumption over-reads.*  The build-chain work()s
-(`tool_build_factory_t::work` at `simtool.cc:6283`, and the
-`tool_build_house_t` / `tool_city_chain_t` / `tool_build_land_chain_t`
-siblings) do `default_param+2` / `default_param[1]` guarded only by
-`strempty` (length > 0), so a 1-char param reads past the buffer.  Next
-move: tighten the guard to the format's real minimum length
-(`strlen(default_param) >= 3`, as `tool_load_scenario_t::init` already
-does) at each site.
+*`default_param` content that is not a length problem.*
+Three per-site crashes of the same attacker-input shape remain,
+each reproduced under ASAN with one `command_x` call.
+`tool_build_factory_t` and `tool_build_land_chain_t` turn the rotation byte
+into `(c - '0') % layouts` unchecked
+(`tool_build_house_t` has the same expression, not reproduced),
+so `"1!1024,TANKE"` gives a negative rotation
+and `building_tile_desc_t::get_tile` aborts;
+`tool_build_station_t::get_desc` already range-checks its rotation.
+`tool_plant_groundobj_t::work` dereferences `desc` before checking it,
+so `"00,nonexistent"` is a NULL dereference.
+`tool_add_city_t::work` writes through the NULL result of its second `strchr`,
+so a parameter with exactly one comma (`"5,nonexistent"`) writes to address 0.
+Next move: make the three `init()`s reject a rotation byte that is neither
+a digit nor `#` (`A` too for houses),
+add `if (!desc) return "";` after the groundobj lookup,
+move the stray `*p = 0;` into the `if` that assigns `p`,
+and add an invalid-parameter test for each.
+
+*World-lifecycle tools over the wire (unverified, read from the code).*
+`tool_quit_t`, `tool_load_scenario_t` and `tool_work_world_t`
+set `WFL_LOCAL | WFL_NO_CHK`,
+and `simmenu.h` says such calls never go to the server.
+But `nwc_tool_t::clone` clears `WFL_NO_CHK` only for non-server senders,
+skips the unlock check for `player_nr >= PLAYER_UNOWNED`,
+and `do_command` then calls `init()`,
+so a connected client may make the server quit, load or save.
+`tools/nwc_protocol_test` sends tools with `exec=True`,
+which the server rejects before `clone()`, so it never covers this.
+Next move: a wire test that joins and sends `TOOL_QUIT`
+with `exec=False` and `player_nr=15`;
+if the server quits, have `clone()` drop `WFL_LOCAL` tools from non-server senders.
 
 ## Descriptor-driven allocation OOM in pak readers
 
