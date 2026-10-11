@@ -189,8 +189,7 @@ void movingobj_t::rdwr(loadsave_t *file)
 	file->rdwr_enum(direction);
 	if (file->is_loading()) {
 		// restore dxdy information
-		dx = dxdy[ ribi_t::get_dir(direction)*2];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1];
+		set_dxdy(direction);
 	}
 
 	file->rdwr_byte(steps);

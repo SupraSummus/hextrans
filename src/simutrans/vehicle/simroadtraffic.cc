@@ -82,36 +82,7 @@ road_user_t::road_user_t(grund_t* bd, uint16 random) :
 		}
 	}
 
-	// HEX-PORT: same 2:1 isometric projection as vehicle_base
-	// calc_set_direction; SE takes over the old "east" offsets, NW
-	// takes over the old "west" offsets, NE/SW use the doubled
-	// screen-x step.
-	switch(direction) {
-		case ribi_t::north:
-			dx = 2;
-			dy = -1;
-			break;
-		case ribi_t::south:
-			dx = -2;
-			dy = 1;
-			break;
-		case ribi_t::southeast:
-			dx = 2;
-			dy = 1;
-			break;
-		case ribi_t::northwest:
-			dx = -2;
-			dy = -1;
-			break;
-		case ribi_t::northeast:
-			dx = 4;
-			dy = 0;
-			break;
-		case ribi_t::southwest:
-			dx = -4;
-			dy = 0;
-			break;
-	}
+	set_dxdy(direction);
 
 	set_xoff( (dx<0) ? OBJECT_OFFSET_STEPS : -OBJECT_OFFSET_STEPS );
 	set_yoff( (dy<0) ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
@@ -147,8 +118,7 @@ void road_user_t::rdwr(loadsave_t *file)
 
 	// correct old offsets ... REMOVE after savegame increase ...
 	if(file->is_version_less(99, 18)  &&  file->is_saving()) {
-		dx = dxdy[ ribi_t::get_dir(direction)*2 ];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1 ];
+		set_dxdy(direction);
 		sint8 i = steps/16;
 		set_xoff( get_xoff() + i*dx );
 		set_yoff( get_yoff() + i*dy + hoff );
@@ -184,8 +154,9 @@ void road_user_t::rdwr(loadsave_t *file)
 			file->rdwr_byte(steps_next);
 		}
 		file->rdwr_enum(direction);
-		dx = dxdy[ ribi_t::get_dir(direction)*2];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1];
+		if(file->is_loading()) {
+			set_dxdy(direction);
+		}
 		if(file->is_version_less(99, 5)  ||  file->is_version_atleast(99, 17)) {
 			sint16 dummy16 = ((16*(sint16)hoff)/OBJECT_OFFSET_STEPS);
 			file->rdwr_short(dummy16);
