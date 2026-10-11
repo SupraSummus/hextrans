@@ -659,7 +659,7 @@ artificial slot is empty.  Ship 7 natural + 7 artificial fence
 sprites in the hex pakset and pak64 to refill.
 
 **Phase C — flow-on.**  Per-step vehicle interpolation offsets
-(`vehicle_base_t::calc_set_direction` and friends), label / halt
+(`vehicle_base_t::set_dxdy`, shared by hop time and save/load), label / halt
 screen-anchor positions.  The label / halt group rides along on
 `get_screen_coord` so positions become hex-correct automatically;
 per-tile drawing under each anchor still assumes square geometry
@@ -671,6 +671,18 @@ neighbours are at screen distance `2u` while NE/SW are at `u·√10`
 ≈ `3.16u`, so NE/SW vehicles visibly drift off-tile mid-hop on
 straight segments.  Rebase the per-edge offsets on the lattice and
 match the diagonal-step substep count to the longer hex chord.
+
+Two more per-direction tables still follow the old square model.
+`driveleft_base_offsets` and `overtaking_base_offsets` (`vehicle_base.cc`)
+are keyed by `get_dir()`,
+so SE/NW traffic gets the square-diagonal lane rows
+instead of the rows the old east/west edges used.
+Next move: key them by ribi, the way `set_dxdy` does.
+`vehicle_t::initialise_journey` resets `steps_next` from `is_single(direction)`,
+which holds for every hex edge,
+so NE/SW vehicles get 255 instead of the diagonal value after each departure;
+`convoi_t` and `vehicle_base_t` use `is_bend(direction)` the same way.
+Next move: one helper for `steps_next` shared with `calc_set_direction`.
 
 Minimap (`gui/minimap.cc`) now hex-projects in isometric mode:
 `map_to_screen_coord` / `screen_to_map_coord` use the `(3u, u)` /
@@ -905,13 +917,24 @@ maps a 4-layout depot's dead-end ribi through `ribi_t::ribi_to_layout`,
 so all 6 directions get a layout;
 `building_desc_t::adjust_layout` folds the NE and SW layouts
 onto the images the pakset ships.
-A 2-layout through depot still picks `layout = 0` (N-S axis)
-or `layout = 1` (SE-NW = old E-W) from the way's ribi.
-Its 3rd hex axis (NE-SW) falls through to layout 0,
-so 2-layout depots on NE-SW track render mis-oriented.
-Real fix is a 3-layout depot descriptor;
+A 2-layout through depot, and every through stop,
+picks its layout with `ribi_t::axis_to_layout`:
+the S, SE and SW end give layouts 0, 1 and 5,
+and `adjust_layout` folds 5 onto 1,
+so NE-SW track shows the SE-NW image.
+Real fix is a 3-axis depot and through-stop descriptor;
 needs `depot_t` rotation handling
-and pakset depot images for all three axes.
+and pakset images for all three axes.
+
+*Stop and depot facing is read from the way.*
+`get_layout()` is folded for NE and SW,
+so `hausbauer_t::get_facing_ribi` reads a stop's or depot's exit or axis
+from its way and falls back to the layout.
+A lone NE or SW terminal whose road was removed
+can only be reconnected from its folded S or SE side.
+Next move: store the real facing in `gebaeude_t` with the next save-format bump,
+read it first in `get_facing_ribi`,
+then drop the way-derived path and the fallback.
 
 *Crossroads collision FSM.*
 `vehicle_base_t::no_cars_blocking` (`vehicle_base.cc:491`)
@@ -970,15 +993,17 @@ and its double-track and station-extension code
 is built on square offsets and the old straight ribis 5 / 10.
 Hide it from the AI picker until then.
 
-Nothing exercises the AIs in tests.
-A headless run with an AI goods and an AI passenger player on a 128×128 map
-trips the `end_connect_hub.is_bound()` assert
+`-ai_soak SIZE [SEED]` (see AGENTS.md) runs both AIs unattended and deterministically.
+On 128×128, 6 of seeds 1–15 abort in the first game month
+at the `start_connect_hub` / `end_connect_hub` asserts
 in `ai_passenger_t::create_air_transport_vehicle`
-within the first game year.
-Next move: a test hook
-(fixed seed, AI players, no start-up banner —
-its modal dialog runs the world at normal speed and defeats `-fast`)
-that CI runs for a few game years under ASAN.
+(a SIGSEGV in `ai_passenger_t::step` in NDEBUG builds; seeds 3, 7, 13 and 15 hit both).
+`get_our_hub` accepts a halt only inside the square city rectangle,
+and the airport halt's first tile lies one row north of it,
+so the AI looks for another hub, fails to build one and ignores the failure.
+Next move: a hex-aware hub test and `return false` instead of the asserts,
+then run seeds 1–3 to 1933.1 in CI (the busy AI phase;
+both AIs go bankrupt within a few game years after that).
 
 ## Pak reader child-count expectations are implicit
 
@@ -1101,7 +1126,9 @@ on-map `pos`) does not hold for an attacker-controlled `nwc_tool_t`.  The
 NULL-`default_param` derefs found so far are fixed (the `*::init` guards in
 `simtool.cc` and the NULL guards in `way_builder_t::get_desc` /
 `roadsign_t::find_desc` / `hausbauer_t::find_tile`, matching the existing
-bridge/tunnel ones), plus `tool_change_line_t::init`'s terminator over-read
+bridge/tunnel ones), plus `tool_change_line_t::init`'s terminator over-read,
+the `default_param` length over-reads in the industry build tools
+(`has_factory_param`) and `tool_work_world_t::init`,
 and `tool_transformer_t::work` / `tool_build_depot_t::get_waytype`'s
 unchecked tile lookups.  Two sub-classes remain, each a per-site missing
 guard rather than one central fix (a `do_command` bounds gate would wrongly
@@ -1113,14 +1140,38 @@ reject the non-positional tools that legitimately carry `koord3d::invalid`):
 candidates.  Next move: continue the campaign, add `if(!gr) return "";`
 per offending site (the pattern the guarded sites already use).
 
-*`default_param` length-assumption over-reads.*  The build-chain work()s
-(`tool_build_factory_t::work` at `simtool.cc:6283`, and the
-`tool_build_house_t` / `tool_city_chain_t` / `tool_build_land_chain_t`
-siblings) do `default_param+2` / `default_param[1]` guarded only by
-`strempty` (length > 0), so a 1-char param reads past the buffer.  Next
-move: tighten the guard to the format's real minimum length
-(`strlen(default_param) >= 3`, as `tool_load_scenario_t::init` already
-does) at each site.
+*`default_param` content that is not a length problem.*
+Three per-site crashes of the same attacker-input shape remain,
+each reproduced under ASAN with one `command_x` call.
+`tool_build_factory_t` and `tool_build_land_chain_t` turn the rotation byte
+into `(c - '0') % layouts` unchecked
+(`tool_build_house_t` has the same expression, not reproduced),
+so `"1!1024,TANKE"` gives a negative rotation
+and `building_tile_desc_t::get_tile` aborts;
+`tool_build_station_t::get_desc` already range-checks its rotation.
+`tool_plant_groundobj_t::work` dereferences `desc` before checking it,
+so `"00,nonexistent"` is a NULL dereference.
+`tool_add_city_t::work` writes through the NULL result of its second `strchr`,
+so a parameter with exactly one comma (`"5,nonexistent"`) writes to address 0.
+Next move: make the three `init()`s reject a rotation byte that is neither
+a digit nor `#` (`A` too for houses),
+add `if (!desc) return "";` after the groundobj lookup,
+move the stray `*p = 0;` into the `if` that assigns `p`,
+and add an invalid-parameter test for each.
+
+*World-lifecycle tools over the wire (unverified, read from the code).*
+`tool_quit_t`, `tool_load_scenario_t` and `tool_work_world_t`
+set `WFL_LOCAL | WFL_NO_CHK`,
+and `simmenu.h` says such calls never go to the server.
+But `nwc_tool_t::clone` clears `WFL_NO_CHK` only for non-server senders,
+skips the unlock check for `player_nr >= PLAYER_UNOWNED`,
+and `do_command` then calls `init()`,
+so a connected client may make the server quit, load or save.
+`tools/nwc_protocol_test` sends tools with `exec=True`,
+which the server rejects before `clone()`, so it never covers this.
+Next move: a wire test that joins and sends `TOOL_QUIT`
+with `exec=False` and `player_nr=15`;
+if the server quits, have `clone()` drop `WFL_LOCAL` tools from non-server senders.
 
 ## Descriptor-driven allocation OOM in pak readers
 

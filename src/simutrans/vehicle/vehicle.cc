@@ -900,16 +900,16 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(purchase_time%12
 		file->rdwr_long(fracht_count);
 		file->rdwr_short(route_index);
 		// restore dxdy information
-		dx = dxdy[ ribi_t::get_dir(direction)*2];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1];
+		if(file->is_loading()) {
+			set_dxdy(direction);
+		}
 	}
 
 	// convert steps to position
 	if(file->is_version_less(99, 18)) {
 		sint8 ddx=get_xoff(), ddy=get_yoff()-hoff;
 		sint8 i=1;
-		dx = dxdy[ ribi_t::get_dir(direction)*2];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1];
+		set_dxdy(direction);
 
 		while(  !is_about_to_hop(ddx+dx*i,ddy+dy*i )  &&  i<16 ) {
 			i++;

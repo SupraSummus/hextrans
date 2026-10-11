@@ -13,6 +13,7 @@
 #include "../tpl/vector_tpl.h"
 
 class gebaeude_t;
+class grund_t;
 class karte_ptr_t;
 class player_t;
 class tool_selector_t;
@@ -162,6 +163,17 @@ public:
 	 * @param param if building a stop, pointer to the halt handle
 	 */
 	static gebaeude_t* build_station_extension_depot(player_t* player, koord3d pos, int layout, const building_desc_t* desc, void* param = NULL);
+
+	/**
+	 * The direction a stop or depot built from @p tile on @p gr faces: its
+	 * single exit for a terminal (4 layout) building, both ends of its axis
+	 * for a through building.
+	 * The ways on @p gr tell, not the layout: building_desc_t::adjust_layout
+	 * folds the NE / SW layouts onto S / SE, so the stored layout cannot
+	 * tell them apart.  Falls back to the layout where the ways don't
+	 * (no way, or a bent one).
+	 */
+	static ribi_t::ribi get_facing_ribi(const grund_t* gr, const building_tile_desc_t* tile);
 
 	/// @returns house list of type @p typ
 	static const vector_tpl<const building_desc_t *> *get_list(building_desc_t::btype typ);

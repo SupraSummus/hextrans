@@ -598,6 +598,26 @@ m=2 angular mode against footprint size (a scale-invariant m=2 floor is
 intrinsic street texture, a decaying one is founding-skeleton bias);
 `--self-test` validates the math with no engine.
 
+`-ai_soak SIZE [SEED]` (in `simmain.cc`, beside `-flatmap`)
+runs the computer players unattended,
+which nothing else in the test suite exercises.
+It generates a SIZE×SIZE map with cities and industry from SEED,
+adds one goods and one passenger AI,
+skips the start-up banner,
+and steps the world flat out to `-until YEAR.MONTH`,
+logging one `ai_soak: YYYY.MM convoys=… halts=… cities=… ais=… rng=…`
+line per game month to stderr.
+`ais` counts the AIs still alive:
+once both have gone bankrupt the run only soaks an idle world.
+`dbg->fatal` and failed asserts (Debug builds) abort with SIGABRT
+instead of waiting for a key on the fatal dialog,
+so a crash is a non-zero exit status plus a core file or a `gdb` backtrace.
+Two runs with the same SIZE and SEED print the same `rng` on every line;
+a mismatch is a new source of nondeterminism.
+A full run, from `simutrans/`:
+`SDL_VIDEODRIVER=dummy ../build/simutrans/simutrans -objects pak -nosound
+-nomidi -debug 2 -ai_soak 128 1 -until 1952.1`.
+
 `tools/nwc_protocol_test/` is the multiplayer wire-protocol suite —
 black-box tests that spawn a headless server, send one hand-rolled
 NWC_* packet, and assert on the parsed reply. Plain `unittest`,
