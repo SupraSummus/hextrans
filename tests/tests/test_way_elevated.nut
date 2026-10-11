@@ -34,8 +34,7 @@ function test_way_elevated_over_building()
 	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(3, 4, 1), coord3d(4, 4, 1), "" + wt_monorail), null)
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(3, 4, 0)), null)
 
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null) // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null)
+	clear_townhall_and_roads(public_pl, 8, 8) // the hex townhall seeds its road on a random face
 
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -62,8 +61,7 @@ function test_way_elevated_over_building_footprint()
 	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(3, 6, 1), coord3d(4, 6, 1), "" + wt_monorail), null)
 
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(3, 4, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null)
+	clear_townhall_and_roads(public_pl, 8, 8)
 
 	RESET_ALL_PLAYER_FUNDS()
 }

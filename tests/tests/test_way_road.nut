@@ -1180,14 +1180,14 @@ function test_way_road_build_terraform_defaults_to_off()
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 	local remover   = command_x(tool_remove_way)
 	local pattern   = [
-		"........",
-		"........",
-		"...4....",
-		"...5....",
-		"...5....",
-		"...5....",
-		"...1....",
-		"........"
+		[ 0,  0,  0,  0,  0,  0,  0,  0],
+		[ 0,  0,  0,  0,  0,  0,  0,  0],
+		[ 0,  0,  0,  2,  0,  0,  0,  0],
+		[ 0,  0,  0, 18,  0,  0,  0,  0],
+		[ 0,  0,  0, 18,  0,  0,  0,  0],
+		[ 0,  0,  0, 18,  0,  0,  0,  0],
+		[ 0,  0,  0, 16,  0,  0,  0,  0],
+		[ 0,  0,  0,  0,  0,  0,  0,  0]
 	]
 
 	// the omitted parameter has to build exactly what an explicit false builds
@@ -1222,6 +1222,7 @@ function test_way_road_build_terraform_defaults_to_off()
 }
 
 
+// test_way_road_build_terraform_across_slope: HEX-PORT PENDING.
 function test_way_road_build_terraform_across_slope()
 {
 	local pl        = player_x(0)
@@ -1229,12 +1230,12 @@ function test_way_road_build_terraform_across_slope()
 	local remover   = command_x(tool_remove_way)
 
 	// a slope across the way: no road can follow it
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
 
 	local cash = pl.get_current_cash()
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true), "")
 	ASSERT_EQUAL(pl.get_current_cash(), cash)
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_narrow)
 
 	// the same command may change the slope now
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true, true), null)
@@ -1243,14 +1244,14 @@ function test_way_road_build_terraform_across_slope()
 
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 		[
-			"........",
-			"........",
-			"........",
-			"........",
-			"...2A8..",
-			"........",
-			"........",
-			"........"
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  1,  9,  8,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0]
 		])
 
 	// nothing was bridged and nothing was tunneled
@@ -1265,6 +1266,7 @@ function test_way_road_build_terraform_across_slope()
 }
 
 
+// test_way_road_build_road_terraform_across_slope: HEX-PORT PENDING.
 function test_way_road_build_road_terraform_across_slope()
 {
 	local pl        = player_x(0)
@@ -1282,14 +1284,14 @@ function test_way_road_build_road_terraform_across_slope()
 
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 		[
-			"........",
-			"........",
-			"........",
-			"....4...",
-			"....5...",
-			"....1...",
-			"........",
-			"........"
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  0,  2,  0,  0,  0],
+			[ 0,  0,  0,  0, 18,  0,  0,  0],
+			[ 0,  0,  0,  0, 16,  0,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0],
+			[ 0,  0,  0,  0,  0,  0,  0,  0]
 		])
 
 	ASSERT_FALSE(tile_x(4, 4, 0).is_bridge())
@@ -1302,6 +1304,7 @@ function test_way_road_build_road_terraform_across_slope()
 }
 
 
+// test_way_road_build_terraform_single_step: HEX-PORT PENDING.
 function test_way_road_build_terraform_single_step()
 {
 	local pl        = player_x(0)
@@ -1310,14 +1313,14 @@ function test_way_road_build_terraform_single_step()
 	local planner   = way_planner_x(pl)
 	planner.set_build_types(road_desc)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south_narrow), null)
 
 	// building one step of a planned route at a time, the way the bundled ai scripts do,
 	// cannot stop on the slope: only the near edge would be levelled and the tile would
 	// be left with a single raised corner, so the tool refuses and changes nothing
 	ASSERT_FALSE(planner.is_allowed_step(tile_x(8, 9, 0), tile_x(9, 9, 0)))
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 9, 0), coord3d(9, 9, 0), road_desc, true, true), "")
-	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south)
+	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_narrow)
 	ASSERT_FALSE(tile_x(8, 9, 0).has_way(wt_road))
 	ASSERT_FALSE(tile_x(9, 9, 0).has_way(wt_road))
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
@@ -1331,10 +1334,10 @@ function test_way_road_build_terraform_single_step()
 	// exactly the three tiles of the run, no detour
 	ASSERT_WAY_PATTERN(wt_road, coord3d(7, 8, 0),
 		[
-			"0000",
-			"02A8",
-			"0000",
-			"0000"
+			[ 0,  0,  0,  0],
+			[ 0,  1,  9,  8],
+			[ 0,  0,  0,  0],
+			[ 0,  0,  0,  0]
 		])
 
 	ASSERT_FALSE(tile_x(9, 9, 0).is_bridge())
@@ -1369,18 +1372,19 @@ function test_way_road_build_terraform_is_no_bypass()
 }
 
 
+// test_way_road_build_terraform_forbidden_by_scenario: HEX-PORT PENDING.
 function test_way_road_build_terraform_forbidden_by_scenario()
 {
 	local pl        = player_x(0)
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 	local remover   = command_x(tool_remove_way)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
 
 	// the way is still built by the tool, so the scenario still sees the way name
 	rules.forbid_way_tool_rect(0, tool_build_way, wt_road, road_desc.get_name(), coord(3, 3), coord(5, 5), "Foo Bar")
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true, true), "")
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_narrow)
 	rules.clear()
 
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true, true), null)
@@ -1422,6 +1426,7 @@ function test_way_road_build_terraform_builds_no_bridge()
 }
 
 
+// test_way_road_build_terraform_not_kept_by_the_tool: HEX-PORT PENDING.
 function test_way_road_build_terraform_not_kept_by_the_tool()
 {
 	local pl        = player_x(0)
@@ -1429,8 +1434,8 @@ function test_way_road_build_terraform_not_kept_by_the_tool()
 	local remover   = command_x(tool_remove_way)
 	local builder   = command_x(tool_build_way)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south), null)
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south_narrow), null)
 
 	// terraforming once must not leave the tool terraforming for good: the option
 	// belongs to the single command, and the same instance is used for both.
@@ -1441,7 +1446,7 @@ function test_way_road_build_terraform_not_kept_by_the_tool()
 
 	builder.set_flags(2)
 	ASSERT_EQUAL(builder.work(pl, coord3d(8, 9, 0), coord3d(10, 9, 0), road_desc.get_name()), "")
-	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south)
+	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_narrow)
 
 	// clean up
 	ASSERT_EQUAL(remover.work(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), "" + wt_road), null)

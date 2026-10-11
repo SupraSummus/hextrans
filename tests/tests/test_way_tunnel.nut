@@ -584,18 +584,28 @@ function test_way_tunnel_build_invalid_param_type()
 
 // helper for the tunnel planner tests: raises (or lowers again) a one tile wide
 // ridge along column @p x from @p y0 to @p y1, which gives the tile at y0-1 the
-// slope a tunnel mouth needs and something to dig through
+// slope a tunnel mouth needs and something to dig through.  Hex column: the
+// first tile takes all 6 vertices (raise_hex_tile), every further tile the 4
+// it does not share with the tile north of it (see raise_hex_tile_pair_S).
 function TUNNEL_RIDGE(pl, x, y0, y1, raise)
 {
-	for (local gx = x; gx <= x + 1; gx++) {
-		for (local gy = y0; gy <= y1 + 1; gy++) {
-			if (raise) {
-				ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(gx, gy, 0)), null)
-			}
-			else {
-				ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(gx, gy, 1)), null)
-			}
+	if (raise) {
+		raise_hex_tile(pl, x, y0, 0)
+		for (local y = y0 + 1; y <= y1; y++) {
+			ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(x+1, y,   0)), null)              // (x,y).E
+			ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(x,   y+1, 0)), null)              // (x,y).SW
+			ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(x,   y, 0), 1), null) // (x,y).SE
+			ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(x-1, y, 0), 1), null) // (x,y).W
 		}
+	}
+	else {
+		for (local y = y1; y > y0; y--) {
+			ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(x-1, y, 1), 1), null) // (x,y).W
+			ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(x,   y, 1), 1), null) // (x,y).SE
+			ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(x,   y+1, 1)), null)              // (x,y).SW
+			ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(x+1, y,   1)), null)              // (x,y).E
+		}
+		lower_hex_tile(pl, x, y0, 0)
 	}
 }
 
@@ -652,12 +662,12 @@ function test_way_tunnel_planner_invalid_direction()
 	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south, tunnel_desc).tostring(), coord3d(3, 6, 0).tostring())
 
 	// anything but a single direction converts to a step vector of length zero
-	// or to a diagonal, neither of which the native search can walk
-	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.none,       tunnel_desc).tostring(), invalid)
-	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.northsouth, tunnel_desc).tostring(), invalid)
-	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.eastwest,   tunnel_desc).tostring(), invalid)
-	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.southeast,  tunnel_desc).tostring(), invalid)
-	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.all,        tunnel_desc).tostring(), invalid)
+	// or to a two-step offset, neither of which the native search can walk
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.none,                  tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.northsouth,            tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.northwest_southeast,   tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south | dir.southeast, tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.all,                   tunnel_desc).tostring(), invalid)
 
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 
@@ -666,6 +676,7 @@ function test_way_tunnel_planner_invalid_direction()
 }
 
 
+// test_way_tunnel_planner_rotated_map: HEX-PORT PENDING.
 function test_way_tunnel_planner_rotated_map()
 {
 	local pl = player_x(0)
@@ -722,7 +733,7 @@ function test_way_tunnel_planner_off_map()
 
 	// the first step already leaves the map
 	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, coord3d(3, 0, 0), dir.north, tunnel_desc).tostring(), invalid)
-	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, coord3d(0, 3, 0), dir.west,  tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, coord3d(0, 3, 0), dir.northwest, tunnel_desc).tostring(), invalid)
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	RESET_ALL_PLAYER_FUNDS()
 }

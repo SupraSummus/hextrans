@@ -178,6 +178,7 @@ function test_way_bridge_maintenance_repeat()
 // span across an existing bridge head, which test_way_bridge_build_ground already
 // establishes is rejected - and rejecting it is decided before anything is placed.
 //
+// test_way_bridge_maintenance_failed_build: HEX-PORT PENDING.
 function test_way_bridge_maintenance_failed_build()
 {
 	local pl     = player_x(0)

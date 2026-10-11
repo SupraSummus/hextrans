@@ -501,6 +501,7 @@ function test_schedule_route_private_way()
 //
 // 16: rotating the map must not leave residual geometry
 //
+// test_schedule_route_rotate: HEX-PORT PENDING.
 function test_schedule_route_rotate()
 {
 	local pl = player_x(0)

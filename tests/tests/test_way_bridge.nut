@@ -424,8 +424,8 @@ function test_way_bridge_over_building()
 	// the valley floor: the deck leaves less clearance than the building needs
 	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(12, 12, 0), "0"), null)
 
-	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.south), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.north), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.north_narrow), null)
 
 	// control: over an empty valley the same bridge builds fine
 	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(3, 2, 0), coord3d(3, 5, 0), bridge_desc), null)
@@ -443,8 +443,7 @@ function test_way_bridge_over_building()
 
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 2, 0), slope.all_down_slope), null)
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 5, 0), slope.all_down_slope), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(12, 12, 0)), null)
-	ASSERT_EQUAL(remover.work(public_pl, coord3d(11, 13, 0), coord3d(13, 13, 0), "" + wt_road), null)
+	clear_townhall_and_roads(public_pl, 12, 12) // the hex townhall seeds its road on a random face
 
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -461,8 +460,8 @@ function test_way_bridge_over_fitting_stacked_building()
 	ASSERT_TRUE(station_desc != null)
 
 	// lower bridge, east-west, with its deck at z=1
-	ASSERT_EQUAL(setslope(pl, coord3d(4, 9, 0), slope.east), null)
-	ASSERT_EQUAL(setslope(pl, coord3d(7, 9, 0), slope.west), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(4, 9, 0), slope.southeast_narrow), null)
+	ASSERT_EQUAL(setslope(pl, coord3d(7, 9, 0), slope.northwest_narrow), null)
 	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(4, 9, 0), coord3d(7, 9, 0), bridge_desc), null)
 
 	// raised endpoints let a north-south bridge try z=1, then z=2
@@ -618,7 +617,7 @@ function BRIDGE_FIND_END(pl, bridge_desc, start_pos, len, max_length, flat_ends)
 	local end_pos = start_pos + coord3d(0, len, 0)
 	local has_ramp = len > 0
 	if (has_ramp) {
-		ASSERT_EQUAL(command_x.set_slope(pl, end_pos, slope.north), null)
+		ASSERT_EQUAL(command_x.set_slope(pl, end_pos, slope.north_narrow), null)
 	}
 
 	local res
@@ -651,7 +650,7 @@ function test_way_bridge_planner_max_length()
 	ASSERT_TRUE(bridge_desc != null)
 	ASSERT_TRUE(bridge_desc.get_max_length() >= 12)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south_narrow), null)
 
 	// the old five parameter call keeps its length limit of ten tiles
 	ASSERT_EQUAL(BRIDGE_FIND_END(pl, bridge_desc, start_pos,  5, null, null), coord3d(11,  6, 0).tostring())
@@ -669,7 +668,7 @@ function test_way_bridge_planner_max_length()
 	ASSERT_EQUAL(BRIDGE_FIND_END(pl, bridge_desc, start_pos, 12, 0, null), coord3d(11, 13, 0).tostring())
 
 	// min_length larger than max_length finds nothing
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(11, 6, 0), slope.north), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(11, 6, 0), slope.north_narrow), null)
 	ASSERT_EQUAL(bridge_planner_x.find_end(pl, start_pos, dir.south, bridge_desc, 8, 5).tostring(), invalid)
 	// same query twice gives the same answer
 	local first  = bridge_planner_x.find_end(pl, start_pos, dir.south, bridge_desc, 0, 12).tostring()
@@ -705,7 +704,7 @@ function test_way_bridge_planner_desc_limits()
 	ASSERT_TRUE(unlimited != null)
 	ASSERT_TRUE(short_one != null)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south_narrow), null)
 
 	// a bridge without own limit is only bounded by what the caller asks for
 	ASSERT_EQUAL(BRIDGE_FIND_END(pl, unlimited, start_pos, 12, 0, null), coord3d(11, 13, 0).tostring())
@@ -730,7 +729,7 @@ function test_way_bridge_planner_flat_ends()
 	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
 	local invalid     = coord3d(-1, -1, -1).tostring()
 
-	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south_narrow), null)
 
 	// there is no ramp in the corridor, only flat ground
 	ASSERT_EQUAL(bridge_planner_x.find_end(pl, start_pos, dir.south, bridge_desc, 2, 3, false).tostring(), invalid)
@@ -790,8 +789,8 @@ function test_way_bridge_planner_ownership()
 	ASSERT_TRUE(other.is_valid())
 	ASSERT_TRUE(bridge_desc != null)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(11, 6, 0), slope.north), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(11, 6, 0), slope.north_narrow), null)
 
 	// the start tile now carries an object of another player
 	ASSERT_EQUAL(label_x.create(start_pos, other, "Foo Bar"), null)
@@ -814,8 +813,8 @@ function test_way_bridge_planner_forbidden_by_scenario()
 	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
 	local invalid     = coord3d(-1, -1, -1).tostring()
 
-	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(11, 6, 0), slope.north), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(11, 6, 0), slope.north_narrow), null)
 
 	ASSERT_EQUAL(bridge_planner_x.find_end(pl, start_pos, dir.south, bridge_desc, 0, 12).tostring(), coord3d(11, 6, 0).tostring())
 
@@ -858,7 +857,7 @@ function BRIDGE_DECK_LEN(start_pos)
 function BRIDGE_BUILD_AT(pl, bridge_desc, start_pos, len, max_length)
 {
 	local end_pos = start_pos + coord3d(0, len, 0)
-	ASSERT_EQUAL(command_x.set_slope(pl, end_pos, slope.north), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, end_pos, slope.north_narrow), null)
 
 	local cash = pl.get_current_cash()
 	local err
@@ -901,7 +900,7 @@ function test_way_bridge_build_at_max_length()
 	ASSERT_TRUE(bridge_desc != null)
 	ASSERT_TRUE(bridge_desc.get_max_length() >= 12)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south_narrow), null)
 
 	// the old three parameter call keeps its length limit of ten tiles
 	ASSERT_EQUAL(BRIDGE_BUILD_AT(pl, bridge_desc, start_pos, 10, null), 10)
@@ -943,7 +942,7 @@ function test_way_bridge_build_at_max_length_zero()
 	ASSERT_TRUE(short_one != null)
 	ASSERT_TRUE(bridge_desc.get_max_length() >= 12)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south_narrow), null)
 
 	// zero means: as long as this bridge and the settings allow, negative is the same
 	ASSERT_EQUAL(BRIDGE_BUILD_AT(pl, bridge_desc, start_pos, 12,  0), 12)
@@ -969,7 +968,7 @@ function test_way_bridge_build_at_planner_parity()
 	local invalid     = coord3d(-1, -1, -1).tostring()
 
 	ASSERT_TRUE(bridge_desc.get_max_length() >= 12)
-	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south_narrow), null)
 
 	foreach (span in [5, 10, 11, 12]) {
 		foreach (max_length in [10, 12, 0]) {
@@ -1002,7 +1001,7 @@ function test_way_bridge_build_at_no_end()
 	local bridge_desc = bridge_desc_x.get_available_bridges(wt_road)[0]
 	local too_long    = "Bridge is too long for this type!\n"
 
-	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, start_pos, slope.south_narrow), null)
 
 	// there is no ramp anywhere in the corridor
 	local cash = pl.get_current_cash()
