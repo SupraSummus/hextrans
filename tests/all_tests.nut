@@ -8,6 +8,7 @@
 // list  containing all tests
 //
 
+include("tests/test_air")
 include("tests/test_building")
 include("tests/test_city")
 include("tests/test_climate")
@@ -40,6 +41,9 @@ include("tests/test_wayobj")
 
 
 all_tests <- [
+	test_air_takeoff_and_landing_all_runway_axes,
+	test_air_straight_leg_is_shortest_path,
+	test_air_takeoff_sidestep_towards_target,
 	test_building_build_house_invalid_param,
 	test_building_build_house_random,
 	test_building_build_house_valid_desc,
