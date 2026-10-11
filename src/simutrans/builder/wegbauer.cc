@@ -585,6 +585,28 @@ bool way_builder_t::has_neighbour_with_way(koord3d pos, waytype_t wt) const
 }
 
 
+sint8 way_builder_t::get_way_height_offset(const grund_t *base) const
+{
+	return welt->get_settings().get_way_height_clearance() + (base ? base->get_bridge_slope_extra_height() : 0);
+}
+
+
+grund_t *way_builder_t::find_base_for_elevated(const koord3d &upper_pos) const
+{
+	planquadrat_t *plan = welt->access(upper_pos.get_2d());
+	if(  !plan  ) {
+		return NULL;
+	}
+	for(  uint32 i=0;  i<plan->get_boden_count();  i++  ) {
+		grund_t *gr = plan->get_boden_bei(i);
+		if(  gr->get_pos().z + get_way_height_offset(gr) == upper_pos.z  ) {
+			return gr;
+		}
+	}
+	return NULL;
+}
+
+
 /**
  * This is the core routine for the way search
  * it will check
@@ -656,7 +678,7 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 			// HEX-PORT: min_hgt < water_hgt asks "is any corner below
 			// water level".  Replaces the old shim's NW-corner-via-grid
 			// read.
-			if(  to->hat_weg(air_wt)  ||  welt->min_hgt( to_pos ) < welt->get_water_hgt( to_pos )  ||  !check_powerline( zv, to )  ||  (!to->ist_karten_boden()  &&  to->get_typ() != grund_t::monorailboden)  ||  to->get_typ() == grund_t::brueckenboden  ||  to->get_typ() == grund_t::tunnelboden  ) {
+			if(  to->hat_weg(air_wt)  ||  welt->min_hgt( to_pos ) < welt->get_water_hgt( to_pos )  ||  !check_powerline( zv, to )  ||  (!to->ist_karten_boden()  &&  to->get_typ() != grund_t::monorailboden  &&  to->get_typ() != grund_t::brueckenboden)  ||  to->get_typ() == grund_t::tunnelboden  ) {
 				// no suitable ground below!
 				return false;
 			}
@@ -667,8 +689,8 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 			}
 			if(gb) {
 				// no halt => citybuilding => do not touch
-				// also check for too high buildings ...
-				if(!check_owner(gb->get_owner(),player_builder)  ||  gb->get_tile()->get_background(0,1,0) != IMG_EMPTY) {
+				// the whole building must fit below the deck, not just the crossed tile
+				if(!check_owner(gb->get_owner(),player_builder)  ||  gb->get_tile()->get_desc()->get_height_clearance() > get_way_height_offset(to)) {
 					return false;
 				}
 				// building above houses is expensive ... avoid it!
@@ -680,7 +702,7 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 			}
 			// up to now 'to' and 'from' referred to the ground one height step below the elevated way
 			// now get the grounds at the right height
-			koord3d pos = to->get_pos() + koord3d( 0, 0, welt->get_settings().get_way_height_clearance() );
+			koord3d pos = to->get_pos() + koord3d( 0, 0, get_way_height_offset(to) );
 			grund_t *to2 = welt->lookup(pos);
 			if(to2) {
 				if(to2->get_weg_nr(0)) {
@@ -699,11 +721,11 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 			else {
 				// simulate empty elevated tile
 				to_dummy.set_pos(pos);
-				to_dummy.set_grund_hang(to->get_grund_hang());
+				to_dummy.set_grund_hang(to->get_weg_hang());
 				to = &to_dummy;
 			}
 
-			pos = from->get_pos() + koord3d( 0, 0, welt->get_settings().get_way_height_clearance() );
+			pos = from->get_pos() + koord3d( 0, 0, get_way_height_offset(from) );
 			grund_t *from2 = welt->lookup(pos);
 			if(from2) {
 				from = from2;
@@ -711,7 +733,7 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 			else {
 				// simulate empty elevated tile
 				from_dummy.set_pos(pos);
-				from_dummy.set_grund_hang(from->get_grund_hang());
+				from_dummy.set_grund_hang(from->get_weg_hang());
 				from = &from_dummy;
 			}
 			// now 'from' and 'to' point to grounds at the right height
@@ -1050,26 +1072,30 @@ bool way_builder_t::is_allowed_step(const grund_t *from, const grund_t *to, sint
 
 bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, slope_t::type* new_from_slope, slope_t::type* new_to_slope) const
 {
-	// only for normal green tiles
-	const slope_t::type from_slope = from->get_weg_hang();
-	const slope_t::type to_slope = to->get_weg_hang();
-	const sint8 from_hgt = from->get_hoehe();
-	const sint8 to_hgt = to->get_hoehe();
+	return check_terraforming( from, to, from->get_weg_hang(), from->get_hoehe(), to->get_weg_hang(), to->get_hoehe(), new_from_slope, new_to_slope );
+}
 
+
+bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, slope_t::type from_slope, sint8 from_hgt, slope_t::type to_slope, sint8 to_hgt, slope_t::type* new_from_slope, slope_t::type* new_to_slope) const
+{
+	// the heights are given rather than read, so that a caller may ask about a state it
+	// has not applied to the world: the lookups have to follow them, not the tiles' own z
+	const koord3d from_pos( from->get_pos().get_2d(), from_hgt );
+	const koord3d to_pos( to->get_pos().get_2d(), to_hgt );
 	// we may change slope of a tile if it is sloped already
-	if(  (from_slope == slope_t::flat  ||  from->get_hoehe() == welt->get_water_hgt( from->get_pos().get_2d() ))
-	  &&  (to_slope == slope_t::flat  ||  to->get_hoehe() == welt->get_water_hgt( to->get_pos().get_2d() ))  ) {
+	if(  (from_slope == slope_t::flat  ||  from_hgt == welt->get_water_hgt( from_pos.get_2d() ))
+	  &&  (to_slope == slope_t::flat  ||  to_hgt == welt->get_water_hgt( to_pos.get_2d() ))  ) {
 		return false;
 	}
 	else if(  abs( from_hgt - to_hgt ) <= (desc->has_double_slopes() ? 2 : 1)  ) {
 		// extra check for double heights
-		if(  abs( from_hgt - to_hgt) == 2  &&  (welt->lookup( from->get_pos() - koord3d(0,0,2) ) != NULL  ||  welt->lookup( from->get_pos() + koord3d(0, 0, 2) ) != NULL
-		  ||  welt->lookup( to->get_pos() - koord3d(0, 0, 2) ) != NULL  ||  welt->lookup( to->get_pos() + koord3d(0, 0, 2) ) != NULL)  ) {
+		if(  abs( from_hgt - to_hgt) == 2  &&  (welt->lookup( from_pos - koord3d(0,0,2) ) != NULL  ||  welt->lookup( from_pos + koord3d(0, 0, 2) ) != NULL
+		  ||  welt->lookup( to_pos - koord3d(0, 0, 2) ) != NULL  ||  welt->lookup( to_pos + koord3d(0, 0, 2) ) != NULL)  ) {
 			return false;
 		}
 		// monorail above / tunnel below
-		if (welt->lookup(from->get_pos() - koord3d(0,0,1))!=NULL  ||  welt->lookup(from->get_pos() + koord3d(0,0,1))!=NULL
-			||  welt->lookup(to->get_pos() - koord3d(0,0,1))!=NULL  ||  welt->lookup(to->get_pos() + koord3d(0,0,1))!=NULL) {
+		if (welt->lookup(from_pos - koord3d(0,0,1))!=NULL  ||  welt->lookup(from_pos + koord3d(0,0,1))!=NULL
+			||  welt->lookup(to_pos - koord3d(0,0,1))!=NULL  ||  welt->lookup(to_pos + koord3d(0,0,1))!=NULL) {
 				return false;
 		}
 		// can safely change slope of at least one of the tiles
@@ -1082,7 +1108,7 @@ bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, 
 		// Edge e runs between hex_corner_t indices (e, (e+1) % 6) in from's
 		// frame; the same world vertices sit at ((e+3) % 6, (e+4) % 6) in
 		// to's frame.
-		const koord dir = (to->get_pos() - from->get_pos()).get_2d();
+		const koord dir = (to_pos - from_pos).get_2d();
 		uint8 e_dir = 0;
 		while (e_dir < 6  &&  koord::neighbours[e_dir] != dir) {
 			++e_dir;
@@ -1130,6 +1156,69 @@ bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, 
 	}
 
 	return false;
+}
+
+
+/// Ground do_terraforming() installs for a computed slope; mirrors its four branches.
+static void terraformed_ground(slope_t::type &slope, sint8 &hgt)
+{
+	if(  slope == slope_t::all_up_two  ) {
+		hgt += 2;
+		slope = slope_t::flat;
+	}
+	else if(  slope != slope_t::all_up_one  ) {
+		if(  slope > slope_t::all_up_one  &&  slope_t::is_axis_slope( slope-slope_t::all_up_one )  ) {
+			hgt += 1;
+			slope -= slope_t::all_up_one;
+		}
+	}
+	else {
+		hgt += 1;
+		slope = slope_t::flat;
+	}
+}
+
+
+bool way_builder_t::terraforming_leaves_way_slopes() const
+{
+	if(  terraform_index.empty()  ) {
+		return true;
+	}
+	// a tile the route passes through is terraformed twice, once from either side, and
+	// only the second pass makes it flat: so the steps have to be replayed in order
+	vector_tpl<slope_t::type> slopes( route.get_count() );
+	vector_tpl<sint8> hgts( route.get_count() );
+	for(  uint32 n = 0;  n < route.get_count();  n++  ) {
+		const grund_t *gr = welt->lookup( route[n] );
+		slopes.append( gr ? gr->get_grund_hang() : (slope_t::type)slope_t::flat );
+		hgts.append( gr ? gr->get_hoehe() : route[n].z );
+	}
+
+	for(uint32 const i : terraform_index) {
+		const grund_t *from = welt->lookup( route[i] );
+		const grund_t *to = welt->lookup( route[i+1] );
+		if(  from == NULL  ||  to == NULL  ) {
+			return false;
+		}
+		slope_t::type from_slope = slopes[i];
+		slope_t::type to_slope = slopes[i+1];
+		check_terraforming( from, to, slopes[i], hgts[i], slopes[i+1], hgts[i+1], &from_slope, &to_slope );
+		if(  from_slope != slopes[i]  ) {
+			terraformed_ground( from_slope, hgts[i] );
+			slopes[i] = from_slope;
+		}
+		if(  to_slope != slopes[i+1]  ) {
+			terraformed_ground( to_slope, hgts[i+1] );
+			slopes[i+1] = to_slope;
+		}
+	}
+
+	for(uint32 const i : terraform_index) {
+		if(  !slope_t::is_way( slopes[i] )  ||  !slope_t::is_way( slopes[i+1] )  ) {
+			return false;
+		}
+	}
+	return true;
 }
 
 
@@ -1300,7 +1389,10 @@ void way_builder_t::check_for_bridge(const grund_t* parent_from, const grund_t* 
 				continue;
 			}
 			uint32 length = koord_distance(from->get_pos(), end);
-			if(!ziel.is_contained(end)  &&  bridge_builder_t::check_start_tile(player_builder, gr_end, ribi_type(-zv), bridge_desc)) {
+			// check_start_tile returns an error message, NULL meaning the tile is usable,
+			// so the test has to be negated - it replaced can_place_ramp(), which returned
+			// a plain bool with true meaning usable.
+			if(!ziel.is_contained(end)  &&  !bridge_builder_t::check_start_tile(player_builder, gr_end, ribi_type(-zv), bridge_desc)) {
 				// If there is a slope on the starting tile, it's taken into account in is_allowed_step, but a bridge will be flat!
 				sint8 num_slopes = (from->get_grund_hang() == slope_t::flat) ? 1 : -1;
 				// On the end tile, we haven't to subtract way_count_slope, since is_allowed_step isn't called with this tile.
@@ -1332,6 +1424,9 @@ way_builder_t::way_builder_t(player_t* player)
 	: next_gr(32)
 	, player_builder(player)
 	, bautyp(strasse) // kann mit init_builder() gesetzt werden
+	, desc(NULL)
+	, bridge_desc(NULL)
+	, tunnel_desc(NULL)
 	, keep_existing_ways(false)
 	, keep_existing_faster_ways(false)
 	, keep_existing_city_roads(false)
@@ -1718,10 +1813,9 @@ DBG_DEBUG("way_builder_t::intern_calc_route()","steps=%i  (max %i) in route, ope
 
 void way_builder_t::intern_calc_straight_route(const koord3d start, const koord3d ziel)
 {
-	const koord3d koordup(0, 0, welt->get_settings().get_way_height_clearance());
-
 	sint32 dummy_cost;
-	const grund_t *test_bd = welt->lookup(start);
+	const grund_t *start_gr = welt->lookup(start);
+	const grund_t *test_bd = start_gr;
 	bool ok = false;
 
 	if (test_bd  &&  is_allowed_step(test_bd,test_bd,&dummy_cost)  ) {
@@ -1732,7 +1826,7 @@ void way_builder_t::intern_calc_straight_route(const koord3d start, const koord3
 		return; // start tunnelbuilding in tunnels
 	}
 	if (bautyp&elevated_flag) {
-		test_bd = welt->lookup(start + koordup);
+		test_bd = welt->lookup(start + koord3d(0, 0, get_way_height_offset(start_gr)));
 		if (test_bd  &&  is_allowed_step(test_bd,test_bd,&dummy_cost, true)  ) {
 			//there is a legal way at the upper layer of start
 			ok = true;
@@ -1742,7 +1836,8 @@ void way_builder_t::intern_calc_straight_route(const koord3d start, const koord3
 		//target is not suitable
 		return;
 	}
-	test_bd = welt->lookup(ziel);
+	const grund_t *ziel_gr = welt->lookup(ziel);
+	test_bd = ziel_gr;
 	// we have to reach target height if no tunnel building or (target ground does not exists or is underground).
 	// in full underground mode if there is no tunnel under cursor, kartenboden gets selected
 	const bool target_3d = (bautyp&tunnel_flag)==0  ||  test_bd==NULL  ||  test_bd->ist_karten_boden();
@@ -1754,7 +1849,7 @@ void way_builder_t::intern_calc_straight_route(const koord3d start, const koord3
 			ok = true;
 		}
 		if (bautyp&elevated_flag) {
-			test_bd = welt->lookup(ziel + koordup);
+			test_bd = welt->lookup(ziel + koord3d(0, 0, get_way_height_offset(ziel_gr)));
 			if (test_bd  &&  is_allowed_step(test_bd,test_bd,&dummy_cost, true)  ) {
 				//there is a legal way at the upper layer of the target
 				ok = true;
@@ -1872,10 +1967,12 @@ void way_builder_t::intern_calc_straight_route(const koord3d start, const koord3
 			// if failed
 			if (!ok  &&  bautyp&elevated_flag) {
 				//search following the upper layer
-				bd_von = welt->lookup(pos + koordup);
+				const grund_t *base_von = welt->lookup(pos);
+				bd_von = welt->lookup(pos + koord3d(0, 0, get_way_height_offset(base_von)));
 				if(bd_von  &&  bd_von->get_neighbour(bd_nach, invalid_wt, diff)  &&  check_slope(bd_von, bd_nach)  &&  is_allowed_step(bd_von, bd_nach, &dummy_cost, true)  ) {
 					ok = true;
-					pos = bd_nach->get_pos() - koordup;
+					grund_t *base_nach = find_base_for_elevated(bd_nach->get_pos());
+					pos = base_nach ? base_nach->get_pos() : bd_nach->get_pos() - koord3d(0, 0, get_way_height_offset(base_von));
 				}
 			}
 			check_terraform = ribi_type(ziel.get_2d() - pos.get_2d()) != ribi_t::none;
@@ -1915,7 +2012,8 @@ sint32 way_builder_t::intern_calc_route_elevated(const koord3d start, const koor
 	const koord3d koordup(0, 0, welt->get_settings().get_way_height_clearance());
 
 	// check for existing koordinates
-	const bool has_target_ground = welt->lookup(ziel) || welt->lookup(ziel + koordup);
+	const grund_t *ziel_gr = welt->lookup(ziel);
+	const bool has_target_ground = ziel_gr || welt->lookup(ziel + koord3d(0, 0, get_way_height_offset(ziel_gr)));
 	if( !has_target_ground ) {
 		return -1;
 	}
@@ -1960,7 +2058,7 @@ sint32 way_builder_t::intern_calc_route_elevated(const koord3d start, const koor
 		queue.insert(tmp);
 	}
 
-	gu = welt->lookup(start + koordup);
+	gu = welt->lookup(start + koord3d(0, 0, get_way_height_offset(gr)));
 	if( gu && is_allowed_step(gu,gu,&dummy, true) ) {
 		// DBG_MESSAGE("way_builder_t::intern_calc_route()","cannot start on (%i,%i,%i)",start.x,start.y,start.z);
 		tmp = &(route_t::nodes[step]);
@@ -2003,13 +2101,13 @@ sint32 way_builder_t::intern_calc_route_elevated(const koord3d start, const koor
 		tmp = test_tmp;
 		if(test_tmp->count & is_upperlayer) {
 			gu = tmp->gr;
-			gr_pos = gu->get_pos() - koordup;
-			gr = welt->lookup(gr_pos);
+			gr = find_base_for_elevated(gu->get_pos());
+			gr_pos = gr ? gr->get_pos() : gu->get_pos() - koordup;
 		}
 		else {
 			gr = tmp->gr;
 			gr_pos = gr->get_pos();
-			gu = welt->lookup(gr_pos + koordup);
+			gu = welt->lookup(gr_pos + koord3d(0, 0, get_way_height_offset(gr)));
 		}
 
 #ifdef DEBUG_ROUTES
@@ -2206,7 +2304,8 @@ DBG_DEBUG("way_builder_t::intern_calc_route()","steps=%i  (max %i) in route, ope
 		// reached => construct route
 		while(tmp != NULL) {
 			if(tmp->count & is_upperlayer) {
-				route.append(tmp->gr->get_pos() - koordup);
+				grund_t *base = find_base_for_elevated(tmp->gr->get_pos());
+				route.append(base ? base->get_pos() : tmp->gr->get_pos() - koordup);
 			} else {
 				route.append(tmp->gr->get_pos() );
 			}
@@ -2325,6 +2424,10 @@ const char *way_builder_t::calc_straight_route(koord3d start, const koord3d ziel
 			terraform_index.clear();
 		}
 	}
+	if(  !terraforming_leaves_way_slopes()  ) {
+		route.clear();
+		terraform_index.clear();
+	}
 	return warn_fail;
 }
 
@@ -2382,6 +2485,11 @@ uint32 ms = dr_time();
 			INT_CHECK("wegbauer 1165");
 			if(cost2 < 0) {
 				intern_calc_route( ziel, start );
+				// the retry may have found a route, and it returns from here
+				if(  !terraforming_leaves_way_slopes()  ) {
+					route.clear();
+					terraform_index.clear();
+				}
 				return warn_fail;
 			}
 			if (!validate_route_slopes()) {
@@ -2413,6 +2521,10 @@ uint32 ms = dr_time();
 #endif
 	}
 	INT_CHECK("wegbauer 778");
+	if(  !terraforming_leaves_way_slopes()  ) {
+		route.clear();
+		terraform_index.clear();
+	}
 #ifdef DEBUG_ROUTES
 DBG_MESSAGE("calc_route::calc_route", "took %u ms", dr_time() - ms );
 #endif
@@ -2513,7 +2625,7 @@ void way_builder_t::build_tunnel_and_bridges()
 sint64 way_builder_t::calc_costs()
 {
 	sint64 costs=0;
-	koord3d offset = koord3d( 0, 0, bautyp & elevated_flag ? welt->get_settings().get_way_height_clearance() : 0 );
+	const bool is_elevated = (bautyp & elevated_flag) != 0;
 
 	sint64 single_cost;
 	sint32 new_speedlimit;
@@ -2556,7 +2668,11 @@ sint64 way_builder_t::calc_costs()
 		sint32 old_speedlimit = -1;
 		sint64 replace_cost = 0;
 
-		const grund_t* gr = welt->lookup(route[i] + offset);
+		koord3d pos = route[i];
+		if( is_elevated ) {
+			pos.z += get_way_height_offset( welt->lookup(route[i]) );
+		}
+		const grund_t* gr = welt->lookup(pos);
 		if( gr ) {
 			if( bautyp&tunnel_flag ) {
 				const tunnel_t *tunnel = gr->find<tunnel_t>();
@@ -2744,11 +2860,11 @@ void way_builder_t::build_elevated()
 		planquadrat_t* const plan = welt->access(i.get_2d());
 
 		grund_t* const gr0 = plan->get_boden_in_hoehe(i.z);
-		i.z += welt->get_settings().get_way_height_clearance();
+		i.z += (gr0 ? gr0->get_bridge_slope_extra_height() : 0) + welt->get_settings().get_way_height_clearance();
 		grund_t* const gr  = plan->get_boden_in_hoehe(i.z);
 
 		if(gr==NULL) {
-			slope_t::type hang = gr0 ? gr0->get_grund_hang() : 0;
+			slope_t::type hang = gr0 ? gr0->get_weg_hang() : 0;
 			// add new elevated ground
 			monorailboden_t* const monorail = new monorailboden_t(i, hang);
 			plan->boden_hinzufuegen(monorail);

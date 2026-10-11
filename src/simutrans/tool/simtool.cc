@@ -28,6 +28,7 @@
 #include "../obj/depot.h"
 #include "../simfab.h"
 #include "../display/simimg.h"
+#include "../pathes.h"
 #include "../simintr.h"
 #include "../simhalt.h"
 #include "../simskin.h"
@@ -97,6 +98,15 @@
 
 #include "../tool/simtool.h"
 #include "../player/finance.h"
+
+// for access()
+#ifdef _MSC_VER
+#	include <io.h>
+#	define W_OK 2
+#else
+#	include <unistd.h>
+#endif
+
 
 #define is_scenario()  welt->get_scenario()->is_scripted()
 
@@ -2618,8 +2628,11 @@ const way_desc_t *tool_build_way_t::get_desc() const
 	if (default_param && (n = strchr(default_param, ','))) {
 		char name[256];
 		long len = (long)(n-default_param);
-		tstrncpy( name, default_param, min(255,len));
-		desc = way_builder_t::get_desc(default_param, 0);
+		// tstrncpy terminates at dest[n-1], so ask for one more than the name length
+		tstrncpy( name, default_param, min(255l,len)+1 );
+		// look the way up by the name half only - default_param still carries the
+		// ",<automatic>" suffix, and no descriptor is ever called "<name>,1"
+		desc = way_builder_t::get_desc(name, 0);
 	}
 	else {
 		desc = default_param ? way_builder_t::get_desc(default_param, 0) : NULL;
@@ -2728,8 +2741,10 @@ bool tool_build_way_t::init( player_t *player )
 	}
 
 	const char* n;
+	terraform_only = false; // a tool instance can be reused with another parameter
 	if (default_param && (n = strchr(default_param, ','))!=NULL) {
 		automatic_tunnel_and_bridges = n[1] == '1';
+		terraform_only = n[1] == '2';
 		if (n[2] == ',') {
 			max_length = atol(n + 3);
 		}
@@ -2740,6 +2755,13 @@ bool tool_build_way_t::init( player_t *player )
 		return false;
 	}
 	return desc!=NULL;
+}
+
+void tool_build_way_t::rdwr_custom_data(memory_rw_t *packet)
+{
+	two_click_tool_t::rdwr_custom_data(packet);
+	// init() cannot recover this: the network gets the name of the way alone
+	packet->rdwr_bool(terraform_only);
 }
 
 waytype_t tool_build_way_t::get_waytype() const
@@ -2839,6 +2861,10 @@ const char *tool_build_way_t::calc_route( way_builder_t &bauigel, const koord3d 
 		br = bridge_builder_t::find_bridge(desc->get_wtyp(), desc->get_topspeed(), welt->get_timeline_year_month());
 		tunnel = tunnel_builder_t::get_tunnel_desc(desc->get_wtyp(), desc->get_topspeed(), welt->get_timeline_year_month());
 	}
+	else if (terraform_only) {
+		// terraforming, but without a tunnel or bridge to fall back on
+		bautyp |= way_builder_t::terraform_flag;
+	}
 
 	bauigel.init_builder(bautyp, desc, tunnel, br);
 	if(  is_ctrl_pressed()  &&  !is_shift_pressed()) {
@@ -2858,7 +2884,10 @@ const char *tool_build_way_t::calc_route( way_builder_t &bauigel, const koord3d 
 	if(  is_shift_pressed()  &&  (desc->get_styp() == type_elevated  &&  desc->get_wtyp() != air_wt)  ) {
 		grund_t *gr=welt->lookup(my_end);
 		if(  gr->get_weg( desc->get_waytype() )  ) {
-			my_end.z -= welt->get_settings().get_way_height_clearance();
+			// find the base ground this elevated way was built above; this accounts for the
+			// extra height added on bridge ramp connection tiles (see grund_t::get_bridge_slope_extra_height)
+			grund_t *base_gr = bauigel.find_base_for_elevated(my_end);
+			my_end = base_gr ? base_gr->get_pos() : my_end - koord3d(0, 0, welt->get_settings().get_way_height_clearance());
 		}
 	}
 
@@ -2960,7 +2989,8 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 	const char* err = calc_route(bauigel, start, end);
 	bool keep_city_roads = is_shift_pressed() && desc->get_styp() == type_flat && desc->get_wtyp() == road_wt;
 
-	uint8 offset = (desc->get_styp() == type_elevated && desc->get_wtyp() != air_wt) ? welt->get_settings().get_way_height_clearance() : 0;
+	bool is_elevated = desc->get_styp() == type_elevated && desc->get_wtyp() != air_wt;
+	uint8 offset = is_elevated ? welt->get_settings().get_way_height_clearance() : 0;
 
 	if (bauigel.get_count() > 1) {
 		// Set tooltip first (no dummygrounds, if bauigel.calc_casts() is called).
@@ -2968,12 +2998,15 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 
 		// make dummy route from bauigel
 		for (uint32 j = 0; j < bauigel.get_count(); j++) {
-			koord3d pos = bauigel.get_route()[j] + koord3d(0, 0, offset);
+			koord3d base_pos = bauigel.get_route()[j];
+			grund_t* base_gr = welt->lookup(base_pos);
+			sint8 extra_h = (is_elevated && base_gr) ? base_gr->get_bridge_slope_extra_height() : 0;
+			koord3d pos = base_pos + koord3d(0, 0, offset + extra_h);
 			grund_t* gr = welt->lookup(pos);
 			if (!gr) {
 				gr = new monorailboden_t(pos, slope_t::flat);
 				// should only be here when elevated/monorail, therefore will be at height offset above ground
-				gr->set_grund_hang(welt->lookup(pos - koord3d(0, 0, offset))->get_grund_hang());
+				gr->set_grund_hang(base_gr->get_weg_hang());
 				welt->access(pos.get_2d())->boden_hinzufuegen(gr);
 			}
 			if (gr->is_water()) {
@@ -6191,7 +6224,13 @@ const char *tool_build_land_chain_t::work( player_t *player, koord3d pos )
 	if(hat_platz) {
 		// eventually adjust production
 		koord3d build_pos = gr->get_pos();
-		int count = factory_builder_t::build_link(NULL, fab, initial_prod, rotation, &build_pos, welt->get_public_player(), 10000, ignore_climates);
+		factory_desc_t::site_t placement = fab->get_placement();
+		// if climates are ignored, then special placements as well => either Land, water, or City
+		if (ignore_climates && placement >= factory_desc_t::City) {
+			// ignore Shore, River, Forest to Land
+			placement = factory_desc_t::Land;
+		}
+		int count = factory_builder_t::build_link(NULL, fab, initial_prod, rotation, &build_pos, welt->get_public_player(), 10000, ignore_climates, placement);
 
 		if(count>0) {
 			// at least one factory has been built
@@ -6260,9 +6299,15 @@ const char *tool_city_chain_t::work( player_t *player, koord3d pos )
 
 	// process ignore climates switch
 	bool ignore_climates = has_factory_param(default_param)  &&  default_param[0]=='1';
+	factory_desc_t::site_t placement = fab->get_placement();
+	// if climates are ignored, then special placements as well => either Land, water, or City
+	if (ignore_climates && placement >= factory_desc_t::City) {
+		// ignore Shore, River, Forest to Land
+		placement = factory_desc_t::Land;
+	}
 
 	pos = gr->get_pos();
-	int count = factory_builder_t::build_link(NULL, fab, initial_prod, 0, &pos, welt->get_public_player(), 10000, ignore_climates);
+	int count = factory_builder_t::build_link(NULL, fab, initial_prod, 0, &pos, welt->get_public_player(), 10000, ignore_climates, placement);
 	if(count>0) {
 		// at least one factory has been built
 		welt->get_viewport()->change_world_position( pos );
@@ -7802,18 +7847,25 @@ bool tool_toggle_reservation_t::is_selected() const
 
 bool tool_screenshot_t::init( player_t * )
 {
-	bool ok;
-	const scr_rect screen_area = { { 0, 0 }, gfx->get_screen_size() };
+	if (access(SCREENSHOT_PATH_X, W_OK) == -1) {
+		return false; // directory not accessible
+	}
+
+	static int number = 0;
+	char filename[80];
+
+	// find the first not used screenshot image
+	do {
+		sprintf(filename, SCREENSHOT_PATH_X "simscr%02d.png", number++);
+	} while (access(filename, W_OK) != -1);
+
 	const gui_frame_t *topwin = win_get_top();
 
-	if(  is_ctrl_pressed()  &&  topwin != NULL  ) {
-		ok = gfx->take_screenshot(scr_rect(win_get_pos(topwin), topwin->get_windowsize()));
-	}
-	else {
-		ok = gfx->take_screenshot(screen_area);
-	}
+	const scr_rect area = is_ctrl_pressed()  &&  topwin != NULL ?
+		scr_rect(win_get_pos(topwin), topwin->get_windowsize()) :
+		scr_rect{ { 0, 0 }, gfx->get_screen_size() };
 
-	if (ok) {
+	if (gfx->take_screenshot(area, filename)) {
 		create_win( new news_img("Screenshot\ngespeichert.\n"), w_time_delete, magic_none);
 	}
 	else {
@@ -8419,10 +8471,17 @@ bool tool_change_depot_t::init( player_t *player )
 					int nr = start_nr;
 
 					// find end
-					while(nr<cnv->get_vehicle_count()) {
-						const vehicle_desc_t *info = cnv->get_vehicle(nr)->get_desc();
-						nr ++;
-						if(info->get_trailer_count()!=1) {
+					while (nr < cnv->get_vehicle_count()) {
+						const vehicle_desc_t* info = cnv->get_vehicle(nr)->get_desc();
+						nr++;
+						if (info->get_trailer_count() == 1) {
+							vehicle_desc_t const* const veh = info->get_trailer(0);
+							// the leading is any, we should keep it.
+							if (veh != vehicle_desc_t::any_vehicle) {
+								break;
+							}
+						}
+						else {
 							break;
 						}
 					}
@@ -8947,7 +9006,6 @@ bool tool_work_world_t::init(player_t*)
 			env_t::default_settings.heightfield = "";
 			welt->init(&env_t::default_settings, 0);
 		}
-		welt->step_month(env_t::default_settings.get_starting_month());
 		welt->set_pause(false);
 		destroy_all_win(true);
 		welt->type_of_generation = karte_t::NEW_WORLD;

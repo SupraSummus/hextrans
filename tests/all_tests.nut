@@ -12,6 +12,7 @@ include("tests/test_air")
 include("tests/test_building")
 include("tests/test_city")
 include("tests/test_climate")
+include("tests/test_convoy_state")
 include("tests/test_depot")
 include("tests/test_dir")
 include("tests/test_double_slopes")
@@ -25,13 +26,19 @@ include("tests/test_label")
 include("tests/test_powerline")
 include("tests/test_reservation")
 include("tests/test_scenario")
+include("tests/test_schedule_route")
 include("tests/test_script_sandbox")
 include("tests/test_sign")
 include("tests/test_slope")
+include("tests/test_squirrel_vm")
 include("tests/test_terraform")
 include("tests/test_transport")
 include("tests/test_trees")
 include("tests/test_way_bridge")
+include("tests/test_way_bridge_maintenance")
+include("tests/test_way_bridge_maintenance_auto")
+include("tests/test_way_elevated")
+include("tests/test_way_planner")
 include("tests/test_way_rail")
 include("tests/test_way_road")
 include("tests/test_way_runway")
@@ -71,6 +78,9 @@ all_tests <- [
 	test_climate_invalid,
 	test_climate_flat,
 	test_climate_cliff,
+	test_convoy_state_in_depot,
+	test_convoy_state_no_route,
+	test_convoy_state_schedule_editor,
 	test_depot_build_invalid_params,
 	test_depot_build_invalid_pos,
 	test_depot_build_road,
@@ -172,6 +182,7 @@ all_tests <- [
 	test_reservation_clear_rail,
 	test_scenario_rules_allow_forbid_tool,
 	test_script_sandbox_no_shell_exec,
+	test_scenario_rules_allow_forbid_way_tool,
 	test_scenario_rules_allow_forbid_way_tool_rect,
 	test_scenario_rules_allow_forbid_way_tool_cube,
 	test_scenario_rules_allow_forbid_tool_stacked_rect,
@@ -195,6 +206,16 @@ all_tests <- [
 	test_slope_restore_on_label,
 	test_slope_raise_lower_corner_near_way,
 	test_slope_max_height_diff,
+	test_vm_ops_counters_are_integers,
+	test_vm_ops_counters_track_each_other,
+	test_vm_suspend_resume_keeps_state,
+	test_vm_suspend_refills_budget,
+	test_vm_arity_diagnostic_native,
+	test_vm_arity_diagnostic_squirrel,
+	test_vm_float_literals,
+	test_vm_tail_recursion_reuses_the_frame,
+	test_vm_non_tail_recursion_grows_the_stack,
+	test_vm_closure_call,
 	test_terraform_raise_lower_land,
 	test_terraform_raise_lower_land_at_map_border,
 	test_terraform_raise_lower_land_at_water_center,
@@ -228,6 +249,46 @@ all_tests <- [
 	test_way_bridge_build_stacked,
 	test_way_bridge_build_flat_ground_nw_se,
 	test_way_bridge_planner,
+	test_way_bridge_planner_max_length,
+	test_way_bridge_planner_desc_limits,
+	test_way_bridge_planner_flat_ends,
+	test_way_bridge_planner_flat_start_over_obstacle,
+	test_way_bridge_planner_ownership,
+	test_way_bridge_planner_forbidden_by_scenario,
+	test_way_bridge_build_at_max_length,
+	test_way_bridge_build_at_max_length_zero,
+	test_way_bridge_build_at_planner_parity,
+	test_way_bridge_build_at_no_end,
+	test_way_bridge_over_building,
+	test_way_bridge_over_fitting_stacked_building,
+	test_way_elevated_over_building,
+	test_way_elevated_over_building_footprint,
+	test_way_bridge_maintenance_over_existing_way,
+	test_way_bridge_maintenance_bare_ground,
+	test_way_bridge_maintenance_heads_are_free,
+	test_way_bridge_maintenance_repeat,
+	test_way_bridge_maintenance_failed_build,
+	test_way_bridge_maintenance_owner,
+	test_way_bridge_maintenance_rail,
+	test_way_bridge_maintenance_auto,
+	test_way_bridge_maintenance_auto_equals_manual,
+	test_way_bridge_maintenance_auto_off,
+	test_way_planner_step_cost_ground,
+	test_way_planner_step_cost_slope,
+	test_way_planner_step_cost_refused,
+	test_way_planner_step_cost_invalid,
+	test_way_planner_step_cost_matches_is_allowed_step,
+	test_way_planner_unconfigured,
+	test_way_planner_tram_shares_road,
+	test_way_planner_elevated_passes_over_road,
+	test_way_planner_runway_is_not_elevated,
+	test_way_planner_terraform_defaults_to_off,
+	test_way_planner_terraform_across_slope,
+	test_way_planner_terraform_matches_executor,
+	test_way_planner_terraform_is_no_bypass,
+	test_way_planner_terraform_does_not_build,
+	test_way_planner_terraform_not_kept_by_the_planner,
+	test_way_planner_terraform_keeps_way_type,
 	test_way_road_build_single_tile,
 	test_way_road_build_straight,
 	test_way_road_build_ne_sw,
@@ -255,6 +316,14 @@ all_tests <- [
 	test_way_road_cityroad_replace_by_normal_road,
 	test_way_road_cityroad_replace_keep_existing,
 	test_way_road_make_public,
+	test_way_road_build_terraform_defaults_to_off,
+	test_way_road_build_terraform_across_slope,
+	test_way_road_build_road_terraform_across_slope,
+	test_way_road_build_terraform_single_step,
+	test_way_road_build_terraform_is_no_bypass,
+	test_way_road_build_terraform_builds_no_bridge,
+	test_way_road_build_terraform_forbidden_by_scenario,
+	test_way_road_build_terraform_not_kept_by_the_tool,
 	test_way_runway_build_rw_flat,
 	test_way_runway_build_tw_flat,
 	test_way_runway_build_mixed_flat,
@@ -271,10 +340,33 @@ all_tests <- [
 	test_way_tunnel_make_public,
 	test_way_tunnel_build_nw_double_axis_slope,
 	test_way_tunnel_build_does_not_terraform_double_mouth,
+	test_way_tunnel_build_invalid_param_type,
+	test_way_tunnel_planner_find_end,
+	test_way_tunnel_planner_invalid_direction,
+	test_way_tunnel_planner_rotated_map,
+	test_way_tunnel_planner_no_exit,
+	test_way_tunnel_planner_off_map,
 	test_wayobj_build_straight,
 	test_wayobj_build_disconnected,
 	test_wayobj_upgrade_downgrade,
 	test_wayobj_upgrade_change_owner,
 	test_wayobj_electrify_depot,
+	test_schedule_route_open_and_close,
+	test_schedule_route_update_on_change,
+	test_schedule_route_second_editor,
+	test_schedule_route_outdated_request,
+	test_schedule_route_broken_leg,
+	test_schedule_route_rail,
+	test_schedule_route_monorail,
+	test_schedule_route_water,
+	test_schedule_route_line_without_convoys,
+	test_schedule_route_convoy_and_line,
+	test_schedule_route_private_way,
+	test_schedule_route_rotate,
+	test_schedule_route_electric_follows_catenary,
+	test_schedule_route_diesel_ignores_catenary,
+	test_schedule_route_electric_without_catenary,
+	test_schedule_route_electric_survives_schedule_change,
+	test_schedule_route_diagonal_staircase,
 	test_city_population_ledger, // keep last: grows a city across the whole map
 ]

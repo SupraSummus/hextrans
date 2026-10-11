@@ -86,16 +86,22 @@ public:
 	static void fill_menu(tool_selector_t* tool_selector, building_desc_t::btype, waytype_t wt, sint16 sound_ok);
 
 	/// @returns a random commercial building matching the requirements.
-	static const building_desc_t* get_commercial(int level, uint16 time, climate c, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude = NULL);
+	static const building_desc_t* get_commercial(int level, uint16 time, climate c, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude = NULL, sint16 max_clearance = 127);
 
 	/// @returns a random industrial building matching the requirements.
-	static const building_desc_t* get_industrial(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude = NULL);
+	static const building_desc_t* get_industrial(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude = NULL, sint16 max_clearance = 127);
 
 	/// @returns a random residential building matching the requirements.
-	static const building_desc_t* get_residential(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude = NULL);
+	static const building_desc_t* get_residential(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude = NULL, sint16 max_clearance = 127);
 
 	/// @returns headquarters with level @p level (takes the first matching one)
 	static const building_desc_t* get_headquarters(int level, uint16 time);
+
+	/**
+	 * @returns the first year in which a town hall can be built, so no city could
+	 * exist before it. Zero if the pakset has no town hall to ask.
+	 */
+	static sint16 get_earliest_townhall_year();
 
 	/// @returns a random tourist attraction matching the requirements.
 	static const building_desc_t* get_random_attraction(uint16 time, bool ignore_retire, climate cl)

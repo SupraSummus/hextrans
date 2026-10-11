@@ -338,6 +338,11 @@ convoihandle_t depot_t::copy_convoi(convoihandle_t old_cnv, bool local_execution
 				new_cnv->set_schedule(old_cnv->get_schedule()->copy());
 			}
 		}
+		if (schedule_t *copied = new_cnv->get_schedule()) {
+			// the copy inherited the editing flag of its source; nobody is
+			// editing the new convoy's schedule in any window
+			copied->finish_editing();
+		}
 
 		// make this the current selected convoi
 		depot_frame_t *win = dynamic_cast<depot_frame_t *>(win_get_magic( (ptrdiff_t)this ));
@@ -407,12 +412,9 @@ bool scenario_check_convoy(karte_t *welt, player_t *player, convoihandle_t cnv, 
 
 bool depot_t::start_convoi(convoihandle_t cnv, bool local_execution)
 {
-	// close schedule window if not yet closed
-	if(cnv.is_bound() &&  cnv->get_schedule()!=NULL) {
-		if(!cnv->get_schedule()->is_editing_finished()) {
-			// close the schedule window
-			destroy_win((ptrdiff_t)cnv->get_schedule());
-		}
+	// close the schedule editor if not yet closed; closing applies its edits
+	if(cnv.is_bound()) {
+		cnv->close_schedule_editor();
 	}
 
 	// convoi not in depot anymore, maybe user double-clicked on start-button

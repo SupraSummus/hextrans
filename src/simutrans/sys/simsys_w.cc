@@ -722,10 +722,13 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 		}
 
 		case WM_IME_SETCONTEXT:
-			// attempt to avoid crash at windows 1809> just not call DefWinodwsProc seems to work for SDL2 ...
-//			DefWindowProc( this_hwnd, msg, wParam, lParam&~ISC_SHOWUICOMPOSITIONWINDOW );
-			lParam = 0;
-			return 0;
+			// Simutrans draws the composition string itself, so hide the system
+			// composition window (this mask was also the workaround for the IME
+			// crash on Windows 10 1809). The message must still reach
+			// DefWindowProcW: otherwise the IME never shows the conversion
+			// candidate window at all.
+			lParam &= ~ISC_SHOWUICOMPOSITIONWINDOW;
+			return DefWindowProcW( this_hwnd, msg, wParam, lParam );
 
 		case WM_IME_STARTCOMPOSITION:
 			break;
@@ -937,9 +940,9 @@ static void internal_GetEvents(bool const wait)
 {
 	do {
 		// wait for keybord/mouse event
-		GetMessage(&msg, NULL, 0, 0);
+		GetMessageW(&msg, NULL, 0, 0);
 		TranslateMessage(&msg);
-		DispatchMessage(&msg);
+		DispatchMessageW(&msg);
 	} while(wait && sys_event.type == SIM_NOEVENT);
 
 }
@@ -947,7 +950,7 @@ static void internal_GetEvents(bool const wait)
 
 void GetEvents()
 {
-	if (sys_event.type==SIM_NOEVENT  &&  PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+	if (sys_event.type==SIM_NOEVENT  &&  PeekMessageW(&msg, NULL, 0, 0, PM_NOREMOVE)) {
 		internal_GetEvents(false);
 	}
 }

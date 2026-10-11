@@ -307,6 +307,7 @@ private:
 protected:
 	const way_desc_t *desc;
 	bool   automatic_tunnel_and_bridges;
+	bool   terraform_only;
 	uint32 max_length;
 
 	virtual way_desc_t const* get_desc() const;
@@ -316,6 +317,7 @@ protected:
 public:
 	tool_build_way_t(uint16 const id = TOOL_BUILD_WAY | GENERAL_TOOL) : two_click_tool_t(id), desc() {
 		automatic_tunnel_and_bridges = false;
+		terraform_only = false;
 		max_length = 0x7FFFFFFFul;
 	}
 	image_id get_icon(player_t*) const OVERRIDE;
@@ -326,6 +328,7 @@ public:
 	bool init(player_t*) OVERRIDE;
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	waytype_t get_waytype() const OVERRIDE;
+	void rdwr_custom_data(memory_rw_t*) OVERRIDE;
 	// remove preview necessary while building elevated ways
 	bool remove_preview_necessary() const OVERRIDE { return !is_first_click()  &&  (desc  &&  (desc->get_styp() == type_elevated  &&  desc->get_wtyp() != air_wt)); }
 };

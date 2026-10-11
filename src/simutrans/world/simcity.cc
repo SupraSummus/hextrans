@@ -531,6 +531,15 @@ class monument_placefinder_t : public placefinder_t {
 				return false;
 			}
 
+			// not under an elevated way or bridge deck. A monument is a showcase
+			// object that belongs on open ground; the draw clip cannot hide the
+			// part poking above a low deck (thread 23992), and its unusual art
+			// makes a per-height test unreliable - so keep it off overhead tiles
+			// entirely rather than trust a measured height.
+			if(  plan->get_overhead_clearance() < 127  ) {
+				return false;
+			}
+
 			if (is_boundary_tile(d)) {
 				return
 					gr->get_grund_hang() == slope_t::flat &&     // Flat
@@ -3393,6 +3402,32 @@ gebaeude_t* stadt_t::build_city_house(koord3d base_pos, const building_desc_t* h
 }
 
 
+/**
+ * Smallest clear height over the tiles a building of @p size anchored at @p k would
+ * cover, in levels. 127 means nothing overhead anywhere under it.
+ *
+ * The clearance passed to the building selection is read from the anchor tile alone,
+ * because the size is not known until a building has been picked. A city building may
+ * be up to 3x3, so the anchor saying "nothing overhead" tells us nothing about the
+ * other eight tiles: an elevated way or a bridge deck may cross any of them.
+ */
+static sint16 min_overhead_clearance(karte_t *welt, koord k, koord size)
+{
+	sint16 lowest = 127;
+	for(  sint16 x = 0;  x < size.x;  x++  ) {
+		for(  sint16 y = 0;  y < size.y;  y++  ) {
+			if(  const planquadrat_t *plan = welt->access( k + koord(x, y) )  ) {
+				const sint16 c = plan->get_overhead_clearance();
+				if(  c < lowest  ) {
+					lowest = c;
+				}
+			}
+		}
+	}
+	return lowest;
+}
+
+
 void stadt_t::build_city_building(koord k_org)
 {
 	if (grund_t* gr = welt->lookup_kartenboden(k_org)) {
@@ -3429,19 +3464,27 @@ void stadt_t::build_city_building(koord k_org)
 	const uint16 current_month = welt->get_timeline_year_month();
 	const climate cl = welt->get_climate(k);
 
+	// How much clear height is above this tile - same limit renovation uses, so a
+	// city expanding under an elevated way or bridge deck also only places a
+	// building that fits under it. 127 = nothing overhead, no limit.
+	sint16 max_clearance = 127;
+	if(  const planquadrat_t *plan = welt->access(k)  ) {
+		max_clearance = plan->get_overhead_clearance();
+	}
+
 	// Find a house to build
 	const building_desc_t* h = NULL;
 
 	if (sum_commercial > sum_industrial && sum_commercial >= sum_residential) {
-		h = hausbauer_t::get_commercial(0, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc);
+		h = hausbauer_t::get_commercial(0, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc, max_clearance);
 	}
 
 	if (h == NULL && sum_industrial > sum_residential && sum_industrial >= sum_commercial) {
-		h = hausbauer_t::get_industrial(0, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc);
+		h = hausbauer_t::get_industrial(0, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc, max_clearance);
 	}
 
 	if (h == NULL && sum_residential > sum_industrial && sum_residential >= sum_commercial) {
-		h = hausbauer_t::get_residential(0, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc);
+		h = hausbauer_t::get_residential(0, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc, max_clearance);
 	}
 
 	if (h == NULL) {
@@ -3476,6 +3519,15 @@ void stadt_t::build_city_building(koord k_org)
 
 	// so we found at least one suitable building for this place
 	rotation = orient_city_building( k, h, max_size );
+
+	// Now the footprint is known, so the height can be tested against every tile the
+	// building would cover and not just the anchor. Nothing is built this round if it
+	// does not fit; the city tries again, and the choice is weighted-random, so a
+	// building that does fit gets its turn.
+	if(  h->get_height_clearance() > min_overhead_clearance( welt, k, h->get_size(rotation) )  ) {
+		return;
+	}
+
 	grund_t *gr = welt->lookup_kartenboden_nocheck(k);
 	koord3d base_pos = koord3d(k, gr->get_hoehe() + slope_t::max_diff(gr->get_grund_hang()));
 	const gebaeude_t* gb = build_city_house(base_pos, h, rotation, cl, &exclude_desc);
@@ -3543,11 +3595,23 @@ bool stadt_t::renovate_city_building(gebaeude_t *gb)
 	building_desc_t::btype want_to_have = building_desc_t::unknown;
 	int sum = 0;
 
+	// How much clear height is above this tile, in levels. An elevated way or a
+	// bridge deck sitting a few levels up limits how tall a replacement may be:
+	// a building the player could never have built the way over must not appear
+	// by renovation either. Reading it off the planquadrat is cheap - the ground
+	// stack is short and already in cache. A taller deck
+	// admits taller buildings on its own, which is why a numeric limit is more
+	// future proof than a yes/no test. 127 = nothing overhead, no limit.
+	sint16 max_clearance = 127;
+	if(  const planquadrat_t *plan = welt->access(k)  ) {
+		max_clearance = plan->get_overhead_clearance();
+	}
+
 	// try to build
 	const building_desc_t* h = NULL;
 	if (sum_commercial > sum_industrial && sum_commercial > sum_residential) {
 		// we must check, if we can really update to higher level ...
-		h = hausbauer_t::get_commercial(level+1, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc);
+		h = hausbauer_t::get_commercial(level+1, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc, max_clearance);
 		if(  h != NULL  &&  h->get_level() >= level+1  ) {
 			want_to_have = building_desc_t::city_com;
 			sum = sum_commercial;
@@ -3557,7 +3621,7 @@ bool stadt_t::renovate_city_building(gebaeude_t *gb)
 	if(    (sum_industrial > sum_commercial  &&  sum_industrial > sum_residential) ||
 	       (sum_commercial > sum_residential  &&  want_to_have == building_desc_t::unknown)  ) {
 		// we must check, if we can really update to higher level ...
-		h = hausbauer_t::get_industrial(level+1 , current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc);
+		h = hausbauer_t::get_industrial(level+1, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc, max_clearance);
 		if(  h != NULL  &&  h->get_level() >= level+1  ) {
 			want_to_have = building_desc_t::city_ind;
 			sum = sum_industrial;
@@ -3567,7 +3631,7 @@ bool stadt_t::renovate_city_building(gebaeude_t *gb)
 	// (sum_wohnung>sum_industrie  &&  sum_wohnung>sum_gewerbe
 	if(  want_to_have == building_desc_t::unknown  ) {
 		// we must check, if we can really update to higher level ...
-		h = hausbauer_t::get_residential(level+1, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc);
+		h = hausbauer_t::get_residential(level+1, current_month, cl, neighbor_building_clusters, 1, max_area, &exclude_desc, max_clearance);
 		if(  h != NULL  &&  h->get_level() >= level+1  ) {
 			want_to_have = building_desc_t::city_res;
 			sum = sum_residential;
@@ -3623,6 +3687,14 @@ bool stadt_t::renovate_city_building(gebaeude_t *gb)
 		}
 
 		int rotation2 = orient_city_building(k, h, max_size);
+
+		// See build_city_building(): the clearance used to pick h was the anchor tile
+		// alone, and a renovation may grow the building over up to 3x3 tiles. Test the
+		// real footprint before replacing anything.
+		if(  h->get_height_clearance() > min_overhead_clearance( welt, k, h->get_size(rotation2) )  ) {
+			return false;
+		}
+
 		const gebaeude_t *gb= build_city_house(koord3d(k, base_pos.z), h, rotation2, cl, &exclude_desc);
 		if (gb) {
 			// more tests for larger building ...

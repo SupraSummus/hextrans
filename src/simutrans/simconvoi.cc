@@ -216,9 +216,6 @@ DBG_MESSAGE("convoi_t::~convoi_t()", "destroying %d, %p", self.get_id(), this);
 
 	// force asynchronous recalculation
 	if(schedule) {
-		if(!schedule->is_editing_finished()) {
-			destroy_win((ptrdiff_t)schedule);
-		}
 		if (!schedule->empty() && !line.is_bound()) {
 			welt->set_schedule_counter();
 		}
@@ -1723,7 +1720,7 @@ bool convoi_t::add_vehicle(vehicle_t* v, bool infront)
 			has_obsolete = info->is_retired( welt->get_timeline_year_month() );
 		}
 		// cannot run without catenary
-		needs_electric = sum_gear_and_power_electric > 0  &&  sum_gear_and_power_non_electric == 0;
+		set_needs_electrification( sum_gear_and_power_electric > 0  &&  sum_gear_and_power_non_electric == 0 );
 	}
 	else {
 		return false;
@@ -1791,7 +1788,7 @@ vehicle_t *convoi_t::remove_vehicle_at(uint16 i)
 
 		// still requires electrifications?
 		// cannot run without catenary
-		needs_electric = sum_gear_and_power_electric > 0 && sum_gear_and_power_non_electric == 0;
+		set_needs_electrification( sum_gear_and_power_electric > 0 && sum_gear_and_power_non_electric == 0 );
 	}
 	return v;
 }
@@ -1833,6 +1830,18 @@ void convoi_t::set_erstes_letztes()
 	}
 	else {
 		dbg->warning("convoi_t::set_erstes_letzes()", "called with vehicle_count==0!");
+	}
+}
+
+
+void convoi_t::set_needs_electrification(bool janein)
+{
+	needs_electric = janein;
+	// only the leading vehicle reads this, but the whole convoi shares one value, so it
+	// is simply set on all of them: then it does not matter in which order the weights,
+	// this flag and set_erstes_letztes() are recalculated when vehicles come and go
+	for(  uint8 i = 0;  i < vehicle_count;  i++  ) {
+		fahr[i]->set_needs_electrification( janein );
 	}
 }
 
@@ -2428,7 +2437,7 @@ void convoi_t::rdwr(loadsave_t *file)
 		}
 		sum_gesamtweight = sum_weight;
 		// cannot run without catenary
-		needs_electric = sum_gear_and_power_electric > 0 && sum_gear_and_power_non_electric == 0;
+		set_needs_electrification( sum_gear_and_power_electric > 0 && sum_gear_and_power_non_electric == 0 );
 	}
 
 	bool has_schedule = (schedule != NULL);
@@ -2805,6 +2814,16 @@ void convoi_t::open_schedule_window( bool show )
 		// TODO: what happens if no client opens the window??
 	}
 	schedule->start_editing();
+}
+
+
+void convoi_t::close_schedule_editor()
+{
+	if(  schedule  &&  !schedule->is_editing_finished()  ) {
+		// the schedule dialog was its own window with the schedule as magic
+		// once; nowadays it is the schedule tab of the info window
+		destroy_win( magic_convoi_info+self.get_id() );
+	}
 }
 
 
@@ -3289,10 +3308,6 @@ void convoi_t::destroy()
 		}
 	}
 	state = SELF_DESTRUCT;
-
-	if(schedule!=NULL  &&  !schedule->is_editing_finished()) {
-		destroy_win((ptrdiff_t)schedule);
-	}
 
 	if(  line.is_bound()  ) {
 		// needs to be done here to remove correctly ware catg from lines

@@ -158,6 +158,15 @@ SQInteger command_work(HSQUIRRELVM vm)
 	 * (2) tool.work(pl, pos, param)
 	 * (3) tool.work(pl, pos, pos2, param)
 	 */
+	// In convention (3) the last argument is the tool's default_param and has to
+	// be a string: otherwise sq_getstring() below fails unnoticed, the tool is
+	// initialized with a NULL param, and that is reported as the unrelated
+	// "Error during initializing tool". Convention (2) is not checked, since its
+	// third argument may legitimately be a coord3d.
+	if (top>4  &&  sq_gettype(vm, top) != OT_STRING  &&  sq_gettype(vm, top) != OT_NULL) {
+		return sq_raise_error(vm, "Tool parameter must be a string or null; descriptors have to be passed as <desc>.get_name()");
+	}
+
 	const char* default_param = top>3 ? param<const char*>::get(vm, top) : NULL;
 	koord3d     pos2          = top>4 ? param<koord3d>::get(vm, 4)       : koord3d::invalid;
 
@@ -319,7 +328,7 @@ const char* is_available(const obj_desc_timelined_t* desc)
 }
 
 
-call_tool_work build_way(player_t* pl, koord3d start, koord3d end, const way_desc_t* way, bool straight, bool keep_city_roads)
+call_tool_work build_way(player_t* pl, koord3d start, koord3d end, const way_desc_t* way, bool straight, bool keep_city_roads, bool terraform)
 {
 	if (way == NULL) {
 		return call_tool_work("No way provided");
@@ -327,7 +336,52 @@ call_tool_work build_way(player_t* pl, koord3d start, koord3d end, const way_des
 	if (const char* err = is_available(way)) {
 		return call_tool_work(err);
 	}
-	return call_tool_work(TOOL_BUILD_WAY | GENERAL_TOOL, way->get_name(), (straight ? 2 : 0) + (keep_city_roads ? 1 : 0), pl, start, end);
+	// the tool takes the building policy as second field of its parameter
+	cbuffer_t buf;
+	if (terraform) {
+		buf.printf("%s,2", way->get_name());
+	}
+	else {
+		buf.printf("%s", way->get_name());
+	}
+	return call_tool_work(TOOL_BUILD_WAY | GENERAL_TOOL, buf, (straight ? 2 : 0) + (keep_city_roads ? 1 : 0), pl, start, end);
+}
+
+
+typedef call_tool_work(*bwa_type)(player_t*, koord3d, koord3d, const way_desc_t*, bool, bool);
+typedef call_tool_work(*bro_type)(player_t*, koord3d, koord3d, const way_desc_t*, bool, bool, bool);
+
+call_tool_work build_way_replacing_city_roads(player_t* pl, koord3d start, koord3d end, const way_desc_t* way, bool straight, bool terraform)
+{
+	return build_way(pl, start, end, way, straight, false, terraform);
+}
+
+SQInteger command_build_way(HSQUIRRELVM vm)
+{
+	/* possible calling conventions:
+	 *
+	 * build_way(player, start, end, way, straight)            - top == 6
+	 * build_way(player, start, end, way, straight, terraform) - top == 7
+	 */
+	if (sq_gettop(vm) == 6) {
+		// no terraforming, as the old binding did
+		sq_pushbool(vm, false);
+	}
+	return embed_call_t<bwa_type>::call_function(vm, build_way_replacing_city_roads, false);
+}
+
+SQInteger command_build_road(HSQUIRRELVM vm)
+{
+	/* possible calling conventions:
+	 *
+	 * build_road(player, start, end, way, straight, keep_city_roads)            - top == 7
+	 * build_road(player, start, end, way, straight, keep_city_roads, terraform) - top == 8
+	 */
+	if (sq_gettop(vm) == 7) {
+		// no terraforming, as the old binding did
+		sq_pushbool(vm, false);
+	}
+	return embed_call_t<bro_type>::call_function(vm, build_way, false);
 }
 
 
@@ -415,7 +469,13 @@ call_tool_work build_bridge(player_t* pl, koord3d start, koord3d end, const brid
 	return call_tool_work(TOOL_BUILD_BRIDGE | GENERAL_TOOL, bridge->get_name(), 2, pl, start, end);
 }
 
-call_tool_work build_bridge_at(player_t* pl, koord3d start, const bridge_desc_t* bridge)
+/**
+ * Highest length a script may ask for: bridge_builder_t::find_end_pos counts the
+ * tested lengths in an uint8, and way_max_bridge_len can be set higher than that.
+ */
+static const uint32 MAX_SCRIPT_BRIDGE_LEN = 254;
+
+call_tool_work build_bridge_at(player_t* pl, koord3d start, const bridge_desc_t* bridge, sint32 max_length)
 {
 	if (bridge == NULL) {
 		return call_tool_work("No bridge provided");
@@ -427,13 +487,33 @@ call_tool_work build_bridge_at(player_t* pl, koord3d start, const bridge_desc_t*
 		sint8 height;
 		koord3d end = start;
 		const slope_t::type slope = gr->get_weg_hang() ? gr->get_weg_hang() : gr->get_grund_hang();
-		if (const char *err = bridge_builder_t::find_end_pos(pl, start, -koord(slope), height, bridge, 1, 10, false)) {
+		// max_length <= 0 means: as far as this bridge and the settings allow
+		const uint32 length = max_length <= 0 ? MAX_SCRIPT_BRIDGE_LEN : min( (uint32)max_length, MAX_SCRIPT_BRIDGE_LEN );
+		if (const char *err = bridge_builder_t::find_end_pos(pl, start, -koord(slope), height, bridge, 1, length, false)) {
 			return call_tool_work(err); // to keep compatibility with old error message
 		}
 		return call_tool_work(TOOL_BUILD_BRIDGE | GENERAL_TOOL, bridge->get_name(), 0, pl, start, end);
 	}
 	return call_tool_work("Bridge is too long for this type!\n"); // to keep compatibility with old error message
 }
+
+
+typedef call_tool_work(*bba_type)(player_t*, koord3d, const bridge_desc_t*, sint32);
+
+SQInteger command_build_bridge_at(HSQUIRRELVM vm)
+{
+	/* possible calling conventions:
+	 *
+	 * build_bridge_at(player, pos, bridge)             - top == 4
+	 * build_bridge_at(player, pos, bridge, max_length) - top == 5
+	 */
+	if (sq_gettop(vm) == 4) {
+		// keep the length the old binding used
+		sq_pushinteger(vm, 10);
+	}
+	return embed_call_t<bba_type>::call_function(vm, build_bridge_at, false);
+}
+
 
 call_tool_work set_slope(player_t* pl, koord3d start, my_slope_t slope)
 {
@@ -507,6 +587,13 @@ void export_commands(HSQUIRRELVM vm)
 	 * Proof-of-concept to make tools available to scripts.
 	 *
 	 * The default_param is not checked. Use at own risk.
+	 *
+	 * The methods that call a tool report its result the way the tool does:
+	 * null if it succeeded, a string if it failed. Test against null, not
+	 * against the string: a tool that fails without a message returns an empty
+	 * string. A non-empty string provides a message describing the failure; it
+	 * is not a stable identifier of its cause.
+	 *
 	 * @ingroup game_cmd
 	 */
 	create_class(vm, "command_x");
@@ -535,7 +622,7 @@ void export_commands(HSQUIRRELVM vm)
 	 * @note In network games script will be suspended until the command is executed.
 	 * @param pl player to pay for the work
 	 * @param pos coordinate, where something should happen
-	 * @returns null upon success, an error string otherwise
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 * @typemask string(player_x,coord3d)
 	 */
 	register_function(vm, command_work, "work", -3, "x t|x|y t|x|y");
@@ -550,7 +637,7 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param pl player to pay for the work
 	 * @param pos coordinate, where something should happen
 	 * @param param magic parameter string
-	 * @returns null upon success, an error string otherwise
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 * @typemask string(player_x,coord3d,string)
 	 */
 	register_function(vm,, "work");
@@ -563,7 +650,7 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param start coordinate, where work begins
 	 * @param end   coordinate, where work ends
 	 * @param param magic parameter string
-	 * @returns null upon success, an error string otherwise
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 * @typemask string(player_x,coord3d,coord3d,string)
 	 */
 	register_function(vm,, "work");
@@ -575,8 +662,13 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param end   coordinate, where work ends
 	 * @param way type of way to be built
 	 * @param straight force building of straight ways, similar as building way with control key pressed
+	 * @param terraform (optional parameter) if true then slopes can be changed to build the way, no bridges and no tunnels are built. Defaults to false.
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
-	STATIC register_method_fv(vm, build_way, "build_way", freevariable<bool>(false), false, true);
+	STATIC register_function(vm, command_build_way, "build_way", -6 /* at least 6 parameters */,
+							 func_signature_t<bwa_type>::get_typemask(false).c_str(), true /* static */);
+
+	log_squirrel_type(func_signature_t<bwa_type>::get_squirrel_class(false), "build_way", func_signature_t<bwa_type>::get_squirrel_type(false, 0));
 	/**
 	 * Build a road.
 	 * @param pl player to pay for the work
@@ -585,13 +677,19 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param way type of way to be built
 	 * @param straight force building of straight ways, similar as building way with control key pressed
 	 * @param keep_city_roads if true city roads will not be replaced
+	 * @param terraform (optional parameter) if true then slopes can be changed to build the road, no bridges and no tunnels are built. Defaults to false.
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
-	STATIC register_method(vm, build_way, "build_road", false, true);
+	STATIC register_function(vm, command_build_road, "build_road", -7 /* at least 7 parameters */,
+							 func_signature_t<bro_type>::get_typemask(false).c_str(), true /* static */);
+
+	log_squirrel_type(func_signature_t<bro_type>::get_squirrel_class(false), "build_road", func_signature_t<bro_type>::get_squirrel_type(false, 0));
 	/**
 	 * Build a depot.
 	 * @param pl player to pay for the work
 	 * @param pos position to place the depot
 	 * @param depot type of depot to be built
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method(vm, build_depot, "build_depot", false, true);
 	/**
@@ -600,6 +698,7 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param pos position to place the depot
 	 * @param station type of station to be built
 	 * @param layout (optional parameter) rotation of building (only used for flat docks and extensions, ribi are not allowed and must be converted!)
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_function(vm, command_build_station, "build_station", -4 /* at least 4 parameters */,
 							 func_signature_t<bsr_type>::get_typemask(false).c_str(), false /* static */);
@@ -612,27 +711,38 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param start coordinate, where bridge begins
 	 * @param end   coordinate, where bridge ends
 	 * @param bridge type of bridge to be built
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method(vm, build_bridge, "build_bridge", false, true);
 	/**
-	 * Build a bridge.
-	 * Similar to one click with mouse on suitable start tile: program will figure out bridge span itself.
+	 * Build a bridge, the end point is searched automatically.
+	 *
+	 * The search never goes further than the player could build: it is limited by the
+	 * maximum length of @p bridge and by the @c way_max_bridge_len setting.
+	 *
 	 * @param pl player to pay for the work
 	 * @param start coordinate, where bridge begins, the end point will be automatically determined
 	 * @param bridge type of bridge to be built
+	 * @param max_length (optional parameter) bridge should not be longer than this, zero or negative means as long as allowed. Defaults to 10.
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
-	STATIC register_method(vm, build_bridge_at, "build_bridge_at", false, true);
+	STATIC register_function(vm, command_build_bridge_at, "build_bridge_at", -4 /* at least 4 parameters */,
+							 func_signature_t<bba_type>::get_typemask(false).c_str(), true /* static */);
+
+	log_squirrel_type(func_signature_t<bba_type>::get_squirrel_class(false), "build_bridge_at", func_signature_t<bba_type>::get_squirrel_type(false, 0));
 	/**
 	 * Modify the slope of one tile.
 	 * @param pl player to pay for the work
 	 * @param pos position of tile
 	 * @param slope new slope, can also be one of @ref slope::all_up_slope or @ref slope::all_down_slope.
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method(vm, set_slope, "set_slope", false, true);
 	/**
 	 * Restore natural slope of one tile.
 	 * @param pl player to pay for the work
 	 * @param pos position of tile
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method(vm, restore_slope, "restore_slope", false, true);
 	/**
@@ -640,7 +750,7 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param pl player
 	 * @param pos position
 	 * @param slope new slope, can also be one of @ref slope::all_up_slope or @ref slope::all_down_slope
-	 * @returns null (if allowed) or an error message otherwise
+	 * @returns null if allowed, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method(vm, can_set_slope, "can_set_slope", false, true);
 	/**
@@ -653,6 +763,7 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param pl player to pay for the work
 	 * @param pos position of tile
 	 * @param sign type of road-sign or signal to be built
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method(vm, build_sign_at, "build_sign_at", false, true);
 	/**
@@ -661,6 +772,7 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param start coordinate, where work begins
 	 * @param end   coordinate, where work ends
 	 * @param wayobj type of wayobj to be built
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method(vm, build_wayobj, "build_wayobj", false, true);
 	/**
@@ -668,6 +780,7 @@ void export_commands(HSQUIRRELVM vm)
 	 * @param pl player to pay for the work
 	 * @param pos coordinate of tile
 	 * @param climate new climate, possible values see @ref climates
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method(vm, change_climate_at, "change_climate_at", false, true);
 
@@ -675,12 +788,14 @@ void export_commands(HSQUIRRELVM vm)
 	 * Lower grid point at the NW corner of @p pos.
 	 * @param pl player to pay for the work
 	 * @param pos coordinate of tile, grid point at the nw corner will be lowered
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method_fv(vm, lower_raise, "grid_lower", freevariable<sint8, bool>((sint8)hex_corner_t::NW, true), false, true);
 	/**
 	 * Raise grid point at the NW corner of @p pos.
 	 * @param pl player to pay for the work
 	 * @param pos coordinate of tile, grid point at the nw corner will be raised
+	 * @returns null upon success, an error string otherwise, which is empty if no message is available
 	 */
 	STATIC register_method_fv(vm, lower_raise, "grid_raise", freevariable<sint8, bool>((sint8)hex_corner_t::NW, false), false, true);
 	/**
