@@ -164,6 +164,11 @@ function check_water_block_raise(cases)
 				}
 			}
 		}
+
+		// set_slope(flat) below only overlays the visible grid; undo the
+		// raise itself so the natural height a later building removal
+		// restores is flat as well
+		ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, c.tile, c.corner), null)
 	}
 
 	// Restore flat mediterran for the next test: drop any leftover
