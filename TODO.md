@@ -695,7 +695,11 @@ iso, not a regular hex tiling.  With unit `u = IMG_SIZE/4`:
 * row step    (axial `+r`): `(  0, 2·u)`
 
 Adjacent +q tiles are at screen distance `u·√10` while adjacent +r
-tiles are at `2·u` — the +q axis is ~14% off true regular hex.
+tiles are at `2·u`, a ratio of √10/2 ≈ 1.58.
+In world space the lattice is still a regular flat-top hex,
+seen in orthographic projection from 35.26° elevation:
+sin = 1/√3, so y compresses by 1/√3.
+That is the elevation of true isometric, without its 45° yaw.
 What the lattice *does* preserve: (1) the existing
 `IMG_SIZE × IMG_SIZE/2` ground footprint, so legacy diamond sprites
 overlay on the right footprint until pakset art lands; (2) the iso
@@ -733,12 +737,13 @@ bends fills the gap.  *Doesn't transform cleanly*: vehicles need
 ~18 distinct hex direction states (see "Vehicle direction enum"
 above) vs. typically 4 sprite slots with ~8 rotation frames in
 square pakset art — pixel rotation of vehicles breaks silhouette
-and shading; the realistic plan is `get_dir()` projecting 6 hex
-edges onto whichever 4-slot table the current sprite has, accepting
-visibly wrong direction in roughly 1/3 of cases.  Recommended
-order if a "playable but visibly stubby" demo is wanted before
-real art lands: base ground now comes from LightTexture, so next is
-`get_dir()` 6→4 projection for vehicles (has to land anyway).
+and shading.
+`get_dir()` already maps each hex edge onto the same-named slot
+of the 8-direction sprite table,
+so 8-direction vehicle art shows a sprite in every hex direction,
+at an approximate angle.
+Recommended order if a "playable but visibly stubby" demo is wanted before
+real art lands: base ground now comes from LightTexture.
 Skip the 60° way-bend rotations — that's where the cost-quality
 curve gets bad and where pakset replacement most likely lands
 first, so the transform code becomes pure dead weight.

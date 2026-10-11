@@ -1156,11 +1156,8 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 					continue;
 				}
 
-				// HEX-PORT: cliff yoff in hex z-basis to match synth
-				// back-wall sprites and `simview.cc` tile world-z.
-				// Pakset cliff sprites (the synth fallback) are
-				// authored in legacy z and now under-shoot — see
-				// TODO.md "synth back-wall fallback".
+				// HEX-PORT: cliff yoff in hex z-basis to match
+				// `simview.cc` tile world-z.
 				sint16 yoff = hex_height_raster_scale_y( -TILE_HEIGHT_STEP*back_height, raster_tile_width );
 				if(  back_image[i]  ) {
 					// Draw extra wall images for walls that cannot be represented by a image.

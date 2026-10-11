@@ -25,9 +25,12 @@
  *     +q step (column): ( 3·u,  u)
  *     +r step (row):    (   0, 2·u)
  *
- * It is NOT a regular hex tiling — adjacent tiles along the +q axis
- * are at screen distance `u·√10` while adjacent +r tiles are at
- * `2·u`, ~14% off true regular hex geometry.  What it preserves is
+ * On screen it is NOT a regular hex tiling — adjacent tiles along the
+ * +q axis are at screen distance `u·√10` while adjacent +r tiles are
+ * at `2·u`, a ratio of √10/2 ≈ 1.58.  It is a regular flat-top hex
+ * in orthographic projection from 35.26° elevation (y compressed by
+ * 1/√3; isometric elevation, without isometric's 45° yaw).  What it
+ * preserves is
  * (1) the existing `IMG_SIZE × IMG_SIZE/2` bounding box, so the
  * legacy diamond sprites overlay on the right footprint until pakset
  * art lands; (2) the iso 2:1 row/column y-ratio
@@ -313,10 +316,9 @@ struct hex_way_axis_t {
  * Pakset bridges and other multi-layer way assets are sliced into a
  * Back layer (drawn before vehicles) and a Front layer (drawn after
  * vehicles).  Under the legacy square dimetric pak128 convention
- * "the east-facing (+x) side of an NS bridge is `FrontImage`" (see
- * `hextrans-pak128/CLAUDE.md` → Engine facts); the hex equivalent
- * needs a per-axis spec because the depth split rotates with the
- * way.
+ * "the east-facing (+x) side of an NS bridge is `FrontImage`"; the
+ * hex equivalent needs a per-axis spec because the depth split
+ * rotates with the way.
  *
  * The plane is the **vertical world plane containing the way axis
  * line through the tile centre**.  Pixels of way / bridge geometry
@@ -346,7 +348,7 @@ struct hex_way_axis_t {
  *     NW-SE                  = (0, 1)
  *
  * Caveat under the no-yaw hex camera (yaw = 0, pitch only — see
- * `hextrans-pak128/tools/3d/render.py::world_to_screen_hex`): for
+ * `hextrans-pak128/tools/threed/render.py::world_to_screen_hex`): for
  * the N-S axis the Front and Back halves project to disjoint
  * screen-x ranges at the same screen-z, so the split has no visible
  * draw-order effect for pure N-S geometry.  For NE-SW and NW-SE the
@@ -355,7 +357,7 @@ struct hex_way_axis_t {
  * for .dat-key disambiguation and for sub-tile classification of
  * geometry that straddles the axis.
  *
- * Pak-side mirror: `hextrans-pak128/tools/3d/hex_synth.py`
+ * Pak-side mirror: `hextrans-pak128/tools/threed/hex_synth.py`
  * (`HEX_DEPTH_CLIP_NORMAL`, `front_back_split`).
  */
 

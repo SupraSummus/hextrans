@@ -152,6 +152,14 @@ upstream-mergeable, organically sorts the layering, and a candidate
 for upstreaming back. Reach for this tier when a rename is already
 on the table; don't force it where it would be contrived.
 
+*Refactors without a hex reason.* Don't carry them.
+A cleanup that only restyles upstream code
+widens every future merge
+and makes fixes harder to send upstream.
+Offer it on the forum first;
+if upstream declines it, drop it in the fork too.
+The NETTOOL retirement (closed PRs #225, #227, #228) is the worked example.
+
 ## Cross-checking simutrans-extended
 
 `simutrans-extended` is also checked out as a local read-only
@@ -274,6 +282,15 @@ durable context in the commit message or `AGENTS.md`.
 
 The aim is for `TODO.md` to remain a useful, current map of "what
 still needs doing". A growing TODO file is fine; a stale one is not.
+
+Work that spans several PRs, or waits on a decision,
+also gets a GitHub issue labelled `epic` or `decision`.
+The issue copies the goal and the next moves from `TODO.md`
+and adds what a file can't hold:
+discussion, decisions and progress across PRs.
+`TODO.md` stays complete and wins when the two disagree.
+A PR that finishes an issue closes it with `Closes #N`
+and deletes the matching `TODO.md` entries.
 
 To surface stale entries, blame `TODO.md` and sort paragraphs
 (blank-line separated) by their max `author-time`: the lowest
@@ -460,7 +477,7 @@ Longer-form design and planning docs live under `documentation/`:
     decisions (proxy policy, address-family, gating).  Legacy
     in-house socket code remains under `#else SIMUTRANS_USE_CURL`
     for one release cycle as a downstream fallback; retirement
-    trigger in `TODO.md` → "other".
+    trigger in `TODO.md` → "libcurl rollback gate retirement".
   - `documentation/hex-vertex-storage.md` — per-vertex height
     storage on the hex grid, canonical ownership rule and storage
     layout.  Describes live behaviour.

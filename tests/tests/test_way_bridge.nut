@@ -278,8 +278,8 @@ function test_way_bridge_build_stacked()
 	ASSERT_TRUE(tile_x(3, 3, 2).find_object(mo_bridge) != null)
 
 	// Cleanup is asymmetric: the lower bridge's delta-1 ramps trigger
-	// the auto-extension at brueckenbauer.cc:905 (road stubs at
-	// (3,1,0)/(3,6,0)), the crossing's delta-2 ramps don't (see
+	// the auto-extension in bridge_builder_t::build_bridge (road stubs
+	// at (3,1,0)/(3,6,0)), the crossing's delta-2 ramps don't (see
 	// TODO.md → "build_bridge auto-extension misses delta-2 ramps").
 	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(2, 3, 0)), null)
 	local remover = command_x(tool_remove_way)

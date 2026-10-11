@@ -2068,8 +2068,8 @@ void tool_set_climate_t::mark_tiles(player_t *, const koord3d &start, const koor
 			const slope_t::type grund_hang = gr->get_grund_hang();
 			const slope_t::type weg_hang = gr->get_weg_hang();
 			// Combine ground + way slopes per-corner across all 6 hex
-			// vertices; let `get_marker_image` handle the lossy
-			// projection onto the pakset's available sprite set.
+			// vertices; `get_marker_image` still builds a square-era
+			// `% 27` key from the result.
 			const slope_t::type hang = encode_corners_hex(
 				max(corner_e (grund_hang), corner_e (weg_hang)),
 				max(corner_se(grund_hang), corner_se(weg_hang)),

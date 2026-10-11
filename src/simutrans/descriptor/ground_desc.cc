@@ -316,7 +316,7 @@ static const uint16 WAY_GROUND_NO_SLOPE = 0xFFFFu;
 static uint16 way_ground_slope_to_imgnr[N_WAY_GROUND_AXES][totalslopes];
 static image_id way_ground_image_base[N_WAY_GROUND_AXES][number_of_climates];
 // SlopeTrans alpha images now live in the pakset descriptor itself
-// — the bake under `landscape/grounds/texture-slope/` ships one
+// — the bake under `landscape/grounds/texture_slope/` ships one
 // `Image[<slope_t>][<corner_mask>]` cell per `(slope, mask)` against
 // `LightTexture`'s silhouette, so `get_alpha_tile(slope, corners)` is
 // a direct `transition_slope_texture->get_image(...)` lookup with no
@@ -473,7 +473,7 @@ void ground_desc_t::init_ground_textures(karte_t *world)
 
 	// Shore alpha (`get_beach_tile`) and slope alpha
 	// (`get_alpha_tile`) both read pakset descriptors directly:
-	// `texture-shore/render.py` and `texture-slope/render.py` share
+	// `texture_shore/render.py` and `texture_slope/render.py` share
 	// `LightTexture`'s silhouette via `hex_synth.silhouette_mask`, so
 	// each populated `(slope, mask)` cell already has an RLE
 	// footprint identical to the matching `LightTexture[slope]` cell
@@ -687,7 +687,7 @@ image_id ground_desc_t::get_snow_tile(slope_t::type slope)
 image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 {
 	require_normalized_ground_slope(slope, "ground_desc_t::get_beach_tile");
-	// Pakset-owned via `landscape/grounds/texture-shore/`: one cell per
+	// Pakset-owned via `landscape/grounds/texture_shore/`: one cell per
 	// realisable `(slope, water_mask)`, baked against the LightTexture
 	// silhouette so the alpha walk is in lockstep with the source water
 	// tile.  `corners` is the 6-bit `water_corners` mask (E=1, SE=2,
@@ -702,7 +702,7 @@ image_id ground_desc_t::get_beach_tile(slope_t::type slope, uint8 corners)
 image_id ground_desc_t::get_alpha_tile(slope_t::type slope, uint8 corners)
 {
 	require_normalized_ground_slope(slope, "ground_desc_t::get_alpha_tile");
-	// Pakset-owned via `landscape/grounds/texture-slope/`: one cell
+	// Pakset-owned via `landscape/grounds/texture_slope/`: one cell
 	// per `(slope, corner_mask)`, baked against `LightTexture`'s
 	// silhouette so the alpha walk is in lockstep with the source
 	// climate / snow tile.  `corners` is the 6-bit hex corner mask

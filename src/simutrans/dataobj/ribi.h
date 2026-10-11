@@ -462,12 +462,11 @@ public:
 	typedef uint8 ribi;
 
 	/**
-	 * Direction image index for vehicles / signs.  Still a 4-direction
-	 * enum for sprite-raster reasons; porting this is tied to the
-	 * viewport projection (see TODO.md) and a real hex sprite set.
-	 * For now the enum keeps its 8 values but callers that consume
-	 * `get_dir()` on a hex ribi land on whichever 4 of 6 edges the
-	 * dirs[] table chooses to project onto the square dir enum.
+	 * Direction image index for vehicles / signs.  Still the square-era
+	 * 8-value enum for sprite-raster reasons; porting this is tied to
+	 * the viewport projection (see TODO.md) and a real hex sprite set.
+	 * For now `get_dir()` maps each single hex edge onto the slot of
+	 * the same name.
 	 */
 	enum _dir {
 		dir_invalid   = 0,
@@ -592,10 +591,10 @@ public:
 		return a == none ? (ribi)0 : (ribi)(a | backward(a));
 	}
 
-	/// Convert ribi to dir (sprite-raster index).  Still projects onto
-	/// the 8-value square dir enum until the viewport/sprite port
-	/// lands.  Multi-bit inputs and NE/SE/etc. that don't have a
-	/// square-era dir slot return dir_invalid.
+	/// Convert ribi to dir (sprite-raster index).  Each single hex
+	/// edge maps to the same-named slot of the 8-value square dir
+	/// enum until the viewport/sprite port lands.  `none` and
+	/// multi-bit inputs return dir_invalid.
 	static dir get_dir(ribi x);
 
 	/// Alias for `backward`.  Under the old 4-bit layout this was a

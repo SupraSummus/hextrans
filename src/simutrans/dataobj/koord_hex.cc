@@ -44,9 +44,9 @@ koord::koord(ribi_t::ribi r) : x(0), y(0)
 // of the same axis edge share the uphill direction — track on either
 // climbs the same path along the axis.  Planar double-height
 // (`*_double`) slopes face the same direction with a 0→2 climb.
-// ::east / ::west are legacy 2-corner square diagonals, no longer
-// way-buildable but kept projected onto the closest hex direction for
-// any non-way consumer.
+// ::east / ::west are legacy 2-corner square diagonals, way-buildable
+// only as side chords (see `slope_t::is_way`) and with no hex uphill
+// of their own, so projected onto the closest hex direction.
 koord::koord(slope_t::type slope) : x(0), y(0)
 {
 	switch (slope) {
