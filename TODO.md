@@ -905,13 +905,24 @@ maps a 4-layout depot's dead-end ribi through `ribi_t::ribi_to_layout`,
 so all 6 directions get a layout;
 `building_desc_t::adjust_layout` folds the NE and SW layouts
 onto the images the pakset ships.
-A 2-layout through depot still picks `layout = 0` (N-S axis)
-or `layout = 1` (SE-NW = old E-W) from the way's ribi.
-Its 3rd hex axis (NE-SW) falls through to layout 0,
-so 2-layout depots on NE-SW track render mis-oriented.
-Real fix is a 3-layout depot descriptor;
+A 2-layout through depot, and every through stop,
+picks its layout with `ribi_t::axis_to_layout`:
+the S, SE and SW end give layouts 0, 1 and 5,
+and `adjust_layout` folds 5 onto 1,
+so NE-SW track shows the SE-NW image.
+Real fix is a 3-axis depot and through-stop descriptor;
 needs `depot_t` rotation handling
-and pakset depot images for all three axes.
+and pakset images for all three axes.
+
+*Stop and depot facing is read from the way.*
+`get_layout()` is folded for NE and SW,
+so `hausbauer_t::get_facing_ribi` reads a stop's or depot's exit or axis
+from its way and falls back to the layout.
+A lone NE or SW terminal whose road was removed
+can only be reconnected from its folded S or SE side.
+Next move: store the real facing in `gebaeude_t` with the next save-format bump,
+read it first in `get_facing_ribi`,
+then drop the way-derived path and the fallback.
 
 *Crossroads collision FSM.*
 `vehicle_base_t::no_cars_blocking` (`vehicle_base.cc:491`)
