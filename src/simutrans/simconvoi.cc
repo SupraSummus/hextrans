@@ -1956,7 +1956,7 @@ bool convoi_t::can_go_alte_richtung()
 			convoi_length += v->get_desc()->get_length();
 		}
 
-		if(gr==NULL  ||  (pred!=NULL  &&  (abs(v->get_pos().x-pred->get_pos().x)>=2  ||  abs(v->get_pos().y-pred->get_pos().y)>=2))  ) {
+		if(gr==NULL  ||  (pred!=NULL  &&  koord_distance(v->get_pos(), pred->get_pos())>=2)  ) {
 			// ending here is an error!
 			// this is an already broken train => restart
 			dbg->warning("convoi_t::go_alte_richtung()","broken convoy (id %i) found => fixing!",self.get_id());
