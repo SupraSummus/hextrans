@@ -6051,10 +6051,22 @@ const char *tool_build_house_t::work( player_t *player, koord3d pos )
 
 
 
+/**
+ * The industry build tools below read default_param as "1#34,oelfeld"
+ * (see tool_build_land_chain_t::work).
+ * A string shorter than three characters cannot be parsed (and indexing it
+ * would run past its end), so it is treated like no parameter at all.
+ */
+static bool has_factory_param(const char *param)
+{
+	return param  &&  strlen(param) >= 3;
+}
+
+
 // show industry size in cursor (in known)
 bool tool_build_land_chain_t::init( player_t * )
 {
-	if (can_use_gui() && !strempty(default_param)) {
+	if (can_use_gui() && has_factory_param(default_param)) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		const factory_desc_t *fab = factory_builder_t::get_desc(c);
@@ -6087,7 +6099,7 @@ const char *tool_build_land_chain_t::work( player_t *player, koord3d pos )
 	int rotation = -1;
 	bool ignore_climates = false;
 	sint32 initial_prod = -1;
-	if (!strempty(default_param)) {
+	if (has_factory_param(default_param)) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		fab = factory_builder_t::get_desc(c);
@@ -6123,7 +6135,7 @@ const char *tool_build_land_chain_t::work( player_t *player, koord3d pos )
 		// at sea
 		hat_platz = welt->is_water( pos.get_2d(), fab->get_building()->get_size(rotation) );
 
-		if(!hat_platz  &&  size.y!=size.x  &&  fab->get_building()->get_all_layouts()>1  &&  (default_param==NULL  ||  default_param[1]=='#')) {
+		if(!hat_platz  &&  size.y!=size.x  &&  fab->get_building()->get_all_layouts()>1  &&  (!has_factory_param(default_param)  ||  default_param[1]=='#')) {
 			// try other rotation too ...
 			rotation = (rotation+1) % fab->get_building()->get_all_layouts();
 			hat_platz = welt->is_water( pos.get_2d(), fab->get_building()->get_size(rotation) );
@@ -6133,7 +6145,7 @@ const char *tool_build_land_chain_t::work( player_t *player, koord3d pos )
 		// and on solid ground
 		hat_platz = welt->square_is_free( pos.get_2d(), fab->get_building()->get_x(rotation), fab->get_building()->get_y(rotation), NULL, cl );
 
-		if(!hat_platz  &&  size.y!=size.x  &&  fab->get_building()->get_all_layouts()>1  &&  (default_param==NULL  ||  default_param[1]=='#')) {
+		if(!hat_platz  &&  size.y!=size.x  &&  fab->get_building()->get_all_layouts()>1  &&  (!has_factory_param(default_param)  ||  default_param[1]=='#')) {
 			// try other rotation too ...
 			rotation = (rotation+1) % fab->get_building()->get_all_layouts();
 			hat_platz = welt->square_is_free( pos.get_2d(), fab->get_building()->get_x(rotation), fab->get_building()->get_y(rotation), NULL, cl );
@@ -6166,7 +6178,7 @@ const char *tool_build_land_chain_t::work( player_t *player, koord3d pos )
 // show industry size in cursor (in known)
 bool tool_city_chain_t::init( player_t * )
 {
-	if (can_use_gui() && !strempty(default_param)) {
+	if (can_use_gui() && has_factory_param(default_param)) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		const factory_desc_t *fab = factory_builder_t::get_desc(c);
@@ -6191,7 +6203,7 @@ const char *tool_city_chain_t::work( player_t *player, koord3d pos )
 	}
 
 	const factory_desc_t *fab = NULL;
-	if (!strempty(default_param)) {
+	if (has_factory_param(default_param)) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		fab = factory_builder_t::get_desc(c);
@@ -6206,12 +6218,12 @@ const char *tool_city_chain_t::work( player_t *player, koord3d pos )
 
 	// eventually adjust production
 	sint32 initial_prod = -1;
-	if (!strempty(default_param)) {
+	if (has_factory_param(default_param)) {
 		initial_prod = welt->inverse_scale_with_month_length( atol(default_param+2) );
 	}
 
 	// process ignore climates switch
-	bool ignore_climates = default_param  &&  default_param[0]=='1';
+	bool ignore_climates = has_factory_param(default_param)  &&  default_param[0]=='1';
 
 	pos = gr->get_pos();
 	int count = factory_builder_t::build_link(NULL, fab, initial_prod, 0, &pos, welt->get_public_player(), 10000, ignore_climates);
@@ -6237,7 +6249,7 @@ const char *tool_city_chain_t::work( player_t *player, koord3d pos )
 // show industry size in cursor (must be known!)
 bool tool_build_factory_t::init( player_t * )
 {
-	if (can_use_gui() && !strempty(default_param)) {
+	if (can_use_gui() && has_factory_param(default_param)) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		const factory_desc_t *fab = factory_builder_t::get_desc(c);
@@ -6288,7 +6300,7 @@ const char *tool_build_factory_t::work( player_t *player, koord3d pos )
 	}
 
 	const factory_desc_t *fab = NULL;
-	if (!strempty(default_param)) {
+	if (has_factory_param(default_param)) {
 		const char *c = default_param+2;
 		while(*c  &&  *c++!=',') { /* do nothing */ }
 		fab = factory_builder_t::get_desc(c);
@@ -6301,14 +6313,14 @@ const char *tool_build_factory_t::work( player_t *player, koord3d pos )
 		return "";
 	}
 
-	int rotation = (default_param  &&  default_param[1]!='#') ? (default_param[1]-'0') % fab->get_building()->get_all_layouts() : simrand(fab->get_building()->get_all_layouts());
+	int rotation = (has_factory_param(default_param)  &&  default_param[1]!='#') ? (default_param[1]-'0') % fab->get_building()->get_all_layouts() : simrand(fab->get_building()->get_all_layouts());
 
 	// process ignore climates switch
-	climate_bits cl = (default_param  &&  default_param[0]=='1') ? ALL_CLIMATES : fab->get_building()->get_allowed_climate_bits();
+	climate_bits cl = (has_factory_param(default_param)  &&  default_param[0]=='1') ? ALL_CLIMATES : fab->get_building()->get_allowed_climate_bits();
 
 	bool hat_platz = this->can_build_factory_here(fab, pos.get_2d(), rotation, cl);
 
-	if (!hat_platz && fab->get_building()->get_all_layouts()>1  &&  (default_param==NULL  ||  default_param[1]=='#')) {
+	if (!hat_platz && fab->get_building()->get_all_layouts()>1  &&  (!has_factory_param(default_param)  ||  default_param[1]=='#')) {
 		// try other rotation
 		rotation = (rotation +1) % fab->get_building()->get_all_layouts();
 		hat_platz = this->can_build_factory_here(fab, pos.get_2d(), rotation, cl);
@@ -6317,7 +6329,7 @@ const char *tool_build_factory_t::work( player_t *player, koord3d pos )
 	if(hat_platz) {
 		// eventually adjust production
 		sint32 initial_prod = -1;
-		if (!strempty(default_param)) {
+		if (has_factory_param(default_param)) {
 			initial_prod = welt->inverse_scale_with_month_length( atol(default_param+2) );
 		}
 
@@ -8910,6 +8922,10 @@ bool tool_work_world_t::init(player_t*)
 		return false;	// unsafe tools must return false even on success!
 	}
 	else if (what == 'l') {
+		if (default_param[1] == '\0') {
+			// lone 'l': no easy server flag, and default_param+2 would lie past the string
+			return false;
+		}
 		destroy_all_win(true);
 		int easy_server = default_param[1]!='0';
 		const char* filename = default_param + 2;

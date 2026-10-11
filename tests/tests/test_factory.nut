@@ -173,6 +173,43 @@ function test_factory_build_on_water_occupied()
 }
 
 
+function test_factory_build_short_param()
+{
+	local pl = player_x(0)
+	local setclimate = command_x(tool_set_climate)
+	local short_params = ["", "1", "1#"]
+
+	// default_param is "<ignore climates><rotation><production>,<name>".
+	// A string too short to hold that prefix is treated like no param
+	// (random consumer, random rotation) and must not be read past its end.
+
+	// no consumer is allowed in water, so none is picked and nothing is built
+	ASSERT_EQUAL(setclimate.work(pl, coord3d(0, 0, 0), coord3d(7, 7, 0), "" + cl_water), null)
+	foreach (tool in [tool_build_factory, tool_land_chain, tool_city_chain]) {
+		foreach (param in short_params) {
+			ASSERT_EQUAL(command_x(tool).work(pl, coord3d(4, 4, 0), param), "")
+		}
+	}
+
+	// single desert tile in the water: every consumer allowed in desert
+	// needs more than one tile, so whichever one is picked does not fit
+	ASSERT_EQUAL(setclimate.work(pl, coord3d(4, 4, 0), coord3d(4, 4, 0), "" + cl_desert), null)
+	foreach (tool in [tool_build_factory, tool_land_chain]) {
+		foreach (param in short_params) {
+			// consumer and rotation are random, so try often
+			for (local i = 0; i < 100; ++i) {
+				ASSERT_EQUAL(command_x(tool).work(pl, coord3d(4, 4, 0), param), "No suitable ground!")
+			}
+		}
+	}
+	ASSERT_EQUAL(factory_list_x().get_count(), 0)
+
+	// clean up
+	ASSERT_EQUAL(setclimate.work(pl, coord3d(0, 0, 0), coord3d(7, 7, 0), "" + cl_mediterran), null)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_factory_build_with_fields()
 {
 	local pl = player_x(0)
