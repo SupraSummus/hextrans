@@ -25,9 +25,12 @@
  *     +q step (column): ( 3·u,  u)
  *     +r step (row):    (   0, 2·u)
  *
- * It is NOT a regular hex tiling — adjacent tiles along the +q axis
- * are at screen distance `u·√10` while adjacent +r tiles are at
- * `2·u`, a ratio of √10/2 ≈ 1.58 rather than 1.  What it preserves is
+ * On screen it is NOT a regular hex tiling — adjacent tiles along the
+ * +q axis are at screen distance `u·√10` while adjacent +r tiles are
+ * at `2·u`, a ratio of √10/2 ≈ 1.58.  It is a regular flat-top hex
+ * in orthographic projection from 35.26° elevation (y compressed by
+ * 1/√3; isometric elevation, without isometric's 45° yaw).  What it
+ * preserves is
  * (1) the existing `IMG_SIZE × IMG_SIZE/2` bounding box, so the
  * legacy diamond sprites overlay on the right footprint until pakset
  * art lands; (2) the iso 2:1 row/column y-ratio
