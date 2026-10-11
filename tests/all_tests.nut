@@ -121,6 +121,7 @@ all_tests <- [
 	test_halt_build_flat_dock_occupied,
 	test_halt_build_air,
 	test_halt_build_multi_tile,
+	test_halt_build_terminal_stop_all_directions,
 	test_halt_build_multi_mode,
 	test_halt_build_multi_player,
 	test_halt_build_separate,

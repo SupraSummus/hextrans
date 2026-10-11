@@ -6,6 +6,8 @@
 #include "ribi.h"
 #include "koord.h"
 #include "koord3d.h"
+#include "../macros.h"
+#include "../simdebug.h"
 
 // since we have now a dummy function instead an array
 const ribi_t::_nesw ribi_t::nesw;
@@ -25,6 +27,17 @@ const ribi_t::ribi ribi_t::layout_to_ribi[6] = {
 	northeast, // hex-only       (1,-1)
 	southwest, // hex-only       (-1,1)
 };
+
+
+uint8 ribi_t::ribi_to_layout(ribi single)
+{
+	for (uint8 layout = 0; layout < lengthof(layout_to_ribi); layout++) {
+		if (layout_to_ribi[layout] == single) {
+			return layout;
+		}
+	}
+	dbg->fatal("ribi_t::ribi_to_layout", "ribi %d is not a single direction", single);
+}
 
 
 // Runtime-initialised name table: see ribi.h for the column layout.

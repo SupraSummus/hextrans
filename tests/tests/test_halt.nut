@@ -472,6 +472,26 @@ function test_halt_build_multi_tile()
 }
 
 
+function test_halt_build_terminal_stop_all_directions()
+{
+	local pl = player_x(0)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local centre = coord3d(4, 4, 0)
+
+	// CarStop is pak64's 4-layout terminal stop; the road's far tile
+	// is a dead end facing back along d
+	foreach (d in dir.nsew) {
+		local tip = centre + dir.to_coord(d)
+		ASSERT_EQUAL(command_x.build_way(pl, centre, tip, road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, tip, "CarStop"), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, centre, tip, "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_halt_build_multi_mode()
 {
 	local pl = player_x(0)
