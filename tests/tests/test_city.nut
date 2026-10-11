@@ -27,19 +27,11 @@ function test_city_add_by_public_player()
 {
 	{
 		ASSERT_EQUAL(command_x(tool_add_city).work(player_x(1), coord3d(7, 8, 0)), null)
-
-		ASSERT_TRUE(tile_x(7, 8, 0).find_object(mo_building) != null)
-		ASSERT_TRUE(tile_x(6, 9, 0).get_way(wt_road) != null)
-		ASSERT_TRUE(tile_x(7, 9, 0).get_way(wt_road) != null)
-		ASSERT_TRUE(tile_x(8, 9, 0).get_way(wt_road) != null)
+		assert_townhall_with_road(7, 8)
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(7, 8, 0)), null)
-	// street
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(6, 9, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(7, 9, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(8, 9, 0)), null)
+	clear_townhall_and_roads(player_x(1), 7, 8)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
@@ -53,11 +45,7 @@ function test_city_add_on_existing_townhall()
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(7, 8, 0)), null)
-	// street
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(6, 9, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(7, 9, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(8, 9, 0)), null)
+	clear_townhall_and_roads(player_x(1), 7, 8)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
@@ -66,19 +54,11 @@ function test_city_add_near_map_border()
 {
 	{
 		ASSERT_EQUAL(command_x(tool_add_city).work(player_x(1), coord3d(0, 15, 0)), null)
-
-		ASSERT_TRUE(tile_x(0, 14, 0).find_object(mo_building) != null)
-		ASSERT_TRUE(tile_x(1, 13, 0).get_way(wt_road) != null)
-		ASSERT_TRUE(tile_x(1, 14, 0).get_way(wt_road) != null)
-		ASSERT_TRUE(tile_x(1, 15, 0).get_way(wt_road) != null)
+		assert_townhall_with_road(0, 15)
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(0, 14, 0)), null)
-	// street
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(1, 13, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(1, 14, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(1, 15, 0)), null)
+	clear_townhall_and_roads(player_x(1), 0, 15)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
@@ -139,8 +119,7 @@ function test_city_change_size_invalid_params()
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(1, 1, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(1, 2, 0)), null)
+	clear_townhall_and_roads(player_x(1), 1, 1)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
@@ -215,11 +194,6 @@ function test_city_change_size_to_minimum()
 	}
 
 	// clean up
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(1, 1, 0)), null)
-	// street
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(0, 2, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(1, 2, 0)), null)
-	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(2, 2, 0)), null)
-
+	clear_townhall_and_roads(player_x(1), 1, 1)
 	RESET_ALL_PLAYER_FUNDS()
 }

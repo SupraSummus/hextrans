@@ -503,6 +503,10 @@ public:
 	/// that semantically wanted 4 rotations (square-era buildings) need
 	/// auditing — `layout_to_ribi[4]` is gone.
 	static const ribi layout_to_ribi[6];
+	/// Inverse of layout_to_ribi for a single-edge ribi.  Layouts 4 / 5
+	/// (NE / SW) fold onto available images in
+	/// building_desc_t::adjust_layout.
+	static uint8 ribi_to_layout(ribi single);
 
 	static bool is_perpendicular(ribi x, ribi y);
 

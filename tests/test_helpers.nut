@@ -266,6 +266,47 @@ function HEX_SLOPE(e, se, sw, w, nw, ne)
 }
 
 
+// A freshly-founded 1x1 townhall seeds its road on one of the 6 hex
+// faces, chosen by simrand (see check_bau_townhall) — so the road tiles
+// are not on a fixed side.  Every possible seed (3-tile axis strip or
+// single diagonal neighbour) lands within the 3x3 ring of the townhall.
+// These helpers assert/clean that ring without baking in a direction;
+// they replace the square-era tests that hard-coded the southern strip.
+function assert_townhall_with_road(x, y)
+{
+	ASSERT_TRUE(tile_x(x, y, 0).find_object(mo_building) != null)
+	local roads = 0
+	local size = world.get_size()
+	for (local tx = max(0, x - 1); tx <= min(size.x - 1, x + 1); tx++) {
+		for (local ty = max(0, y - 1); ty <= min(size.y - 1, y + 1); ty++) {
+			if (tile_x(tx, ty, 0).get_way(wt_road) != null) roads++
+		}
+	}
+	ASSERT_TRUE(roads > 0)
+}
+
+
+function clear_seed_roads(pl, x, y)
+{
+	local size = world.get_size()
+	for (local tx = max(0, x - 1); tx <= min(size.x - 1, x + 1); tx++) {
+		for (local ty = max(0, y - 1); ty <= min(size.y - 1, y + 1); ty++) {
+			local p = coord3d(tx, ty, 0)
+			if (tile_x(tx, ty, 0).get_way(wt_road) != null) {
+				command_x(tool_remove_way).work(pl, p, p, "" + wt_road)
+			}
+		}
+	}
+}
+
+
+function clear_townhall_and_roads(pl, x, y)
+{
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(x, y, 0)), null)
+	clear_seed_roads(pl, x, y)
+}
+
+
 function get_depot_by_wt(waytype)
 {
 	local list = building_desc_x.get_building_list(building_desc_x.depot)

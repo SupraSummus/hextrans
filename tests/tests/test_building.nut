@@ -17,17 +17,10 @@ function test_building_build_house_invalid_param()
 		ASSERT_EQUAL(command_x(tool_build_house).work(pl, coord3d(-1, 1, 0)), "")
 	}
 
-	// empty default_param: error
+	// empty default_param: now treated like no param (random attraction).
+	// (0,0,0) has no suitable ground, so it reports that rather than erroring.
 	{
-		local error_caught = false
-		try {
-			ASSERT_EQUAL(command_x(tool_build_house).work(pl, coord3d(0, 0, 0), ""), null)
-		}
-		catch (e) {
-			error_caught = true
-			ASSERT_EQUAL(e, "Error during initializing tool")
-		}
-		ASSERT_TRUE(error_caught)
+		ASSERT_EQUAL(command_x(tool_build_house).work(pl, coord3d(0, 0, 0), ""), "No suitable ground!")
 	}
 
 	// Invalid default_param: error
@@ -103,7 +96,7 @@ function test_building_build_house_random()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -133,7 +126,7 @@ function test_building_build_house_valid_desc()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -153,7 +146,7 @@ function test_building_build_house_invalid_desc()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -183,7 +176,7 @@ function test_building_build_house_auto_rotation_attraction()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -206,7 +199,7 @@ function test_building_build_house_auto_rotation_citybuilding()
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null); // remove house
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -242,7 +235,7 @@ function test_building_build_multi_tile_sloped()
 
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -308,7 +301,7 @@ function test_building_buy_house_from_public_player()
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0,0,0)), null)
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8,8,0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -335,7 +328,7 @@ function test_building_buy_house_attraction()
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0,0,0)), null)
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8,8,0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -384,7 +377,7 @@ function test_building_rotate_house()
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(0, 0, 0)), null)
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 

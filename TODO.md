@@ -165,7 +165,7 @@ overkill when one flat neighbour is the target, a direct
 `way_obj_writer.cc` iterates `slope = 3, 6, 9, 12` for
 `frontimageup` / `backimageup` under the square-era pattern: 4 of
 6 hex edges, missing the two third-axis edges (raised E+SE and
-raised NE+E pairs, see `koord.cc` neighbour case table).  Needs
+raised NE+E pairs, see `koord_hex.cc` neighbour case table).  Needs
 the same widening that `way_writer.cc` got — 18 slots covering
 all 6 hex edges × {narrow, wide, double}, indexed by
 `way_obj_desc::get_slope_image_id`.  Land alongside the first hex
@@ -745,6 +745,13 @@ structural changes settle, either reject old upstream saves cleanly or
 write a one-shot square→hex converter (hard because 4 corners do not
 map cleanly to 6).
 
+Nothing tests the terrain save/load round trip end to end,
+including the map-edge and water branches
+of the restore block in `grund_t::rdwr`.
+Land one with the bump:
+a headless check that generates a map with relief and water,
+saves, reloads and compares every vertex height.
+
 Save-format feature gates now have names in `simversion.h` rather
 than floating against `SIM_SAVE_MINOR`.  Continue that convention for
 future on-disk changes so later fork-version bumps do not silently
@@ -767,6 +774,59 @@ all 6 directions in `iter_building_cells` /
 `building_hex_viewpoint`'s slice generation instead of the binary
 swap.  Soft trigger — only matters once residual misalignment is
 the visible artefact in-engine.
+
+## City growth anisotropy
+
+City footprints come out elongated rather than round.
+`tools/city_anisotropy.py` measures it: `--run` generates a flat empty
+map (via the `-flatmap` headless hook), grid-seeds cities, grows each,
+and dumps their building tiles; it maps the axial `(q, r)` through the
+flat-top basis and reports the gyration tensor in both the axial and
+physical frame plus the m=2/m=4/m=6 angular modes.  Reporting both
+frames is the point — physical elongation with a round axial blob means
+the basis shear, physical elongation with an elongated axial blob means
+the growth algorithm itself biases a direction.  The tool's
+`--self-test` validates the math (an axial-isotropic disk reads as
+physical aspect sqrt3 at bearing 60 deg).
+
+The gross elongation is fixed.  Pre-fix baseline (flat 192x192, 25
+cities spaced 40 to stay clear of each other): physical aspect 1.68
+along ~60°.  Two fixes landed: `bewerte_pos`/`bewerte_loc` widened from
+4 to 6 rotations, and `build()`'s candidate-start sampling confined to
+the physical disk inscribed in the `[lo,ur]` box-rhombus (radius^2 =
+3*min(dx,dy)^2/16 via `koord.h`'s `physical_distance_sq`, the Euclidean
+metric, not the hex-step `koord_distance`).  Physical aspect is now
+~1.16 (round); axial rose to ~1.67, the footprint deliberately
+axial-elongated to cancel the basis shear.  Two caveats when re-running:
+the disk confinement packs cities denser (~100 tiles vs ~130 — revisit
+only if a pakset looks cramped), and the aspect number is only honest at
+spacing that keeps neighbours from colliding (spacing 30 reads ~2.3 from
+competition for ground).
+
+The per-city m=2 angular-density mode (not a hex symmetry) is the only
+residual the gyration aspect can't see, and it is now understood, not
+pending.  It used to be elevated in small cities (~0.3-0.4 below ~50
+tiles) by the founding skeleton: pak64's 1-layout townhall always seeded
+its road South (bearings {30°,90°} — a 2-fold set, exactly what m=2
+reads).  Seeding the founding road isotropically over all 6 hex faces
+(`check_bau_townhall`) fixed that — `--series` now reads m=2 ~0.18 for
+small cities rising to ~0.32 for large (Pearson r = +0.26), i.e. the
+remaining m=2 is intrinsic street-layout texture (houses lining up along
+straight streets, read from building-tile coords) that grows with the
+street network, not a removable bias.  Both tile-placement layers are
+isotropic anyway (rule matching is 6-fold symmetric; `physical_distance_sq`
+= q^2+qr+r^2 makes the `build()` sampling disk a true physical circle).
+Don't chase it further: symmetrising the cityrules to full dihedral D6
+was measured to do nothing, and the multi-tile-townhall NE/SW orientation
+AGENTS.md flags is a footprint-model change, not an m=2 lever.
+
+The flat map the baseline needs is produced by the `-flatmap N` test
+hook in `simmain.cc`'s default-map path (size N, no mountains/rivers/
+cities); it only fires under the headless none-backend build.  An empty
+flat map needs no simulation, so the hook saves it directly and sets
+`quit_simutrans` rather than running the loop to `-until` (which crawled
+the quit month in NORMAL mode and hung in teardown).
+`tools/city_anisotropy.py` generates and caches it automatically.
 
 ## Building / crossing cluster
 
@@ -809,6 +869,49 @@ using 4 of 6 hex edges (taxiway crosses on N-S and old-E-W = hex
 SE-NW), which compiles and produces something playable but is not
 a real hex airport.  Lands together with the other items here when
 crossroads design lands.
+
+## AI players — site selection still square
+
+The C++ AIs (`player/ai*.cc`) run on hex engine pieces
+(`koord_distance`, the way builder, hex-disc coverage),
+but their hand-written site selection is still square.
+Three sites matter most.
+`ai_t::suche_platz` searches an axial ±cov rectangle around the factory,
+which reaches 2·cov hex steps along ±(1,1),
+so goods-AI rail stations miss the factory catchment
+for about a third of directions;
+reuse the `get_tile_list` + `hex_disc` dilation
+that the road branch of `ai_goods_t::suche_platz1_platz2` already does.
+`ai_passenger_t::walk_city` follows only SE/S/SW/NW roads;
+loop over all 6.
+Harbour→rail fails on NE/SW shores:
+`suche_platz` takes the station length as `abs(size.x+size.y)`,
+which is 0 along NE-SW,
+`find_harbour` derives its second orientation by swapping x and y,
+and `tool_station_dock_aux` orients only N and S shore slopes.
+
+The scripted AIs in `simutrans/ai/` are untouched,
+but the script API's `dir` is already 6-way (`test_dir.nut`),
+so `sqai` is a mechanical port:
+its A* steps over `d = 1, 2, 4, 8` only
+(SE, S, SW, NW, so targets to the north are unreachable),
+its state flags 0x10/0x20 collide with the N/NE bits,
+and its station search scans a square instead of the catchment disc.
+`sqai_rail` needs a redesign:
+its `check_station` reads the removed `dir.east` / `dir.west`,
+and its double-track and station-extension code
+is built on square offsets and the old straight ribis 5 / 10.
+Hide it from the AI picker until then.
+
+Nothing exercises the AIs in tests.
+A headless run with an AI goods and an AI passenger player on a 128×128 map
+trips the `end_connect_hub.is_bound()` assert
+in `ai_passenger_t::create_air_transport_vehicle`
+within the first game year.
+Next move: a test hook
+(fixed seed, AI players, no start-up banner —
+its modal dialog runs the world at normal speed and defeats `-fast`)
+that CI runs for a few game years under ASAN.
 
 ## Pak reader child-count expectations are implicit
 

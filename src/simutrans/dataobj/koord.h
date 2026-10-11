@@ -34,7 +34,7 @@ class loadsave_t;
  *     Flat-top hexes have NO due-N or due-S corner; the 6 vertices
  *     sit at angles 0°, 60°, 120°, 180°, 240°, 300° from the centre.
  * koord::neighbours[] is ordered clockwise starting from the SE
- * neighbour, see koord.cc.  Edge labels in the comments there refer
+ * neighbour, see koord_hex.cc.  Edge labels in the comments there refer
  * to the EDGE convention above.  Bit position in ribi_t::ribi matches
  * the neighbours[] index — iterating bits 0..5 visits neighbours in
  * the same order.
@@ -53,8 +53,8 @@ public:
 	koord() : x(0), y(0) {}
 
 	koord(sint16 xp, sint16 yp) : x(xp), y(yp) {}
-	koord(ribi_t::ribi ribi);   // defined in koord.cc
-	koord(slope_t::type slope); // uphill direction of a slope (koord.cc)
+	koord(ribi_t::ribi ribi);   // defined in koord_hex.cc
+	koord(slope_t::type slope); // uphill direction of a slope (koord_hex.cc)
 
 	// Static factory for the displacement of a hex-edge ribi.  Enum
 	// literals (e.g. `ribi_t::northwest`) convert to both `ribi_t::ribi`
@@ -245,6 +245,21 @@ static inline uint32 shortest_distance(const koord &a, const koord &b)
 	return koord_distance(a, b);
 }
 
+// Squared *physical* (Euclidean) distance between two axial coords, as
+// integer so the sim stays cross-platform deterministic.  Distinct from
+// koord_distance above: that counts hex steps (a hexagonal "circle"),
+// this is the round circle in screen space after the flat-top basis
+// e_q=(sqrt3/2,1/2), e_r=(0,1).  |q*e_q + r*e_r|^2 expands to the integer
+// form below.  Use it wherever "how round in physical space" is the
+// question (city-footprint shaping, real-distance gameplay metrics) and
+// koord_distance's hexagonal balls would skew the answer.
+static inline uint32 physical_distance_sq(const koord &a, const koord &b)
+{
+	const sint32 dq = a.x - b.x;
+	const sint32 dr = a.y - b.y;
+	return (uint32)(dq * dq + dq * dr + dr * dr);
+}
+
 // multiply the value by the distance weight
 static inline uint32 weight_by_distance(const sint32 value, const uint32 distance)
 {
@@ -293,4 +308,48 @@ static inline koord operator - (const koord &a)
 {
 	return koord(-a.x, -a.y);
 }
+
+
+// All axial offsets within hex distance r of the origin — the hex disc
+// koord_distance(koord(0, 0), d) <= r.  A plain (-r..r)^2 double loop
+// is NOT a disc in axial coords: it reaches 2r hex steps along the
+// third (NE–SW) axis.  Rows run dy = -r..r; within a row, dx covers
+// the axial square clipped by |dx + dy| <= r.
+//
+//   for (koord d : hex_disc(radius)) { ... center + d ... }
+class hex_disc
+{
+	sint16 r;
+
+	static sint16 min_dx(sint16 dy, sint16 r) { return dy < 0 ? -r - dy : -r; }
+	static sint16 max_dx(sint16 dy, sint16 r) { return dy > 0 ? r - dy : r; }
+
+public:
+	explicit hex_disc(sint16 radius) : r(radius) {}
+
+	class iterator
+	{
+		koord d;
+		sint16 r;
+
+	public:
+		iterator(koord start, sint16 radius) : d(start), r(radius) {}
+		koord operator * () const { return d; }
+		bool operator != (const iterator &other) const { return d != other.d; }
+		iterator &operator ++ ()
+		{
+			if (d.x < max_dx(d.y, r)) {
+				d.x++;
+			}
+			else {
+				d.y++;
+				d.x = min_dx(d.y, r);
+			}
+			return *this;
+		}
+	};
+
+	iterator begin() const { return iterator(koord(min_dx(-r, r), -r), r); }
+	iterator end()   const { return iterator(koord(min_dx(r + 1, r), r + 1), r); }
+};
 #endif

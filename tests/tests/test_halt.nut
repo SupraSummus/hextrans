@@ -315,7 +315,7 @@ function test_halt_build_flat_dock_occupied()
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(4, 2, 0)), null)
 	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(8, 8, 0)), null); // remove city
-	ASSERT_EQUAL(command_x(tool_remove_way).work(player_x(1), coord3d(7, 9, 0), coord3d(9, 9, 0), "" + wt_road), null);
+	clear_seed_roads(player_x(1), 8, 8); // founding road seeds on a random hex face
 	RESET_ALL_PLAYER_FUNDS();
 }
 
@@ -472,6 +472,26 @@ function test_halt_build_multi_tile()
 }
 
 
+function test_halt_build_terminal_stop_all_directions()
+{
+	local pl = player_x(0)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local centre = coord3d(4, 4, 0)
+
+	// CarStop is pak64's 4-layout terminal stop; the road's far tile
+	// is a dead end facing back along d
+	foreach (d in dir.nsew) {
+		local tip = centre + dir.to_coord(d)
+		ASSERT_EQUAL(command_x.build_way(pl, centre, tip, road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, tip, "CarStop"), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, centre, tip, "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_halt_build_multi_mode()
 {
 	local pl = player_x(0)
@@ -588,6 +608,20 @@ function test_halt_build_near_factory()
 		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(4, 4, 0), coord3d(4, 3, 0), "" + wt_road), null)
 	}
 
+	{
+		// catchment is the hex disc, not the axial square: (5, 5) is only
+		// 3 axial steps from the mine's corner tile (2, 2), but 6 hex
+		// steps (third-axis offset), so with coverage 4 it must not link
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(5, 5, 0), coord3d(5, 4, 0), road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, coord3d(5, 5, 0), pax_halt.get_name()), null)
+
+		local halt = halt_x.get_halt(coord3d(5, 5, 0), pl)
+		ASSERT_TRUE(halt != null)
+		ASSERT_EQUAL(halt.get_factory_list().len(), 0)
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(5, 5, 0), coord3d(5, 4, 0), "" + wt_road), null)
+	}
+
 	ASSERT_EQUAL(remover.work(public_pl, coord3d(0, 0, 0)), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -636,6 +670,31 @@ function test_halt_build_near_factories()
 
 	ASSERT_EQUAL(remover.work(public_pl, coord3d(0, 0, 0)), null)
 	ASSERT_EQUAL(remover.work(public_pl, coord3d(6, 6, 0)), null)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// The per-square halt lists — the passenger/mail catchment — hold the hex
+// disc koord_distance <= coverage (4 here), not the axial square: (2, 2)
+// is already on the rim (a 60°-pair sum), (-4, 4) is too (120°-pair sum),
+// and (3, 3) is outside at 6 steps despite |dx|, |dy| <= 4.
+function test_halt_coverage_is_hex_disc()
+{
+	local pl = player_x(0)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local pax_halt = building_desc_x.get_available_stations(building_desc_x.station, wt_road, good_desc_x.passenger)[0]
+
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(7, 7, 0), coord3d(7, 6, 0), road_desc, true), null)
+	ASSERT_EQUAL(command_x(tool_build_station).work(pl, coord3d(7, 7, 0), pax_halt.get_name()), null)
+
+	foreach (rim in [[4, 0], [0, 4], [-4, 4], [2, 2], [-2, -2]]) {
+		ASSERT_EQUAL(square_x(7 + rim[0], 7 + rim[1]).get_halt_list().len(), 1)
+	}
+	foreach (outside in [[3, 3], [-3, -3], [5, 0], [-1, 5]]) {
+		ASSERT_EQUAL(square_x(7 + outside[0], 7 + outside[1]).get_halt_list().len(), 0)
+	}
+
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(7, 7, 0), coord3d(7, 6, 0), "" + wt_road), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
 

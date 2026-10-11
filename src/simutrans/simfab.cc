@@ -1110,25 +1110,6 @@ void fabrik_t::remove_field_at(koord pos)
 }
 
 
-vector_tpl<fabrik_t *> &fabrik_t::sind_da_welche(koord min_pos, koord max_pos)
-{
-	static vector_tpl <fabrik_t*> factory_list(16);
-	factory_list.clear();
-
-	for(int y=min_pos.y; y<=max_pos.y; y++) {
-		for(int x=min_pos.x; x<=max_pos.x; x++) {
-			fabrik_t *fab=get_fab(koord(x,y));
-			if(fab) {
-				if (factory_list.append_unique(fab)) {
-//DBG_MESSAGE("fabrik_t::sind_da_welche()","appended factory %s at (%i,%i)",gr->first_obj()->get_fabrik()->get_desc()->get_name(),x,y);
-				}
-			}
-		}
-	}
-	return factory_list;
-}
-
-
 /**
  * if name==NULL translate desc factory name in game language
  */
@@ -3398,18 +3379,26 @@ sint32 fabrik_t::calculate_work_rate_ramp(sint32 const amount, sint32 const mini
 /**
  * Draws some nice colored bars giving some status information
  */
-void fabrik_t::display_status(sint16 xpos, sint16 ypos)
+void fabrik_t::display_status(sint16 xpos, sint16 ypos, bool show_below)
 {
 	const sint16 count = input.get_count()+output.get_count();
 
-	ypos += -D_WAITINGBAR_WIDTH - LINESPACE/6;
+	ypos += -D_WAITINGBAR_WIDTH - LINESPACE/6 + show_below;
 	xpos -= (count * D_WAITINGBAR_WIDTH - gfx->get_tile_raster_width()) / 2;
 
 	if( input.get_count() ) {
-		if(  currently_producing  ) {
-			gfx->draw_box3d_clipped(xpos-2,  ypos-1, D_WAITINGBAR_WIDTH*input.get_count()+4, 6, gfx->palette_lookup(10), gfx->palette_lookup(12));
+		if (show_below) {
+			if (currently_producing) {
+				gfx->draw_box3d_clipped(xpos - 2, ypos + 6, D_WAITINGBAR_WIDTH * input.get_count() + 4, 6, gfx->palette_lookup(10), gfx->palette_lookup(12));
+			}
+			gfx->draw_rect_clipped(xpos - 1, ypos + 7, D_WAITINGBAR_WIDTH * input.get_count() + 2, 4, gfx->palette_lookup(status_to_color[status]), true CLIP_NUM_DEFAULT);
 		}
-		gfx->draw_rect_clipped(xpos-1, ypos, D_WAITINGBAR_WIDTH*input.get_count()+2, 4, gfx->palette_lookup(150), true CLIP_NUM_DEFAULT);
+		else {
+			if (currently_producing) {
+				gfx->draw_box3d_clipped(xpos - 2, ypos - 1, D_WAITINGBAR_WIDTH * input.get_count() + 4, 6, gfx->palette_lookup(10), gfx->palette_lookup(12));
+			}
+			gfx->draw_rect_clipped(xpos - 1, ypos, D_WAITINGBAR_WIDTH * input.get_count() + 2, 4, gfx->palette_lookup(status_to_color[status]), true CLIP_NUM_DEFAULT);
+		}
 
 		for(uint32 i=0; i < input.get_count(); i++) {
 			ware_production_t const& goods = input[i];
@@ -3423,16 +3412,17 @@ void fabrik_t::display_status(sint16 xpos, sint16 ypos)
 			if (storage_capacity) {
 				const uint32 stock_quantity = (uint32)((FAB_DISPLAY_UNIT_HALF + (sint64)goods.menge * pfactor) >> (precision_bits + DEFAULT_PRODUCTION_FACTOR_BITS));
 				const PIXVAL goods_color = goods.get_typ()->get_color();
-				const uint16 v = min(25, (uint16)(25 * stock_quantity / storage_capacity)) + 2;
+				const scr_coord_val v = min(25, (uint16)(25 * stock_quantity / storage_capacity)) + 2;
+				const scr_coord_val vv = show_below ? -13 : v;
 
 				if (currently_producing) {
-					gfx->draw_rect_clipped(xpos, ypos - v - 1, 1, v, gfx->palette_lookup(COL_GREY4), true CLIP_NUM_DEFAULT);
-					gfx->draw_rect_clipped(xpos + 1, ypos - v - 1, D_WAITINGBAR_WIDTH - 2, v, goods_color, true CLIP_NUM_DEFAULT);
-					gfx->draw_rect_clipped(xpos + D_WAITINGBAR_WIDTH - 1, ypos - v - 1, 1, v, gfx->palette_lookup(COL_GREY1), true CLIP_NUM_DEFAULT);
+					gfx->draw_rect_clipped(xpos, ypos - vv - 1, 1, v, gfx->palette_lookup(COL_GREY4), true CLIP_NUM_DEFAULT);
+					gfx->draw_rect_clipped(xpos + 1, ypos - vv - 1, D_WAITINGBAR_WIDTH - 2, v, goods_color, true CLIP_NUM_DEFAULT);
+					gfx->draw_rect_clipped(xpos + D_WAITINGBAR_WIDTH - 1, ypos - vv - 1, 1, v, gfx->palette_lookup(COL_GREY1), true CLIP_NUM_DEFAULT);
 				}
 				else {
-					gfx->tint_rect(xpos + 1, ypos - v - 1, D_WAITINGBAR_WIDTH - 2, v, goods_color, 60);
-					gfx->mark_rect_dirty_wc(xpos + 1, ypos - v - 1, xpos + D_WAITINGBAR_WIDTH - 1, ypos - 1);
+					gfx->tint_rect(xpos + 1, ypos - v - 1, D_WAITINGBAR_WIDTH - 2, vv, goods_color, 60);
+					gfx->mark_rect_dirty_wc(xpos + 1, ypos - vv - 1, xpos + D_WAITINGBAR_WIDTH - 1, ypos - 1);
 				}
 			}
 
@@ -3442,10 +3432,18 @@ void fabrik_t::display_status(sint16 xpos, sint16 ypos)
 	}
 
 	if( output.get_count() ) {
-		if(  currently_producing  ) {
-			gfx->draw_box3d_clipped(xpos-2,  ypos-1, D_WAITINGBAR_WIDTH*output.get_count()+4, 6, gfx->palette_lookup(10), gfx->palette_lookup(12));
+		if (show_below) {
+			if (currently_producing) {
+				gfx->draw_box3d_clipped(xpos - 2, ypos + 6, D_WAITINGBAR_WIDTH * output.get_count() + 4, 6, gfx->palette_lookup(10), gfx->palette_lookup(12));
+			}
+			gfx->draw_rect_clipped(xpos - 1, ypos + 7, D_WAITINGBAR_WIDTH * output.get_count() + 2, 4, gfx->palette_lookup(status_to_color[status]), true CLIP_NUM_DEFAULT);
 		}
-		gfx->draw_rect_clipped(xpos-1, ypos, D_WAITINGBAR_WIDTH*output.get_count()+2, 4, gfx->palette_lookup(COL_ORANGE), true CLIP_NUM_DEFAULT);
+		else {
+			if (currently_producing) {
+				gfx->draw_box3d_clipped(xpos - 2, ypos - 1, D_WAITINGBAR_WIDTH * output.get_count() + 4, 6, gfx->palette_lookup(10), gfx->palette_lookup(12));
+			}
+			gfx->draw_rect_clipped(xpos - 1, ypos, D_WAITINGBAR_WIDTH * output.get_count() + 2, 4, gfx->palette_lookup(status_to_color[status]), true CLIP_NUM_DEFAULT);
+		}
 
 		for(uint32 i=0; i < output.get_count(); i++) {
 			ware_production_t const& goods = output[i];
@@ -3457,17 +3455,19 @@ void fabrik_t::display_status(sint16 xpos, sint16 ypos)
 				const uint32 stock_quantity = (uint32)((FAB_DISPLAY_UNIT_HALF + (sint64)goods.menge * pfactor) >> (precision_bits + DEFAULT_PRODUCTION_FACTOR_BITS));
 				const PIXVAL goods_color = goods.get_typ()->get_color();
 
-				const uint16 v = min(25, (uint16)(25 * stock_quantity / storage_capacity)) + 2;
+				const scr_coord_val v = min(25, (uint16)(25 * stock_quantity / storage_capacity)) + 2;
+				const scr_coord_val vv = show_below ? -13 : v;
+
 
 				// the blended bars are too faint for me
 				if (currently_producing) {
-					gfx->draw_rect_clipped(xpos, ypos - v - 1, 1, v, gfx->palette_lookup(COL_GREY4), true CLIP_NUM_DEFAULT);
-					gfx->draw_rect_clipped(xpos + 1, ypos - v - 1, D_WAITINGBAR_WIDTH - 2, v, goods_color, true CLIP_NUM_DEFAULT);
-					gfx->draw_rect_clipped(xpos + D_WAITINGBAR_WIDTH - 1, ypos - v - 1, 1, v, gfx->palette_lookup(COL_GREY1), true CLIP_NUM_DEFAULT);
+					gfx->draw_rect_clipped(xpos, ypos - vv - 1, 1, v, gfx->palette_lookup(COL_GREY4), true CLIP_NUM_DEFAULT);
+					gfx->draw_rect_clipped(xpos + 1, ypos - vv - 1, D_WAITINGBAR_WIDTH - 2, v, goods_color, true CLIP_NUM_DEFAULT);
+					gfx->draw_rect_clipped(xpos + D_WAITINGBAR_WIDTH - 1, ypos - vv - 1, 1, v, gfx->palette_lookup(COL_GREY1), true CLIP_NUM_DEFAULT);
 				}
 				else {
-					gfx->tint_rect(xpos + 1, ypos - v - 1, D_WAITINGBAR_WIDTH - 2, v, goods_color, 60);
-					gfx->mark_rect_dirty_wc(xpos + 1, ypos - v - 1, xpos + D_WAITINGBAR_WIDTH - 1, ypos - 1);
+					gfx->tint_rect(xpos + 1, ypos - vv - 1, D_WAITINGBAR_WIDTH - 2, v, goods_color, 60);
+					gfx->mark_rect_dirty_wc(xpos + 1, ypos - vv - 1, xpos + D_WAITINGBAR_WIDTH - 1, ypos - 1);
 				}
 			}
 

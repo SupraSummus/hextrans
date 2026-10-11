@@ -2037,7 +2037,9 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 					if(  h.is_bound()  ) {
 						for(  sint16 xp=max(0,x-cov);  xp<min(new_size.x,x+cov+1);  xp++  ) {
 							for(  sint16 yp=y;  yp<min(new_size.y,y+cov+1);  yp++  ) {
-								access_nocheck(xp,yp)->add_to_haltlist(h);
+								if(  koord_distance(koord(x,y), koord(xp,yp)) <= cov  ) {
+									access_nocheck(xp,yp)->add_to_haltlist(h);
+								}
 							}
 						}
 					}
@@ -2055,7 +2057,9 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 					if(  h.is_bound()  ) {
 						for(  sint16 xp=x;  xp<min(new_size.x,x+cov+1);  xp++  ) {
 							for(  sint16 yp=max(0,y-cov);  yp<min(new_size.y,y+cov+1);  yp++  ) {
-								access_nocheck(xp,yp)->add_to_haltlist(h);
+								if(  koord_distance(koord(x,y), koord(xp,yp)) <= cov  ) {
+									access_nocheck(xp,yp)->add_to_haltlist(h);
+								}
 							}
 						}
 					}
@@ -5506,6 +5510,20 @@ void karte_t::load_heightfield(settings_t* const sets)
 }
 
 
+static void mark_tile( grund_t *gr, const bool mark )
+{
+	if(gr) {
+		if(mark) {
+			gr->set_flag(grund_t::marked);
+		}
+		else {
+			gr->clear_flag(grund_t::marked);
+		}
+		gr->set_flag(grund_t::dirty);
+	}
+}
+
+
 void karte_t::mark_area( const koord3d pos, const koord size, const bool mark ) const
 {
 	for( sint16 y=pos.y;  y<pos.y+size.y;  y++  ) {
@@ -5514,16 +5532,20 @@ void karte_t::mark_area( const koord3d pos, const koord size, const bool mark ) 
 			if (!gr) {
 				gr = lookup_kartenboden( x,y );
 			}
-			if(gr) {
-				if(mark) {
-					gr->set_flag(grund_t::marked);
-				}
-				else {
-					gr->clear_flag(grund_t::marked);
-				}
-				gr->set_flag(grund_t::dirty);
-			}
+			mark_tile(gr, mark);
 		}
+	}
+}
+
+
+void karte_t::mark_area_hex( const koord3d center, const uint16 radius, const bool mark ) const
+{
+	for (koord d : hex_disc(radius)) {
+		grund_t *gr = lookup( koord3d(center.x+d.x, center.y+d.y, center.z) );
+		if (!gr) {
+			gr = lookup_kartenboden( center.get_2d()+d );
+		}
+		mark_tile(gr, mark);
 	}
 }
 

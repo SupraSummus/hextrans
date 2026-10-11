@@ -383,6 +383,7 @@ void print_help()
 		" -freeplay           play with endless money\n"
 		" -fullscreen         starts simutrans in fullscreen mode\n"
 		" -fps COUNT          framerate (from 5 to 100)\n"
+		" -fast               run flat out: fast-forward with no inter-tick delay\n"
 		" -h | -help | --help displays this help\n"
 		" -lang CODE          starts with specified language\n"
 		" -load NAME          loads savegame with name 'NAME' from Simutrans 'save' directory\n"
@@ -1558,6 +1559,26 @@ int simu_main(int argc, char** argv)
 		sets.set_factory_count(3);
 		sets.set_tourist_attractions(1);
 		sets.set_traffic_level(7);
+		// Test hook: -flatmap N generates an empty, perfectly flat NxN
+		// map (no mountains, rivers, cities or industry) for measurement
+		// harnesses such as tools/city_anisotropy.py.  An empty flat map
+		// needs no simulation, so we save it directly below and quit
+		// rather than running the interactive loop to -until: that crawls
+		// through the quit month in NORMAL mode (set_fast_forward does not
+		// stick across set_pause here) and the headless quit path then
+		// hangs in teardown.
+		bool is_flatmap = false;
+		if(  const char *fm = args.gimme_arg("-flatmap", 1)  ) {
+			is_flatmap = true;
+			sint32 n = atoi(fm);
+			if(  n < 8  ) { n = 64; }
+			sets.set_size(n, n);
+			sets.set_city_count(0);
+			sets.set_factory_count(0);
+			sets.set_tourist_attractions(0);
+			sets.set_max_mountain_height(0.0);
+			sets.set_river_number(0);
+		}
 		welt->init(&sets,0);
 
 		//  start in June ...
@@ -1573,6 +1594,17 @@ int simu_main(int argc, char** argv)
 		welt->step();
 
 		env_t::autosave = old_autosave;
+
+		if(  is_flatmap  ) {
+			// save under the name the reload-on-quit path reads on next start
+			std::string pak_save( "autosave-" );
+			pak_save.append( env_t::pak_name );
+			pak_save.erase( pak_save.length()-1 );
+			pak_save.append( ".sve" );
+			dr_chdir( env_t::user_dir );
+			welt->save( pak_save.c_str(), true, SAVEGAME_VER_NR, false );
+			env_t::quit_simutrans = true;  // skip the interactive loop below
+		}
 	}
 	else {
 		// override freeplay setting when provided on command line
@@ -1705,6 +1737,14 @@ int simu_main(int argc, char** argv)
 		if(  !env_t::networkmode  &&  !env_t::server  ) {
 			welt->set_pause( pause_after_load );
 			pause_after_load = false;
+
+			// -fast: run flat out. set_fast_forward still throttles toward
+			// max_acceleration, so uncap it too; then idle_time falls to 0
+			// and steps run back-to-back. The test harness passes this.
+			if(  args.has_arg("-fast")  ) {
+				env_t::max_acceleration = 0x7FFF;
+				welt->set_fast_forward( true );
+			}
 		}
 
 		dbg->message("simu_main()", "Running world, pause=%i, fast forward=%i ... ", welt->is_paused(), welt->is_fast_forward() );

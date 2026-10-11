@@ -439,6 +439,7 @@ public:
 	sint8 get_groundwater() const {return (sint8)groundwater;}
 
 	double get_max_mountain_height() const {return max_mountain_height;}
+	void set_max_mountain_height(double d) { max_mountain_height = d; }
 
 	double get_map_roughness() const {return map_roughness;}
 
@@ -547,6 +548,7 @@ public:
 	bool is_no_routing_over_overcrowding() const { return no_routing_over_overcrowding; }
 
 	sint16 get_river_number() const { return river_number; }
+	void set_river_number(sint16 n) { river_number = n; }
 	sint16 get_min_river_length() const { return min_river_length; }
 	sint16 get_max_river_length() const { return max_river_length; }
 

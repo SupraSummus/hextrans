@@ -151,6 +151,9 @@ void obj_writer_t::write(FILE* fp, obj_node_t& parent, tabfileobj_t& obj)
 {
 	const char *type = obj.get("obj");
 	const char *name = obj.get("name");
+	if (!name || *name == 0) {
+		dbg->fatal("obj_writer_t::write()", "obj=%s has no name");
+	}
 
 	obj_writer_t *writer = writer_by_name->get(type);
 	if (!writer) {
@@ -174,6 +177,9 @@ void obj_writer_t::write_name_and_copyright(FILE* fp, obj_node_t& node, tabfileo
 {
 	const char* name = obj.get("name");
 	const char* msg = obj.get("copyright");
+	if (!name || *name == 0) {
+		dbg->fatal("obj_writer_t::write()", "obj=%s has no name");
+	}
 
 	last_name = name;
 	text_writer_t::instance()->write_obj(fp, node, name);

@@ -21,9 +21,16 @@ class zeiger_t : public obj_no_info_t
 {
 private:
 	koord area, offset;
+	/// if >= 0, additionally mark the hex disc of this radius around the
+	/// cursor (station coverage preview)
+	sint16 hex_radius;
 	koord image_offset;
 	/// images
 	image_id image, foreground_image;
+
+	/// (un)marks the cursor footprint at @p pos: the rectangular area
+	/// and, if set, the coverage hex disc
+	void mark_at( koord3d pos, bool marking ) const;
 
 public:
 	zeiger_t(loadsave_t *file);
@@ -41,8 +48,9 @@ public:
 	 * @param area size of marked area
 	 * @param center true if cursor is centered within marked area
 	 * @param offset if center==false then cursor is at position @p offset
+	 * @param hex_radius if >= 0 the hex disc of this radius is marked as well
 	 */
-	void set_area( koord area, bool center, koord offset = koord(0,0) );
+	void set_area( koord area, bool center, koord offset = koord(0,0), sint16 hex_radius = -1 );
 
 	/// set back image
 	void set_image( image_id b );

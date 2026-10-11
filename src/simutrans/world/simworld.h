@@ -746,6 +746,12 @@ public:
 	void mark_area( const koord3d center, const koord radius, const bool mark ) const;
 
 	/**
+	 * Marks the hex disc of @p radius (koord_distance <= radius) around
+	 * @p center using the grund_t mark flag.
+	 */
+	void mark_area_hex( const koord3d center, const uint16 radius, const bool mark ) const;
+
+	/**
 	 * Player management here
 	 */
 	uint8 sp2num(player_t *player);

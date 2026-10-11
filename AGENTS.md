@@ -71,6 +71,28 @@ work, not engine blockers.  `FENCE_IMAGE_COUNT = 7` is a recent
 case: the engine carves the full hex back-wall mask now, and the
 visual side waits on the pakset commit that fills indices 3..13.
 
+Leading sometimes means a bigger engine change than a slot count, and
+building footprint orientation is the case to know.  Today
+`building_desc_t::get_size`/`get_x`/`get_y` derive a building's per-layout
+footprint as only two shapes — a rectangle and its transpose, keyed on
+`layout & 1` — a square-grid 90°-rotation artifact, both axis-aligned in
+`(q, r)`.  Hex's 3rd axis (NE–SW) is a *diagonal* of that rectangle, so
+under the current model a multi-tile building has no NE/SW orientation;
+only a 1×1 footprint (a single hex, 6 real edges) does.  This is a
+missing *engine* capability, not a pakset gate: orienting a multi-tile
+building to all 6 hex directions needs the footprint model extended to a
+genuine axial rotation of the cell set (per-layout cell lists, or a
+parallelogram footprint), and that is engine work to do independent of
+any pak — the pakset supplies images once it exists.  Until then the
+cheap slice is the layout→direction mapping, correct for 1×1 buildings
+as-is and ungated by sprite count: the townhall road seed in
+`check_bau_townhall` orients over all 6 hex faces for any 1×1 townhall
+(`adjust_layout` folds a missing NE/SW orientation onto an available
+image, so even pak64's 1-layout townhall seeds isotropically).
+Multi-tile 3rd-axis orientation is deferred engine work; the depot
+3rd-axis and powerline crossing entries in `TODO.md` need the same
+footprint extension.
+
 ## Diff against the upstream `simutrans` branch
 
 The pre-port upstream is tracked on the local `simutrans` branch
@@ -168,11 +190,11 @@ VERTICES / CORNERS (6 per tile): **E, SE, SW, W, NW, NE**. Flat-top
 hexes have NO due-N or due-S corner; the 6 vertices sit at angles
 0°, 60°, 120°, 180°, 240°, 300° from the centre.
 
-`koord::neighbours[]` (in `src/simutrans/dataobj/koord.cc`) is ordered
+`koord::neighbours[]` (in `src/simutrans/dataobj/koord_hex.cc`) is ordered
 clockwise starting from the SE neighbour, matching the EDGE convention
 above.
 
-## Axial coords vs physical hex symmetry (tentative — one case so far)
+## Axial coords vs physical hex symmetry (two cases so far)
 
 `koord(q, r)` is axial, not Cartesian.  `(1, 1)` is NOT a neighbour —
 it's two edge-steps (SE+S).  Square-grid intuition treats it as
@@ -191,20 +213,31 @@ behavioural difference between two inputs looks like anisotropy,
 worth checking whether the inputs sit in the same symmetry class
 before reaching for a router/detection fix.
 
-Not validated beyond the one case — refresh from PR #201 if a
-similar question arises, and update this section if a second case
-either confirms the framing or shows it's the wrong abstraction.
+The stop-catchment port is a second, confirming instance: the legacy
+square catchment loop over `(-cov..cov)^2` has its `(±cov, ±cov)`
+corners at 2·cov hex steps (60°-pair sums) but its `(±cov, ∓cov)`
+corners exactly on the rim (120°-pair sums) — the two diagonal corner
+families sit in different symmetry classes, which is why an axial
+square is not a hex disc.  `hex_disc` in `koord.h` iterates the
+true disc (`for (koord d : hex_disc(r))`); reach for it in any "all
+tiles within n steps" loop.  Refresh from PR #201 if a finer symmetry
+question arises.
 
-## Critical findings driving priority
+## Prose line breaks
 
-Per-vertex height storage is the top of the critical path. A hex
-vertex is shared by 3 tiles (vs 4 for a square corner). Storing slopes
-per-tile, like the legacy code does today, will produce inconsistent
-terrain across shared vertices the moment terraforming touches it. The
-fix is to store heights per-vertex and derive slopes — the same
-pattern as the existing `surface_t::grid_hgts` array, but with a
-denser, irregular vertex topology. The terraform, flood-fill and
-climate-transition code can't be ported cleanly until this lands.
+Markdown in this repo uses [Semantic Line Breaks](https://sembr.org/):
+break the line after every sentence,
+and usually after a clause that ends in a comma, semicolon, colon or dash.
+Never break inside a hyphenated word
+or in a way that changes the rendered text.
+Keep lines under 80 characters unless a link or code span needs more.
+A change to one sentence then shows up as a change to one line.
+
+Adopted lazily:
+new or rewritten paragraphs use semantic line breaks,
+the rest stays as it is until someone edits it for a reason.
+No reformatting passes.
+`git diff --word-diff` reads well across both styles.
 
 ## TODO file rules
 
@@ -504,6 +537,22 @@ already did, so warm runs are dominated by sim startup. Pass substring
 filters to narrow the run: `tools/test.py halt` runs only tests whose
 name contains "halt". This is the cmake-Debug fast loop.
 
+The harness launches the engine with `-fast` (fast-forward + uncapped
+`max_acceleration`, so `idle_time` collapses to 0 and sim steps run
+back-to-back instead of at the ~5 steps/s NORMAL throttle of
+`3200/time_multiplier` in `karte_t::step`). `run-automated-tests.sh`
+defaults this on; `SIM_FAST= tools/test.py …` opts back into the
+throttle for comparison. Most tests run synchronously inside the
+scenario's `start()` and never wait on game time, but the
+`sleep()`-bound convoy tests in `test_transport` / `test_way_road`
+cost ~65s under the throttle, and `-fast` drops the full suite from
+~75s to ~3.5s. Fast-forward is the *more* reproducible mode for these:
+the loop advances game time in fixed 100ms quanta (`sync_step(100)` in
+`karte_t::interactive`), whereas NORMAL derives `delta_t` from
+wall-clock × `time_multiplier` (`interrupt_check` in `simintr.cc`), so
+the tick sequence the tests observe is machine-speed-independent under
+`-fast`. Assertions are unchanged; only timing moves.
+
 CI (`.github/workflows/run-tests.yml`) runs the same scenario suite
 under clang+ASAN+UBSAN on every push, so any hex regression surfaces
 there. The local fast loop trades sanitizer coverage for speed; reach
@@ -511,6 +560,26 @@ for the autoconf+ASAN recipe in `documentation/claude-code-web-dev.md`
 when reproducing a sanitizer-class CI failure. Real-game GUI play is
 still not testable in this env; flag assumptions that depend on a
 human at the keyboard.
+
+`tools/hex_*_test/` are standalone C++ self-tests
+that CI runs before the engine build (`make -C tools/hex_vertex_test run`).
+They compile the production sources they check
+(`dataobj/koord_hex.cc`, `display/hex_proj.h`, `ground/back_image_decode.h`),
+never a copy.
+Code that can't build standalone gets split into a dependency-free file first,
+the way `koord_hex.cc` came out of `koord.cc`.
+
+`tools/city_anisotropy.py` measures how non-round city footprints come
+out under the hex grid (see `TODO.md` → "City growth anisotropy").  It
+maps grown-city tiles through the flat-top basis and reports the
+gyration tensor in both the axial and physical frame, separating the
+basis shear from genuine algorithmic bias.  `--run` generates a flat
+map via the `-flatmap N` hook in `simmain.cc` (a gated test flag in the
+default-map path; needs the headless none-backend build) and grows
+cities on it; `--series` grows a spread of city sizes and correlates the
+m=2 angular mode against footprint size (a scale-invariant m=2 floor is
+intrinsic street texture, a decaying one is founding-skeleton bias);
+`--self-test` validates the math with no engine.
 
 `tools/nwc_protocol_test/` is the multiplayer wire-protocol suite —
 black-box tests that spawn a headless server, send one hand-rolled

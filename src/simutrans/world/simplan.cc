@@ -855,17 +855,14 @@ void planquadrat_t::remove_from_haltlist(halthandle_t halt)
 	// quick and dirty way to our 2d koodinates ...
 	const koord pos = get_kartenboden()->get_pos().get_2d();
 	int const cov = welt->get_settings().get_station_coverage();
-	for (int y = -cov; y <= cov; y++) {
-		for (int x = -cov; x <= cov; x++) {
-			koord test_pos = pos+koord(x,y);
-			const planquadrat_t *pl = welt->access(test_pos);
-			if (pl) {
-				for(  uint i = 0;  i < pl->get_boden_count();  i++  ) {
-					if (  pl->get_boden_bei(i)->get_halt() == halt  ) {
-						// still connected
-						// Reset distance computation
-						add_to_haltlist(halt);
-					}
+	for (koord d : hex_disc(cov)) {
+		const planquadrat_t *pl = welt->access(pos + d);
+		if (pl) {
+			for(  uint i = 0;  i < pl->get_boden_count();  i++  ) {
+				if (  pl->get_boden_bei(i)->get_halt() == halt  ) {
+					// still connected
+					// Reset distance computation
+					add_to_haltlist(halt);
 				}
 			}
 		}

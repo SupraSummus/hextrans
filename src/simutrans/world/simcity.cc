@@ -180,19 +180,27 @@ static char const* const allowed_chars_in_rule = "SsnHhTtUu";
 bool stadt_t::bewerte_loc(const koord pos, const rule_t &regel, int rotation)
 {
 	//printf("Test for (%s) in rotation %d\n", pos.get_str(), rotation);
-	koord k;
 
 	for(rule_entry_t const& r : regel.rule) {
-		uint8 x,y;
+		// rule offset from the 7x7 window centre, read as an axial (q,r) vector
+		const sint8 ox = (sint8)r.x - 3;
+		const sint8 oy = (sint8)r.y - 3;
+		sint8 dx, dy;
+		// flat-top hex has 6-fold symmetry, so the rule is tested in 6
+		// rotations of k*60 deg (axial 60-deg rotation: (q,r) -> (-r, q+r)).
+		// The square era only swapped x/y for 4 rotations, leaving two of the
+		// six neighbour directions untested -- see TODO "City growth anisotropy".
 		switch (rotation) {
 			default:
-			case   0: x=r.x; y=r.y; break;
-			case  90: x=r.y; y=6-r.x; break;
-			case 180: x=6-r.x; y=6-r.y; break;
-			case 270: x=6-r.y; y=r.x; break;
+			case   0: dx =  ox;        dy =  oy;        break;
+			case  60: dx = -oy;        dy =  ox + oy;   break;
+			case 120: dx = -(ox + oy); dy =  ox;        break;
+			case 180: dx = -ox;        dy = -oy;        break;
+			case 240: dx =  oy;        dy = -(ox + oy); break;
+			case 300: dx =  ox + oy;   dy = -ox;        break;
 		}
 
-		const koord k(pos.x+x-3, pos.y+y-3);
+		const koord k(pos.x+dx, pos.y+dy);
 		const grund_t* gr = welt->lookup_kartenboden(k);
 		if (gr == NULL) {
 			// outside of the map => cannot apply this rule
@@ -258,9 +266,11 @@ sint32 stadt_t::bewerte_pos(const koord pos, const rule_t &regel)
 
 	// will be called only a single time, so we can stop after a single match
 	if(bewerte_loc(pos, regel,   0) ||
-		 bewerte_loc(pos, regel,  90) ||
+		 bewerte_loc(pos, regel,  60) ||
+		 bewerte_loc(pos, regel, 120) ||
 		 bewerte_loc(pos, regel, 180) ||
-		 bewerte_loc(pos, regel, 270)) {
+		 bewerte_loc(pos, regel, 240) ||
+		 bewerte_loc(pos, regel, 300)) {
 		return 1;
 	}
 	return 0;
@@ -2582,33 +2592,38 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 			}
 		}
 
-		// Now built the new townhall (remember old orientation)
+		// Orient a 1x1 townhall's founding over all 6 hex faces, ungated by
+		// sprite count: adjust_layout() folds a missing NE/SW orientation
+		// onto an available image.  Multi-tile keeps its shipped axis-aligned
+		// orientations (AGENTS.md: NE/SW needs a footprint-model change).
 		sint16 layout = old_layout;
+		const bool is_single = desc->get_size() == koord(1, 1);
+		const uint8 norient = is_single ? 6 : desc->get_all_layouts();
 		if (old_layout == -1 || neugruendung) {
-			layout = simrand(desc->get_all_layouts());
+			layout = simrand(norient);
 		}
 		else {
-			layout = old_layout % desc->get_all_layouts();
+			layout = old_layout % norient;
 		}
-		// on which side should we place the road?
-		uint8 dir = ribi_t::layout_to_ribi[layout & 3];
+		// road faces the orientation's hex edge
+		uint8 dir = ribi_t::layout_to_ribi[layout % 6];
 		if (neugruendung || umziehen) {
-			// HEX-PORT: old "eastwest" combo = E|W, mapped to hex SE|NW
-			// (same displacement vectors under the rename).
-			// "northsouth" combo unchanged (N|S).  Townhall placement
-			// still uses 4-rotation layout via layout_to_ribi[0..3];
-			// the 2 hex-only directions (NE, SW) aren't yet wired
-			// through the townhall placement logic.
-			best_pos = townhall_placefinder_t(welt, dir).find_place(pos, desc->get_x(layout) + (dir & (ribi_t::southeast | ribi_t::northwest) ? 1 : 0), desc->get_y(layout) + (dir & (ribi_t::north | ribi_t::south) ? 1 : 0), desc->get_allowed_climate_bits());
+			// A 1x1 townhall reserves no road strip (the loop below seeds the
+			// road on a neighbour), so place it on the clicked tile with no
+			// padding/offset -- founding stays put whatever dir is drawn.
+			// Multi-tile keeps the strip reservation and the building offset.
+			const sint16 pad_x = (!is_single && (dir & (ribi_t::southeast | ribi_t::northwest))) ? 1 : 0;
+			const sint16 pad_y = (!is_single && (dir & (ribi_t::north | ribi_t::south))) ? 1 : 0;
+			best_pos = townhall_placefinder_t(welt, is_single ? 0 : dir).find_place(pos, desc->get_x(layout) + pad_x, desc->get_y(layout) + pad_y, desc->get_allowed_climate_bits());
 			// check, if the was something found
 			if (best_pos == koord::invalid) {
 				dbg->error("stadt_t::check_bau_townhall", "no better position found!");
 				return;
 			}
-			if (dir == ribi_t::northwest) {
+			if (!is_single && dir == ribi_t::northwest) {
 				best_pos.x++;
 			}
-			if (dir == ribi_t::north) {
+			if (!is_single && dir == ribi_t::north) {
 				best_pos.y++;
 			}
 		}
@@ -2619,7 +2634,7 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 		DBG_MESSAGE("stadt_t::check_bau_townhall()", "add townhall (bev=%i, ptr=%p)", buildings.get_sum_weight(),welt->lookup_kartenboden(best_pos)->first_no_way_obj());
 
 		// if not during initialization
-		koord offset(dir == ribi_t::northwest, dir == ribi_t::north);
+		koord offset(!is_single && dir == ribi_t::northwest, !is_single && dir == ribi_t::north);
 		if (!new_town) {
 			cbuffer_t buf;
 			buf.printf(translator::translate("%s wasted\nyour money with a\nnew townhall\nwhen it reached\n%i inhabitants."), name.c_str(), get_einwohner());
@@ -2638,8 +2653,12 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 			koord origin = new_gb->get_pos().get_2d();
 			townhall_road = koord::invalid;
 
-			for (sint8 i = 0; i < 4; i++) {
-				uint8 dir = ribi_t::layout_to_ribi[(layout + i)&3];
+			// Seed the road on the orientation's face, falling through the
+			// rest if blocked.  All 6 hex faces for a 1x1 townhall; the 4
+			// axis-aligned faces for a multi-tile footprint (no NE/SW edge).
+			const sint8 ndir = is_single ? 6 : 4;
+			for (sint8 i = 0; i < ndir; i++) {
+				uint8 dir = ribi_t::layout_to_ribi[(layout + i) % ndir];
 				switch (dir) {
 				case ribi_t::southeast:
 					road0.x = road1.x = size.x;
@@ -2655,6 +2674,14 @@ void stadt_t::check_bau_townhall(bool new_town, const building_desc_t* desc, sin
 					road0.y = road1.y = -1;
 					road0.x = -neugruendung;
 					road1.x = size.x - umziehen;
+					break;
+				case ribi_t::northeast:
+					// single tile at the hex (1,-1) neighbour (1x1 only)
+					road0 = road1 = koord(1, -1);
+					break;
+				case ribi_t::southwest:
+					// single tile at the hex (-1,1) neighbour (1x1 only)
+					road0 = road1 = koord(-1, 1);
 					break;
 				case ribi_t::south:
 				default:
@@ -4103,7 +4130,21 @@ bool stadt_t::test_and_build_cityroad(koord start, koord end)
 // will check a single random pos in the city, then build will be called
 void stadt_t::build()
 {
-	const koord k = koord(lo + koord::koord_random(ur.x - lo.x, ur.y - lo.y));
+	// Pick the rule-search start so the candidate cloud is round in physical
+	// space.  Uniform sampling over the axial box [lo,ur] is uniform over a
+	// sheared rhombus (aspect ~sqrt3 at 60 deg) -- the bulk of the measured
+	// city elongation, see TODO "City growth anisotropy".  Reject samples
+	// outside the physical disk inscribed in that rhombus (radius^2 =
+	// 3*min(dx,dy)^2/16); as the footprint rounds out [lo,ur] stretches along
+	// the physically-short axial direction and the disk tracks it.
+	const koord ctr = (lo + ur) / 2;
+	const sint32 dx = ur.x - lo.x;
+	const sint32 dy = ur.y - lo.y;
+	const uint32 r2 = 3 * min(dx, dy) * min(dx, dy) / 16;
+	koord k = koord(lo + koord::koord_random(dx, dy));
+	for (int tries = 0; tries < 6  &&  physical_distance_sq(k, ctr) > r2; tries++) {
+		k = koord(lo + koord::koord_random(dx, dy));
+	}
 
 	// do not build on any border tile
 	if(  !welt->is_within_limits(k+koord(1,1))  ||  k.x<=0  ||  k.y<=0  ) {
