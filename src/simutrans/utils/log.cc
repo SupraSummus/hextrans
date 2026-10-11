@@ -304,7 +304,7 @@ void log_t::custom_fatal(char *buffer)
 			// main window resized
 			check_pos_win(&ev,true);
 
-			if (IS_KEYDOWN(&ev)) {
+			if (IS_KEYDOWN(&ev)  ||  (ev.ev_class == EVENT_SYSTEM  &&  ev.ev_code == SYSTEM_QUIT)) {
 				break;
 			}
 		}

@@ -34,9 +34,12 @@ do
 		break
 	fi
 
+	# With a display (local SDL2 builds) dbg->fatal waits for a key
+	# instead of exiting, so match its message too.
 	if [[ -n "$(grep 'error \[Call function failed\] calling' output.log)" ||
 	      -n "$(grep 'error \[Reading / compiling script failed] calling' output.log)" ||
-	      -n "$(grep '</error>' output.log)" ]]
+	      -n "$(grep '</error>' output.log)" ||
+	      -n "$(grep 'FATAL ERROR' output.log)" ]]
 	then
 		# kill
 		echo "Killing process (test failed)"
