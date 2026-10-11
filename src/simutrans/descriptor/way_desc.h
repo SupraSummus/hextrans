@@ -59,13 +59,21 @@ private:
 	sint8 number_of_seasons;
 
 	/// if true front_images lists exists as nodes
-	bool front_images;
+	bool front_image_lists : 1;
+	bool front_images : 1;
 
-	bool clip_below; // only relevant for elevated ways
+	bool clip_below : 1; // only relevant for elevated ways
+
+	// cached to not travese the list for each of those; hex has no
+	// square diagonal or switch sprites, so the readers leave
+	// diagonals, close_diagonals and switches false
+	bool diagonals : 1;
+	bool close_diagonals : 1;
+	bool switches : 1;
 
 	/// .dat opt-in for double-height slope builds.  Read by
 	/// `way_reader_t` from version 9 nodes; older paks default false.
-	bool double_slopes;
+	bool double_slopes : 1;
 
 	/**
 	 * calculates index of image list for flat ways
@@ -75,7 +83,7 @@ private:
 	uint16 image_list_base_index(bool snow, bool front) const
 	{
 		if (number_of_seasons == 0  ||  !snow) {
-			if (front  &&  front_images) {
+			if (front  &&  front_image_lists) {
 				return (number_of_seasons == 0) ? 6 : 9;
 			}
 			else {
@@ -83,7 +91,7 @@ private:
 			}
 		}
 		else { // winter images
-			if (front  &&  front_images) {
+			if (front  &&  front_image_lists) {
 				return 12;
 			}
 			else {
@@ -227,15 +235,27 @@ public:
 		if (front  &&  !front_images) {
 			return IMG_EMPTY;
 		}
+		assert(ribi_t::is_bend(ribi));
 		const uint16 n = image_list_base_index(season, front) + 2;
 		return get_child<image_list_t>(n)->get_image_id(ribi / 3 - 1);
 	}
+
+	/// Upstream close-diagonal sprites (two half-tile images of a
+	/// square diagonal).  Hex has no close diagonals, so
+	/// `close_diagonals` stays false and this is a tripwire.
+	image_id get_close_diagonal_image_id(uint8 nr, uint8 season, bool front = false) const;
 
 	/// True iff the .dat declares `has_double_slopes=1`.  Lets a way
 	/// opt into double-height slope builds independently of which
 	/// slope sprites the pakset shipped.  Stored on-disk from
 	/// `way_desc` save version 9; older nodes default to `false`.
 	bool has_double_slopes() const { return double_slopes; }
+
+	// quick query functions; the square diagonal and switch sprite
+	// families do not exist under hex, so these are always false
+	bool has_diagonal_image() const { return diagonals; }
+	bool has_close_diagonal_image() const { return close_diagonals; }
+	bool has_switch_image() const {	return switches; }
 
 	/* true, if this tile is to be drawn as a normal thing */
 	bool is_draw_as_obj() const { return draw_as_obj; }

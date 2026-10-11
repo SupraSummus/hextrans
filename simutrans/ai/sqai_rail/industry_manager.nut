@@ -85,6 +85,7 @@ class industry_link_t
   {
     lines.append(my_line_t(l))
   }
+
   function remove_line(l)
   {
     foreach(idx, line in lines) {
@@ -94,10 +95,12 @@ class industry_link_t
       }
     }
   }
+
   function _save()
   {
     return ::saveinstance("industry_link_t", this)
   }
+
   // upgrade elements in lines array from line_x to my_line_t
   function update_lines()
   {
@@ -326,6 +329,7 @@ class industry_manager_t extends manager_t
     }
 
     return r_t(RT_PARTIAL_SUCCESS);
+
   }
 
   function link_iteration()
@@ -336,6 +340,9 @@ class industry_manager_t extends manager_t
       }
       yield link
     }
+
+    sleep()
+
   }
 
   /**
@@ -438,6 +445,8 @@ class industry_manager_t extends manager_t
         local str_search  = ") " + translate("Line")
         local st_names    = ai_lines_missing[i].get_schedule().entries
         local wt_name     = ["", "road", "Train", "Ship"]
+        wt_name.resize(17, null)
+        wt_name.insert(16, "wt_air")
 
         local f_src   = st_names[0].get_halt(our_player).get_factory_list()
         local f_dest  = st_names[st_names.len()-1].get_halt(our_player).get_factory_list()
@@ -1635,6 +1644,8 @@ class industry_manager_t extends manager_t
         // no signals and double tracks - limit 1 convoy for rail
         if (wt == wt_rail) {
           cnv_valuator.max_cnvs = cnv_count
+        } else if (wt == wt_air && cnv_count == 2) {
+          return null
         }
 
         local dist = 0
@@ -1657,6 +1668,9 @@ class industry_manager_t extends manager_t
           }
         }
 
+        if (wt == wt_air ) {
+          cnv_valuator.max_cnvs = 2
+        }
         // add 10% from distance
         //dist += dist / 100 * 10
 

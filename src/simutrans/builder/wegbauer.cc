@@ -2719,6 +2719,19 @@ bool way_builder_t::build_tunnel_tile()
 		}
 	}
 
+	// maybe need to recalc the diagonals and fourway tiles along the route
+	if (desc->has_diagonal_image()) {
+		for (koord3d& i : route) {
+			grund_t* gr = welt->lookup(i);
+			if (weg_t* weg = gr->get_weg(desc->get_wtyp())) {
+				ribi_t::ribi r = weg->get_ribi_unmasked();
+				if (ribi_t::is_bend(r) || ribi_t::all == r) {
+					weg->calc_image();
+				}
+			}
+		}
+	}
+
 	player_t::book_construction_costs(player_builder, cost, route[0].get_2d(), tunnel_desc->get_waytype());
 	return true;
 }
@@ -2742,6 +2755,21 @@ void way_builder_t::build_elevated()
 			monorail->calc_image();
 		}
 	}
+
+	// maybe need to recalc the diagonals and fourway tiles along the route
+	if (desc->has_diagonal_image()) {
+		for (koord3d& i : route) {
+			grund_t* gr = welt->lookup(i);
+			if (weg_t* weg = gr->get_weg(desc->get_wtyp())) {
+				ribi_t::ribi r = weg->get_ribi_unmasked();
+				if (ribi_t::is_bend(r) || ribi_t::all == r) {
+					weg->calc_image();
+				}
+			}
+		}
+	}
+
+
 }
 
 
@@ -2786,7 +2814,7 @@ void way_builder_t::build_road()
 				||  (player_builder!=NULL  &&  weg->get_removal_error(player_builder)!=NULL)
 				||  (gr->get_typ()==grund_t::monorailboden && (bautyp&elevated_flag)==0)
 				||  (gr->has_two_ways()  &&  gr->get_weg_nr(1)->get_removal_error(player_builder)!=NULL) // do not replace public roads crossing rails of other players
-				||  (gr->get_halt().is_bound()  && !check_owner(gr->get_halt()->get_owner(), player_builder))
+				||  (gr->get_halt().is_bound()  && !gr->get_halt()->can_use_halt(player_builder))
 				) {
 				//nothing to be done
 			}
@@ -2808,6 +2836,7 @@ void way_builder_t::build_road()
 				if (crossing_t* crossing = gr->get_crossing()) {
 					crossing->finish_rd();
 				}
+				gr->calc_image();
 			}
 		}
 		else {
@@ -2825,10 +2854,22 @@ void way_builder_t::build_road()
 			}
 		}
 
-		gr->calc_image(); // because it may be a crossing ...
 		minimap_t::get_instance()->calc_map_pixel(k);
 		player_t::book_construction_costs(player_builder, cost, k, road_wt);
 	} // for
+
+	// maybe need to recalc the diagonals and fourway tiles along the route
+	if (desc->has_diagonal_image()) {
+		for (uint32 i = 0; i < get_count(); i++) {
+			grund_t* gr = welt->lookup(route[i]);
+			if (weg_t* weg = gr->get_weg(desc->get_wtyp())) {
+				ribi_t::ribi r = weg->get_ribi_unmasked();
+				if (ribi_t::is_bend(r) || ribi_t::all == r) {
+					weg->calc_image();
+				}
+			}
+		}
+	}
 }
 
 
@@ -2939,12 +2980,24 @@ void way_builder_t::build_track()
 			player_builder->add_undo( route[i] );
 		}
 
-		gr->calc_image();
 		minimap_t::get_instance()->calc_map_pixel( gr->get_pos().get_2d() );
 		player_t::book_construction_costs(player_builder, cost, gr->get_pos().get_2d(), desc->get_finance_waytype());
 
 		if((i&3)==0) {
 			INT_CHECK( "wegbauer 1584" );
+		}
+	}
+
+	// maybe need to recalc the diagonals and fourway tiles along the route
+	if (desc->has_diagonal_image()) {
+		for (uint32 i = 0; i < get_count(); i++) {
+			grund_t* gr = welt->lookup(route[i]);
+			if (weg_t* weg = gr->get_weg(desc->get_wtyp())) {
+				ribi_t::ribi r = weg->get_ribi_unmasked();
+				if (ribi_t::is_bend(r) || ribi_t::all == r) {
+					weg->calc_image();
+				}
+			}
 		}
 	}
 }

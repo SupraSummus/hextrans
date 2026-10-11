@@ -18,10 +18,10 @@ include("tests/test_double_slopes")
 include("tests/test_factory")
 include("tests/test_good")
 include("tests/test_groundobj")
+include("tests/test_player")
 include("tests/test_halt")
 include("tests/test_headquarters")
 include("tests/test_label")
-include("tests/test_player")
 include("tests/test_powerline")
 include("tests/test_reservation")
 include("tests/test_scenario")
@@ -147,6 +147,7 @@ all_tests <- [
 	test_halt_build_station_extension,
 	test_halt_upgrade_downgrade,
 	test_halt_make_public_single,
+	test_halt_make_public_shared,
 	test_halt_make_public_multi_tile,
 	test_halt_make_public_underground,
 	test_halt_move_stop_invalid_param,

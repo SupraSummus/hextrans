@@ -134,7 +134,7 @@ void bruecke_t::rdwr(loadsave_t *file)
 
 	if(file->is_loading()) {
 		if (!s) {
-			dbg->fatal("bruecke_t::rdwr", "No bridge name for bridge at (%s)", get_pos().get_str());
+			dbg->fatal("bruecke_t::rdwr", "No bridge name for bridge");
 		}
 
 		desc = bridge_builder_t::get_desc(s);
@@ -142,8 +142,7 @@ void bruecke_t::rdwr(loadsave_t *file)
 			desc = bridge_builder_t::get_desc(translator::compatibility_name(s));
 		}
 		if(desc==NULL) {
-			dbg->warning( "bruecke_t::rdwr", "Unknown bridge \"%s\" at (%s) will be replaced with best match!", s, get_pos().get_str() );
-			pakset_manager_t::add_missing_paks( s, MISSING_BRIDGE );
+			pakset_manager_t::add_missing_paks(s, MISSING_BRIDGE);
 		}
 		free(const_cast<char *>(s));
 
@@ -167,7 +166,7 @@ void bruecke_t::rdwr(loadsave_t *file)
 
 
 // correct speed and maintenance
-void bruecke_t::finish_rd()
+bool bruecke_t::finish_rd()
 {
 	grund_t *gr = welt->lookup(get_pos());
 	if(desc==NULL) {
@@ -178,6 +177,7 @@ void bruecke_t::finish_rd()
 			}
 			if(desc==NULL) {
 				dbg->fatal("bruecke_t::finish_rd()", "Unknown bridge for type %x at (%s)", weg->get_waytype(), get_pos().get_str() );
+				return true;
 			}
 		}
 		else {
@@ -188,6 +188,7 @@ void bruecke_t::finish_rd()
 			}
 			if(desc==NULL) {
 				dbg->fatal("bruecke_t::finish_rd()", "No powerline bridge to build bridge type at (%s)", get_pos().get_str() );
+				return true;
 			}
 		}
 	}
@@ -215,6 +216,7 @@ void bruecke_t::finish_rd()
 			img = desc->get_start( gr->get_grund_hang() );
 		}
 	}
+	return false;
 }
 
 

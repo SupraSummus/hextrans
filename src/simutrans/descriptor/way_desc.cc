@@ -5,12 +5,19 @@
 
 #include "way_desc.h"
 #include "../network/checksum.h"
+#include "../simdebug.h"
 
 
 waytype_t way_desc_t::get_finance_waytype() const
 {
 	return get_styp() == type_tram ? tram_wt : get_wtyp();
 }
+
+image_id way_desc_t::get_close_diagonal_image_id(uint8, uint8, bool) const
+{
+	dbg->fatal("way_desc_t::get_close_diagonal_image_id", "no close diagonals under hex");
+}
+
 
 void way_desc_t::calc_checksum(checksum_t *chk) const
 {

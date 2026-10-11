@@ -20,10 +20,13 @@ class vehicle_t;
 class schiene_t : public weg_t
 {
 protected:
-	/**
-	* Bound when this block was successfully reserved by the convoi
-	*/
+	// bound when reserved by convoi
 	convoihandle_t reserved;
+
+	// only used for closed_diagonals
+	convoihandle_t reserved2;
+
+	ribi_t::ribi enter, enter2;
 
 public:
 	static const way_desc_t *default_schiene;
@@ -47,17 +50,24 @@ public:
 	/**
 	* true, if this rail can be reserved
 	*/
-	bool can_reserve(convoihandle_t c) const { return !reserved.is_bound()  ||  c==reserved; }
+	bool can_reserve(convoihandle_t c) const {
+		if (is_close_diagonal()) {
+			return (!reserved.is_bound() || c == reserved)  ||  (!reserved2.is_bound() || c == reserved2);
+		}
+		return !reserved.is_bound()  ||  c==reserved;
+	}
 
 	/**
 	* true, if this rail can be reserved
 	*/
-	bool is_reserved() const { return reserved.is_bound(); }
+	bool is_reserved() const {
+		return reserved.is_bound();
+	}
 
 	/**
 	* true, then this rail was reserved
 	*/
-	bool reserve(convoihandle_t c);
+	bool reserve(convoihandle_t c, uint32 route_index);
 
 	/**
 	* releases previous reservation
@@ -67,7 +77,7 @@ public:
 	/**
 	* releases previous reservation
 	*/
-	bool unreserve( vehicle_t *) { return unreserve(reserved); }
+	bool unreserve(vehicle_t*);
 
 	/* called before deletion;
 	 * last chance to unreserve tiles ...
@@ -81,6 +91,9 @@ public:
 
 	void rdwr(loadsave_t *file) OVERRIDE;
 
+	// may need to swap reservations
+	void rotate90() OVERRIDE;
+
 	/**
 	 * if a function return here a value with TRANSPARENT_FLAGS set
 	 * then a transparent outline with the color form the lower 8 Bit is drawn
@@ -91,6 +104,8 @@ public:
 	 * to show reservations if needed
 	 */
 	image_id get_outline_image() const OVERRIDE { return weg_t::get_image(); }
+
+	void display(int xpos, int ypos  CLIP_NUM_DEF) const OVERRIDE;
 };
 
 

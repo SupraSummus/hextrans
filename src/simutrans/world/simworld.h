@@ -444,11 +444,6 @@ private:
 	bool finish_loop;
 
 	/**
-	 * May change due to timeline.
-	 */
-	const way_desc_t *city_road;
-
-	/**
 	 * What game objectives.
 	 */
 	scenario_t *scenario;
@@ -920,12 +915,6 @@ public:
 	 * Absolute month (count start year zero).
 	 */
 	uint32 get_current_month() const { return current_month; }
-
-	/**
-	 * current city road.
-	 * @note May change due to timeline.
-	 */
-	const way_desc_t* get_city_road() const { return city_road; }
 
 	/**
 	 * Number of steps elapsed since the map was generated.

@@ -37,6 +37,7 @@
 #include "dataobj/translator.h"
 #include "dataobj/loadsave.h"
 #include "dataobj/pakset_manager.h"
+#include "dataobj/powernet.h"
 
 #include "descriptor/factory_desc.h"
 #include "builder/hausbauer.h"
@@ -44,6 +45,7 @@
 #include "builder/fabrikbauer.h"
 
 #include "gui/fabrik_info.h"
+#include "gui/minimap.h"
 
 #include "utils/simrandom.h"
 #include "utils/cbuffer.h"
@@ -1107,6 +1109,7 @@ void fabrik_t::remove_field_at(koord pos)
 	field = fields[ fields.index_of(field) ];
 	const field_class_desc_t *const field_class = desc->get_field_group()->get_field_class( field.field_class_index );
 	fields.remove(field);
+	minimap_t::get_instance()->set_dirty();
 	// revert the field's effect on production base and storage capacities
 	set_base_production( prodbase - field_class->get_field_production() );
 }
@@ -1157,14 +1160,12 @@ void fabrik_t::rdwr(loadsave_t *file)
 	else {
 		char s[256];
 		file->rdwr_str(s, lengthof(s));
-DBG_DEBUG("fabrik_t::rdwr()","loading factory '%s'",s);
 		desc = factory_builder_t::get_desc(s);
 		if(  desc==NULL  ) {
 			//  maybe it was only renamed?
 			desc = factory_builder_t::get_desc(translator::compatibility_name(s));
 		}
 		if(  desc==NULL  ) {
-			dbg->warning( "fabrik_t::rdwr()", "Pak-file for factory '%s' missing!", s );
 			// we continue loading even if desc==NULL
 			pakset_manager_t::add_missing_paks( s, MISSING_FACTORY );
 		}
@@ -1658,11 +1659,7 @@ sint32 fabrik_t::get_power_consumption() const
 	if( transformers.empty() ) {
 		return 0;
 	}
-	pumpe_t *const trans = dynamic_cast<pumpe_t *>(transformers.front());
-	if(  trans == NULL  ) {
-		return 0;
-	}
-	return trans->get_power_consumption();
+	return transformers.front()->get_net()->get_normal_demand();
 }
 
 void fabrik_t::set_power_demand(uint32 demand)
@@ -1694,11 +1691,7 @@ sint32 fabrik_t::get_power_satisfaction() const
 	if( transformers.empty() ) {
 		return 0;
 	}
-	senke_t *const trans = dynamic_cast<senke_t *>(transformers.front());
-	if(  trans == NULL  ) {
-		return 0;
-	}
-	return trans->get_power_satisfaction();
+	return transformers.front()->get_net()->get_normal_demand();
 }
 
 sint64 fabrik_t::get_power() const
@@ -3042,6 +3035,36 @@ void fabrik_t::info_prod(cbuffer_t& buf) const
 				);
 			}
 		}
+	}
+}
+
+
+void fabrik_t::info_power(cbuffer_t& buf) const
+{
+	buf.clear();
+
+	// capacity offered to the net now, already scaled by production level and boost
+	sint64 generation = get_power_supply();
+	buf.printf(translator::translate("Generation: %.0f MW"), (double)convert_power(generation));
+	buf.append("\n");
+
+	if(!transformers.empty()) {
+		// The supply is fed into the net by this factory's own transformer (a pumpe_t);
+		// this part is what the net actually draws from this plant:
+		// supply * normalised demand,
+		// the same figure the "Power (MW)" curve records every month
+		powernet_t* const net = transformers.front()->get_net();
+		buf.printf(translator::translate("Net ID: %p"), net);
+		buf.append("\n");
+		sint64 used_power = get_power();
+		double usage = 100.0 * (double)used_power / (double)generation;
+		buf.printf(translator::translate("Usage: %.0f %%"), usage);
+		buf.printf(" (%.0f MW)", (double)convert_power(used_power));
+	}
+	else {
+		// Without transformer, the plant feeds nothing to a net at all,
+		// and get_power_supply() is 0, so only the net lines have to be left out.
+		buf.append(translator::translate("No transformer connected."));
 	}
 }
 

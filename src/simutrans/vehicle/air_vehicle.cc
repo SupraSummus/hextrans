@@ -15,6 +15,8 @@
 #include "../dataobj/schedule.h"
 
 
+#define INVALID_IDX (0x7ffffffful)
+
 // for flying things, everywhere is good ...
 // another function only called during route searching
 ribi_t::ribi air_vehicle_t::get_ribi(const grund_t *gr) const
@@ -221,20 +223,30 @@ bool air_vehicle_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, ro
 		}
 		// free runway reservation
 		block_reserver( route_index, route->get_count(), false );
+		// free taxiway reservation
+		if (route_index < takeoff) {
+			clear_route_to_runway(false);
+		}
 	}
 	target_halt = halthandle_t(); // no block reserved
 
 	const weg_t *w=welt->lookup(start)->get_weg(air_wt);
-	bool start_in_the_air = (w==NULL)  ||  state==flying  ||  flying_height>0;
+	bool start_in_the_air = (w==NULL)  ||  is_flying();
 	bool end_in_air=false;
 
-	search_for_stop = takeoff = touchdown = 0x7ffffffful;
+	search_for_stop = takeoff = touchdown = INVALID_IDX;
 	if(!start_in_the_air) {
-
 		// see, if we find a direct route: We are finished
 		state = taxiing;
 		if(route->calc_route( welt, start, ziel, this, max_speed, 0 )) {
 			// ok, we can taxi to our location
+			target_halt = welt->lookup(ziel)->get_halt();
+			if (target_halt.is_bound()) {
+				// search a stop next
+				search_for_stop = 0;
+			}
+			flying_height = 0;
+			target_height = start.z;
 			return true;
 		}
 	}
@@ -248,6 +260,7 @@ bool air_vehicle_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, ro
 	}
 	else {
 		// not found and we are not on the takeoff tile (where the route search will fail too) => we try to calculate a complete route, starting with the way to the runway
+		start_in_the_air = false;
 
 		// second: find start runway end
 		state = taxiing;
@@ -475,11 +488,15 @@ bool air_vehicle_t::block_reserver( uint32 start, uint32 end, bool reserve ) con
 			}
 		}
 		else {
-			// we un-reserve also nonexistent tiles! (may happen during deletion)
 			if(reserve) {
+				if (sch1->get_desc()->get_styp() != type_runway) {
+					// end of runway
+					end = i - 1;
+					break;
+				}
 				start_now = true;
 				sch1->add_convoi_reservation(cnv->self);
-				bool can_reserve_this = sch1->reserve(cnv->self);
+				bool can_reserve_this = sch1->reserve(cnv->self, i);
 				if (can_reserve_this) {
 					// check of airplanes
 					for (uint8 i = 1; i < gr->obj_count(); i++) {
@@ -500,8 +517,10 @@ bool air_vehicle_t::block_reserver( uint32 start, uint32 end, bool reserve ) con
 				if(!can_reserve_this) {
 					if (clear_take_off) {
 						// we check if the runway is really reserved
-						if (air_vehicle_t *v = gr->find<air_vehicle_t>()) {
-							if (v->get_flying_state() <= departing) {
+						convoihandle_t other_cnv = sch1->get_reserved_convoi();
+						if (other_cnv.is_bound()) {
+							air_vehicle_t* v = (air_vehicle_t*)(other_cnv->get_vehicle(0));
+							if (v->get_flying_state() != flying && v->get_flying_state() != circling) {
 								// unsuccessful => must un-reserve all
 								success = false;
 								end = i;
@@ -515,11 +534,6 @@ bool air_vehicle_t::block_reserver( uint32 start, uint32 end, bool reserve ) con
 						end = i;
 						break;
 					}
-				}
-				// end of runway?
-				if(  i > start  &&  (ribi_t::is_single( sch1->get_ribi_unmasked() )  ||  sch1->get_desc()->get_styp() != type_runway)   ) {
-					end = i;
-					break;
 				}
 			}
 			else {
@@ -561,9 +575,69 @@ bool air_vehicle_t::block_reserver( uint32 start, uint32 end, bool reserve ) con
 }
 
 
+bool air_vehicle_t::clear_route_to_runway( bool reserve )
+{
+	bool ok = true;
+	
+	if (cnv == NULL || !is_on_ground() || is_taxiing_to_stop() || takeoff == INVALID_IDX) {
+		// all fine, nothing to do
+		has_reserved_runway = false;
+		return true;
+	}
+
+	const route_t& rt = *(cnv->get_route());
+	uint32 idx = takeoff;
+	if(reserve) {
+		// check if not airplanes coming my way on the way to the runway. If free then leave the stop
+		// but we leave the stop if already a plane wants to enter it
+		if (takeoff < rt.get_count()) {
+			koord3d our_takeoff = rt[takeoff];
+			for (route_t::index_t r = route_index; r < takeoff; r++) {
+				if (grund_t* gr = welt->lookup(rt[r])) {
+					if (runway_t* rw = (runway_t *)gr->get_weg(air_wt)) {
+						if (rw->get_desc()->get_styp() == type_runway) {
+							// free to runway => on we go
+							return true;
+						}
+						if (!rw->can_reserve(our_takeoff)) {
+							idx = r;
+							ok = false;
+							goto route_to_takeoff_finish;
+						}
+						// still on taxiway
+						rw->add_convoi_reservation(cnv->self, our_takeoff);
+					}
+				}
+			}
+		}
+		// no ground, no runway => finish
+		return true;
+	}
+route_to_takeoff_finish:
+	// unreserve
+	has_reserved_runway = false;
+	for (route_t::index_t r = 0; r < idx; r++) {
+		if (grund_t* gr = welt->lookup(rt[r])) {
+			if (runway_t* rw = (runway_t*)gr->get_weg(air_wt)) {
+				rw->unreserve(cnv->self);
+			}
+		}
+		else {
+			break;
+		}
+	}
+
+	return ok;
+}
+
+
 bool air_vehicle_t::is_same_takeoff(koord3d other_takeoff) const
 {
 	if (state == taxiing) {
+		if (route_index >= search_for_stop) {
+			// we ignore vehicles taxiing to stops
+			return true;
+		}
 		if (cnv) {
 			const route_t& rt = *(cnv->get_route());
 			if (rt.get_count() > takeoff) {
@@ -592,36 +666,28 @@ bool air_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, uin
 		return true;
 	}
 
+	// if we have to cirle longet ...
 	if (is_flying()) {
-		// check for another circle ...
+		// check for another circle or proceed to langing?
 		if (!target_halt.is_bound()  &&  (route_index+3 == touchdown  ||  route_index+16+3 == touchdown)) {
 			grund_t* gr_free = NULL;
 			if (grund_t* gr = welt->lookup(cnv->get_route()->back())) {
 				target_halt = gr->get_halt();
 				if (target_halt.is_bound()) {
-					gr_free = target_halt->get_reserved(cnv->self);
-					if(gr_free) {
-						dbg->error("air_vehicle_t::can_enter_tile()", "cnv %i flying but resevered", cnv->self.get_id());
-						target_halt->unreserve_position(NULL, cnv->self);
-					}
-					else {
+					gr_free = target_halt->find_free_position(air_wt, cnv->self, air_vehicle);
+					if(!target_halt->reserve_position(gr_free, cnv->self)) {
 						// no free stop => circle further
-						gr_free = gr->get_halt()->find_free_position(air_wt, cnv->self, air_vehicle);
-						if (!gr_free) {
-							goto circling;
-						}
+						goto circling;
 					}
+					// we have secured a stop position already
 				}
 			}
 			if (!block_reserver(touchdown, search_for_stop + 1, true)) {
-				goto circling;
-			}
-			if (target_halt.is_bound()) {
-				if (!target_halt->reserve_position(gr_free, cnv->self)) {
-					// should never happen
-					assert(false);
+				// runway blocked: release stop position (if found) and circle on
+				if (gr_free) {
+					target_halt->unreserve_position(gr_free, cnv->self);
 				}
-				//dbg->warning("air_vehicle_t::can_enter_tile()", "cnv %i reserved %s", cnv->self.get_id(), gr_free->get_pos().get_fullstr());
+				goto circling;
 			}
 			if (route_index + 16 + 3 == touchdown) {
 				route_index += 16;
@@ -647,56 +713,39 @@ bool air_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, uin
 	if (state == taxiing) {
 		// enforce on ground for taxiing
 		flying_height = 0;
+		target_height = gr->get_pos().z;
+
+		if (gr->is_halt()  &&  gr->find<air_vehicle_t>()) {
+			// the next step is a parking position. We do not enter, if occupied!
+			restart_speed = 0;
+			return false;
+		}
 	}
 
-
-	// not flying but no taxiway/runway
 	runway_t* rw = (runway_t*)gr->get_weg(air_wt);
-	if (rw == NULL) {
+	if(rw==NULL) {
+		// not flying but no taxiway/runway
 		if (state == departing) {
 			// next: flying
 			return true;
+		}
+		block_reserver(0, route_index, false);
+		if (route_index < takeoff) {
+			clear_route_to_runway(false);
 		}
 		cnv->suche_neue_route();
 		restart_speed = 0;
 		return false;
 	}
 
-	if (route_index <= 1  &&  is_on_ground()) {
-		// check if not airplanes coming my way on the way to the runway. If free then leave the stop
-		const route_t& rt = *(cnv->get_route());
-		if (takeoff < rt.get_count()) {
-			koord3d our_takeoff = rt[takeoff];
-			for (int r = 1; r < rt.get_count(); r++) {
-				if (grund_t* gr = welt->lookup(rt[r])) {
-					if (weg_t* rw = gr->get_weg(air_wt)) {
-						if (rw->get_desc()->get_styp() == type_runway) {
-							// free to runway => on we go
-							break;
-						}
-						// no yet runway
-						for (uint8 i = 1; i < gr->obj_count(); i++) {
-							obj_t* obj = gr->obj_bei(i);
-							// we drive through other planes not taxiing for now ...
-							if (obj->get_typ() == obj_t::air_vehicle) {
-								air_vehicle_t* other = (air_vehicle_t*)obj;
-								if (!other->is_same_takeoff(our_takeoff)) {
-									// one plane taxiing to other takeoff => wait to avoid blocking
-									restart_speed = 0;
-									return false;	// cannot start
-								}
-							}
-						}
-						continue;
-						// still on taxiway
-					}
-				}
-				// no ground, no runway => finish
-				break;
-			}
+	if (state==taxiing  &&  !has_reserved_runway  &&  takeoff != INVALID_IDX  &&  route_index < takeoff) {
+		target_halt = halthandle_t();	// should have been cleared anyway ...
+		if (!clear_route_to_runway(true)) {
+			// one plane taxiing to other takeoff over this tile => wait to avoid blocking
+			restart_speed = 0;
+			return false;
 		}
-		// ok
-		return true;
+		has_reserved_runway = true;
 	}
 
 	if(  route_index < takeoff  &&  route_index > 1  &&  takeoff<cnv->get_route()->get_count()-1  &&  get_flying_state() == taxiing) {
@@ -712,7 +761,8 @@ bool air_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, uin
 			// we drive through other planes not taxiing for now ...
 			if (obj->get_typ() == obj_t::air_vehicle && ((air_vehicle_t*)obj)->get_convoi() != cnv) {
 				air_vehicle_t* other = (air_vehicle_t*)obj;
-				if (other->get_flying_state() == taxiing || other->get_flying_state() == departing) {
+				if (other->is_on_ground() || !other->is_taxiing_to_stop()) {
+					// we ignore flying stuff and things taxiing to stops
 					if (other->get_direction() && get_direction()) {
 						// about same direction
 						restart_speed = 0;
@@ -725,10 +775,17 @@ bool air_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, uin
 		// next tile a runway => then reserve
 		if (rw->get_desc()->get_styp() == type_runway) {
 			// try to reserve the runway
-			if (!block_reserver(takeoff, takeoff + 100, true)) {
+			if (!block_reserver(route_index, takeoff + 100, true)) {
 				// runway already blocked ...
 				restart_speed = 0;
 				return false;
+			}
+		}
+		else if (grund_t * gr_cur = welt->lookup(get_pos())) {
+			// again leaving runway?
+			if (gr_cur->hat_weg(air_wt) && gr_cur->get_weg(air_wt)->get_desc()->get_styp() == type_runway) {
+				// unreserve runway
+				block_reserver(0, route_index, false);
 			}
 		}
 
@@ -738,6 +795,7 @@ bool air_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, uin
 
 	// we may need to unreserve the runway after leaving it
 	if(  route_index >= touchdown  ) {
+		has_reserved_runway = false;
 		runway_t *rw = (runway_t *)gr->get_weg(air_wt);
 		// next tile a not runway => then unreserve
 		if(  rw == NULL  ||  rw->get_desc()->get_styp() != type_runway  ||  gr->is_halt()  ) {
@@ -746,14 +804,6 @@ bool air_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, uin
 	}
 
 	if(  route_index == takeoff  &&  state == taxiing  ) {
-#if 0
-		// try to reserve the runway if not already done
-		if(route_index==2  &&  !block_reserver(takeoff,takeoff+100,true)) {
-			// runway blocked, wait at start of runway
-			restart_speed = 0;
-			return false;
-		}
-#endif
 		// stop shortly at the end of the runway
 		state = departing;
 		restart_speed = 0;
@@ -763,6 +813,9 @@ bool air_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, uin
 //DBG_MESSAGE("aircraft_t::can_enter_tile()","index %i<>%i",route_index,touchdown);
 
 	if(route_index==search_for_stop  &&  state==landing) {
+
+		flying_height = 0;
+		target_height = gr->get_hoehe();
 
 		if (target_halt.is_bound()) {
 			if (grund_t* gr = target_halt->get_reserved(cnv->self)) {
@@ -797,15 +850,6 @@ bool air_vehicle_t::can_enter_tile(const grund_t *gr, sint32 &restart_speed, uin
 		state = taxiing;
 	}
 
-	if (is_on_ground() && gr->is_halt()) {
-		if (gr->find<air_vehicle_t>()) {
-			// the next step is a parking position. We do not enter, if occupied!
-			restart_speed = 0;
-			return false;
-		}
-		target_halt->unreserve_position(NULL, cnv->self);
-	}
-
 	return true;
 }
 
@@ -824,6 +868,10 @@ void air_vehicle_t::enter_tile(grund_t* gr)
 				w->book(1, WAY_STAT_CONVOIS);
 			}
 		}
+
+		if (gr->is_halt()) {
+			gr->get_halt()->unreserve_position(NULL, cnv->self);
+		}
 	}
 }
 
@@ -834,6 +882,7 @@ air_vehicle_t::air_vehicle_t(loadsave_t *file, bool is_first, bool is_last) : ve
 
 	if(  file->is_loading()  ) {
 		static const vehicle_desc_t *last_desc = NULL;
+		has_reserved_runway = false;
 
 		if(is_first) {
 			last_desc = NULL;
@@ -861,6 +910,7 @@ air_vehicle_t::air_vehicle_t(koord3d pos, const vehicle_desc_t* desc, player_t* 
 	state = taxiing;
 	flying_height = 0;
 	target_height = pos.z;
+	takeoff = touchdown = search_for_stop = INVALID_IDX;
 }
 
 
@@ -893,6 +943,7 @@ void air_vehicle_t::set_convoi(convoi_t *c)
 			else if(route_index>=touchdown-1  &&  state!=taxiing) {
 				block_reserver( touchdown, search_for_stop+1, false );
 			}
+			clear_route_to_runway(false);
 		}
 	}
 	// maybe need to restore state?
@@ -900,26 +951,81 @@ void air_vehicle_t::set_convoi(convoi_t *c)
 		bool target=(bool)cnv;
 		vehicle_t::set_convoi(c);
 		if(leading) {
-			if(target) {
+			if(target  &&  route_index+3>touchdown) {
 				// reinitialize the target halt
-				grund_t* const target=welt->lookup(cnv->get_route()->back());
-				target_halt = target->get_halt();
-				if(target_halt.is_bound()) {
-					target_halt->reserve_position(target,cnv->self);
-				}
-			}
-			// restore reservation
-			if(  grund_t *gr = welt->lookup(get_pos())  ) {
-				if(  weg_t *weg = gr->get_weg(air_wt)  ) {
-					if(  weg->get_desc()->get_styp()==type_runway  ) {
-						// but only if we are on a runway ...
-						if(  route_index>=takeoff  &&  route_index<touchdown-21  &&  state!=flying  ) {
-							block_reserver( takeoff, takeoff+100, true );
-						}
-						else if(  route_index>=touchdown-1  &&  state!=taxiing  ) {
-							block_reserver( touchdown, search_for_stop+1, true );
+				if (get_pos() != cnv->get_route()->back()) {
+					// but only if not already arrived ...
+					grund_t* target = welt->lookup(cnv->get_route()->back());
+					target_halt = target->get_halt();
+					if (target_halt.is_bound()) {
+						if (!target_halt->reserve_position(target, cnv->self)) {
+							if (route_index <= search_for_stop) {
+								// just reverve another location
+								target = target_halt->find_free_position(air_wt, cnv->self, obj_t::air_vehicle);
+								if (!target) {
+									dbg->warning("air_vehicle_t::set_convoi()", "Could not restore reservation for convoi %d at %s.", cnv->self.get_id(), get_pos().get_fullstr());
+								}
+							}
+							else {
+								// already taxiing to stop position
+								flying_height = 0;
+								target_height = target->get_pos().z; // since the entire airport cannot have slopes
+								convoihandle_t other_cnv = target_halt->get_reserved(target);
+								if (!other_cnv.is_bound()  ||  other_cnv->is_unloading()) {
+									// loading bay occupied
+									dbg->error("air_vehicle_t::set_convoi()", "Could not restore reservation for convoi %d at %s => search new stops.", cnv->self.get_id(), get_pos().get_fullstr());
+									// stop position occupied => try to find a route to a free stop
+									target = target_halt->find_free_position(air_wt, cnv->self, obj_t::air_vehicle);
+									if (!target) {
+										dbg->error("air_vehicle_t::set_convoi()", "Nothing free at all for convoi %d at %s.", cnv->self.get_id(), get_pos().get_fullstr());
+									}
+									else {
+										state = looking_for_parking;
+										search_for_stop = route_index;
+										cnv->set_state(convoi_t::WAITING_FOR_CLEARANCE);
+										bool b = find_route_to_stop_position();
+										if (b) {
+											search_for_stop = 0;
+										}
+									}
+								}
+								else {
+									air_vehicle_t* v = dynamic_cast<air_vehicle_t *>(other_cnv->get_vehicle(0));
+									if (v && v->is_taxiing_to_stop()) {
+										// to avoid eternal loop
+										dbg->error("air_vehicle_t::set_convoi()", "Could not restore reservation for convoi %d at %s.", cnv->self.get_id(), get_pos().get_fullstr());
+									}
+									else {
+										// assume other convoi is still not searching for stop
+										dbg->warning("air_vehicle_t::set_convoi()", "take reservation from convoi %d for convoi %d at %s.", other_cnv.get_id(), cnv->self.get_id(), get_pos().get_fullstr());
+										target_halt->unreserve_position(target, other_cnv); // delte old reservation
+										target_halt->reserve_position(target, cnv->self); // now we reserve this spot
+										v->set_convoi(other_cnv.get_rep()); // let other convoi search for reservation again
+									}
+								}
+							}
 						}
 					}
+					else {
+						// on last route tile => if not flying we are on the ground ...
+						if (state != flying) {
+							flying_height = 0;
+							target_height = get_pos().z;
+						}
+					}
+					if (route_index + 3 >= touchdown && state != taxiing) {
+						block_reserver(touchdown, search_for_stop + 1, true);
+					}
+				}
+			}
+			// restore reservation for takeoff
+			else {
+				target_halt = halthandle_t();
+				if (route_index >= takeoff && route_index < touchdown - 21 && state != flying) {
+					block_reserver(takeoff, takeoff + 100, true);
+				}
+				else if (takeoff != INVALID_IDX  &&  route_index < takeoff) {
+					clear_route_to_runway(true);
 				}
 			}
 		}
@@ -941,11 +1047,12 @@ void air_vehicle_t::rdwr_from_convoi(loadsave_t *file)
 	xml_tag_t t( file, "aircraft_t" );
 
 	// initialize as vehicle_t::rdwr_from_convoi calls get_image()
+	vehicle_t::rdwr_from_convoi(file);
 	if (file->is_loading()) {
 		state = taxiing;
 		flying_height = 0;
+		target_height = get_pos().z;
 	}
-	vehicle_t::rdwr_from_convoi(file);
 
 	file->rdwr_enum(state);
 	file->rdwr_short(flying_height);
@@ -1011,7 +1118,8 @@ void air_vehicle_t::hop(grund_t* gr)
 			) {
 				state = flying;
 				new_friction = 1;
-				block_reserver( takeoff, touchdown-1, false );
+				// we unreserve all the route as we may go T shape runways
+				block_reserver( 0, touchdown-1, false );
 				flying_height = h_cur - h_next;
 				target_height = h_cur+TILE_HEIGHT_STEP*3;
 			}
@@ -1130,6 +1238,22 @@ void air_vehicle_t::leave_tile()
 		}
 	}
 }
+
+
+void air_vehicle_t::initialise_journey(route_t::index_t start_route_index, bool recalc)
+{
+	if (cnv) {
+		if (grund_t* gr = welt->lookup(cnv->get_route()->at(start_route_index))) {
+			if (gr->hat_weg(air_wt) && is_on_ground()) {
+				// put it on the ground
+				flying_height = 0;
+				target_height = get_pos().z;
+			}
+		}
+	}
+	vehicle_t::initialise_journey(start_route_index, recalc);
+}
+
 
 
 // this routine will display the aircraft (if in flight)
