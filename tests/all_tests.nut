@@ -205,6 +205,7 @@ all_tests <- [
 	test_terraform_raise_lower_land_at_water_edge,
 	test_terraform_raise_lower_land_below_way,
 	test_terraform_raise_lower_water_level,
+	test_terraform_raise_water_at_e_w_corner,
 	test_transport_generate_pax_invalid_pos,
 	test_transport_generate_pax_walked,
 	test_transport_generate_pax_no_route,
