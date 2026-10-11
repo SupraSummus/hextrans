@@ -340,14 +340,17 @@ bool air_vehicle_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, ro
 				dbg->error("aircraft_t::calc_route()","out of map!");
 				return false;
 			}
-			// need some extra step to avoid 180 deg turns
-			if( start_dir.x!=0  &&  sgn(start_dir.x)!=sgn(search_end.x-search_start.x)  ) {
-				route->append( welt->lookup_kartenboden(gr->get_pos().get_2d()+koord(0,(search_end.y>search_start.y) ? 1 : -1 ) )->get_pos() );
-				route->append( welt->lookup_kartenboden(gr->get_pos().get_2d()+koord(0,(search_end.y>search_start.y) ? 2 : -2 ) )->get_pos() );
-			}
-			else if( start_dir.y!=0  &&  sgn(start_dir.y)!=sgn(search_end.y-search_start.y)  ) {
-				route->append( welt->lookup_kartenboden(gr->get_pos().get_2d()+koord((search_end.x>search_start.x) ? 1 : -1 ,0) )->get_pos() );
-				route->append( welt->lookup_kartenboden(gr->get_pos().get_2d()+koord((search_end.x>search_start.x) ? 2 : -2 ,0) )->get_pos() );
+			// need some extra steps to avoid 180 deg turns: if flying on does not bring us closer
+			// to the target, sidestep two tiles to the side of the runway axis it lies on
+			const koord turn_pos = gr->get_pos().get_2d();
+			const koord target = search_end.get_2d();
+			if(  physical_distance_sq(turn_pos+start_dir, target) >= physical_distance_sq(turn_pos, target)  ) {
+				const koord right = koord(ribi_t::rotate60(ribi_type(start_dir)));
+				const koord left = koord(ribi_t::rotate60l(ribi_type(start_dir)));
+				const koord side = physical_distance_sq(turn_pos+right, target) < physical_distance_sq(turn_pos+left, target) ? right : left;
+				for(  int i=1;  i<=2  &&  welt->is_within_limits(turn_pos+side*i);  i++  ) {
+					route->append( welt->lookup_kartenboden(turn_pos+side*i)->get_pos() );
+				}
 			}
 		}
 		else {
