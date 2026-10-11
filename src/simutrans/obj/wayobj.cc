@@ -16,6 +16,7 @@
 #include "../dataobj/ribi.h"
 #include "../dataobj/scenario.h"
 #include "../dataobj/translator.h"
+#include "../dataobj/environment.h"
 #include "../dataobj/pakset_manager.h"
 
 #include "../descriptor/bridge_desc.h"
@@ -26,8 +27,11 @@
 
 #include "../ground/grund.h"
 #include "../obj/way/weg.h"
+#include "../obj/way/strasse.h"
 
 #include "../tpl/stringhashtable_tpl.h"
+
+#include "../utils/simstring.h"
 
 #include "bruecke.h"
 #include "tunnel.h"

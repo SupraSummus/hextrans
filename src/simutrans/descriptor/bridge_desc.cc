@@ -3,7 +3,10 @@
  * (see LICENSE.txt)
  */
 
+#include "../simdebug.h"
+
 #include "bridge_desc.h"
+#include "ground_desc.h"
 #include "../network/checksum.h"
 
 

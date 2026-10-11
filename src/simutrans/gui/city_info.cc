@@ -3,10 +3,12 @@
  * (see LICENSE.txt)
  */
 
+#include "../simdebug.h"
 #include "../world/simcity.h"
 #include "../tool/simmenu.h"
 #include "../world/simworld.h"
 #include "../simcolor.h"
+#include "../dataobj/environment.h"
 #include "../dataobj/translator.h"
 #include "../display/viewport.h"
 #include "../utils/cbuffer.h"

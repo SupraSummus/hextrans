@@ -12,6 +12,8 @@
 
 #include "../ground/grund.h"
 
+#include "../dataobj/loadsave.h"
+
 #include "../player/simplay.h"
 
 #include "field.h"

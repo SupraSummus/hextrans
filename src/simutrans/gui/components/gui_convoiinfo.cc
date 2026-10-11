@@ -22,6 +22,8 @@
 #include "../../dataobj/translator.h"
 #include "../../dataobj/schedule.h"
 
+#include "../../utils/simstring.h"
+
 class gui_convoi_images_t : public gui_component_t
 {
 	convoihandle_t cnv;

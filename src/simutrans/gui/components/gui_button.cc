@@ -18,6 +18,8 @@
 
 #include "../../dataobj/translator.h"
 
+#include "../../simskin.h"
+#include "../../descriptor/skin_desc.h"
 #include "../../utils/simstring.h"
 
 // the following are only needed for the posbutton ...

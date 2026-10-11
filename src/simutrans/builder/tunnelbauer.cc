@@ -20,11 +20,14 @@
 #include "../ground/tunnelboden.h"
 
 #include "../dataobj/scenario.h"
+#include "../dataobj/environment.h"
 #include "../dataobj/marker.h"
 
 #include "../obj/tunnel.h"
 #include "../obj/leitung2.h"
+#include "../obj/signal.h"
 
+#include "../gui/messagebox.h"
 #include "../gui/tool_selector.h"
 
 #include "wegbauer.h"

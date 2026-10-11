@@ -4,6 +4,7 @@
  */
 
 #include "halt_list_filter_frame.h"
+#include "../simcolor.h"
 
 #include "../descriptor/goods_desc.h"
 #include "../builder/goods_manager.h"

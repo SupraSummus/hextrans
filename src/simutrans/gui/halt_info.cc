@@ -3,6 +3,8 @@
  * (see LICENSE.txt)
  */
 
+#include <algorithm>
+
 #include "halt_info.h"
 #include "components/gui_button_to_chart.h"
 

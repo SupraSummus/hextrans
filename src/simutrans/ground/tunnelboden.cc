@@ -8,6 +8,7 @@
 #include "tunnelboden.h"
 
 #include "../world/simworld.h"
+#include "../simskin.h"
 
 #include "../builder/tunnelbauer.h"
 
@@ -17,6 +18,7 @@
 #include "../obj/tunnel.h"
 
 #include "../descriptor/ground_desc.h"
+#include "../descriptor/skin_desc.h"
 #include "../descriptor/tunnel_desc.h"
 
 #include "../utils/cbuffer.h"

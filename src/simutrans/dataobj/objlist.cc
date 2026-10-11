@@ -17,6 +17,7 @@
 #include "../obj/crossing.h"
 #include "../obj/baum.h"
 #include "../obj/bruecke.h"
+#include "../obj/field.h"
 #include "../obj/pillar.h"
 #include "../obj/tunnel.h"
 #include "../obj/gebaeude.h"

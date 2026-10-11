@@ -9,6 +9,9 @@
 #include <assert.h>
 
 #include "csv.h"
+#include "simstring.h"
+#include "../macros.h"
+#include "../simtypes.h"
 
 
 CSV_t::CSV_t (const char *csvdata) :

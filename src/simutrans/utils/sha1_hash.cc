@@ -5,6 +5,7 @@
 
 #include "sha1_hash.h"
 
+#include "sha1.h"
 #include "../macros.h"
 
 #include <cassert>

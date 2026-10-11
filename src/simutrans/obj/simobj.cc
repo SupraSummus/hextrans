@@ -5,6 +5,8 @@
 
 #include "simobj.h"
 
+#include "baum.h"
+
 #include "../ground/grund.h"
 #include "../dataobj/loadsave.h"
 #include "../dataobj/translator.h"

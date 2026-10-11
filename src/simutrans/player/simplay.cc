@@ -58,6 +58,7 @@
 karte_ptr_t player_t::welt;
 
 #ifdef MULTI_THREAD
+#include "../utils/simthread.h"
 static pthread_mutex_t load_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 

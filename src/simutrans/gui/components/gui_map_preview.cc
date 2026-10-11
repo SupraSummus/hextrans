@@ -4,6 +4,7 @@
  */
 
 #include "gui_map_preview.h"
+#include "../../world/simworld.h"
 
 gui_map_preview_t::gui_map_preview_t() :
 	gui_component_t()

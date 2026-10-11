@@ -11,6 +11,7 @@
 #include "../tool/simmenu.h"
 #include "../simskin.h"
 
+#include "../builder/goods_manager.h"
 #include "../descriptor/skin_desc.h"
 #include "../utils/cbuffer.h"
 #include "../utils/simstring.h"

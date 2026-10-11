@@ -4,6 +4,7 @@
  */
 
 #include "factorylist_frame.h"
+#include "gui_theme.h"
 #include "../dataobj/translator.h"
 #include "../player/simplay.h"
 #include "../world/simworld.h"

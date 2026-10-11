@@ -4,6 +4,7 @@
  */
 
 #include <string.h>
+#include <algorithm>
 
 #include "components/gui_convoiinfo.h"
 
@@ -13,7 +14,13 @@
 #include "../builder/goods_manager.h"
 #include "../builder/vehikelbauer.h"
 
+#include "../obj/way/kanal.h"
+#include "../obj/way/maglev.h"
+#include "../obj/way/monorail.h"
+#include "../obj/way/narrowgauge.h"
+#include "../obj/way/runway.h"
 #include "../obj/way/schiene.h"
+#include "../obj/way/strasse.h"
 
 #include "simwin.h"
 #include "../simconvoi.h"
@@ -23,6 +30,7 @@
 #include "../builder/goods_manager.h"
 #include "../dataobj/translator.h"
 #include "../player/simplay.h"
+#include "../utils/simstring.h"
 #include "../vehicle/vehicle.h"
 
  /**

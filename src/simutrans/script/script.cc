@@ -17,6 +17,7 @@
 #include "../utils/log.h"
 
 #include "../tpl/inthashtable_tpl.h"
+#include "../tpl/vector_tpl.h"
 // for error popups
 #include "../gui/help_frame.h"
 #include "../gui/simwin.h"

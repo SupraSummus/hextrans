@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "macros.h"
 #include "music/music.h"
 #include "descriptor/sound_desc.h"
 #include "sound/sound.h"
@@ -14,6 +15,7 @@
 #include "simdebug.h"
 
 #include "dataobj/environment.h"
+#include "utils/plainstring.h"
 #include "utils/simrandom.h"
 #include "utils/simstring.h"
 

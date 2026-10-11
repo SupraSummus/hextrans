@@ -27,6 +27,8 @@
 
 #include "../obj/zeiger.h"
 
+#include "../utils/cbuffer.h"
+
 #include "../vehicle/vehicle.h"
 
 

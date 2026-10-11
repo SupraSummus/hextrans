@@ -4,6 +4,7 @@
  */
 
 #include "../world/simworld.h"
+#include "../simskin.h"
 
 #include "../obj/baum.h"
 
@@ -14,6 +15,7 @@
 #include "boden.h"
 
 #include "../descriptor/ground_desc.h"
+#include "../descriptor/skin_desc.h"
 
 
 boden_t::boden_t(loadsave_t *file, koord pos ) : grund_t( koord3d(pos,0) )

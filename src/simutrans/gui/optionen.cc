@@ -21,6 +21,8 @@
 #include "banner.h"
 #include "../dataobj/scenario.h"
 #include "../dataobj/translator.h"
+#include "../dataobj/environment.h"
+#include "../sys/simsys.h"
 
 enum BUTTONS {
 	BUTTON_LANGUAGE = 0,

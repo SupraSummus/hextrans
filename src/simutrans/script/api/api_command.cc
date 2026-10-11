@@ -3,6 +3,8 @@
  * (see LICENSE.txt)
  */
 
+#include "api.h"
+
 /** @file api_command.cc exports the command_x class, which encodes the tools to manipulate a game */
 
 #include "api_command.h"

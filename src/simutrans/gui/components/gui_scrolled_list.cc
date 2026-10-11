@@ -13,6 +13,8 @@
 #include "../simwin.h"
 
 #include "../../display/simgraph.h"
+#include "../../descriptor/skin_desc.h"
+#include "../../simskin.h"
 
 
 // help for sorting

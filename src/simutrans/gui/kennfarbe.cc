@@ -6,6 +6,7 @@
 #include "kennfarbe.h"
 #include "../world/simworld.h"
 #include "../simskin.h"
+#include "../dataobj/environment.h"
 #include "../dataobj/translator.h"
 #include "../player/simplay.h"
 #include "components/gui_label.h"

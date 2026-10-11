@@ -66,7 +66,9 @@
 #include "../obj/way/weg.h"
 
 #include "back_image_decode.h"
+#include "fundament.h"
 #include "grund.h"
+#include "tunnelboden.h"
 #include "wasser.h"
 
 

@@ -5,6 +5,7 @@
 
 
 #include "gui_container.h"
+#include "../gui_theme.h"
 
 // DEBUG: shows outline of all elements
 //#define SHOW_BBOX

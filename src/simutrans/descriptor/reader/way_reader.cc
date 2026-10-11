@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include "../../simdebug.h"
+#include "../../utils/simstring.h"
 
 #include "../way_desc.h"
 #include "../intro_dates.h"

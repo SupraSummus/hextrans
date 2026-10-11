@@ -5,8 +5,10 @@
 
 #include <stdio.h>
 
+#include "../simdebug.h"
 #include "../world/simworld.h"
 #include "simobj.h"
+#include "../obj/way/schiene.h"
 #include "../ground/grund.h"
 #include "../display/simimg.h"
 #include "../dataobj/ribi.h"
