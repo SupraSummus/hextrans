@@ -589,10 +589,20 @@ human at the keyboard.
 `tools/hex_*_test/` are standalone C++ self-tests
 that CI runs before the engine build (`make -C tools/hex_vertex_test run`).
 They compile the production sources they check
-(`dataobj/koord_hex.cc`, `display/hex_proj.h`, `ground/back_image_decode.h`),
+(`dataobj/koord_hex.cc`, `display/hex_proj.h`, `ground/back_image_decode.h`,
+`dataobj/height_field_sample.h`),
 never a copy.
 Code that can't build standalone gets split into a dependency-free file first,
 the way `koord_hex.cc` came out of `koord.cc`.
+
+`tools/heightfield_import_test.py` imports synthetic relief images
+through the `-heightfield FILE` hook in `simmain.cc`,
+the path of the new-world dialog's "Load relief"
+(`karte_t::load_heightfield`, then `enlarge_map`).
+The hook prints every tile's base height,
+and the test compares them with a model of the pixel-to-tile mapping
+written in the test itself.
+CI runs it after the scenario suite.
 
 `tools/city_anisotropy.py` measures how non-round city footprints come
 out under the hex grid (see `TODO.md` → "City growth anisotropy").  It

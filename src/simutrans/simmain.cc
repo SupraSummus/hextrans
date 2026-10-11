@@ -596,6 +596,22 @@ static void ai_soak_run(karte_t *welt, uint32 quit_month)
 }
 
 
+// -heightfield: the base height of every tile, "W" for a water tile, one
+// "heightfield: ROW z,z,..." line per row, for tools/heightfield_import_test.py.
+static void heightfield_dump(const karte_t *welt)
+{
+	for(  sint16 y = 0;  y < welt->get_size().y;  y++  ) {
+		std::string row;
+		for(  sint16 x = 0;  x < welt->get_size().x;  x++  ) {
+			const grund_t *gr = welt->lookup_kartenboden( x, y );
+			row += x > 0 ? "," : "";
+			row += gr->is_water() ? std::string( "W" ) : std::to_string( (int)gr->get_hoehe() );
+		}
+		fprintf( stderr, "heightfield: %d %s\n", (int)y, row.c_str() );
+	}
+}
+
+
 int simu_main(int argc, char** argv)
 {
 	std::set_new_handler(sim_new_handler);
@@ -1634,6 +1650,21 @@ int simu_main(int argc, char** argv)
 			sets.set_max_mountain_height(0.0);
 			sets.set_river_number(0);
 		}
+		// Test hook: -heightfield FILE builds the map from the relief
+		// image FILE (bmp or ppm), as the new-world dialog's "Load
+		// relief" does, without cities, industry, rivers or lakes.  It
+		// prints the tile heights (heightfield_dump) and saves and quits
+		// like -flatmap.
+		const char *heightfield = args.gimme_arg("-heightfield", 1);
+		if(  heightfield  ) {
+			is_flatmap = true;
+			sets.heightfield = heightfield;
+			sets.set_city_count(0);
+			sets.set_factory_count(0);
+			sets.set_tourist_attractions(0);
+			sets.set_river_number(0);
+			sets.set_lakeheight(sets.get_groundwater());
+		}
 		// Test hook: -ai_soak SIZE [SEED] runs the computer players
 		// unattended.  It generates a SIZE x SIZE map with cities and
 		// industry from SEED (default: the map number of settings_t),
@@ -1659,7 +1690,13 @@ int simu_main(int argc, char** argv)
 			// seeded from the clock above, so pin it too
 			setsimrand(sets.get_map_number(), sets.get_map_number());
 		}
-		welt->init(&sets,0);
+		if(  heightfield  ) {
+			welt->load_heightfield(&sets);
+			heightfield_dump( welt );
+		}
+		else {
+			welt->init(&sets,0);
+		}
 
 		//  start in June ...
 		intr_set_view(view);
