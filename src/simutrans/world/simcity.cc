@@ -3759,11 +3759,13 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 					// Next: other tile  stop/depot with a direction
 					if (const gebaeude_t* gb = gr->find<gebaeude_t>()) {
 						// there is a building on it halt => we can only go in the allow ribis
-						if (gb->get_tile()->get_desc()->get_all_layouts() == 4  &&  ribi_t::backward(ribi_t::nesw[r]) != ribi_t::layout_to_ribi[gb->get_tile()->get_layout()]) {
+						// (from the way: the stored layout cannot tell NE / SW from S / SE)
+						const ribi_t::ribi facing = hausbauer_t::get_facing_ribi(gr, gb->get_tile());
+						if (gb->get_tile()->get_desc()->get_all_layouts() == 4  &&  ribi_t::backward(ribi_t::nesw[r]) != facing) {
 							// single way => only one dir allowed
 							continue;
 						}
-						else if (gb->get_tile()->get_desc()->get_all_layouts()  &&  ribi_t::doubles(ribi_t::nesw[r]) != ribi_t::doubles(ribi_t::layout_to_ribi[gb->get_tile()->get_layout() & 1])) {
+						else if (gb->get_tile()->get_desc()->get_all_layouts()  &&  ribi_t::doubles(ribi_t::nesw[r]) != ribi_t::doubles(facing)) {
 							// wrong direction of through way
 							continue;
 						}
@@ -3771,8 +3773,8 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 
 					// Finally: same for depot
 					if (const depot_t* dp = gr->get_depot()) {
-						if(ribi_t::backward(ribi_t::nesw[r]) != ribi_t::layout_to_ribi[dp->get_tile()->get_layout()]) {
-							// single way => only one dir allowed
+						if((ribi_t::backward(ribi_t::nesw[r]) & hausbauer_t::get_facing_ribi(gr, dp->get_tile())) == 0) {
+							// only the dir the depot faces allowed
 							continue;
 						}
 					}

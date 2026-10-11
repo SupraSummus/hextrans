@@ -61,6 +61,8 @@ all_tests <- [
 	test_city_add_near_map_border,
 	test_city_change_size_invalid_params,
 	test_city_change_size_to_minimum,
+	test_city_road_seed_next_to_stop,
+	test_city_road_seed_next_to_depot,
 	test_city_remove_with_multitile_townhall,
 	test_climate_invalid,
 	test_climate_flat,
