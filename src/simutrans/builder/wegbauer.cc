@@ -17,6 +17,7 @@
 
 #include "wegbauer.h"
 #include "brueckenbauer.h"
+#include "hausbauer.h"
 #include "tunnelbauer.h"
 
 #include "../descriptor/way_desc.h"
@@ -526,7 +527,7 @@ bool way_builder_t::check_owner( const player_t *player1, const player_t *player
 
 
 /// do not go through depots, station buildings etc.
-/// direction results from layout
+/// direction results from the way under the building
 bool way_builder_t::check_building( const grund_t *to, const koord dir ) const
 {
 	if(  dir==koord(0,0)  ||  to->first_no_way_obj()==0  ) {
@@ -551,15 +552,16 @@ bool way_builder_t::check_building( const grund_t *to, const koord dir ) const
 	if(building) {
 		// now check for directions
 		uint8 layouts = building->get_tile()->get_desc()->get_all_layouts();
-		uint8 layout = building->get_tile()->get_layout();
 		ribi_t::ribi r = ribi_type(dir);
 		if(  layouts&1  ) {
 			return false;
 		}
+		// the stored layout cannot tell NE / SW from S / SE, the way can
+		const ribi_t::ribi facing = hausbauer_t::get_facing_ribi(to, building->get_tile());
 		if(  layouts==4  ) {
-			return  r == ribi_t::layout_to_ribi[layout];
+			return  r == facing;
 		}
-		return ribi_t::is_straight( r | ribi_t::doubles(ribi_t::layout_to_ribi[layout&1]) );
+		return ribi_t::is_straight( r | facing );
 	}
 
 	return true;
