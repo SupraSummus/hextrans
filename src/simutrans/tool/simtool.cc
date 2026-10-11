@@ -4607,14 +4607,7 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 			dx = koord::neighbours[i];
 			halt = test_halt[i];
 			koord last_k = k + dx*len;
-			// HEX-PORT: nesw → layout (inverse of layout_to_ribi[6]).
-			// nesw indices match koord::neighbours[]: SE,S,SW,NW,N,NE.
-			// layout_to_ribi[6] = {S,SE,N,NW,NE,SW}.  So inverse:
-			//   nesw[0]=SE → layout 1; nesw[1]=S  → layout 0;
-			//   nesw[2]=SW → layout 5; nesw[3]=NW → layout 3;
-			//   nesw[4]=N  → layout 2; nesw[5]=NE → layout 4.
-			static const uint8 nesw_to_layout[6] = { 1, 0, 5, 3, 2, 4 };
-			layout = nesw_to_layout[i];
+			layout = ribi_t::ribi_to_layout(ribi_t::nesw[i]);
 			if(  layout>=2  ) {
 				// reverse construction in these directions
 				bau_pos = last_k;
@@ -4784,13 +4777,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 			if(  !ribi_t::is_single(ribi)  ) {
 				return p_error;
 			}
-
-			switch(ribi) {
-				case ribi_t::south: layout = 0;  break;
-				case ribi_t::southeast:  layout = 1;    break;
-				case ribi_t::north: layout = 2;    break;
-				case ribi_t::northwest:  layout = 3;    break;
-			}
+			layout = ribi_t::ribi_to_layout(ribi);
 		}
 		else {
 			// something wrong with station number of layouts
@@ -5827,12 +5814,7 @@ const char* tool_build_depot_t::tool_depot_aux(player_t* player, koord3d pos, co
 		if (!ribi_t::is_single(ribi)) {
 			return "Depots must be built on flat dead-end way tiles!";
 		}
-		switch (ribi) {
-			//case ribi_t::south:layout = 0;  break;
-			case ribi_t::southeast:  layout = 1;    break;
-			case ribi_t::north: layout = 2;    break;
-			case ribi_t::northwest:  layout = 3;    break;
-		}
+		layout = ribi_t::ribi_to_layout(ribi);
 	}
 	else if (desc->get_all_layouts() == 2) {
 		// two rotation through depot
