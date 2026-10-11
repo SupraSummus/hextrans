@@ -9,6 +9,7 @@
 #include "../../dataobj/tabfile.h"
 #include "../vehicle_desc.h"
 #include "../sound_desc.h"
+#include "obj_pak_exception.h"
 #include "obj_node.h"
 #include "text_writer.h"
 #include "xref_writer.h"

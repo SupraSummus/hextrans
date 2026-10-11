@@ -4,6 +4,7 @@
  */
 
 #include "factory_desc.h"
+#include "xref_desc.h"
 #include "../network/checksum.h"
 
 

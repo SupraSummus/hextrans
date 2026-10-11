@@ -16,6 +16,7 @@
 #include "../dataobj/ribi.h"
 #include "../dataobj/scenario.h"
 #include "../dataobj/translator.h"
+#include "../dataobj/environment.h"
 #include "../dataobj/pakset_manager.h"
 
 #include "../descriptor/bridge_desc.h"
@@ -26,8 +27,11 @@
 
 #include "../ground/grund.h"
 #include "../obj/way/weg.h"
+#include "../obj/way/strasse.h"
 
 #include "../tpl/stringhashtable_tpl.h"
+
+#include "../utils/simstring.h"
 
 #include "bruecke.h"
 #include "tunnel.h"
@@ -47,9 +51,14 @@ stringhashtable_tpl<const way_obj_desc_t *> wayobj_t::table;
 wayobj_t::wayobj_t(loadsave_t* const file) :
 	obj_no_info_t(),
 	desc(NULL),
+	close_diagonal(0),
+	diagonal(false),
 	hang(slope_t::flat),
 	nw(false),
-	dir(dir_unknown)
+	dir(dir_unknown),
+	img(IMG_EMPTY),
+	after_img(IMG_EMPTY)
+
 {
 	rdwr(file);
 }
@@ -58,9 +67,13 @@ wayobj_t::wayobj_t(loadsave_t* const file) :
 wayobj_t::wayobj_t(koord3d const pos, player_t* const owner, ribi_t::ribi const d, way_obj_desc_t const* const b) :
 	obj_no_info_t(pos),
 	desc(b),
+	close_diagonal(0),
+	diagonal(false),
 	hang(slope_t::flat),
 	nw(false),
-	dir(d)
+	dir(d),
+	img(IMG_EMPTY),
+	after_img(IMG_EMPTY)
 {
 	set_owner(owner);
 }
@@ -110,21 +123,17 @@ wayobj_t::~wayobj_t()
 
 	mark_image_dirty( get_front_image(), 0 );
 	mark_image_dirty( get_image(), 0 );
-	grund_t *gr = welt->lookup( get_pos() );
-	if( gr ) {
+	if(grund_t* gr = welt->lookup(get_pos())) {
 		for( uint8 i = 0; i < 6; i++ ) {
 			// Remove ribis from adjacent wayobj.
 			if( ribi_t::nesw[i] & get_dir() ) {
 				grund_t *next_gr;
 				if( gr->get_neighbour( next_gr, desc->get_wtyp(), ribi_t::nesw[i] ) ) {
-					wayobj_t *wo2 = next_gr->get_wayobj( desc->get_wtyp() );
-					if( wo2 ) {
+					if(wayobj_t *wo2 = next_gr->get_wayobj( desc->get_wtyp() )) {
 						wo2->mark_image_dirty( wo2->get_front_image(), 0 );
 						wo2->mark_image_dirty( wo2->get_image(), 0 );
 						wo2->set_dir( wo2->get_dir() & ~ribi_t::backward(ribi_t::nesw[i]) );
-						wo2->mark_image_dirty( wo2->get_front_image(), 0 );
-						wo2->mark_image_dirty( wo2->get_image(), 0 );
-						wo2->set_flag(obj_t::dirty);
+						wo2->calc_cached_image();
 					}
 				}
 			}
@@ -138,8 +147,11 @@ void wayobj_t::rdwr(loadsave_t *file)
 	xml_tag_t t( file, "wayobj_t" );
 	obj_t::rdwr(file);
 	if(file->is_version_atleast(89, 0)) {
-		uint8 ddir = dir;
+		uint8 ddir = get_dir();
 		file->rdwr_byte(ddir);
+		if (file->is_loading()) {
+			dir = ddir;
+		}
 		dir = ddir;
 		if(file->is_saving()) {
 			const char *s = desc->get_name();
@@ -160,9 +172,6 @@ void wayobj_t::rdwr(loadsave_t *file)
 				if(desc==NULL) {
 					dbg->warning("wayobj_t::rwdr", "description %s for wayobj_t at %d,%d not found, will be removed!", bname, get_pos().x, get_pos().y );
 					pakset_manager_t::add_missing_paks( bname, MISSING_WAYOBJ );
-				}
-				else {
-					dbg->warning("wayobj_t::rwdr", "wayobj %s at %d,%d replaced by %s", bname, get_pos().x, get_pos().y, desc->get_name() );
 				}
 			}
 		}
@@ -193,24 +202,23 @@ const char *wayobj_t::get_removal_error(const player_t *player)
 }
 
 
-void wayobj_t::finish_rd()
+bool wayobj_t::finish_rd()
 {
+	const waytype_t wt = (desc->get_wtyp() == tram_wt) ? track_wt : desc->get_wtyp();
+	weg_t* weg = welt->lookup(get_pos())->get_weg(wt);
+	if (!weg) {
+		// no way for wayobj => delete
+		dbg->error("wayobj_t::finish_rd()", "ground at %s has no way!",get_pos().get_fullstr());
+		return true;
+	}
+
 	// (re)set dir
 	if(dir==dir_unknown) {
-		const waytype_t wt = (desc->get_wtyp()==tram_wt) ? track_wt : desc->get_wtyp();
-		weg_t *w=welt->lookup(get_pos())->get_weg(wt);
-		if(w) {
-			dir = w->get_ribi_unmasked();
-		}
-		else {
-			dir = ribi_t::all;
-		}
+		dir = weg->get_ribi_unmasked();
 	}
 
 	// electrify a way if we are a catenary
 	if(desc->is_overhead_line()) {
-		const waytype_t wt = (desc->get_wtyp()==tram_wt) ? track_wt : desc->get_wtyp();
-		weg_t *weg = welt->lookup(get_pos())->get_weg(wt);
 		if (wt == decoration_wt) {
 			weg_t *weg2 = welt->lookup(get_pos())->get_weg_nr(1);
 			if (weg2) {
@@ -220,21 +228,20 @@ void wayobj_t::finish_rd()
 				}
 			}
 		}
-		if(weg) {
-			// Weg wieder freigeben, wenn das Signal nicht mehr da ist.
-			weg->set_electrify(true);
-			if(weg->get_max_speed()>desc->get_topspeed()) {
-				weg->set_max_speed(desc->get_topspeed());
-			}
-		}
-		else {
-			dbg->warning("wayobj_t::finish_rd()","ground was not a way!");
+		// Weg wieder freigeben, wenn das Signal nicht mehr da ist.
+		weg->set_electrify(true);
+		if(weg->get_max_speed()>desc->get_topspeed()) {
+			weg->set_max_speed(desc->get_topspeed());
 		}
 	}
 
 	if(get_owner()) {
 		player_t::add_maintenance(get_owner(), desc->get_maintenance(), desc->get_wtyp());
 	}
+
+	calc_cached_image();
+
+	return false;
 }
 
 
@@ -245,27 +252,70 @@ void wayobj_t::rotate90()
 	// see TODO.md for the karte_t::rotate90 cleanup trigger.
 	dir = ribi_t::rotate_for_map_rotate90(dir );
 	hang = slope_t::rotate60( hang );
+	if (close_diagonal) {
+		close_diagonal = ~close_diagonal;
+		if (dir == 15) {
+			img = desc->get_back_close_diagonal_image_id(close_diagonal-1);
+			after_img = desc->get_front_close_diagonal_image_id(close_diagonal-1);
+		}
+		else {
+			diagonal = true;
+			dir = close_diagonal == 1 ? ribi_t::southeast : ribi_t::northeast;
+			img = desc->get_back_diagonal_image_id(dir);
+			after_img = desc->get_front_diagonal_image_id(dir);
+		}
+	}
+	else if (diagonal) {
+		img = desc->get_back_diagonal_image_id(dir);
+		after_img = desc->get_front_diagonal_image_id(dir);
+	}
+	else if (hang) {
+		img = desc->get_back_slope_image_id(hang);
+		after_img = desc->get_front_slope_image_id(hang);
+	}
+	else if (dir > 16) {
+		// crossing image
+		img = desc->get_crossing_image_id(dir, nw, false);
+		after_img = desc->get_crossing_image_id(dir, nw, true);
+	}
+	else {
+		img = desc->get_back_image_id(dir);
+		after_img = desc->get_front_image_id(dir);
+	}
 }
 
 
+// The ground recalculates its objects after slope, snowline and way
+// changes; the hex chord rule makes the cached image depend on the
+// slope, so refresh it here too.
 void wayobj_t::calc_image()
 {
 #ifdef MULTI_THREAD
 	pthread_mutex_lock( &wayobj_calc_image_mutex );
 #endif
+	calc_cached_image();
+#ifdef MULTI_THREAD
+	pthread_mutex_unlock( &wayobj_calc_image_mutex );
+#endif
+}
+
+
+void wayobj_t::calc_cached_image()
+{
 	grund_t *gr = welt->lookup(get_pos());
+	close_diagonal = 0;
+	diagonal = false;
+	img = IMG_EMPTY;
+	after_img = IMG_EMPTY;
 	if(gr) {
 		const waytype_t wt = (desc->get_wtyp()==tram_wt) ? track_wt : desc->get_wtyp();
 		weg_t *w=gr->get_weg(wt);
 		if(!w) {
-			dbg->error("wayobj_t::calc_image()","without way at (%s)", get_pos().get_str() );
+			dbg->error("wayobj_t::calc_cached_image()","without way at (%s)", get_pos().get_str() );
 			// well, we are not on a way anymore? => delete us
 			cleanup(get_owner());
 			delete this;
 			gr->set_flag(grund_t::dirty);
-#ifdef MULTI_THREAD
-			pthread_mutex_unlock( &wayobj_calc_image_mutex );
-#endif
 			return;
 		}
 
@@ -284,12 +334,108 @@ void wayobj_t::calc_image()
 		if (slope_allows_flat_way_chord(hang, (ribi_t::ribi)dir)) {
 			hang = slope_t::flat;
 		}
+		if(hang!=slope_t::flat) {
+			img = desc->get_back_slope_image_id(hang);
+			after_img = desc->get_front_slope_image_id(hang);
+			return;
+		}
+
+		if (ribi_t::all==dir  &&  w->is_close_diagonal()  &&  desc->has_diagonal_image()) {
+			// close diagonal => may need two images
+			close_diagonal = w->is_close_diagonal();
+			if (desc->has_close_diagonal_image()) {
+				img = desc->get_back_close_diagonal_image_id(close_diagonal-1);
+				after_img = desc->get_front_close_diagonal_image_id(close_diagonal-1);
+				dir = 15;
+			}
+			else {
+				diagonal = true;
+				dir = close_diagonal == 1 ? ribi_t::southeast : ribi_t::northeast;
+				img = desc->get_back_diagonal_image_id(dir);
+				after_img = desc->get_front_diagonal_image_id(dir);
+			}
+		}
+		else if(ribi_t::is_bend(dir)  &&  desc->has_diagonal_image()) {
+			// square diagonal sprites; the reader never sets the flag under hex
+			dbg->fatal("wayobj_t::calc_cached_image", "no diagonal sprites under hex");
+		}
+		else if (dir > 16) {
+			// crossing image
+			img = desc->get_crossing_image_id(dir, nw, false);
+			after_img = desc->get_crossing_image_id(dir, nw, true);
+		}
+		else {
+			img = desc->get_back_image_id(dir);
+			after_img = desc->get_front_image_id(dir);
+		}
+		set_flag(dirty);
 	}
-#ifdef MULTI_THREAD
-	pthread_mutex_unlock( &wayobj_calc_image_mutex );
-#endif
 }
 
+
+
+void wayobj_t::display(int xpos, int ypos CLIP_NUM_DEF) const
+{
+	if (close_diagonal && dir != ribi_t::all) {
+		image_id image = desc->get_back_diagonal_image_id(close_diagonal == 1 ? ribi_t::northwest : ribi_t::southwest);
+		if (get_owner_nr() != PLAYER_UNOWNED) {
+			if (obj_t::show_owner) {
+				gfx->draw_blend(image, xpos, ypos, get_owner_nr(), gfx->palette_lookup(get_owner()->get_player_color1() + 2) | OUTLINE_FLAG | TRANSPARENT75_FLAG, 0, get_flag(dirty)  CLIP_NUM_PAR);
+			}
+			else {
+				gfx->draw_color(image, xpos, ypos, get_owner_nr(), true, get_flag(dirty)  CLIP_NUM_PAR);
+			}
+		}
+		else {
+			gfx->draw_normal(image, xpos, ypos, 0, true, get_flag(dirty)  CLIP_NUM_PAR);
+		}
+	}
+	obj_t::display(xpos, ypos CLIP_NUM_PAR);
+}
+
+
+#ifdef MULTI_THREAD
+void wayobj_t::display_after(int xpos, int ypos, const sint8 clip_num) const
+#else
+void wayobj_t::display_after(int xpos, int ypos, bool is_global) const
+#endif
+{
+	if (close_diagonal && dir != ribi_t::all) {
+		image_id image = desc->get_front_diagonal_image_id(close_diagonal == 1 ? ribi_t::northwest : ribi_t::southwest);
+		if (image != IMG_EMPTY) {
+			const int raster_width = gfx->get_current_tile_raster_width();
+			const bool is_dirty = get_flag(obj_t::dirty);
+
+			xpos += tile_raster_scale_x(get_xoff(), raster_width);
+			ypos += tile_raster_scale_y(get_yoff(), raster_width);
+
+			if (get_owner_nr() != PLAYER_UNOWNED) {
+				if (obj_t::show_owner) {
+					gfx->draw_blend(image, xpos, ypos, get_owner_nr(), gfx->palette_lookup(get_owner()->get_player_color1() + 2) | OUTLINE_FLAG | TRANSPARENT75_FLAG, 0, is_dirty  CLIP_NUM_PAR);
+				}
+				else if (obj_t::get_flag(highlight)) {
+					// highlight this tile
+					gfx->draw_blend(image, xpos, ypos, get_owner_nr(), SYSCOL_OBJECT_HIGHLIGHT | OUTLINE_FLAG | TRANSPARENT75_FLAG, 0, is_dirty  CLIP_NUM_PAR);
+				}
+				else {
+					gfx->draw_color(image, xpos, ypos, get_owner_nr(), true, is_dirty  CLIP_NUM_PAR);
+				}
+			}
+			else if (obj_t::get_flag(highlight)) {
+				// highlight this tile
+				gfx->draw_blend(image, xpos, ypos, get_owner_nr(), SYSCOL_OBJECT_HIGHLIGHT | OUTLINE_FLAG | TRANSPARENT75_FLAG, 0, is_dirty  CLIP_NUM_PAR);
+			}
+			else {
+				gfx->draw_normal(image, xpos, ypos, 0, true, is_dirty  CLIP_NUM_PAR);
+			}
+		}
+	}
+#ifdef MULTI_THREAD
+	obj_t::display_after(xpos, ypos, clip_num);
+#else
+	obj_t::display_after(xpos, ypos, is_global);
+#endif
+}
 
 
 /******************** static stuff from here **********************/
@@ -304,7 +450,8 @@ void wayobj_t::extend_wayobj(koord3d pos, player_t *new_owner, ribi_t::ribi dir,
 		wayobj_t *existing_wayobj = gr->get_wayobj( desc->get_wtyp() );
 		if( existing_wayobj ) {
 			const bool is_speed_ok = existing_wayobj->get_desc()->get_topspeed() < desc->get_topspeed() || !keep_existing_faster_way;
-			const bool is_owner_ok = player_t::check_owner(new_owner, existing_wayobj->get_owner()) || new_owner == welt->get_public_player();
+			// to keep compatibilty with earlier versions, we allow upgrading public wayobj
+			const bool is_owner_ok = existing_wayobj->check_owner(new_owner)  ||  existing_wayobj->get_owner_nr() == PLAYER_PUBLIC_NR;
 
 			if(  is_speed_ok  &&  is_owner_ok &&  existing_wayobj->get_desc() != desc) {
 				// replace slower by faster if desired
@@ -315,37 +462,30 @@ void wayobj_t::extend_wayobj(koord3d pos, player_t *new_owner, ribi_t::ribi dir,
 			else {
 				// extend this one instead
 				existing_wayobj->set_dir(dir|existing_wayobj->get_dir());
-				existing_wayobj->mark_image_dirty( existing_wayobj->get_front_image(), 0 );
-				existing_wayobj->mark_image_dirty( existing_wayobj->get_image(), 0 );
-				existing_wayobj->set_flag(obj_t::dirty);
 				return;
 			}
 		}
 
-		// nothing found => make a new one
-		wayobj_t *wo = new wayobj_t(pos,new_owner,dir,desc);
-		gr->obj_add(wo);
-		wo->finish_rd();
-		wo->calc_image();
-		wo->mark_image_dirty( wo->get_front_image(), 0 );
-		wo->set_flag(obj_t::dirty);
-		player_t::book_construction_costs( new_owner,  -desc->get_price(), pos.get_2d(), desc->get_wtyp());
-
+		ribi_t::ribi new_dir = dir;
 		for( uint8 i = 0; i < 6; i++ ) {
 		// Extend wayobjects around the new one, that aren't already connected.
-			if( ribi_t::nesw[i] & ~wo->get_dir() ) {
-				grund_t *next_gr;
-				if( gr->get_neighbour( next_gr, desc->get_wtyp(), ribi_t::nesw[i] ) ) {
-					wayobj_t *wo2 = next_gr->get_wayobj( desc->get_wtyp() );
-					if( wo2 ) {
+			if( ribi_t::nesw[i] & ~dir ) {
+				grund_t* next_gr;
+				if(gr->get_neighbour(next_gr, desc->get_wtyp(), ribi_t::nesw[i])) {
+					if(wayobj_t* wo2 = next_gr->get_wayobj(desc->get_wtyp())) {
 						wo2->set_dir( wo2->get_dir() | ribi_t::backward(ribi_t::nesw[i]) );
-						wo2->mark_image_dirty( wo2->get_front_image(), 0 );
-						wo->set_dir( wo->get_dir() | ribi_t::nesw[i] );
-						wo->mark_image_dirty( wo->get_front_image(), 0 );
+						wo2->calc_cached_image();
+						new_dir |= ribi_t::nesw[i];
 					}
 				}
 			}
 		}
+
+		// nothing found => make a new one
+		wayobj_t* wo = new wayobj_t(pos, new_owner, new_dir, desc);
+		gr->obj_add(wo);
+		wo->finish_rd();
+		player_t::book_construction_costs(new_owner, -desc->get_price(), pos.get_2d(), desc->get_wtyp());
 	}
 }
 
@@ -467,3 +607,5 @@ const way_obj_desc_t* wayobj_t::find_desc(const char *str)
 {
 	return wayobj_t::table.get(str);
 }
+
+

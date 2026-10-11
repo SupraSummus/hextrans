@@ -3,6 +3,8 @@
  * (see LICENSE.txt)
  */
 
+#include <string.h>
+
 #include "gui_speedbar.h"
 #include "../gui_theme.h"
 #include "../../display/simgraph.h"

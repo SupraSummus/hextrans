@@ -285,7 +285,7 @@ void convoi_t::reserve_route()
 		for(  route_t::index_t idx = back()->get_route_index();  idx < next_reservation_index  /*&&  idx < route.get_count()*/;  idx++  ) {
 			if(  grund_t *gr = welt->lookup( route.at(idx) )  ) {
 				if(  schiene_t *sch = (schiene_t *)gr->get_weg( front()->get_waytype() )  ) {
-					sch->reserve( self );
+					sch->reserve( self, idx );
 				}
 			}
 		}
@@ -504,7 +504,7 @@ DBG_MESSAGE("convoi_t::finish_rd()","next_stop_index=%d", next_stop_index );
 				grund_t *gr=welt->lookup(v->get_pos());
 				// airplanes may have no ground ...
 				if (schiene_t* const sch0 = obj_cast<schiene_t>(gr->get_weg(fahr[i]->get_waytype()))) {
-					sch0->reserve(self);
+					sch0->reserve(self, fahr[i]->get_route_index());
 				}
 			}
 			fahr[0]->set_leading(true);
@@ -2183,7 +2183,8 @@ void convoi_t::vorfahren()
 			// eventually reserve this
 			vehicle_t const& v = *fahr[i];
 			if (schiene_t* const sch0 = obj_cast<schiene_t>(welt->lookup(v.get_pos())->get_weg(v.get_waytype()))) {
-				sch0->reserve(self);
+				// since reserve expect the entrance tile position
+				sch0->reserve(self,v.get_route_index()-1);
 			}
 			else {
 				break;
@@ -2397,11 +2398,13 @@ void convoi_t::rdwr(loadsave_t *file)
 					}
 					state = INITIAL;
 				}
-				// add to blockstrecke
+				// ,aybe reserve tile
 				if (v->get_waytype() != air_wt) {
-					// only for no airplanes, they are not allowed to cross
+					// airplanes are complicated and not done here
+
+					// full reservations are restored in set convoi later
 					if (schiene_t* sch = dynamic_cast<schiene_t*>(gr->get_weg(v->get_waytype()))) {
-						sch->reserve(self);
+						sch->reserve(self, v->get_route_index()-1);
 					}
 
 					// add to crossing

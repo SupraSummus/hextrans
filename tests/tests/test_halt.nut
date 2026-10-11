@@ -883,25 +883,95 @@ function test_halt_build_multi_player()
 {
 	local pl = player_x(0)
 	local public_pl = player_x(1)
+
+	// create another player
+	world.create_player(2,1)
+	local pl2 = player_x(2)
+	ASSERT_EQUAL(pl2.is_valid(), true)
+	ASSERT_EQUAL(pl2.is_active(), true)
+
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 	local pax_halt  = building_desc_x.get_available_stations(building_desc_x.station, wt_road, good_desc_x.passenger)[0]
 
 	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 4, 0), coord3d(3, 4, 0), road_desc, true), null)
+		ASSERT_EQUAL(command_x.build_way(public_pl, coord3d(4, 4, 0), coord3d(3, 4, 0), road_desc, true), null)
 		ASSERT_EQUAL(command_x(tool_build_station).work(pl,        coord3d(4, 4, 0), pax_halt.get_name()), null)
-		ASSERT_EQUAL(command_x(tool_build_station).work(public_pl, coord3d(3, 4, 0), pax_halt.get_name()), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl2, coord3d(3, 4, 0), pax_halt.get_name()), null)
 
-		ASSERT_TRUE(halt_x.get_halt(coord3d(3, 4, 0), pl) != null)
-		ASSERT_EQUAL(halt_x.get_halt(coord3d(4, 4, 0), public_pl), null)
+		ASSERT_TRUE(halt_x.get_halt(coord3d(4, 4, 0), pl) != null)
+		ASSERT_TRUE(halt_x.get_halt(coord3d(3, 4, 0), pl) == null)
 
 		local my_halt = halt_x.get_halt(coord3d(4, 4, 0), pl)
-		local pub_halt = halt_x.get_halt(coord3d(3, 4, 0), public_pl)
+		local my2_halt = halt_x.get_halt(coord3d(3, 4, 0), pl2)
 		ASSERT_TRUE(my_halt != null)
+		ASSERT_TRUE(my2_halt != null)
+
+		ASSERT_TRUE(my_halt.get_name() != my2_halt.get_name())
+		ASSERT_EQUAL(my_halt.get_tile_list().len(), 1)
+		ASSERT_EQUAL(my2_halt.get_tile_list().len(), 1)
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(4, 4, 0), coord3d(3, 4, 0), "" + wt_road), null)
+	}
+
+	// now joint by tool
+	{
+		ASSERT_EQUAL(command_x.build_way(public_pl, coord3d(4, 4, 0), coord3d(3, 4, 0), road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl,        coord3d(4, 4, 0), pax_halt.get_name()), null)
+		local my_halt = halt_x.get_halt(coord3d(4, 4, 0), pl)
+		ASSERT_TRUE(my_halt != null)
+		ASSERT_FALSE(my_halt.can_use_halt(pl2))
+		
+		// now building second halt => should autojoin
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl2, coord3d(3, 4, 0), pax_halt.get_name()), null)
+		local my_halt2 = halt_x.get_halt(coord3d(3, 4, 0), pl2)
+		ASSERT_TRUE(my_halt2 != null)
+		ASSERT_FALSE(my_halt2.can_use_halt(pl))
+
+		ASSERT_TRUE(my_halt.get_name() != my_halt2.get_name())
+		ASSERT_EQUAL(my_halt.get_tile_list().len(), 1)
+		ASSERT_EQUAL(my_halt2.get_tile_list().len(), 1)
+		
+		my_halt.set_permissions(my_halt,4+1);
+		ASSERT_EQUAL(my_halt.get_permissions(), 5)
+		ASSERT_TRUE(my_halt.can_use_halt(pl2))
+
+		local mergehalt  = command_x(tool_merge_stop)
+		ASSERT_EQUAL(mergehalt.work(pl2, coord3d(4, 4, 0), coord3d(3, 4, 0), ""), null)
+
+		// since the halthandle may have become invalid after merge
+		my_halt = halt_x.get_halt(coord3d(4, 4, 0), pl)
+		ASSERT_TRUE(my_halt != null)
+		my_halt2 = halt_x.get_halt(coord3d(3, 4, 0), pl2)
+		ASSERT_TRUE(my_halt2 != null)
+
+		ASSERT_TRUE(my_halt.get_name() == my_halt2.get_name())
+		ASSERT_EQUAL(my_halt.get_tile_list().len(), 2)
+		ASSERT_EQUAL(my_halt2.get_tile_list().len(), 2)
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(4, 4, 0), coord3d(3, 4, 0), "" + wt_road), null)
+	}
+
+	// now autojoing
+	{
+		ASSERT_EQUAL(command_x.build_way(public_pl, coord3d(4, 4, 0), coord3d(3, 4, 0), road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl,        coord3d(4, 4, 0), pax_halt.get_name()), null)
+		local my_halt = halt_x.get_halt(coord3d(4, 4, 0), pl)
+		ASSERT_TRUE(my_halt != null)
+		my_halt.set_permissions(my_halt,4+1);
+		ASSERT_EQUAL(my_halt.get_permissions(), 5)
+		ASSERT_TRUE(my_halt.can_use_halt(pl2))
+
+		// now building second halt => should autojoin
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl2, coord3d(3, 4, 0), pax_halt.get_name()), null)
+		local pub_halt = halt_x.get_halt(coord3d(3, 4, 0), pl)
 		ASSERT_TRUE(pub_halt != null)
 
-		ASSERT_TRUE(my_halt.get_name() != pub_halt.get_name())
+		ASSERT_TRUE(my_halt.get_name() == pub_halt.get_name())
+		ASSERT_EQUAL(my_halt.get_tile_list().len(), 2)
+		ASSERT_EQUAL(pub_halt.get_tile_list().len(), 2)
+
+		world.remove_player(pl2)
 		ASSERT_EQUAL(my_halt.get_tile_list().len(), 1)
-		ASSERT_EQUAL(pub_halt.get_tile_list().len(), 1)
 
 		ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(4, 4, 0), coord3d(3, 4, 0), "" + wt_road), null)
 	}
@@ -1455,7 +1525,7 @@ function test_halt_make_public_single()
 		local old_cash  = pl.get_current_cash()
 		local old_maint = pl.get_current_maintenance()
 
-		ASSERT_EQUAL(makepublic.work(pl, coord3d(4, 3, 0)), null)
+		ASSERT_EQUAL(makepublic.work(pl, coord3d(4, 3, 0)), "Das Feld gehoert\neinem anderen Spieler\n")
 		ASSERT_TRUE(halt_x.get_halt(coord3d(4, 3, 0), public_pl) != null)
 		ASSERT_EQUAL(halt_x.get_halt(coord3d(4, 3, 0), public_pl).get_owner().get_name(), public_pl.get_name())
 
@@ -1468,7 +1538,7 @@ function test_halt_make_public_single()
 		local old_cash  = public_pl.get_current_cash()
 		local old_maint = public_pl.get_current_maintenance()
 
-		ASSERT_EQUAL(makepublic.work(public_pl, coord3d(4, 3, 0)), null)
+		ASSERT_EQUAL(makepublic.work(public_pl, coord3d(4, 3, 0)), "Das Feld gehoert\neinem anderen Spieler\n")
 		ASSERT_TRUE(halt_x.get_halt(coord3d(4, 3, 0), public_pl) != null)
 
 		ASSERT_EQUAL(public_pl.get_current_maintenance(), old_maint)
@@ -1517,6 +1587,63 @@ function test_halt_make_public_single()
 }
 
 
+// Regression test for the shared-halt ownership bug (forum topic 23970):
+// making a stop public must only convert the initiating player's tiles, never the
+// tiles of a co-owner of the same (public) halt.
+function test_halt_make_public_shared()
+{
+	local pl        = player_x(0)
+	local public_pl = player_x(1)
+	local pax_halt  = building_desc_x.get_available_stations(building_desc_x.station, wt_road, good_desc_x.passenger)[0]
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local makepublic = command_x(tool_make_stop_public)
+	local wayremover = command_x(tool_remove_way)
+
+	// second company that will co-own the halt
+	world.create_player(2, 1)
+	local pl2 = player_x(2)
+	ASSERT_TRUE(pl2.is_valid())
+	SET_PLAYER_FUNDS(pl2, 200000 * 100)
+
+	// a public road, so that stations of different players may be built along it
+	ASSERT_EQUAL(command_x.build_way(public_pl, coord3d(4, 1, 0), coord3d(4, 5, 0), road_desc, true), null)
+
+	// pl0 builds a station and turns the halt public, so other players may join it
+	ASSERT_EQUAL(command_x.build_station(pl, coord3d(4, 3, 0), pax_halt), null)
+	ASSERT_EQUAL(makepublic.work(pl, coord3d(4, 3, 0)), null)
+
+	// pl0 and pl2 each add a private station tile that joins the now public halt
+	ASSERT_EQUAL(command_x.build_station(pl,  coord3d(4, 2, 0), pax_halt), null)
+	ASSERT_EQUAL(command_x.build_station(pl2, coord3d(4, 4, 0), pax_halt), null)
+
+	// verify the setup: one shared halt with three different tile owners
+	ASSERT_TRUE(halt_x.get_halt(coord3d(4, 3, 0), public_pl) != null)
+	ASSERT_EQUAL(building_x(4, 3, 0).get_owner().nr, public_pl.nr)
+	ASSERT_EQUAL(building_x(4, 2, 0).get_owner().nr, pl.nr)
+	ASSERT_EQUAL(building_x(4, 4, 0).get_owner().nr, pl2.nr)
+
+	// pl0 makes the shared halt public again via its own tile
+	{
+		local pl2_maint = pl2.get_current_maintenance()
+
+		ASSERT_EQUAL(makepublic.work(pl, coord3d(4, 2, 0)), null)
+
+		// pl0's own tile is now public ...
+		ASSERT_EQUAL(building_x(4, 2, 0).get_owner().nr, public_pl.nr)
+		// ... but pl2's tile must be left untouched (this is the bug being fixed)
+		ASSERT_EQUAL(building_x(4, 4, 0).get_owner().nr, pl2.nr)
+		ASSERT_EQUAL(pl2.get_current_maintenance(), pl2_maint)
+	}
+
+	// cleanup
+	world.remove_player(pl2)
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(4, 2, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(4, 3, 0)), null)
+	ASSERT_EQUAL(wayremover.work(public_pl, coord3d(4, 1, 0), coord3d(4, 5, 0), "" + wt_road), null)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_halt_make_public_multi_tile()
 {
 	local pl = player_x(0)
@@ -1550,7 +1677,7 @@ function test_halt_make_public_multi_tile()
 		local old_cash  = pl.get_current_cash()
 		local old_maint = pl.get_current_maintenance()
 
-		ASSERT_EQUAL(makepublic.work(pl, coord3d(4, 3, 0)), null)
+		ASSERT_EQUAL(makepublic.work(pl, coord3d(4, 3, 0)), "Das Feld gehoert\neinem anderen Spieler\n")
 		ASSERT_TRUE(halt_x.get_halt(coord3d(4, 3, 0), public_pl) != null)
 		ASSERT_EQUAL(halt_x.get_halt(coord3d(4, 3, 0), public_pl).get_owner().get_name(), public_pl.get_name())
 
@@ -1563,7 +1690,7 @@ function test_halt_make_public_multi_tile()
 		local old_cash  = public_pl.get_current_cash()
 		local old_maint = public_pl.get_current_maintenance()
 
-		ASSERT_EQUAL(makepublic.work(public_pl, coord3d(4, 3, 0)), null)
+		ASSERT_EQUAL(makepublic.work(public_pl, coord3d(4, 3, 0)), "Das Feld gehoert\neinem anderen Spieler\n")
 		ASSERT_TRUE(halt_x.get_halt(coord3d(4, 3, 0), public_pl) != null)
 
 		ASSERT_EQUAL(public_pl.get_current_maintenance(), old_maint)

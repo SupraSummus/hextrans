@@ -13,6 +13,7 @@
 #include "../../display/simgraph.h"
 #include "../../display/viewport.h"
 
+#include "../../utils/simstring.h"
 #include "../../utils/cbuffer.h"
 
 #include "../../ground/grund.h"
@@ -29,6 +30,7 @@
 #include "../../tpl/vector_tpl.h"
 
 #include "gui_button.h"
+#include "gui_image.h"
 #include "gui_textarea.h"
 #include "gui_timeinput.h"
 #include "gui_component.h"

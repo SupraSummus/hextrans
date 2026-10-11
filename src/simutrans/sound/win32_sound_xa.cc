@@ -15,6 +15,8 @@
 #include <xaudio2.h>
 #endif
 
+#include "../tpl/vector_tpl.h"
+
 vector_tpl<WAVEFORMATEXTENSIBLE> wfs;
 vector_tpl<XAUDIO2_BUFFER > bufs;
 

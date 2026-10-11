@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "simmem.h"
 #include "simdebug.h"
 #include "simfab.h"
 #include "simhalt.h"

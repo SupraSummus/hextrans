@@ -3,9 +3,12 @@
  * (see LICENSE.txt)
  */
 
+#include "../simdebug.h"
 #include "../sys/simsys.h"
 
 #include "scenario_frame.h"
+#include "scenario_info.h"
+#include "messagebox.h"
 
 #include "simwin.h"
 #include "../world/simworld.h"

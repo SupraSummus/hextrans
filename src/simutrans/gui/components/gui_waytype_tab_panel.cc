@@ -11,6 +11,7 @@
 
 #include "../../builder/vehikelbauer.h"
 
+#include "../../obj/way/kanal.h"
 #include "../../obj/way/maglev.h"
 #include "../../obj/way/monorail.h"
 #include "../../obj/way/narrowgauge.h"
@@ -19,6 +20,8 @@
 #include "../../obj/way/strasse.h"
 
 #include "../../dataobj/translator.h"
+
+#include "../../descriptor/skin_desc.h"
 
 
 void gui_waytype_tab_panel_t::init_tabs(gui_component_t* c)

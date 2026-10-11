@@ -6,7 +6,9 @@
 #include <stdio.h>
 
 #include "../../world/simworld.h"
+#include "../../display/simimg.h"
 
+#include "../../descriptor/ground_desc.h"
 #include "../../descriptor/way_desc.h"
 
 #include "../../builder/wegbauer.h"
@@ -60,10 +62,6 @@ void kanal_t::rdwr(loadsave_t *file)
 					dbg->fatal("kanal_t::rdwr", "Trying to load canal but pakset has no water ways!");
 				}
 				pakset_manager_t::add_missing_paks( bname, MISSING_WAY );
-				dbg->warning("kanal_t::rdwr()", "Unknown canal '%s' replaced by '%s' (old_max_speed %i)", bname, desc->get_name(), old_max_speed);
-			}
-			else {
-				DBG_DEBUG("kanal_t::rdwr()", "Old canal '%s' replaced by '%s'", bname, desc->get_name());
 			}
 		}
 		set_desc(desc);

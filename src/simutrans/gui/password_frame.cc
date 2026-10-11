@@ -4,6 +4,7 @@
  */
 
 #include <string.h>
+#include "../simdebug.h"
 #include "../tool/simmenu.h"
 #include "simwin.h"
 #include "../world/simworld.h"
@@ -19,6 +20,7 @@
 
 
 #include "password_frame.h"
+#include "player_frame.h"
 
 
 password_frame_t::password_frame_t( player_t *player ) :

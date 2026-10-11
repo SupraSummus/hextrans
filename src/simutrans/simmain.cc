@@ -56,12 +56,14 @@
 #include "gui/loadsave_frame.h"
 #include "gui/loadfont_frame.h"
 #include "gui/load_relief_frame.h"
+#include "gui/scenario_frame.h"
 
 #include "obj/baum.h"
 #include "obj/wolke.h"
 
 #include "utils/simstring.h"
 #include "utils/searchfolder.h"
+#include "io/rdwr/compare_file_rd_stream.h"
 
 #include "network/network.h" // must be before any "windows.h" is included via bzlib2.h ...
 #include "dataobj/loadsave.h"
@@ -71,6 +73,7 @@
 #include "dataobj/scenario.h"
 #include "dataobj/settings.h"
 #include "dataobj/translator.h"
+#include "network/pakset_info.h"
 
 #include "descriptor/reader/obj_reader.h"
 #include "descriptor/sound_desc.h"
@@ -1262,11 +1265,11 @@ int simu_main(int argc, char** argv)
 
 	// loading all objects in the pak
 	skinverwaltung_t::restore_all_skins(); // restore empty skins to have the pakset default
-#if DEBUG
+#ifdef DEBUG
 	uint32 pakload_time = dr_time();
 #endif
 	pakset_manager_t::load_pakset(env_t::default_settings.get_with_private_paks());
-#if DEBUG
+#ifdef DEBUG
 	pakload_time = dr_time() - pakload_time;
 	DBG_DEBUG("simmain", "Loading paksets took %u ms", pakload_time);
 #endif

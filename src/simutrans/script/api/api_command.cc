@@ -3,6 +3,8 @@
  * (see LICENSE.txt)
  */
 
+#include "api.h"
+
 /** @file api_command.cc exports the command_x class, which encodes the tools to manipulate a game */
 
 #include "api_command.h"
@@ -75,6 +77,13 @@ SQInteger param<call_tool_init>::push(HSQUIRRELVM vm, call_tool_init v)
 		player = v.player;
 		// must be scenario - set flag
 		tool->flags |= tool_t::WFL_NO_CHK;
+	}
+	else if(v.player  &&  player!=v.player) {
+		// if not scenario: we allow impersonating players that are not locked
+		if (v.player->is_locked()) {
+			return sq_raise_error(vm, "Cannot run init this tool as player ");
+		}
+		player = v.player;
 	}
 #if 0
 	// sanity check
@@ -214,6 +223,13 @@ SQInteger param<call_tool_work>::push(HSQUIRRELVM vm, call_tool_work v)
 		player = v.player;
 		// must be scenario - set flag
 		tool->flags |= tool_t::WFL_NO_CHK;
+	}
+	else if (v.player && player != v.player) {
+		// if not scenario: we allow impersonating players that are not locked
+		if (v.player->is_locked()) {
+			return sq_raise_error(vm, "Cannot run work this tool as player ");
+		}
+		player = v.player;
 	}
 #if 0
 	// sanity check

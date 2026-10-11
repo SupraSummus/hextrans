@@ -3,6 +3,7 @@
  * (see LICENSE.txt)
  */
 
+#include <stdio.h>
 #include <assert.h>
 
 #include "../world/simworld.h"

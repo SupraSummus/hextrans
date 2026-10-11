@@ -17,6 +17,7 @@
 #include "../dataobj/scenario.h"
 
 #include "../obj/leitung2.h"
+#include "../obj/tunnel.h"
 #include "../obj/zeiger.h"
 
 #include "../gui/minimap.h"

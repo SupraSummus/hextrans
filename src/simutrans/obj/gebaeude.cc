@@ -986,7 +986,6 @@ void gebaeude_t::rdwr(loadsave_t *file)
 						break;
 
 					default:
-						dbg->warning("gebaeude_t::rwdr", "description %s for building at %d,%d not found (will be removed)!", buf, get_pos().x, get_pos().y);
 						pakset_manager_t::add_missing_paks( buf, MISSING_BUILDING );
 				}
 			}
@@ -1041,7 +1040,7 @@ void gebaeude_t::rdwr(loadsave_t *file)
 }
 
 
-void gebaeude_t::finish_rd()
+bool gebaeude_t::finish_rd()
 {
 	player_t::add_maintenance(get_owner(), tile->get_desc()->get_maintenance(welt), tile->get_desc()->get_finance_waytype());
 
@@ -1087,6 +1086,7 @@ void gebaeude_t::finish_rd()
 		}
 #endif
 	}
+	return false;
 }
 
 

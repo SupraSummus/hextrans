@@ -17,6 +17,7 @@
 #include "dataobj/translator.h"
 #include "dataobj/environment.h"
 #include "dataobj/pakset_manager.h"
+#include "network/network_socket_list.h"
 #include "player/simplay.h"
 #include "utils/simstring.h"
 #include "tpl/slist_tpl.h"

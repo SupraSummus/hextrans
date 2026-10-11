@@ -9,6 +9,7 @@
 #include "settings.h"
 #include "translator.h"
 #include "environment.h"
+#include "../simdebug.h"
 #include "../world/simworld.h"
 #include "../world/simcity.h"
 #include "../simhalt.h"
@@ -19,6 +20,7 @@
 #include "../utils/simstring.h"
 #include "loadsave.h"
 #include "../network/pakset_info.h"
+#include "../simversion.h"
 
 
 #define MINIMAP_SIZE (64)

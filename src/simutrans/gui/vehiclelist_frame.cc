@@ -9,6 +9,7 @@
 #include "../builder/goods_manager.h"
 #include "../builder/vehikelbauer.h"
 
+#include "../simskin.h"
 #include "../simintr.h"
 #include "../world/simworld.h"
 
@@ -18,6 +19,7 @@
 
 #include "../descriptor/goods_desc.h"
 #include "../descriptor/intro_dates.h"
+#include "../descriptor/skin_desc.h"
 #include "../descriptor/vehicle_desc.h"
 
 #include "../utils/simstring.h"

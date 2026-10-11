@@ -33,6 +33,18 @@ stringhashtable_tpl<missing_level_t>                          pakset_manager_t::
 std::string                                                   pakset_manager_t::overlaid_warning;
 std::string                                                   pakset_manager_t::loading_pak_name;
 
+
+static const char* missing_level_to_string[MISSING_WAY + 1] = {
+	"",
+	"factory",
+	"vehicle",
+	"sign",
+	"wayobj",
+	"bridge",
+	"building",
+	"way"
+};
+
 void pakset_manager_t::register_reader(obj_reader_t *reader)
 {
 	if(!registered_readers) {
@@ -312,6 +324,7 @@ void pakset_manager_t::add_missing_paks( const char *name, missing_level_t level
 {
 	if(  missing_pak_names.get( name )==NOT_MISSING  ) {
 		missing_pak_names.put( strdup(name), level );
+		dbg->warning("pakset_manager_t::add_missing_paks()", "Missing %s name %s will be replaced.", missing_level_to_string[level], name);
 	}
 }
 

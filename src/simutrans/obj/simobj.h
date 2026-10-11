@@ -104,6 +104,9 @@ public:
 	 */
 	player_t *get_owner() const;
 
+	/// returns true if modifiable by current player
+	bool check_owner(const player_t *) const;
+
 	/**
 	 * routines to set, clear, get bit flags
 	 */
@@ -258,8 +261,9 @@ public:
 
 	/**
 	 * Called after the world is completely loaded from savegame
+	 * return true to be removed
 	 */
-	virtual void finish_rd() {}
+	virtual bool finish_rd() { return false; }
 
 	/**
 	 * @return position

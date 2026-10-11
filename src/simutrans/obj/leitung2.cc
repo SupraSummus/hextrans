@@ -381,11 +381,11 @@ void leitung_t::info(cbuffer_t & buf) const
 	buf.printf("\n");
 	buf.printf(translator::translate("Generation: %.0f MW"), (double)(net->get_supply() >> POWER_TO_MW));
 	buf.printf("\n");
-	buf.printf(translator::translate("Usage: %.0f %%"), (double)((100 * net->get_normal_demand()) >> powernet_t::FRACTION_PRECISION));
+	buf.printf(translator::translate("Usage: %.0f %%"), net->get_usage_percent());
 }
 
 
-void leitung_t::finish_rd()
+bool leitung_t::finish_rd()
 {
 #ifdef MULTI_THREAD
 	pthread_mutex_lock( &verbinde_mutex );
@@ -403,6 +403,7 @@ void leitung_t::finish_rd()
 	assert(gr); (void)gr;
 
 	player_t::add_maintenance(get_owner(), get_maintenance(), powerline_wt);
+	return false;
 }
 
 void leitung_t::rdwr(loadsave_t *file)
@@ -439,12 +440,10 @@ void leitung_t::rdwr(loadsave_t *file)
 					if(desc==NULL) {
 						pakset_manager_t::add_missing_paks( bname, MISSING_WAY );
 						desc = way_builder_t::leitung_desc;
-
 						if (!desc) {
 							dbg->fatal("leitung_t::rdwr", "Trying to load powerline but pakset has none!");
 						}
 					}
-					dbg->warning("leitung_t::rdwr()", "Unknown powerline %s replaced by %s", bname, desc->get_name() );
 				}
 				set_desc(desc);
 			}
@@ -568,12 +567,6 @@ void pumpe_t::set_power_supply(uint32 newsupply)
 	power_supply = newsupply;
 }
 
-sint32 pumpe_t::get_power_consumption() const
-{
-	powernet_t const *const p = get_net();
-	return p->get_normal_demand();
-}
-
 void pumpe_t::rdwr(loadsave_t * file)
 {
 	xml_tag_t d( file, "pumpe_t" );
@@ -587,7 +580,7 @@ void pumpe_t::rdwr(loadsave_t * file)
 }
 
 
-void pumpe_t::finish_rd()
+bool pumpe_t::finish_rd()
 {
 	leitung_t::finish_rd();
 
@@ -602,10 +595,11 @@ void pumpe_t::finish_rd()
 			// underground, check directly above
 			fab = fabrik_t::get_fab(get_pos().get_2d());
 		}
-		if(  fab  ) {
-			// only add when factory there
-			fab->add_transformer_connected(this);
+		if (!fab) {
+			dbg->error("senke_t::finish_rd()", "No factory near transformer at %s.", get_pos().get_fullstr());
+			return true;
 		}
+		fab->add_transformer_connected(this);
 	}
 
 #ifdef MULTI_THREAD
@@ -617,6 +611,7 @@ void pumpe_t::finish_rd()
 	set_image(skinverwaltung_t::pumpe->get_image_id(0));
 	is_crossing = false;
 #endif
+	return false;
 }
 
 
@@ -630,7 +625,7 @@ void pumpe_t::info(cbuffer_t & buf) const
 	buf.printf("\n");
 	buf.printf(translator::translate("Generation: %.0f MW"), (double)(power_supply >> POWER_TO_MW));
 	buf.printf("\n");
-	buf.printf(translator::translate("Usage: %.0f %%"), (double)((100 * get_net()->get_normal_demand()) >> powernet_t::FRACTION_PRECISION));
+	buf.printf(translator::translate("Usage: %.0f %%"), get_net()->get_usage_percent());
 	buf.printf("\n"); // pad for consistent dialog size
 }
 
@@ -752,12 +747,6 @@ void senke_t::set_power_demand(uint32 newdemand)
 	power_demand = newdemand;
 }
 
-sint32 senke_t::get_power_satisfaction() const
-{
-	powernet_t const *const p = get_net();
-	return p->get_normal_supply();
-}
-
 sync_result senke_t::sync_step(uint32 delta_t)
 {
 	if(fab==NULL) {
@@ -849,7 +838,7 @@ void senke_t::rdwr(loadsave_t *file)
 	}
 }
 
-void senke_t::finish_rd()
+bool senke_t::finish_rd()
 {
 	leitung_t::finish_rd();
 
@@ -864,9 +853,11 @@ void senke_t::finish_rd()
 			// underground, check directly above
 			fab = fabrik_t::get_fab(get_pos().get_2d());
 		}
-		if(  fab  ) {
-			fab->add_transformer_connected(this);
+		if (!fab) {
+			dbg->error("senke_t::finish_rd()", "No factory near transformer at %s.", get_pos().get_fullstr());
+			return true;
 		}
+		fab->add_transformer_connected(this);
 	}
 
 #ifdef MULTI_THREAD
@@ -877,6 +868,7 @@ void senke_t::finish_rd()
 #ifdef MULTI_THREAD
 	pthread_mutex_unlock( &calc_image_mutex );
 #endif
+	return false;
 }
 
 void senke_t::info(cbuffer_t & buf) const

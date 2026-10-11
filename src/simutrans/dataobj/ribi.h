@@ -322,6 +322,9 @@ public:
 		    || is_way_axis(x, corner_w(x),  corner_nw(x), corner_e(x),  corner_se(x));
 	}
 
+	/// Returns if way can be build on this slope. If allow_double is true, double slopes are allowed
+	static bool is_way_double(type x, bool allow_double) { return is_way(x)  &&  (allow_double  ||  !has_double_corner(x)); }
+
 	static bool is_planar_double_edge(type x) {
 		switch (x) {
 			case north_double:     case northeast_double: case southeast_double:

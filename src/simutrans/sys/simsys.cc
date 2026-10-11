@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #ifdef __HAIKU__
 #include <Message.h>
@@ -60,6 +61,7 @@
 #endif
 
 #ifdef MULTI_THREAD
+#include <pthread.h>
 #endif
 
 #ifdef _OPTIMIZED

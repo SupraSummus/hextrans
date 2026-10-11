@@ -3,6 +3,8 @@
  * (see LICENSE.txt)
  */
 
+#include "../simconst.h"
+
 #include "../descriptor/ground_desc.h"
 #include "../dataobj/loadsave.h"
 

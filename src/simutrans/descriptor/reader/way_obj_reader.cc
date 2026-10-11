@@ -20,6 +20,11 @@
 void way_obj_reader_t::register_obj(obj_desc_t *&data)
 {
 	way_obj_desc_t *desc = static_cast<way_obj_desc_t *>(data);
+
+	// hex has no square diagonal or close-diagonal sprites
+	desc->diagonals = false;
+	desc->close_diagonals = false;
+
 	wayobj_t::register_desc(desc);
 
 	checksum_t *chk = new checksum_t();

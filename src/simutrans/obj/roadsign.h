@@ -207,7 +207,7 @@ public:
 	// subtracts cost
 	void cleanup(player_t *player) OVERRIDE;
 
-	void finish_rd() OVERRIDE;
+	bool finish_rd() OVERRIDE;
 
 	// static routines from here
 private:

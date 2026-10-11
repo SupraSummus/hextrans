@@ -17,9 +17,12 @@
 #include "../dataobj/translator.h"
 
 
+#include "../descriptor/image.h"
 #include "../descriptor/ground_desc.h"
 
 #include "../utils/cbuffer.h"
+#include "../utils/simrandom.h"
+#include "../utils/simstring.h"
 
 #include "groundobj_edit.h"
 

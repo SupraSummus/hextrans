@@ -2213,7 +2213,7 @@ void karte_t::call_change_player_tool(uint8 cmd, uint8 player_nr, uint16 param, 
 		network_send_server(nwc);
 	}
 	else {
-		clear_random_mode(INTERACTIVE_RANDOM); // beacue the AI will call random to check where it can run
+		clear_random_mode(INTERACTIVE_RANDOM); // because the AI will call random to check where it can run
 		change_player_tool(cmd, player_nr, param, !get_public_player()->is_locked()  ||  scripted_call, true);
 		// update the window
 		ki_kontroll_t* playerwin = (ki_kontroll_t*)win_get_magic(magic_ki_kontroll_t);
@@ -3017,7 +3017,7 @@ void karte_t::new_month()
 	}
 
 	// recalc old settings (and maybe update the stops with the current values)
-	minimap_t::get_instance()->new_month();
+	minimap_t::get_instance()->set_dirty();
 
 	INT_CHECK( "simworld 1701" );
 
@@ -3149,7 +3149,8 @@ void karte_t::recalc_average_speed()
 		average_speed[typ] = vehicle_builder_t::get_speedbonus( this->get_timeline_year_month(), i==4 ? air_wt : (waytype_t)i );
 	}
 
-//	DBG_MESSAGE("karte_t::recalc_average_speed()","");
+	//  DBG_MESSAGE("karte_t::new_month()", "Month %d has started", last_month);
+	//	DBG_MESSAGE("karte_t::recalc_average_speed()","");
 	if(use_timeline()) {
 		for(int i=road_wt; i<=air_wt; i++) {
 			const char *vehicle_type=NULL;
@@ -3211,19 +3212,18 @@ void karte_t::recalc_average_speed()
 
 		// city road (try to use always a timeline)
 		if (way_desc_t const* city_road_test = settings.get_city_road_type(current_month) ) {
-			city_road = city_road_test;
+			stadt_t::city_road = city_road_test;
 		}
 		else {
-			DBG_MESSAGE("karte_t::new_month()","Month %d has started", last_month);
-			city_road = way_builder_t::weg_search(road_wt,50,get_timeline_year_month(),type_flat);
+			stadt_t::city_road = way_builder_t::weg_search(road_wt,50,get_timeline_year_month(),type_flat);
 		}
 		weg_t::set_cityroad_speedlimit(settings.get_city_road_speed_limit(get_timeline_year_month() / 12));
 	}
 	else {
 		// defaults
-		city_road = settings.get_city_road_type(0);
-		if(city_road==NULL) {
-			city_road = way_builder_t::weg_search(road_wt,50,0,type_flat);
+		stadt_t::city_road = settings.get_city_road_type(0);
+		if(stadt_t::city_road==NULL) {
+			stadt_t::city_road = way_builder_t::weg_search(road_wt,50,0,type_flat);
 		}
 		weg_t::set_cityroad_speedlimit(50);
 	}
@@ -3373,7 +3373,7 @@ void karte_t::step()
 	// now step all towns (to generate passengers)
 	DBG_DEBUG4("karte_t::step", "step cities");
 	sint64 bev=0;
-	for (int i = 0; i < cities.get_count();  i++ ) {
+	for (uint32 i = 0; i < cities.get_count();  i++ ) {
 		stadt_t* const c = cities[i];
 		c->step(delta_t);
 		bev += c->get_finance_history_month(0, HIST_CITIZENS);
@@ -3383,7 +3383,7 @@ void karte_t::step()
 	finance_history_month[0][WORLD_CITIZENS] = bev;
 
 	DBG_DEBUG4("karte_t::step", "step factories");
-	for (int i = 0; i < all_factories.get_count(); i++) {
+	for (uint32 i = 0; i < all_factories.get_count(); i++) {
 		all_factories[i]->step(delta_t);
 	}
 	finance_history_year[0][WORLD_FACTORIES] = finance_history_month[0][WORLD_FACTORIES] = all_factories.get_count();
@@ -4104,7 +4104,10 @@ void karte_t::plans_finish_rd( sint16 x_min, sint16 x_max, sint16 y_min, sint16 
 				for(  int n = 0;  n < gr->obj_count();  n++  ) {
 					obj_t *obj = gr->obj_bei(n);
 					if(obj) {
-						obj->finish_rd();
+						if (obj->finish_rd()) {
+							delete obj;
+							n--;
+						}
 					}
 				}
 				if(  load_version<=111000  &&  gr->ist_natur()  ) {
@@ -4245,7 +4248,7 @@ DBG_MESSAGE("karte_t::load()", "%d factories loaded", all_factories.get_count())
 
 	// resolve dummy stops into real stops first ...
 	for(halthandle_t const i : haltestelle_t::get_alle_haltestellen()) {
-		if (i->get_owner() && i->existiert_in_welt()) {
+		if (i->get_owners() && i->existiert_in_welt()) {
 			i->finish_rd();
 		}
 	}
@@ -4253,9 +4256,9 @@ DBG_MESSAGE("karte_t::load()", "%d factories loaded", all_factories.get_count())
 	// ... before removing dummy stops
 	for(  vector_tpl<halthandle_t>::const_iterator i=haltestelle_t::get_alle_haltestellen().begin(); i!=haltestelle_t::get_alle_haltestellen().end();  ) {
 		halthandle_t const h = *i;
-		if(  !h->get_owner()  ||  !h->existiert_in_welt()  ) {
+		if(  !h->get_owners()  ||  !h->existiert_in_welt()  ) {
 			// this stop was only needed for loading goods ...
-			haltestelle_t::destroy(h); // remove from list
+			haltestelle_t::destroy(h,NULL); // remove from list
 		}
 		else {
 			++i;
@@ -5785,6 +5788,7 @@ void karte_t::switch_active_player(uint8 new_player, bool silent)
 		zeiger->change_pos( koord3d::invalid ); // unmark area
 		// exit active tool to remove pointers (for two_click_tool_t's, stop mover, factory linker)
 		if(selected_tool[active_player_nr]) {
+			selected_tool[active_player_nr]->flags |= tool_t::WFL_LOCAL;
 			selected_tool[active_player_nr]->exit(active_player);
 		}
 		active_player_nr = new_player;

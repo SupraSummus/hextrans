@@ -3,11 +3,13 @@
  * (see LICENSE.txt)
  */
 
+#include <stdio.h>
+#include "../simdebug.h"
+#include "../simconst.h"
 #include "ribi.h"
 #include "koord.h"
 #include "koord3d.h"
 #include "../macros.h"
-#include "../simdebug.h"
 
 // since we have now a dummy function instead an array
 const ribi_t::_nesw ribi_t::nesw;

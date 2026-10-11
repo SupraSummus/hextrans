@@ -8,54 +8,24 @@
 #include "../simskin.h"
 #include "../simcolor.h"
 #include "../tool/simtool.h"
+#include "../display/simgraph.h"
 #include "../display/viewport.h"
 #include "../player/simplay.h"
 #include "../world/simworld.h"
+#include "../display/simimg.h"
 
 #include "../dataobj/translator.h"
 
 #include "../descriptor/skin_desc.h"
 
 #include "../utils/cbuffer.h"
+#include "../utils/simstring.h"
 
 #include "gui_frame.h"
 #include "halt_info.h" // gui_halt_type_images_t
 
 
 static karte_ptr_t welt;
-
-
-void gui_owners_t::set_owners(uint16 mask)
-{
-	// draw ownership
-	player_mask = mask;
-	num_players = 0;
-	for (uint16 i = 0; i < MAX_PLAYER_COUNT; i++) {
-		if ((1 << i) & player_mask) {
-			num_players++;
-		}
-	}
-	set_visible(num_players != 0);
-}
-
-void gui_owners_t::draw(scr_coord offset)
-{
-	// only show if there are more than on player
-	if (num_players > 1) {
-		scr_coord pos = get_pos() + offset;
-		pos.y += 2;
-		uint16 last_player = 0;
-		for (uint16 i = 0; i < num_players; i++) {
-			while (player_mask && (1 << last_player) == 0) {
-				last_player++;
-			}
-			gfx->draw_rect_clipped(pos.x, pos.y, LINESPACE-4, LINESPACE-4, gfx->palette_lookup(welt->get_player(last_player)->get_player_color1() + 3), true CLIP_NUM_DEFAULT);
-			pos.x += LINESPACE-4;
-			last_player++;
-		}
-	}
-
-}
 
 
 /**

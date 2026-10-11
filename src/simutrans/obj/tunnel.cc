@@ -149,7 +149,7 @@ void tunnel_t::rdwr(loadsave_t *file)
 }
 
 
-void tunnel_t::finish_rd()
+bool tunnel_t::finish_rd()
 {
 	const grund_t *gr = welt->lookup(get_pos());
 	player_t *player=get_owner();
@@ -184,6 +184,8 @@ void tunnel_t::finish_rd()
 		}
 		player_t::add_maintenance( player,  desc->get_maintenance(), desc->get_finance_waytype() );
 	}
+
+	return false;
 }
 
 

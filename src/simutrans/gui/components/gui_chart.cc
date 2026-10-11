@@ -7,6 +7,7 @@
 #include <cmath>
 
 #include "gui_chart.h"
+#include "../gui_frame.h"
 #include "../simwin.h"
 #include "../../simcolor.h"
 #include "../../utils/simstring.h"

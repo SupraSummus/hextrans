@@ -3,6 +3,7 @@
  * (see LICENSE.txt)
  */
 
+#include "../simconst.h"
 #include "../sys/simsys.h"
 #include "../descriptor/image.h"
 
@@ -15,6 +16,7 @@ extern const sint32 zoom_den[1] = { 1 };
 static PIXVAL          simgraph0_palette_lookup             (palette_index_t idx);
 static palette_index_t simgraph0_palette_indexof            (PIXVAL color);
 static rgb888_t        simgraph0_get_color_rgb              (palette_index_t idx);
+static rgb888_t        simgraph0_get_pixval_rgb             (PIXVAL c);
 static void            simgraph0_env_t_rgb_to_system_colors ();
 static void            simgraph0_set_player_color_scheme    (const int player, const uint8 col1, const uint8 col2);
 static void            simgraph0_set_light_color            (int light_idx, rgb888_t day_light, rgb888_t night_light);
@@ -57,6 +59,7 @@ static PIXVAL          simgraph0_blend_colors               (PIXVAL, PIXVAL, int
 static void            simgraph0_tint_rect                  (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, PIXVAL, int);
 static void            simgraph0_draw_rect                  (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, PIXVAL, bool);
 static void            simgraph0_draw_rect_clipped          (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, PIXVAL, bool  CLIP_NUM_DEF_NOUSE);
+static void            simgraph0_draw_rect_colors_clipped   (scr_coord_val xp, scr_coord_val yp, scr_coord_val w, scr_coord_val h, PIXVAL* color, scr_coord_val num_colors, bool horizontal, bool dirty   CLIP_NUM_DEF);
 static void            simgraph0_draw_rounded_rect_clipped  (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, PIXVAL, bool);
 static void            simgraph0_draw_vline_clipped         (scr_coord_val, scr_coord_val, scr_coord_val, PIXVAL, bool  CLIP_NUM_DEF_NOUSE);
 static void            simgraph0_flush_framebuffer          ();
@@ -123,6 +126,7 @@ simgraph_t g_simgraph0 = {
 	/*.palette_lookup              =*/ simgraph0_palette_lookup,
 	/*.palette_indexof             =*/ simgraph0_palette_indexof,
 	/*.get_color_rgb               =*/ simgraph0_get_color_rgb,
+	/*.get_pixval_rgb              =*/ simgraph0_get_pixval_rgb,
 	/*.env_t_rgb_to_system_colors  =*/ simgraph0_env_t_rgb_to_system_colors,
 	/*.set_player_color_scheme     =*/ simgraph0_set_player_color_scheme,
 	/*.set_light_color             =*/ simgraph0_set_light_color,
@@ -165,6 +169,7 @@ simgraph_t g_simgraph0 = {
 	/*.tint_rect                   =*/ simgraph0_tint_rect,
 	/*.draw_rect                   =*/ simgraph0_draw_rect,
 	/*.draw_rect_clipped           =*/ simgraph0_draw_rect_clipped,
+	/*.draw_rect_colors_clipped    =*/ simgraph0_draw_rect_colors_clipped,
 	/*.draw_rounded_rect_clipped   =*/ simgraph0_draw_rounded_rect_clipped,
 	/*.draw_vline_clipped          =*/ simgraph0_draw_vline_clipped,
 	/*.flush_framebuffer           =*/ simgraph0_flush_framebuffer,
@@ -220,7 +225,12 @@ static palette_index_t simgraph0_palette_indexof(PIXVAL color)
 
 static rgb888_t simgraph0_get_color_rgb(palette_index_t)
 {
-	return {0,0,0};
+	return { 0,0,0 };
+}
+
+static rgb888_t simgraph0_get_pixval_rgb(PIXVAL)
+{
+	return { 0,0,0 };
 }
 
 static void simgraph0_env_t_rgb_to_system_colors()
@@ -408,6 +418,10 @@ static void simgraph0_draw_rect(scr_coord_val, scr_coord_val, scr_coord_val, scr
 
 
 static void simgraph0_draw_rect_clipped(scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, PIXVAL, bool  CLIP_NUM_DEF_NOUSE)
+{
+}
+
+static void simgraph0_draw_rect_colors_clipped(scr_coord_val xp, scr_coord_val yp, scr_coord_val w, scr_coord_val h, PIXVAL* color, scr_coord_val num_colors, bool horizontal, bool dirty  CLIP_NUM_DEF)
 {
 }
 

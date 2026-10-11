@@ -107,10 +107,14 @@ class prototyper_t extends node_t
   best = null       // the best prototype up to now
   best_value = 0    // and its score
 
+  pakset_list = ["pak64"]
+
   // print messages box
   // 1 = vehicle create data
   // 2 = vehicle found
   // 3 = convoy check lenght and wt_rail
+  // 4 = evaluate convoy
+  // 5 = best convoy
   print_message_box = 0
   wt_name = ["", "road", "rail", "water"]
 
@@ -127,6 +131,9 @@ class prototyper_t extends node_t
    */
   function step()
   {
+    wt_name.resize(17, null)
+    wt_name.insert(16, "wt_air")
+
     if ( print_message_box == 1 ) {
       local units = get_max_convoi_length(wt)
       gui.add_message_at(our_player, "**** ", world.get_time())
@@ -149,6 +156,7 @@ class prototyper_t extends node_t
     local list_other = []
 
     local t = 0
+
 
     // preprocess
     foreach(veh in list) {
@@ -179,7 +187,12 @@ class prototyper_t extends node_t
           /**
            * speed < 161 - max speed 160 for rail lines factory goods
            */
-          if ( speed < 161 && wt == wt_rail ) {
+          if ( speed < 80 && wt == wt_rail && pakset_list.find(get_set_name()) != null && world.get_time().year >= 1940) {
+            if ( print_message_box == 2 ) {
+              gui.add_message_at(our_player, "1940 min speed 80 km/h ", world.get_time())
+            }
+            //list_first.append(veh)
+          } else if ( speed < 161 && wt == wt_rail ) {
             list_first.append(veh)
           } else if ( wt != wt_rail ) {
             list_first.append(veh)
@@ -188,6 +201,9 @@ class prototyper_t extends node_t
           list_other.append(veh)
         }
         if ( print_message_box == 2 && wt == wt_rail && pwer ) {
+          gui.add_message_at(our_player, "* vehicle found: " + veh.get_name() + " power " + power + " speed " + speed + " ## " + t, world.get_time())
+        }
+        if ( print_message_box > 0 && wt == wt_air ) {
           gui.add_message_at(our_player, "* vehicle found: " + veh.get_name() + " power " + power + " speed " + speed + " ## " + t, world.get_time())
         }
       }
@@ -212,7 +228,7 @@ class prototyper_t extends node_t
 
     local count_cnv_length = false
 
-    local show_mwssage = false
+    local show_message = false
 
       //max_vehicles
       local a = 0
@@ -226,9 +242,9 @@ class prototyper_t extends node_t
         } else if ( volume > 2200 ) {
           a = CARUNITS_PER_TILE * 5
         }
-        if ( show_mwssage ) {
+        if ( show_message ) {
           gui.add_message_at(our_player, "#prototyper 259# tiles_length: " + a + " - max_length: " + max_length, world.get_time())
-          show_mwssage = false
+          show_message = false
         }
 
         if ( get_set_name() == "pak64.german" ) {
@@ -242,7 +258,26 @@ class prototyper_t extends node_t
         a = CARUNITS_PER_TILE
       }
 
+    if ( print_message_box == 2 ) {
+      gui.add_message_at(our_player, "list_first.len() " + list_first.len(), world.get_time())
+    }
+    local cnv_test = 0
 
+    local speed_diff = 0
+    switch (wt) {
+      case wt_road:
+        speed_diff = 15
+        break
+      case wt_rail:
+        speed_diff = 10
+        break
+      case wt_water:
+        speed_diff = 30
+        break
+      case wt_air:
+        speed_diff = 50
+        break
+    }
 
     while(true) {
 
@@ -288,9 +323,9 @@ class prototyper_t extends node_t
         } else if ( volume > 2200 ) {
           a = CARUNITS_PER_TILE * 5
         }
-        if ( show_mwssage ) {
+        if ( show_message ) {
           gui.add_message_at(our_player, "#prototyper 259# tiles_length: " + a + " - max_length: " + max_length, world.get_time())
-          show_mwssage = false
+          show_message = false
         }
 
         if ( get_set_name() != "pak64.german" ) {
@@ -308,29 +343,34 @@ class prototyper_t extends node_t
 
       // no more by max length
       // no more by speed < max speed convoy
-      if ((l + test.get_length()) > a  || c["min_top_speed"] < c["max_speed"]) { //) { max_length   CARUNITS_PER_TILE
+      if ( (l + test.get_length()) > a  || c["min_top_speed"] < c["max_speed"] ) { //) { max_length   CARUNITS_PER_TILE
         //gui.add_message_at(our_player, "c['min_top_speed']: " + c["min_top_speed"], world.get_time())
         //gui.add_message_at(our_player, "c['max_speed']: " + c["max_speed"], world.get_time())
-        if ( (c["max_speed"]-c["min_top_speed"]) < 10 ) {
+        if ( ((c["max_speed"]-c["min_top_speed"]) < speed_diff) ) {
           count_cnv_length = true
         } else if ( (l + test.get_length()) > a ) {
           //gui.add_message_at(our_player, "#prototyper 277# tiles_length: " + a + " - (l + test.get_length()): " + (l + test.get_length()), world.get_time())
           count_cnv_length = true
         } else {
+          //
+
           continue;
         }
 
       }
 
+        if ( print_message_box > 0 && wt == wt_air ) {
+          gui.add_message_at(our_player, "min_speed: " + min_speed, world.get_time())
+        }
       // check if convoy finished
       if (test.can_be_last() && !c.missing_freight  &&  c.min_top_speed >= min_speed) {
         // evaluate this candidate
-          //gui.add_message_at(our_player, "valuate: " + valuate, world.get_time())
+        //gui.add_message_at(our_player, "valuate: " + valuate, world.get_time())
         if (valuate) {
           local value = valuate.call(getroottable(), c)
-          //if ( print_message_box == 2 ) {
-          //  gui.add_message_at(our_player, "evaluate this candidate: " + value, world.get_time())
-          //}
+          if ( print_message_box == 4 ) {
+            gui.add_message_at(our_player, test.get_name() + " evaluate this candidate: " + value, world.get_time())
+          }
           if (best==null  ||  value > best_value) {
             best = c
             best_value = value
@@ -346,6 +386,7 @@ class prototyper_t extends node_t
       // move on to next position
       if (ind >= max_vehicles || count_cnv_length) {
         count_cnv_length = false
+        cnv_test++
         continue;
       }
 
@@ -364,12 +405,21 @@ class prototyper_t extends node_t
       }
 
       it_ind[ind] = -1
+
+      if ( cnv_test > list_first.len() ) {
+        if ( print_message_box == 2 ) {
+          gui.add_message_at(our_player, "convoy not found " , world.get_time())
+        }
+        break
+      }
     }
 
     if (best) {
       foreach(ind, test in best.veh) {
         print("Best[" + ind + "] = " + test.get_name())
-        //if ( wt == wt_rail ) gui.add_message_at(our_player, "Best[" + ind + "] = " + test.get_name(), world.get_time())
+        if ( print_message_box == 5 ) {
+          gui.add_message_at(our_player, "Best[" + ind + "] = " + test.get_name(), world.get_time())
+        }
       }
 
       return r_t(RT_SUCCESS)
@@ -416,6 +466,10 @@ class valuator_simple_t {
     if (wt == wt_rail) {
       cnv.nr_convoys = 1
     }
+    // max 2 airplanes
+    if (wt == wt_air) {
+      cnv.nr_convoys = 2
+    }
 
     if (way_max_speed > 0) {
       // correction factor to prefer faster ways:
@@ -431,6 +485,7 @@ class valuator_simple_t {
     // monthly costs and revenue
     local value = ncnv*( (frev*cnv.capacity+1500)/3000*tpm - cnv.running_cost*tpm - cnv.maintenance) - distance * way_maintenance
 
+    //gui.add_message_at(our_player, " - monthly costs and revenue "  + value, world.get_time())
 /*
     // gain per field
     // station_maintenance missing

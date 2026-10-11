@@ -10,6 +10,7 @@
 #include "savegame_frame.h"
 #include "../pathes.h"
 #include "../sys/simsys.h"
+#include "../simdebug.h"
 #include "simwin.h"
 #include "../utils/simstring.h"
 #include "../utils/searchfolder.h"

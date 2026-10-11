@@ -4,6 +4,7 @@
  */
 
 #include "depotlist_frame.h"
+#include "gui_theme.h"
 
 #include "../player/simplay.h"
 
