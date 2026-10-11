@@ -401,7 +401,7 @@ DBG_MESSAGE("convoi_t::finish_rd()","state=%s, next_stop_index=%d", state_names[
 				// wrong alignment here => must relocate
 				if(v->need_realignment()) {
 					// diagonal => convoi must restart
-					realign_position |= ribi_t::is_bend(v->get_direction())  &&  (state==DRIVING  ||  is_waiting());
+					realign_position |= (state==DRIVING  ||  is_waiting());
 				}
 				// if version is 99.17 or lower, some convois are broken, i.e. had too large gaps between vehicles
 				if(  !realign_position  &&  state!=INITIAL  &&  state!=LEAVING_DEPOT  ) {
@@ -416,7 +416,7 @@ DBG_MESSAGE("convoi_t::finish_rd()","state=%s, next_stop_index=%d", state_names[
 							if (dist>1) {
 								step_pos += (dist-1) * diagonal_vehicle_steps_per_tile;
 							}
-							step_pos += ribi_t::is_bend(v->get_direction()) ? diagonal_vehicle_steps_per_tile : VEHICLE_STEPS_PER_TILE;
+							step_pos += v->is_cutting_corner() ? diagonal_vehicle_steps_per_tile : VEHICLE_STEPS_PER_TILE;
 						}
 						dbg->message("convoi_t::finish_rd()", "v: pos(%s) steps(%d) len=%d ribi=%d prev (%s) step(%d)", v->get_pos().get_str(), v->get_steps(), v->get_desc()->get_length()*16, v->get_direction(),  drive_pos.get_2d().get_str(), step_pos);
 						if(  abs( v->get_steps() - step_pos )>15  ) {
@@ -2036,11 +2036,15 @@ bool convoi_t::can_go_alte_richtung()
 				ok = true;
 
 				// check direction
+				// (same chord as the vehicle's own direction, see calc_set_direction)
+				const koord3d& pos_before = route.at(max(idx-1,0));
 				uint8 richtung = v->get_direction();
-				uint8 neu_richtung = v->calc_direction( route.at(max(idx-1,0)), v->get_pos_next());
+				uint8 neu_richtung = vehicle_base_t::calc_chord_direction( pos_before, v->get_pos_next());
+				// the route bends here, unless it goes on in the same step
+				const bool bend = idx > 0  &&  pos_before.get_2d() + v->get_pos_next().get_2d() != v->get_pos().get_2d() * 2;
 				// we need to move to this place ...
-				if(neu_richtung!=richtung  &&  (i!=0  ||  vehicle_count==1  ||  ribi_t::is_bend(neu_richtung)) ) {
-					// 90 deg bend!
+				if(neu_richtung!=richtung  &&  (i!=0  ||  vehicle_count==1  ||  bend) ) {
+					// bend!
 					return false;
 				}
 

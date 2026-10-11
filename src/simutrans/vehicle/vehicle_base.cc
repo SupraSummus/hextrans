@@ -63,9 +63,11 @@ void vehicle_base_t::set_diagonal_multiplier( uint32 multiplier, uint32 old_diag
 
 
 // if true, convoi, must restart!
+// Only the tile length of a bend depends on the diagonal multiplier; the
+// loader has already turned the old bend length in steps_next into the new one.
 bool vehicle_base_t::need_realignment() const
 {
-	return old_diagonal_vehicle_steps_per_tile!=diagonal_vehicle_steps_per_tile  &&  ribi_t::is_bend(direction);
+	return old_diagonal_vehicle_steps_per_tile!=diagonal_vehicle_steps_per_tile  &&  is_cutting_corner();
 }
 
 // [0]=xoff [1]=yoff
