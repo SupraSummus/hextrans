@@ -520,11 +520,17 @@ See also the vehicle-direction compound-displacement note above —
 18 distinct visual states under hex, 8 slots in the current dir enum.
 
 **Aircraft landing-circle 4-of-6 runways.**
-`air_vehicle_t::calc_route` in `air_vehicle.cc:415` switches on the
+`air_vehicle_t::calc_route` in `air_vehicle.cc:418` switches on the
 runway end's `get_weg_ribi` to pick an offset into the 16-step
 `circle_koord` hold-pattern table — N=0, NW=4, S=8, SE=12.
 NE and SW runways fall through to the implicit `offset=0` default
 and put aircraft on those runways into the N-approach hold pattern.
+They still take off and land through it
+(`test_air_takeoff_and_landing_all_runway_axes`),
+but the pattern reaches 4 tiles in +q from the landing start,
+past the 5-tile margin `intern_calc_route_runways` checks:
+on the 16×16 test map a NE-SW runway at (9,5)-(6,8) builds
+and every landing fails with "airport too close to the edge".
 The 16-step `circle_koord` table is itself hand-rolled for
 4-direction airports —
 widening the switch alone isn't enough;
@@ -535,6 +541,15 @@ so the path is reachable from player-built NE/SW runways
 and pre-port savegames, not from AI gameplay.
 Lands together with a hex-aware hold-pattern geometry —
 likely 6-direction symmetric circles rather than 4.
+
+**Wind direction in the settings window.**
+`settings_climates_stats_t` (`gui/settings_stats.cc`, inherited from upstream)
+edits `wind_direction` as a number 0..3,
+so the window can only set none, SE, S or SE|S;
+anything but a single edge leaves planes with no takeoff end.
+The new-map dialog in `climates.cc` already has a 6-entry combobox.
+Next move: reuse that combobox there, or drop the field,
+and clamp the value as `settings_t::rdwr` does.
 
 `do_terraforming` in `wegbauer.cc` has an
 `if (from_slope > slope_t::all_up_one  &&  is_axis_slope(from_slope -
