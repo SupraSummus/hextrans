@@ -24,9 +24,10 @@ full URL — currently only the pakset installer.
 The legacy in-house socket code is preserved under `#else` for one
 release cycle so a downstream packager can fall back via
 `-DSIMUTRANS_USE_CURL=OFF` if a regression slips out; retirement is
-tracked in `TODO.md` → "other".  `parse_http_url` (the URL-splitting
-helper added when the e2e suite was wired up) is only reachable from
-the legacy branch now and retires with it.
+tracked in `TODO.md` → "libcurl rollback gate retirement".
+`parse_http_url` (the URL-splitting helper added when the e2e suite
+was wired up) is only reachable from the legacy branch now and
+retires with it.
 
 `pakset_downloader.cc` collapses its desktop fan-out into a single
 `network_curl_download_url` call on the libcurl path.  Android keeps

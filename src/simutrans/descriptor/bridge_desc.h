@@ -48,8 +48,9 @@ public:
 	 * (N, S, NE, SE, SW, NW) for starts and ramps.  Each tile has a
 	 * single-height (`...`) and a double-height (`...2`) variant; the
 	 * latter is optional.  Order inside each height block matches the
-	 * order of `bridge_writer.cc::names[]` so the writer can iterate the
-	 * keys and the engine reads them at the same enum positions.
+	 * key table in `write_bridge_images` (`hex_keys::axis_names` /
+	 * `edge_names`) so the writer can iterate the keys and the engine
+	 * reads them at the same enum positions.
 	 */
 	enum img_t {
 		NS_Segment, NE_SW_Segment, NW_SE_Segment,

@@ -477,7 +477,7 @@ Longer-form design and planning docs live under `documentation/`:
     decisions (proxy policy, address-family, gating).  Legacy
     in-house socket code remains under `#else SIMUTRANS_USE_CURL`
     for one release cycle as a downstream fallback; retirement
-    trigger in `TODO.md` → "other".
+    trigger in `TODO.md` → "libcurl rollback gate retirement".
   - `documentation/hex-vertex-storage.md` — per-vertex height
     storage on the hex grid, canonical ownership rule and storage
     layout.  Describes live behaviour.
