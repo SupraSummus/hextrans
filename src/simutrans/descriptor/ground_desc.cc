@@ -99,7 +99,8 @@ static image_t* create_textured_tile(const image_t* image_lightmap, const image_
 // copy ref texture, copy pixels from image into new texture
 static image_t* create_texture_from_tile(const image_t* image, const image_t* ref)
 {
-	if(  image == NULL  ||  image->get_pic()->w < 2  ) {
+	// without a backend the pixels were dropped at load, only the size is left
+	if(  COLOUR_DEPTH == 0  ||  image == NULL  ||  image->get_pic()->w < 2  ) {
 		image_t *image_dest = image_t::create_single_pixel();
 		return image_dest;
 	}

@@ -90,6 +90,7 @@
 #include "../dataobj/environment.h"
 #include "../dataobj/powernet.h"
 #include "../dataobj/records.h"
+#include "../dataobj/schedule.h"
 #include "../dataobj/pakset_manager.h"
 
 #include "../utils/cbuffer.h"
@@ -448,6 +449,9 @@ void karte_t::destroy()
 	is_sound = false; // karte_t::play_sound_area_clipped needs valid zeiger (pointer/drawer)
 	destroying = true;
 	DBG_MESSAGE("karte_t::destroy()", "destroying world");
+
+	// no schedule editor survives this, and the tiles are about to go away
+	clear_schedule_route( 0 );
 
 	uint32 max_display_progress = 256+cities.get_count()*10 + haltestelle_t::get_alle_haltestellen().get_count() + convoi_array.get_count() + (cached_size.x*cached_size.y)*2;
 	uint32 old_progress = 0;
@@ -1270,7 +1274,13 @@ void karte_t::init(settings_t* const sets, sint8 const* const h_field)
 	schedule_counter = 0;
 	// ticks = 0x7FFFF800;  // Testing the 31->32 bit step
 
-	last_month = 0;
+	if(  settings.get_use_timeline()  ) {
+		// before the first town hall no city could be founded, so do not start there
+		settings.set_starting_year( max( settings.get_starting_year(), hausbauer_t::get_earliest_townhall_year() ) );
+	}
+	// the whole starting date is set here, so the map is generated with the timeline of the
+	// month it starts in and not with January
+	last_month = clamp( settings.get_starting_month(), (sint16)0, (sint16)11 );
 	last_year = settings.get_starting_year();
 	current_month = last_month + (last_year*12);
 	set_ticks_per_world_month_shift(settings.get_bits_per_month());
@@ -2464,6 +2474,9 @@ DBG_MESSAGE( "karte_t::rotate90()", "called" );
 
 	// clear marked region
 	zeiger->change_pos( koord3d::invalid );
+
+	// every coordinate changes, so the shown route would point at the wrong tiles
+	clear_schedule_route( 0 );
 
 	// preprocessing, detach stops from factories to prevent crash
 	for(halthandle_t const s : haltestelle_t::get_alle_haltestellen()) {
@@ -4355,32 +4368,33 @@ DBG_MESSAGE("karte_t::load()", "%d factories loaded", all_factories.get_count())
 	// show message about server
 	if(  file->is_version_atleast(112, 8)  ) {
 		xml_tag_t t( file, "motd_t" );
-		char msg[32766];
-		file->rdwr_str( msg, 32766 );
+		char motd_buf[MAX_MOTD_LEN+1] = { 0 };
+		file->rdwr_str( motd_buf, lengthof(motd_buf));
 
 		if (env_t::server) {
 			// maybe show message about server
 			dr_chdir(env_t::user_dir);
 			DBG_MESSAGE("karte_t::save(loadsave_t *file)", "motd filename %s", env_t::server_motd_filename.c_str());
-			if (FILE* fmotd = dr_fopen(env_t::server_motd_filename.c_str(), "r")) {
+
+			if (FILE *fmotd = dr_fopen(env_t::server_motd_filename.c_str(), "r")) {
 				struct stat st;
 				stat(env_t::server_motd_filename.c_str(), &st);
 
-				sint32 len = min(32760, st.st_size + 1);
-				char* motd = (char*)malloc(len);
-				if (fread(motd, len - 1, 1, fmotd) != 1) {
-					len = 1;
+				size_t len = std::min<size_t>(MAX_MOTD_LEN, st.st_size);
+
+				if (fread(motd_buf, len, 1, fmotd) != 1) {
+					len = 0;
 				}
+
 				fclose(fmotd);
-				motd[len - 1] = 0;
-				settings.motd = motd;
-				free(motd);
+				motd_buf[len] = 0;
+				settings.motd = motd_buf;
 			}
 		}
 		else if (env_t::networkmode) {
 
-			settings.motd = msg;
-			if (*msg  &&  !env_t::restore_UI) {
+			settings.motd = motd_buf;
+			if (*motd_buf  &&  !env_t::restore_UI) {
 				// if not empty ...
 				help_frame_t* win = new help_frame_t();
 				win->set_text(settings.motd.c_str());
@@ -4475,13 +4489,6 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 		// it will use the saved language of the game
 		translator::init_custom_names(settings.get_name_language_id());
 
-		if(  !env_t::networkmode  ||  (env_t::server  &&  socket_list_t::get_playing_clients()==0)  ) {
-			if (settings.get_allow_player_change()  &&  env_t::default_settings.get_use_timeline() < 2) {
-				// not locked => eventually switch off timeline settings, if explicitly stated
-				settings.set_use_timeline(env_t::default_settings.get_use_timeline());
-				DBG_DEBUG("karte_t::rdwr_gamestate()", "timeline: reset to %i", env_t::default_settings.get_use_timeline() );
-			}
-		}
 		if (settings.get_beginner_mode()) {
 			goods_manager_t::set_multiplier(settings.get_beginner_price_factor());
 		}
@@ -4551,6 +4558,12 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 			// prevent overflow
 			dbg->fatal("karte_t::rdwr_gamestate", "Year out of range (%d >= %d)", last_year+1, INT_MAX/12);
 		}
+
+		if (settings.get_use_timeline() && (last_year < hausbauer_t::get_earliest_townhall_year() || last_year >= 2999)) {
+			// disable timeline for out of bound years
+			settings.set_use_timeline(0);
+		}
+
 
 		// old game might have wrong month
 		last_month %= 12;
@@ -5996,6 +6009,143 @@ void karte_t::set_deferred_move_to(koord3d k, uint8 f)
 	next_deferred_move_flags = f;
 }
 
+
+/* Route of the schedule shown by a schedule editor. Kept file local like the
+ * deferred move above: this is client local display state that must never end
+ * up in a savegame.
+ */
+static vector_tpl<koord3d> schedule_route;   ///< koord3d::invalid separates legs without a route
+static uint8  schedule_route_player_nr = PLAYER_UNOWNED;
+static uint32 schedule_route_owner = 0;      ///< component owning the overlay, 0 = nobody
+
+static schedule_t *schedule_route_request = NULL; ///< pending, belongs to schedule_route_owner
+static uint8  schedule_route_request_player_nr = PLAYER_UNOWNED;
+static uint16 schedule_route_request_speed = 0;
+static bool   schedule_route_request_electric = false;
+
+
+const vector_tpl<koord3d> &karte_t::get_schedule_route() const { return schedule_route; }
+uint32 karte_t::get_schedule_route_owner() const { return schedule_route_owner; }
+uint8 karte_t::get_schedule_route_player_nr() const { return schedule_route_player_nr; }
+
+
+void karte_t::request_schedule_route(schedule_t *schedule, player_t *pl, uint32 owner, uint16 speed_kmh, bool needs_electrification)
+{
+	if(  schedule == NULL  ||  pl == NULL  ||  owner == 0  ) {
+		return;
+	}
+	// a newer request always replaces a pending one, and takes over the overlay
+	// right away: whatever is shown belongs to an older schedule from now on
+	delete schedule_route_request;
+	schedule_route_request = schedule->copy();
+	schedule_route_request_player_nr = pl->get_player_nr();
+	schedule_route_request_speed = speed_kmh;
+	schedule_route_request_electric = needs_electrification;
+	schedule_route_owner = owner;
+	if(  !schedule_route.empty()  ) {
+		schedule_route.clear();
+		set_dirty();
+	}
+}
+
+
+void karte_t::clear_schedule_route(uint32 owner)
+{
+	// an editor that no longer owns the overlay must not drop a newer one
+	if(  owner != 0  &&  owner != schedule_route_owner  ) {
+		return;
+	}
+	// dropping the pending request is what keeps an outdated result from arriving
+	delete schedule_route_request;
+	schedule_route_request = NULL;
+	schedule_route_owner = 0;
+	if(  !schedule_route.empty()  ) {
+		schedule_route.clear();
+		set_dirty();
+	}
+}
+
+
+void karte_t::step_schedule_route()
+{
+	if(  schedule_route_request == NULL  ) {
+		return;
+	}
+	// a request only survives to here while its editor still owns the overlay:
+	// clear_schedule_route drops it as soon as that editor lets go
+	schedule_t *schedule = schedule_route_request;
+	const uint16 speed   = schedule_route_request_speed;
+	const bool electric  = schedule_route_request_electric;
+	player_t *pl         = get_player( schedule_route_request_player_nr );
+	schedule_route_request = NULL;
+
+	if(  pl != NULL  ) {
+		schedule_route.clear();
+		schedule_route_player_nr = pl->get_player_nr();
+
+		// A throw away vehicle to query the ways; it is never put on the map. It
+		// carries the owner (private ways depend on it), the speed of the convoi
+		// driving this schedule, and whether that convoi needs catenary.
+		// the vehicle keeps a pointer to its descriptor, so the descriptor must
+		// outlive it: both live until the end of this function
+		const waytype_t wt = schedule->get_waytype();
+		vehicle_desc_t test_desc( (uint8)wt, speed, electric ? vehicle_desc_t::electric : vehicle_desc_t::diesel );
+		vehicle_t *test_driver = NULL;
+		switch(  wt  ) {
+			case road_wt:
+			case track_wt:
+			case tram_wt:
+			case monorail_wt:
+			case maglev_wt:
+			case narrowgauge_wt:
+			case water_wt:
+				test_driver = vehicle_builder_t::build( koord3d(), pl, NULL, &test_desc );
+				test_driver->set_flag( obj_t::not_on_map );
+				// no convoi to ask, so the restriction is set on the vehicle itself
+				test_driver->set_needs_electrification( electric );
+				test_driver->set_leading(true);
+				break;
+
+			default:
+				// air_wt routes are found by air_vehicle_t itself, not by calc_route
+				break;
+		}
+
+		const uint8 count = schedule->get_count();
+		if(  test_driver  &&  count > 1  ) {
+			route_t leg;
+			for(  uint8 i = 0;  i < count;  i++  ) {
+				const koord3d start  = schedule->entries[i].pos;
+				const koord3d target = schedule->entries[(i+1) % count].pos;
+				if(  start == target  ) {
+					continue;
+				}
+				leg.clear();
+				if(  leg.calc_route( this, start, target, test_driver, speed, 1 ) == route_t::no_route  ) {
+					// mark the gap, so that the display does not connect across it
+					if(  !schedule_route.empty()  &&  schedule_route.back() != koord3d::invalid  ) {
+						schedule_route.append( koord3d::invalid );
+					}
+					continue;
+				}
+				for(  koord3d const& pos : leg.get_route()  ) {
+					if(  schedule_route.empty()  ||  schedule_route.back() != pos  ) {
+						schedule_route.append( pos );
+					}
+				}
+			}
+		}
+		if(  test_driver  ) {
+			// it was built on a real tile, and the destructor of a rail vehicle would
+			// release the reservation of whoever holds that tile: take it off the map first
+			test_driver->set_pos( koord3d::invalid );
+			delete test_driver;
+		}
+		set_dirty();
+	}
+	delete schedule;
+}
+
 void karte_t::command_queue_append(network_world_command_t* nwc) const
 {
 	slist_tpl<network_world_command_t*>::iterator i = command_queue.begin();
@@ -6345,6 +6495,9 @@ bool karte_t::interactive(uint32 quit_month)
 			next_deferred_move_flags = 0;
 		}
 
+		// same reason: the route search of a schedule editor cannot run from the GUI
+		step_schedule_route();
+
 		if(  env_t::networkmode  ) {
 			process_network_commands(&ms_difference);
 		}
@@ -6490,7 +6643,7 @@ bool karte_t::interactive(uint32 quit_month)
 						}
 
 						// remove passwords before transfer on the server and set default client mask
-						// they will be restored in karte_t::laden
+						// they will be restored in karte_t::load
 						for (int i = 0; i < PLAYER_UNOWNED; i++) {
 							if (players[i]  &&  !players[i]->access_password_hash().empty()) {
 								players[i]->access_password_hash().clear();

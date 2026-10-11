@@ -31,6 +31,24 @@ function test_terraform_raise_lower_land()
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(player_x(0), coord3d(2, 1, 0), hex_corner.SE), null)
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(player_x(0), coord3d(3, 1, 0), hex_corner.SE), null)
 
+	// whole tile tile up/down
+	{
+		local pl = player_x(0)
+		local setslope = command_x.set_slope
+		ASSERT_TRUE(square_x(4,2).get_tile_at_height(1)==null)
+		ASSERT_FALSE(square_x(4,2).get_tile_at_height(0)==null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0),   slope.all_up_slope), null)
+		ASSERT_TRUE(square_x(4,2).get_tile_at_height(0)==null)
+		ASSERT_FALSE(square_x(4,2).get_tile_at_height(1)==null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 1),   slope.all_up_slope), null)
+		ASSERT_TRUE(square_x(4,2).get_tile_at_height(1)==null)
+		ASSERT_FALSE(square_x(4,2).get_tile_at_height(2)==null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 2),   slope.all_down_slope), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 1),   slope.all_down_slope), null)
+		ASSERT_TRUE(square_x(4,2).get_tile_at_height(1)==null)
+		ASSERT_FALSE(square_x(4,2).get_tile_at_height(0)==null)
+	}
+
 	RESET_ALL_PLAYER_FUNDS()
 }
 
@@ -146,6 +164,11 @@ function check_water_block_raise(cases)
 				}
 			}
 		}
+
+		// set_slope(flat) below only overlays the visible grid; undo the
+		// raise itself so the natural height a later building removal
+		// restores is flat as well
+		ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, c.tile, c.corner), null)
 	}
 
 	// Restore flat mediterran for the next test: drop any leftover

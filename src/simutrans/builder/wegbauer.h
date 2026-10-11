@@ -143,6 +143,21 @@ public:
 	 */
 	bool is_allowed_step(const grund_t *from, const grund_t *to, sint32 *costs, bool is_upperlayer = false );
 
+	/**
+	 * Height in tiles between a base ground and the elevated way surface built above it:
+	 * the configured way_height_clearance/height_offset plus, on a bridge ramp connection
+	 * built on sloped terrain, the extra height reported by base->get_bridge_slope_extra_height().
+	 * Common conversion used to keep route search, cost estimation and elevated-way
+	 * construction consistent with each other. 'base' may be NULL (assumes no extra height).
+	 */
+	sint8 get_way_height_offset(const grund_t *base) const;
+
+	/**
+	 * Inverse of get_way_height_offset(): given the position of an already-built elevated
+	 * way tile, finds the base ground it was built above (or NULL if none is found).
+	 */
+	grund_t *find_base_for_elevated(const koord3d &upper_pos) const;
+
 private:
 	// Post-pathfinding pass that rejects routes whose final per-tile
 	// ribi can't be carried by the tile's slope.  See implementation
@@ -236,6 +251,9 @@ public:
 	bool check_slope( const grund_t *from, const grund_t *to );
 
 	bool check_terraforming( const grund_t *from, const grund_t *to, slope_t::type* new_from_slope=NULL, slope_t::type* new_to_slope=NULL) const;
+	bool check_terraforming( const grund_t *from, const grund_t *to, slope_t::type from_slope, sint8 from_hgt, slope_t::type to_slope, sint8 to_hgt, slope_t::type* new_from_slope, slope_t::type* new_to_slope) const;
+	/// Replays the whole terraform sequence without touching the world.
+	bool terraforming_leaves_way_slopes() const;
 	void do_terraforming();
 
 	void build();

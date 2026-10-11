@@ -534,3 +534,206 @@ function test_way_tunnel_build_does_not_terraform_double_mouth()
 	ASSERT_EQUAL(setslope(pl, coord3d(3, 4, 0), slope.flat), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+function test_way_tunnel_build_invalid_param_type()
+{
+	local digger = command_x(tool_build_tunnel)
+	local default_tunnel = tunnel_desc_x.get_available_tunnels(wt_road)[0]
+	local pl = player_x(0)
+
+	ASSERT_TRUE(default_tunnel != null)
+
+	// The fourth argument is the tool's default_param and has to be a string.
+	// A descriptor passed there used to be swallowed by the string conversion,
+	// leaving default_param NULL, and only surfaced further down as the
+	// misleading "Error during initializing tool".
+	{
+		local error_caught = false
+		try {
+			digger.work(pl, coord3d(3, 1, 0), coord3d(3, 2, 0), default_tunnel)
+		}
+		catch (e) {
+			error_caught = true
+			ASSERT_EQUAL(e, "Tool parameter must be a string or null; descriptors have to be passed as <desc>.get_name()")
+		}
+		ASSERT_TRUE(error_caught)
+	}
+
+	// null is a valid parameter and must pass the check: it reaches the tool,
+	// which then reports its own error because no tunnel is named. A string is
+	// valid too and is exercised with a real descriptor name by
+	// test_way_tunnel_build_up_down and test_way_tunnel_build_above_tunnel_slope.
+	{
+		local error_caught = false
+		try {
+			digger.work(pl, coord3d(3, 1, 0), coord3d(3, 2, 0), null)
+		}
+		catch (e) {
+			error_caught = true
+			ASSERT_EQUAL(e, "Error during initializing tool")
+		}
+		ASSERT_TRUE(error_caught)
+	}
+
+	// Nothing was built: the check happens before the tool is initialized,
+	// and a tunnel would show up as maintenance here.
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// helper for the tunnel planner tests: raises (or lowers again) a one tile wide
+// ridge along column @p x from @p y0 to @p y1, which gives the tile at y0-1 the
+// slope a tunnel mouth needs and something to dig through.  Hex column: the
+// first tile takes all 6 vertices (raise_hex_tile), every further tile the 4
+// it does not share with the tile north of it (see raise_hex_tile_pair_S).
+function TUNNEL_RIDGE(pl, x, y0, y1, raise)
+{
+	if (raise) {
+		raise_hex_tile(pl, x, y0, 0)
+		for (local y = y0 + 1; y <= y1; y++) {
+			ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(x+1, y,   0)), null)              // (x,y).E
+			ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(x,   y+1, 0)), null)              // (x,y).SW
+			ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(x,   y, 0), 1), null) // (x,y).SE
+			ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(x-1, y, 0), 1), null) // (x,y).W
+		}
+	}
+	else {
+		for (local y = y1; y > y0; y--) {
+			ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(x-1, y, 1), 1), null) // (x,y).W
+			ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(x,   y, 1), 1), null) // (x,y).SE
+			ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(x,   y+1, 1)), null)              // (x,y).SW
+			ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(x+1, y,   1)), null)              // (x,y).E
+		}
+		lower_hex_tile(pl, x, y0, 0)
+	}
+}
+
+
+function test_way_tunnel_planner_find_end()
+{
+	local pl = player_x(0)
+	local tunnel_desc = tunnel_desc_x.get_available_tunnels(wt_road)[0]
+	local start_pos = coord3d(3, 1, 0)
+	local end_pos = coord3d(3, 6, 0)
+
+	ASSERT_TRUE(tunnel_desc != null)
+
+	TUNNEL_RIDGE(pl, 3, 2, 5, true)
+
+	// the planner only answers the question, it neither builds nor pays
+	local cash = pl.get_current_cash()
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south, tunnel_desc).tostring(), end_pos.tostring())
+	ASSERT_EQUAL(pl.get_current_cash(), cash)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	ASSERT_FALSE(square_x(3, 6).get_ground_tile().is_tunnel())
+
+	// asking again gives the same answer
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south, tunnel_desc).tostring(), end_pos.tostring())
+
+	// and the tunnel tool puts the far portal exactly there
+	ASSERT_EQUAL(command_x(tool_build_tunnel).work(pl, start_pos, tunnel_desc.get_name()), null)
+	ASSERT_TRUE(square_x(3, 6).get_ground_tile().is_tunnel())
+	for (local y = 0; y < 8; y++) {
+		ASSERT_EQUAL(square_x(3, y).get_ground_tile().has_way(wt_road), y == 1  ||  y == 6)
+	}
+
+	// clean up
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, start_pos), null)
+	for (local y = 0; y < 8; y++) {
+		ASSERT_FALSE(square_x(3, y).get_ground_tile().has_way(wt_road))
+	}
+	TUNNEL_RIDGE(pl, 3, 2, 5, false)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+function test_way_tunnel_planner_invalid_direction()
+{
+	local pl = player_x(0)
+	local tunnel_desc = tunnel_desc_x.get_available_tunnels(wt_road)[0]
+	local start_pos = coord3d(3, 1, 0)
+	local invalid = coord3d(-1, -1, -1).tostring()
+
+	TUNNEL_RIDGE(pl, 3, 2, 5, true)
+
+	// control: the very same start tile does have an answer
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south, tunnel_desc).tostring(), coord3d(3, 6, 0).tostring())
+
+	// anything but a single direction converts to a step vector of length zero
+	// or to a two-step offset, neither of which the native search can walk
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.none,                  tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.northsouth,            tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.northwest_southeast,   tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south | dir.southeast, tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.all,                   tunnel_desc).tostring(), invalid)
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+
+	TUNNEL_RIDGE(pl, 3, 2, 5, false)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// test_way_tunnel_planner_rotated_map: HEX-PORT PENDING.
+function test_way_tunnel_planner_rotated_map()
+{
+	local pl = player_x(0)
+	local tunnel_desc = tunnel_desc_x.get_available_tunnels(wt_road)[0]
+	local start_pos = coord3d(3, 1, 0)
+	local end_pos = coord3d(3, 6, 0)
+
+	TUNNEL_RIDGE(pl, 3, 2, 5, true)
+
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south, tunnel_desc).tostring(), end_pos.tostring())
+
+	// script coordinates and directions are relative to the orientation the
+	// script started with, so the very same question must keep pointing at the
+	// same tile while the world underneath turns. sroute_rotate is the test-only
+	// hook that rotates the world, it is not tied to the schedule route tests.
+	sroute_rotate()
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south, tunnel_desc).tostring(), end_pos.tostring())
+
+	// back to the original orientation, so the rest of the suite is unaffected
+	sroute_rotate()
+	sroute_rotate()
+	sroute_rotate()
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south, tunnel_desc).tostring(), end_pos.tostring())
+
+	TUNNEL_RIDGE(pl, 3, 2, 5, false)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+function test_way_tunnel_planner_no_exit()
+{
+	local pl = player_x(0)
+	local tunnel_desc = tunnel_desc_x.get_available_tunnels(wt_road)[0]
+	local invalid = coord3d(-1, -1, -1).tostring()
+
+	// a ridge that reaches the southern border of the map: the search runs out
+	// of map before it finds a place for the second portal
+	TUNNEL_RIDGE(pl, 9, 2, 15, true)
+
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, coord3d(9, 1, 0), dir.south, tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+
+	TUNNEL_RIDGE(pl, 9, 2, 15, false)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+function test_way_tunnel_planner_off_map()
+{
+	local pl = player_x(0)
+	local tunnel_desc = tunnel_desc_x.get_available_tunnels(wt_road)[0]
+	local invalid = coord3d(-1, -1, -1).tostring()
+
+	// the first step already leaves the map
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, coord3d(3, 0, 0), dir.north, tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, coord3d(0, 3, 0), dir.northwest, tunnel_desc).tostring(), invalid)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
