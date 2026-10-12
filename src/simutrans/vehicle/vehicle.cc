@@ -900,8 +900,7 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(purchase_time%12
 			file->rdwr_byte(dy);
 		}
 		else {
-			// a tile length from before the hex bend lengths is replaced in
-			// convoi_t::finish_rd(), see need_realignment()
+			// an outdated tile length restarts the convoi, see need_realignment()
 			file->rdwr_byte(steps);
 			file->rdwr_byte(steps_next);
 		}

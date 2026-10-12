@@ -53,9 +53,9 @@ void vehicle_base_t::set_dxdy(ribi_t::ribi dir)
 static const uint16 STEPS_PER_WIDE_BEND  = 222;
 static const uint16 STEPS_PER_SHARP_BEND = VEHICLE_STEPS_PER_TILE / 2;
 
-// The screen path through a tile is still the square-era one (TODO.md
-// "Bend tile length"): the 60 degree bends drew 181 steps, of which a step with
-// dx or dy 0 covered 1/sqrt(2) = 724/1024, and the 120 degree bends 256.
+// The screen path through a bend is still the square-era one (TODO.md
+// "Phase C"): 181 steps for a 60 degree bend, 256 for a 120 degree one, and a
+// step with dx or dy 0 covers 724/1024 of one.
 static const uint16 LEGACY_WIDE_BEND_SCREEN_STEPS = 181;
 static const uint16 LEGACY_DIAGONAL_SCREEN_SCALE = 724;
 
