@@ -25,6 +25,7 @@
 #include "gui/messagebox.h"
 #include "simhalt.h"
 #include "simconvoi.h"
+#include "simfab.h"
 #include "display/simimg.h"
 #include "simcolor.h"
 #include "simskin.h"
@@ -628,6 +629,75 @@ static void ai_soak_screenshot(const karte_t *welt, const char *what, const char
 }
 
 
+// -ai_snapshot: the info windows that embed a small world view (halt, convoy,
+// factory), each shot on its own as screenshot/aisoak-YYYY.MM-view-NAME.png,
+// to see how world_view_t lays out the tiles around its target.
+static void ai_soak_view_window(const karte_t *welt, const char *name, const char *where)
+{
+	gui_frame_t *const win = win_get_top();
+	if(  win  ) {
+		win_set_pos( win, scr_coord( 8, 40 ) );
+		intr_refresh_display( true );
+		const uint32 month = welt->get_current_month();
+		char file[64];
+		sprintf( file, SCREENSHOT_PATH_X "aisoak-%04u.%02u-view-%s.png", month / 12, month % 12 + 1, name );
+		const bool ok = gfx->take_screenshot( scr_rect( scr_coord( 8, 40 ), win->get_windowsize() ), file );
+		fprintf( stderr, "ai_soak: %04u.%02u snapshot %s %s at %s\n", month / 12, month % 12 + 1,
+			ok ? "saved" : "FAILED", file, where );
+	}
+	destroy_all_win( true );
+}
+
+
+// -ai_snapshot: the main view's picture of the same area as the small view of
+// a static target, shot as ...-view-NAME-main.png, to compare the two.  The
+// target tile goes where world_view_t puts it, so the area is the one the
+// small view shows.
+static void ai_soak_view_main(karte_t *welt, const koord3d &pos, const char *name)
+{
+	const sint16 raster = gfx->get_base_tile_raster_width();
+	// the view is drawn inside a one pixel frame
+	const scr_size size( max( 64, raster ) - 2, max( 56, raster * 7 / 8 ) - 2 );
+	welt->get_viewport()->change_world_position( pos );
+	// the main view only repaints what a tile covers, so the pixels between
+	// the diamonds of a pakset without hex tiles are those of the last frame;
+	// the small view paints the background there
+	gfx->draw_rect( 0, 0, gfx->get_screen_size().w, gfx->get_screen_size().h, env_t::background_color, true );
+	intr_refresh_display( true );
+	const scr_coord canvas = welt->get_viewport()->get_screen_coord( pos, koord( 0, 0 ) );
+	const uint32 month = welt->get_current_month();
+	char file[64];
+	sprintf( file, SCREENSHOT_PATH_X "aisoak-%04u.%02u-view-%s-main.png", month / 12, month % 12 + 1, name );
+	const bool ok = gfx->take_screenshot( scr_rect( canvas + scr_coord( -(size.w - raster) / 2, raster - size.h ), size ), file );
+	fprintf( stderr, "ai_soak: %04u.%02u snapshot %s %s at %s\n", month / 12, month % 12 + 1,
+		ok ? "saved" : "FAILED", file, pos.get_str() );
+}
+
+
+static void ai_soak_view_snapshots(karte_t *welt, const halthandle_t *newest)
+{
+	if(  newest  ) {
+		ai_soak_view_main( welt, (*newest)->get_basis_pos3d(), "halt" );
+		(*newest)->open_info_window();
+		ai_soak_view_window( welt, "halt", (*newest)->get_basis_pos3d().get_str() );
+	}
+	for(  const convoihandle_t &cnv : welt->convoys()  ) {
+		if(  cnv->get_owner()->get_player_nr() < 2  ||  cnv->in_depot()  ) {
+			continue;
+		}
+		cnv->open_info_window();
+		ai_soak_view_window( welt, "convoy", cnv->front()->get_pos().get_str() );
+		break;
+	}
+	if(  !welt->get_fab_list().empty()  ) {
+		fabrik_t *const fab = welt->get_fab_list()[0];
+		ai_soak_view_main( welt, fab->get_pos(), "factory" );
+		fab->open_info_window();
+		ai_soak_view_window( welt, "factory", fab->get_pos().get_str() );
+	}
+}
+
+
 static void ai_soak_snapshot(karte_t *welt)
 {
 	const halthandle_t *newest = NULL;
@@ -647,6 +717,7 @@ static void ai_soak_snapshot(karte_t *welt)
 		intr_refresh_display( true );
 	}
 	ai_soak_screenshot( welt, "map", where );
+	ai_soak_view_snapshots( welt, newest );
 }
 
 
