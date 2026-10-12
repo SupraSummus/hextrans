@@ -3897,8 +3897,8 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 									// down or flat slope could connect
 									sint8 max_h = bd->get_hoehe() + slope_t::max_diff(bd->get_grund_hang());
 									slope_t::type sl = bd->get_grund_hang();
-									if (max_h > gr->get_hoehe() || (max_h == gr->get_hoehe() && 3 == corner_ne(sl) + corner_se(sl) + corner_nw(sl) + corner_sw(sl))) {
-										// in between OR three corners at target height => we raise the entire tile
+									if (max_h > gr->get_hoehe() || (max_h == gr->get_hoehe() && 5 == corner_e(sl) + corner_se(sl) + corner_sw(sl) + corner_w(sl) + corner_nw(sl) + corner_ne(sl))) {
+										// in between OR all corners but one at target height => we raise the entire tile
 										bd->set_grund_hang(slope_t::flat);
 										bd->set_pos(koord3d(k, target_h));
 										for (int i = 0; i < bd->obj_count(); i++) {
