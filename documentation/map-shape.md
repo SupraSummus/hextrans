@@ -78,8 +78,15 @@ Off-map cells are `planquadrat_t` with `ground_size == 0`.
 so a loop over the full `W'×H'` rectangle that dereferences the ground
 crashes at the first off-map cell:
 the tripwire for loops that have not learnt the shape.
-Each such loop gets `if (!is_within_limits(k)) continue;`,
-or the per-row range `shape.q_range(r)` in hot loops.
+A loop over the whole map, or over a clipped rectangle of it,
+goes through `surface_t::for_each_tile(f)`
+or `for_each_tile(x_min, x_max, y_min, y_max, f)`,
+which call `f(koord)` for the on-map tiles only, row by row.
+A loop that breaks out early walks the per-row range instead,
+`get_row_begin(y) <= x < get_row_end(y)`
+(`map_shape_t::get_q_begin/get_q_end`).
+A sparse probe or a neighbour step uses `lookup_kartenboden`
+and skips the NULL it returns off the map.
 
 Step 2 fixed the loops that a flat empty hexagon runs through
 on generation, the first game months, save, load and display:
@@ -101,28 +108,62 @@ which return early on a cell without ground.
 write heights and climates for off-map cells too;
 nothing reads them, so they stay.
 
-Left for step 3: `create_rivers`
-and the city, factory and attraction builders on a populated map,
-the season, image and sync loops in `simworld.cc`
-that dereference the ground,
-`minimap.cc`, `obj_t` and `vehicle_base_t` rotation walks, `simplay.cc:532`,
-`simtool.cc:2328`, `fabrikbauer.cc:77`, the AI scan windows,
-`lookup_kartenboden_gridcoords`,
-and `climate_at_clamped` / `vertex_corner_height`,
-whose rectangle clamp lands on an off-map cell next to a cut
-and reads it as water at groundwater height.
+Step 3 fixed the loops a populated world runs through
+in generation, a game year of AI play and teardown:
+`create_rivers` (its source grid skips the cut),
+the destructor fallbacks of `obj_t` and `vehicle_base_t`
+that search the whole map for a lost object,
+`player_t`'s bankruptcy sweep (`simplay.cc`),
+the haltlist cleanup in `~haltestelle_t`,
+the AI's site scans (`ai_t::suche_platz`, `find_harbour`,
+and `ai_passenger_t`'s harbour and airport windows),
+the neighbour image refresh in `terraformer_t` and the remove tool,
+the city-info and listserver minimaps,
+and the raise and lower tools,
+which refuse a grid point whose tile is in a cut
+(`lookup_kartenboden_gridcoords` returns NULL there).
+`climate_at_clamped` and `vertex_corner_height` clamp
+through `get_closest_coordinate`,
+which now lands on the cut lines too,
+so a vertex next to a cut reads a real tile, not water.
+The season and image loops (`check_season_snowline`, `update_map_intern`)
+and `fabrikbauer`'s `fab_map` stay rectangular:
+they go through `get_boden_count()`, which is 0 off the map,
+or touch no ground.
 The `enlarge_map` strips (step 5) and `rotate90_plans` (step 6)
 are tripwires instead:
 `enlarge_map` on an existing world and `rotate90` call `dbg->fatal`
-when D > 1.
+when D > 1;
+the `obj_t` and vehicle `rotate90` walks only run inside them.
 
 `koord_random(W', H')` callers sample by rejection
+through `surface_t::get_random_tile()`
 (acceptance at least 36%, even at 128×128×512);
-`get_closest_coordinate` also clamps onto the cut lines;
-`display_border`, `zeiger_t` and `viewport_t` test
-`!is_within_limits(pos + neighbour)` instead of `pos.x == size.x-1`;
-edge margins (airports, AI) use `map_shape_t::edge_distance(k)`,
-the minimum over the six half-planes.
+`get_closest_coordinate` also clamps onto the cut lines,
+which keeps the viewport over the hexagon.
+`surface_t::is_front_edge(k)` is an on-map tile
+whose SE, S or SW neighbour is off the map;
+`grund_t::display_border` draws a wall towards each such neighbour,
+along the far rhombus sides, the far cut and the `q = 0` side,
+and `zeiger_t` and `viewport_t` test it
+instead of `pos.x == size.x-1`.
+Edge margins use `map_shape_t::edge_distance(k)`
+(`surface_t::get_edge_distance`),
+the minimum over the six half-planes,
+which is the hex distance to the nearest off-map cell minus one;
+a footprint's is the minimum at its two extreme corners.
+The AI's harbour and airport sites keep 6 tiles from every side,
+a city does not grow on an edge tile,
+and the lake tool does not flood one.
+The minimap draws the hexagon on black.
+
+Still rectangular after step 3:
+the new-world densities and the preview (step 4),
+the light tint over the isometric minimap
+while a schedule is shown,
+and the grid-point gates of the terraforming tools,
+which go through the tile, not `map_shape_t::contains_vertex`:
+a vertex on a cut line is raised from its on-map tile only.
 
 ## Save and load
 
@@ -267,11 +308,17 @@ and small `contains` hunks inside upstream loops.
    `tools/hex_map_shape_test` checks the cached branchless predicate
    `map_shape_t::contains_cached` against `contains`.
 3. **Full-map loops and edges.**
-   The tripwire sweep listed under "Off-map cells", `edge_distance`,
-   border walls, cursor and viewport.
-   Test: a `-mapshape W,H,D` hook generates a full world
-   (relief, cities, factories, an AI player) and runs a game year;
-   a CI step runs it headless under ASAN at 48×40×32.
+   The sweep under "Off-map cells", `for_each_tile`, `edge_distance`,
+   `get_random_tile`, border walls, cursor and viewport.
+   Landed.
+   Test: `-ai_soak W,H,D` generates a full world
+   (relief, rivers, cities, factories, two AIs) on the hexagon
+   and plays it; `tools/ai_soak.py --shape 48,40,32`
+   runs seeds 1–3 for a game year headless under ASAN in CI.
+   `tools/hex_map_shape_test` pins the row range and `edge_distance`
+   against enumeration;
+   `test_map_shape_no_terraform_in_cut` checks the raise and lower tools
+   on the 9×7×5 fixture.
 4. **World-creation dialog and image frame.**
    Three fields, "Equal sides", densities by tile count,
    preview and heightfield import in offset coordinates, the new default.
