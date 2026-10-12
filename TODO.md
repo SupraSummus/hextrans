@@ -782,6 +782,15 @@ flat-top hex view (vs. the current 2:1 stretch that matches the
 main viewport) would be a third mode, not a fix; not on the path
 unless the main view's lattice changes.
 
+Zoom levels where the tile raster width is not a multiple of 4
+break the hex lattice: `u = W/4` truncates,
+so tiles step `4u` while sprites stay `W` wide and seams open.
+Upstream 125's zoom table (`zoom_num` / `zoom_den` in `simgraph16.cc`,
+`ZOOM_NEUTRAL` 7 of 13) only hits this at 4/3,
+e.g. 170 px for a 128 pak (85 px for pak64).
+Next move: make `set_zoom_factor` skip a level whose
+`base_tile_raster_width * num / den` is not divisible by 4.
+
 **Sprite raster choice (pinned design decision).**  The lattice
 the projection runs on is a *clean integer approximation* of hex
 iso, not a regular hex tiling.  With unit `u = IMG_SIZE/4`:
@@ -1135,8 +1144,13 @@ A read-only audit (2026-10) of `tool/`, `builder/`, `vehicle/`, `obj/`,
 `world/`, `dataobj/`, `script/`, `gui/` and `descriptor/`
 found the sites below still reasoning in four directions or axial squares.
 Each paragraph is one PR-sized fix group.
-Groups touching code that an upstream 125 stage rewrites
-wait for that stage (`documentation/upstream-125-merge.md`).
+
+`stadt_t::generate_private_cars` under `DESTINATION_CITYCARS`
+(off by default) seeds cars from an axial 3×3 square
+and admits only the square combos `ribi_t::northsouth` / `eastwest`.
+Next move: loop over `hex_disc(1)`, accept any
+`ribi_t::is_straight` non-single road ribi,
+and build it once with the macro defined.
 
 Route heuristics.
 `way_builder_t::calc_distance` is axial Manhattan,

@@ -490,9 +490,6 @@ Longer-form design and planning docs live under `documentation/`:
     `karte_t::destroy()` (event dispatch nests inside
     `karte_t::step`), and the `tool_t` dispatch path that fixes
     it.  Describes live behaviour.
-  - `documentation/upstream-125-merge.md` — staged plan for merging
-    upstream 125: per-file conflict classes, what to take, skip or
-    neutralise.  Planning doc; delete it when the last stage lands.
   - `documentation/agent-sessions.md` — how a session runs parallel
     agents: where work comes from, one branch and PR per fix group,
     review and merge rules.
