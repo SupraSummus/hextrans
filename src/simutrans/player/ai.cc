@@ -5,6 +5,7 @@
 
 #include "finance.h"
 #include "ai.h"
+#include "ai_site.h"
 
 #include "../world/simcity.h"
 #include "../simconvoi.h"
@@ -173,6 +174,8 @@ bool ai_t::suche_platz(koord &start, koord &size, koord target, koord off)
 	int dist=0x7FFFFFFF;
 	koord platz;
 	int const cov = welt->get_settings().get_station_coverage();
+	// start is overwritten by every better site found
+	const koord fab_pos = start;
 	int xpos = start.x;
 	int ypos = start.y;
 
@@ -192,6 +195,10 @@ bool ai_t::suche_platz(koord &start, koord &size, koord target, koord off)
 	for (int y = max(0,ypos-cov);  y < maxy;  y++) {
 		for (int x = max(0,xpos-cov);  x < maxx;  x++) {
 			platz = koord(x,y);
+			// the station has to reach the factory: the corners of the axial rectangle do not
+			if(  !ai_station_reaches( platz, fab_pos, off, cov )  ) {
+				continue;
+			}
 			// no water tiles, nor the cut corners of the hexagon
 			const grund_t *gr = welt->lookup_kartenboden(platz);
 			if(  !gr  ||  gr->get_hoehe() <= welt->get_water_hgt(platz)  ) {
@@ -209,41 +216,15 @@ bool ai_t::suche_platz(koord &start, koord &size, koord target, koord off)
 				if(  get_halt(test).is_bound()  ) {
 DBG_MESSAGE("ai_t::suche_platz()","Search around stop at (%i,%i)",x,y);
 
-					// we are on a station that belongs to us
-					int xneu=x-1, yneu=y-1;
-					platz = koord(xneu,y);
-					current_dist = koord_distance(platz,target);
-					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
-						// we will take the shortest route found
-						start = platz;
-						dist = current_dist;
-					}
-
-					platz = koord(x,yneu);
-					current_dist = koord_distance(platz,target);
-					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
-						// we will take the shortest route found
-						start = platz;
-						dist = current_dist;
-					}
-
-					// search on the other side of the station
-					xneu = x+1;
-					yneu = y+1;
-					platz = koord(xneu,y);
-					current_dist = koord_distance(platz,target);
-					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
-						// we will take the shortest route found
-						start = platz;
-						dist = current_dist;
-					}
-
-					platz = koord(x,yneu);
-					current_dist = koord_distance(platz,target);
-					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
-						// we will take the shortest route found
-						start = platz;
-						dist = current_dist;
+					// we are on a station that belongs to us: try all six tiles next to it
+					for(  koord const& d : koord::neighbours  ) {
+						platz = test + d;
+						current_dist = koord_distance(platz,target);
+						if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
+							// we will take the shortest route found
+							start = platz;
+							dist = current_dist;
+						}
 					}
 				}
 			}

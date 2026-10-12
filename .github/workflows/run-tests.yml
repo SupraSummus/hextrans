@@ -67,6 +67,11 @@ jobs:
       # above the true hex distance, never dropping faster than one per
       # step.  ~1 second.
       run: make -C tools/hex_route_test run
+    - name: AI site search self-test
+      # player/ai_site.h: the station window of the computer players is the
+      # hex dilation of the factory footprint, against brute force and the
+      # axial rectangle it replaced.  ~1 second.
+      run: make -C tools/hex_ai_site_test run
     - name: Cache
       uses: actions/cache@v4
       with:
