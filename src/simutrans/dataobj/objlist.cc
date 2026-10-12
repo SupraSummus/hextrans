@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "../simdebug.h"
+#include "../display/hex_proj.h"
 #include "../display/simgraph.h"
 #include "../world/simworld.h"
 
@@ -379,10 +380,9 @@ bool objlist_t::intern_add_moving(obj_t* new_obj)
 	/* Vehicles are sorted back to front by their disp_lane.  Here we
 	   append them in tile entry order within their disp_lane, last one
 	   displayed in front.  Those moving downwards on screen (direction
-	   NE, E, SE, S) must be prepended, first one in front. */
+	   SE, S, SW) must be prepended, first one in front. */
 	auto v = static_cast<const vehicle_base_t*>(new_obj);
-	const uint8 direction = v->get_direction();
-	if (direction == ribi_t::north || (direction & ribi_t::northwest)) {
+	if (hex_heading_climbs_screen(v->get_direction())) {
 		start = end; // append
 	}
 

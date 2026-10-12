@@ -87,6 +87,19 @@ inline sint32 hex_screen_dy(sint32 dq, sint32 dr, sint16 W)
 }
 
 
+/// True if an object heading along the hex edge(s) in @p dir moves up
+/// the screen, i.e. `hex_screen_dy` of its step is negative.  Under the
+/// projection above that is N, NE and NW; S, SE and SW move down, and
+/// no edge is level (E and W are corners, not edges), so a single edge
+/// always falls on one side.  Objects sharing a tile are drawn back to
+/// front by screen y, so of two heading the same way the one further
+/// along is behind when this holds and in front when it does not.
+inline bool hex_heading_climbs_screen(ribi_t::ribi dir)
+{
+	return (dir & ribi_t::upper_half) != 0;
+}
+
+
 /// Inverse: screen pixel offset → fractional axial `(q, r)`.  Used by
 /// mouse picking; round to the nearest integer hex with
 /// `hex_round_to_axial`.
