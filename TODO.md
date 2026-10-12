@@ -782,23 +782,28 @@ instead of the rows the old east/west edges used.
 Next move: key them by ribi, the way `set_dxdy` does.
 
 **Chord direction of vehicles.**
-`vehicle_base_t::direction` holds `calc_chord_direction` of the tiles
-before and after the vehicle's tile,
+`vehicle_base_t::direction` and `calc_direction` both hold
+`calc_chord_direction` of the tiles before and after a tile,
 which sorts the off-axis chords of 60 degree bends into NE / SW or none.
-`vehicle_base_t::calc_direction` is still `ribi_type`,
-which gives none for every off-axis chord,
-so `no_cars_blocking`, the overtaking checks and `road_vehicle_t`'s
-`next_direction` compare chords classified two ways on a bend.
-Next move: make `calc_direction` call `calc_chord_direction` and check the
-bend cases of `no_cars_blocking` with a scenario of two buses meeting on a
-60 degree bend.
-Even then one bit names only one of the two edges an off-axis chord lies
-between (SE then NE lies between SE and NE and is filed as NE),
+One bit names only one of the two edges an off-axis chord lies between
+(SE then NE lies between SE and NE and is filed as NE),
 so a "does this chord lead back over that edge" test can miss.
 `can_go_alte_richtung`'s going-backwards test therefore uses
 `calc_chord_direction` and adds the route's first step,
 which is always an edge.
-The other direction tests may need the same first-step term.
+`no_cars_blocking` has the same gap:
+it rebuilds the edge it enters by (`current_90direction`) from the chord
+with the square identity `~(next_direction | backward(next_90direction))`,
+which on a hex bend gives three or four bits,
+and its `current_90direction == none` case can no longer happen
+now that `backward(none)` is none.
+Next move: pass the step into the tile
+(`curr_90direction` in `road_vehicle_t::can_enter_tile`
+and the same step in `private_car_t`)
+into `no_cars_blocking` and take `current_90direction` as its backward;
+`test_vehicle_buses_meet_on_bend` passes before and after,
+so the change wants a scenario where a bus turns across oncoming traffic
+at a hex junction.
 
 Zoom levels where the tile raster width is not a multiple of 4
 break the hex lattice: `u = W/4` truncates,
