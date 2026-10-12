@@ -56,9 +56,6 @@
 #include "messagebox.h"
 
 
-// Local adjustment
-#define L_PREVIEW_SIZE_MIN (16)
-
 // the new-world sides are at least this long, as the square map was
 #define L_SIZE_MIN (8)
 
@@ -89,14 +86,10 @@ template<class F>
 static void fill_preview(array2d_tpl<PIXVAL> &map, const scr_size &map_size, const map_shape_t &shape, F colour_of)
 {
 	const PIXVAL blank = gfx->palette_lookup(COL_BLACK);
-	const sint32 cols = shape.get_image_cols();
-	const sint32 rows = shape.get_image_rows();
 	for(  int y=0;  y<map_size.h;  y++  ) {
-		const sint32 Y = ((2*y+1)*rows) / (2*map_size.h);
 		for(  int x=0;  x<map_size.w;  x++  ) {
-			const sint32 X = ((2*x+1)*cols) / (2*map_size.w);
-			const sint32 r = shape.get_tile_row(X, Y);
-			map.at(x,y) = shape.contains(X, r) ? colour_of(X, Y, r) : blank;
+			const koord tile = gui_map_preview_t::get_preview_tile(shape, map_size, x, y);
+			map.at(x,y) = shape.contains(tile) ? colour_of(tile.x, shape.get_image_row(tile.x, tile.y), tile.y) : blank;
 		}
 	}
 }
@@ -573,17 +566,7 @@ void welt_gui_t::update_preview(bool load_heightfield)
 void welt_gui_t::resize_preview()
 {
 	// the preview is the relief image of the hexagon
-	const map_shape_t shape = sets->get_map_shape();
-	const float world_aspect = (float)shape.get_image_cols() / (float)shape.get_image_rows();
-
-	if(  world_aspect > 1.0  ) {
-		map_size.w = MAP_PREVIEW_SIZE_X-2;
-		map_size.h = (sint16) max( (int)((float)map_size.w / world_aspect), L_PREVIEW_SIZE_MIN-2);
-	}
-	else {
-		map_size.h = MAP_PREVIEW_SIZE_Y-2;
-		map_size.w = (sint16) max( (int)((float)map_size.h * world_aspect), L_PREVIEW_SIZE_MIN-2);
-	}
+	map_size = gui_map_preview_t::get_preview_size( sets->get_map_shape() );
 	map.resize( map_size.w, map_size.h );
 }
 
