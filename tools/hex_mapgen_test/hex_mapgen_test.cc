@@ -1,11 +1,14 @@
-// Checks the map generation shapes in dataobj/mapgen_shape.h: that they are
-// round (isotropic) in the physical plane, which axial-grid formulas are not.
-// The axial basis e_q, e_r is 60 degrees apart, so a set of tiles that is
-// round in (q, r) has a physical gyration tensor with eigenvalues in the
-// ratio 3 : 1 (an aspect of sqrt(3)).  Each check pairs the hex-aware shape
-// with the legacy axial formula, so that a test that cannot fail would show.
+// Checks the map generation shapes in dataobj/mapgen_shape.h and
+// physical_dot_x2 in dataobj/koord.h: that they are round (isotropic)
+// in the physical plane, which axial-grid formulas are not.  The axial
+// basis e_q, e_r is 60 degrees apart, so a set of tiles that is round in
+// (q, r) has a physical gyration tensor with eigenvalues in the ratio
+// 3 : 1 (an aspect of sqrt(3)), and a "cosine" q1*q2 + r1*r2 is not the
+// cosine of anything.  Each check pairs the hex-aware shape with the
+// legacy axial formula, so that a test that cannot fail would show.
 //
-// Covers karte_t::calc_climate_map_region (smoothing weights, patch shape).
+// Covers karte_t::calc_climate_map_region (smoothing weights, patch
+// shape) and karte_t::distribute_cities (obtuse-angle test).
 
 #include <cmath>
 #include <cstdio>
@@ -217,10 +220,61 @@ static void test_patch()
 }
 
 
+// physical_dot_x2 against the exact dot product of the physical vectors,
+// and the obtuse-angle test of the intercity roads (distribute_cities)
+// against the symmetries of the hex grid.
+static void test_dot()
+{
+	const sint16 N = 7;
+	sint32 axial_flips = 0, physical_flips = 0, pairs = 0;
+	for (sint16 aq = -N; aq <= N; aq++) {
+		for (sint16 ar = -N; ar <= N; ar++) {
+			for (sint16 bq = -N; bq <= N; bq++) {
+				for (sint16 br = -N; br <= N; br++) {
+					const koord a(aq, ar), b(bq, br);
+					const double exact = phys_x(a) * phys_x(b) + phys_y(a) * phys_y(b);
+					CHECK(std::fabs(physical_dot_x2(a, b) - 2 * exact) < 1e-9);
+
+					// the sign survives the 60 degree rotation of both offsets
+					const koord ra = hex_axial_rotate(a, 1), rb = hex_axial_rotate(b, 1);
+					const bool obtuse = physical_dot_x2(a, b) < 0;
+					const bool rotated = physical_dot_x2(ra, rb) < 0;
+					physical_flips += obtuse != rotated;
+					const bool axial_obtuse = a.x * b.x + a.y * b.y < 0;
+					const bool axial_rotated = ra.x * rb.x + ra.y * rb.y < 0;
+					axial_flips += axial_obtuse != axial_rotated;
+					pairs++;
+				}
+			}
+		}
+	}
+	std::printf("obtuse-angle test, %d offset pairs: %d change under a 60 degree rotation "
+	            "(axial q1*q2 + r1*r2: %d)\n", (int)pairs, (int)physical_flips, (int)axial_flips);
+	CHECK(physical_flips == 0);
+	CHECK(axial_flips > pairs / 10);
+
+	// physical_distance_sq is the norm of the same product
+	for (sint16 q = -N; q <= N; q++) {
+		for (sint16 r = -N; r <= N; r++) {
+			const koord d(q, r);
+			CHECK(2 * (sint32)physical_distance_sq(d, koord(0, 0)) == physical_dot_x2(d, d));
+		}
+	}
+
+	// physical +x and +y are at a right angle: not obtuse (the axial product is -1)
+	CHECK(physical_dot_x2(koord(2, -1), koord(0, 1)) == 0);
+	// SE and N are 120 degrees apart: obtuse (the axial product is 0)
+	CHECK(physical_dot_x2(koord(1, 0), koord(0, -1)) < 0);
+	// SE and S are 60 degrees apart: acute
+	CHECK(physical_dot_x2(koord(1, 0), koord(0, 1)) > 0);
+}
+
+
 int main()
 {
 	test_smoothing();
 	test_patch();
+	test_dot();
 
 	if (failures) {
 		std::fprintf(stderr, "hex_mapgen_test: %d check(s) failed\n", failures);
