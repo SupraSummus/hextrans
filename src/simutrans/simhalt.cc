@@ -750,6 +750,31 @@ static int count_printf_param( const char *str )
 }
 
 
+// The word for the direction of a stop from the middle of its town.
+// Flat-top hexes have six edge directions and no due east or west
+// neighbour, so each of N, NE, SE, S, SW and NW owns a 60 degree sector of
+// the map plane: the neighbour step with the largest physical dot product
+// with the offset.  An offset on the border between two sectors goes to the
+// step that comes first in koord::neighbours[].
+// The word is the compass direction on the unrotated map; one rotation step
+// moves a coordinate direction from neighbours[i] to neighbours[i + 1].
+static const char *compass_name( koord offset, uint8 rotation )
+{
+	static const char *const names[6] = { "suedost", "sued", "suedwest", "nordwest", "nord", "nordost" };
+
+	uint8 best = 0;
+	sint32 best_dot = physical_dot_x2( koord::neighbours[0], offset );
+	for(  uint8 i=1;  i<6;  i++  ) {
+		const sint32 dot = physical_dot_x2( koord::neighbours[i], offset );
+		if(  dot > best_dot  ) {
+			best = i;
+			best_dot = dot;
+		}
+	}
+	return names[ (best + 6 - rotation%6) % 6 ];
+}
+
+
 // creates stops with unique! names
 char* haltestelle_t::create_name(koord const k, char const* const typ)
 {
@@ -936,40 +961,7 @@ char* haltestelle_t::create_name(koord const k, char const* const typ)
 			strcpy( numbername, "0extern" );
 		}
 
-		const char *dirname = NULL;
-		static const char *diagonal_name[4] = { "nordwest", "nordost", "suedost", "suedwest" };
-		static const char *direction_name[4] = { "nord", "ost", "sued", "west" };
-
-		uint8 const rot = welt->get_settings().get_compass_rotation();
-		if (k.y < ob_gr  ||  (inside  &&  k.y*3 < (un_gr+ob_gr+ob_gr))  ) {
-			if (k.x < li_gr) {
-				dirname = diagonal_name[(4 - rot) % 4];
-			}
-			else if (k.x > re_gr) {
-				dirname = diagonal_name[(5 - rot) % 4];
-			}
-			else {
-				dirname = direction_name[(4 - rot) % 4];
-			}
-		} else if (k.y > un_gr  ||  (inside  &&  k.y*3 > (un_gr+un_gr+ob_gr))  ) {
-			if (k.x < li_gr) {
-				dirname = diagonal_name[(3 - rot) % 4];
-			}
-			else if (k.x > re_gr) {
-				dirname = diagonal_name[(6 - rot) % 4];
-			}
-			else {
-				dirname = direction_name[(6 - rot) % 4];
-			}
-		} else {
-			if (k.x <= stadt->get_pos().x) {
-				dirname = direction_name[(3 - rot) % 4];
-			}
-			else {
-				dirname = direction_name[(5 - rot) % 4];
-			}
-		}
-		dirname = translator::translate(dirname,lang);
+		const char *dirname = translator::translate(compass_name(k - stadt->get_center(), welt->get_settings().get_rotation()), lang);
 
 		// Try everything to get a unique name
 		while(true) {
