@@ -832,7 +832,7 @@ char* haltestelle_t::create_name(koord const k, char const* const typ)
 				// since the distance are presorted, we can just append for a good choice ...
 				for(  uint32 test=0;  test<lengthof(next_building);  test++  ) {
 					fabrik_t *fab = fabrik_t::get_fab(k+next_building[test]);
-					if(fab  &&  fabs.is_contained(fab)) {
+					if(fab  &&  !fabs.is_contained(fab)) {
 						fabs.append(fab);
 					}
 				}
