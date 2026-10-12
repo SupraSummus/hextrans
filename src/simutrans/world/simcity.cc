@@ -3667,28 +3667,24 @@ bool stadt_t::renovate_city_building(gebaeude_t *gb)
 void stadt_t::generate_private_cars(koord pos, koord target)
 {
 	if (!private_car_t::list_empty()  &&  number_of_cars>0  ) {
-		koord k;
-		for (k.y = pos.y - 1; k.y <= pos.y + 1; k.y++) {
-			for (k.x = pos.x - 1; k.x <= pos.x + 1; k.x++) {
-				if(  grund_t* gr = welt->lookup_kartenboden(k) ) {
-					const weg_t* weg = gr->get_weg(road_wt);
-					if (weg != NULL && (
-						weg->get_ribi_unmasked() == ribi_t::northsouth ||
-						weg->get_ribi_unmasked() == ribi_t::eastwest) &&
-						player_t::check_owner(NULL, weg->get_owner()))
-					{
-						// already a car here => avoid congestion
-						if (gr->obj_bei(gr->obj_count() - 1)->is_moving()) {
-							continue;
-						}
-
-						private_car_t* vt = new private_car_t(gr, target);
-						gr->obj_add(vt);
-						city_history_month[0][HIST_CITYCARS]++;
-						city_history_year[0][HIST_CITYCARS]++;
-						number_of_cars--;
-						return;
+		for (koord d : hex_disc(1)) {
+			if(  grund_t* gr = welt->lookup_kartenboden(pos + d) ) {
+				const weg_t* weg = gr->get_weg(road_wt);
+				// a road running straight on, not a junction or a dead end
+				if (weg != NULL  &&  ribi_t::is_straight(weg->get_ribi_unmasked())  &&  !ribi_t::is_single(weg->get_ribi_unmasked())  &&
+					player_t::check_owner(NULL, weg->get_owner()))
+				{
+					// already a car here => avoid congestion
+					if (gr->obj_bei(gr->obj_count() - 1)->is_moving()) {
+						continue;
 					}
+
+					private_car_t* vt = new private_car_t(gr, target);
+					gr->obj_add(vt);
+					city_history_month[0][HIST_CITYCARS]++;
+					city_history_year[0][HIST_CITYCARS]++;
+					number_of_cars--;
+					return;
 				}
 			}
 		}
