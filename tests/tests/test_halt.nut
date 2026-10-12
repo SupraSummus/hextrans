@@ -146,8 +146,8 @@ function test_halt_build_harbour()
 
 // The six directions a dock can face: [direction to the water, shore slope
 // with that edge low, stored layout of a dock with 4 layouts].  The 4-layout
-// images know S, SE, N and NW; building_desc_t::adjust_layout folds NE and SW
-// onto S and SE, so those two only show up in the footprint.
+// images know S, SE, N and NW; building_desc_t::adjust_layout folds NE onto N
+// and SW onto S, so those two only show up in the footprint.
 function dock_faces()
 {
 	return [
@@ -155,8 +155,8 @@ function dock_faces()
 		[dir.southeast, slope.southeast_narrow, 1],
 		[dir.north,     slope.north_narrow,     2],
 		[dir.northwest, slope.northwest_narrow, 3],
-		[dir.northeast, slope.northeast_narrow, 0],
-		[dir.southwest, slope.southwest_narrow, 1],
+		[dir.northeast, slope.northeast_narrow, 2],
+		[dir.southwest, slope.southwest_narrow, 0],
 	]
 }
 
@@ -654,9 +654,9 @@ function test_halt_build_terminal_stop_all_directions()
 }
 
 
-// building_desc_t::adjust_layout folds layouts 4 / 5 (NE / SW) onto 0 / 1
-// (S / SE) for a descriptor with 4 or fewer layouts, so the stored layout
-// of a NE or SW terminal stop reads as an S or SE one.  The road builder
+// building_desc_t::adjust_layout folds layouts 4 / 5 (NE / SW) onto 2 / 0
+// (N / S) for a descriptor with 4 or fewer layouts, so the stored layout
+// of a NE or SW terminal stop reads as an N or S one.  The road builder
 // must take the direction from the way instead: the road along the stop's
 // own axis stays buildable, a road from any other side is refused.
 function test_halt_terminal_stop_third_axis()
@@ -737,7 +737,7 @@ function test_halt_through_stop_third_axis()
 // A stop whose road is gone has no way to read its direction from and
 // falls back to the stored layout.  That is exact for the directions
 // adjust_layout does not fold (S, SE, N, NW for a terminal stop, N-S and
-// SE-NW for a through one).  A NE or SW terminal stop folds onto S or SE
+// SE-NW for a through one).  A NE or SW terminal stop folds onto N or S
 // and loses its direction together with its road.
 function test_halt_stop_reconnect_after_road_removed()
 {

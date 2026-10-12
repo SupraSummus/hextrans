@@ -472,7 +472,9 @@ gebaeude_t* hausbauer_t::build(player_t* player, koord pos, int org_layout, cons
 	koord dim;
 
 	uint8 layout = desc->adjust_layout(org_layout);
-	dim = desc->get_size(org_layout);
+	// the footprint of the folded layout: SW (odd) folds onto S (even), which
+	// the old fold did not, and a non-square building must fit the tiles it gets
+	dim = desc->get_size(layout);
 	bool needs_ground_recalc = false;
 
 	if (desc->is_city_building()) {
@@ -660,7 +662,7 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 
 		// the platform runs along the axis of the way; the stored layout
 		// only has two of the three hex axes
-		const ribi_t::ribi axis = ribi_t::doubles(get_facing_ribi(welt->lookup(pos), desc->get_tile(built_layout % desc->get_all_layouts(), 0, 0)));
+		const ribi_t::ribi axis = ribi_t::doubles(get_facing_ribi(welt->lookup(pos), desc->get_tile(desc->adjust_layout(built_layout) % desc->get_all_layouts(), 0, 0)));
 		const koord far_step  = koord::step(axis & ribi_t::lower_half); // S, SE or SW
 		const koord near_step = koord::step(axis & ribi_t::upper_half); // N, NW or NE
 

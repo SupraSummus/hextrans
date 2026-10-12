@@ -3025,8 +3025,8 @@ int stadt_t::orient_city_building(const koord k, const building_desc_t *h, koord
 	has the first ones, and the layouts it lacks fold onto them the way
 	building_desc_t::adjust_layout does:
 	dims=1,1,1  0 0 0 0 0 0
-	dims=1,1,2  0 1 0 1 0 1
-	dims=1,1,4  0 1 2 3 0 1
+	dims=1,1,2  0 1 0 1 0 0
+	dims=1,1,4  0 1 2 3 2 0
 	dims=1,1,8  0 1 2 3 4 5   (6 and 7 are not used)
 	********************************************************/
 
@@ -3063,7 +3063,7 @@ int stadt_t::orient_city_building(const koord k, const building_desc_t *h, koord
 					break;
 				}
 			}
-			return rotation & max_layout;
+			return h->adjust_layout(rotation);
 		}
 
 		return rotation;

@@ -176,7 +176,7 @@ public:
 	 * single exit for a terminal (4 layout) building, both ends of its axis
 	 * for a through building.
 	 * The ways on @p gr tell, not the layout: building_desc_t::adjust_layout
-	 * folds the NE / SW layouts onto S / SE, so the stored layout cannot
+	 * folds the NE / SW layouts onto N / S, so the stored layout cannot
 	 * tell them apart.  Falls back to the layout where the ways don't
 	 * (no way, or a bent one).
 	 */

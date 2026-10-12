@@ -48,8 +48,9 @@ test_way_road_flat_chord_render_yoff
 test_script_generator_northeast_southwest_road
 test_script_generator_oneway_sign_direction
 test_script_generator_signal_direction
-# runs out of opcodes when the generator tests above, which sleep, do not
-# run before it
+# run out of opcodes in include() when the generator tests above, which
+# sleep, do not run before them
+test_toolkit_slope_constants
 test_toolkit_slope_commands
 
 # Passes, but leaves the turned map different from the unturned one:
@@ -60,10 +61,6 @@ test_way_bridge_over_building
 test_air_takeoff_and_landing_all_runway_axes
 test_trees_plant_forest
 test_way_tunnel_planner_no_exit
-
-# A building with four layouts folds a road on NE or SW onto S or SE
-# (adjust_layout), which does not commute with the half turn.
-test_city_building_faces_road
 
 # The test-only AI probes in script/api/api_ai_test.cc take and return
 # world coordinates, without the script transform.

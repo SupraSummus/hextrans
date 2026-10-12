@@ -4786,8 +4786,9 @@ const char *tool_build_station_t::tool_station_dock_aux(player_t *player, koord3
 	// handle 16 layouts
 	bool change_layout = false;
 	if(desc->get_all_layouts()==16) {
-		// the images know only the four N-S and SE-NW orientations
-		layout &= 3;
+		// the images know only the four N-S and SE-NW orientations, NE and
+		// SW fold the way adjust_layout does for a building with four layouts
+		layout = building_desc_t::fold_ne_sw_layout(layout);
 		if(  layout<2  ) {
 			layout = 15-layout;
 		}
@@ -5006,8 +5007,9 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 	// handle 16 layouts
 	bool change_layout = false;
 	if(desc->get_all_layouts()==16) {
-		// the images know only the four N-S and SE-NW orientations
-		layout &= 3;
+		// the images know only the four N-S and SE-NW orientations, NE and
+		// SW fold the way adjust_layout does for a building with four layouts
+		layout = building_desc_t::fold_ne_sw_layout(layout);
 		if(  layout<2  ) {
 			layout = 15-layout;
 		}

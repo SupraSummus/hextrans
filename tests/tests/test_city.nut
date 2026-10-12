@@ -349,17 +349,22 @@ function check_city_seed_next_to_building(kind, road_to, seed_dir, town_dir, joi
 }
 
 
-// building_desc_t::adjust_layout folds a NE terminal stop onto layout 0
-// (S) and a SW one onto layout 1 (SE), so the stored layout names the
-// wrong side.  The city road has to go by the way: it must not bend the
-// terminal from the folded side.  A through stop on a NE-SW dead end takes
-// the city road at its open end, and not across the platform.
+// building_desc_t::adjust_layout folds a NE terminal stop onto layout 2
+// (N), a SW one onto layout 0 (S), and a through stop on a NE-SW road onto
+// layout 0, the N-S image, so the stored layout names another side than
+// the way does.  The city road has to go by the way: it must not bend a
+// terminal from a side it does not face, and a through stop on a NE-SW
+// dead end takes the city road at its open end, and not across the
+// platform (the N side, which is the one the stored layout would pass).
+// The stored side of a terminal cannot be a seed here, the townhall's
+// flooded neighbours would take the stop's road:
+// test_city_road_beside_terminal_stored_side builds there directly.
 function test_city_road_seed_next_to_stop()
 {
 	check_city_seed_next_to_building("CarStop", dir.northeast, dir.south,     dir.southwest, false)
 	check_city_seed_next_to_building("CarStop", dir.southwest, dir.southeast, dir.northeast, false)
 	check_city_seed_next_to_building("BusStop", dir.southwest, dir.northeast, dir.northeast, true)
-	check_city_seed_next_to_building("BusStop", dir.southwest, dir.southeast, dir.northeast, false)
+	check_city_seed_next_to_building("BusStop", dir.southwest, dir.north,     dir.northeast, false)
 
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -369,6 +374,59 @@ function test_city_road_seed_next_to_depot()
 {
 	check_city_seed_next_to_building("depot", dir.northeast, dir.south,     dir.southwest, false)
 	check_city_seed_next_to_building("depot", dir.southwest, dir.southeast, dir.northeast, false)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// A city road on the tile beside a terminal stop or depot, on the side its
+// stored layout names, must not join it: `kind` is "depot" or the name of
+// a stop, built on a dead end whose road leaves along `road_to`, and the
+// road is laid on the tile in direction `side` from it.
+function check_city_road_beside_terminal(kind, road_to, side)
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local site = coord3d(8, 8, 0)
+	local out = site + dir.to_coord(road_to)
+	local seed = site + dir.to_coord(side)
+	local where = kind + " with a road to " + road_to + ", city road to " + side
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(3, 3, 0), "0"), null)
+	local city = city_x(3, 3)
+
+	ASSERT_EQUAL(command_x.build_way(pl, site, out, road, true), null)
+	if (kind == "depot") {
+		ASSERT_EQUAL(command_x.build_depot(pl, site, get_depot_by_wt(wt_road)), null)
+	}
+	else {
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, site, kind), null)
+	}
+	ASSERT_EQUAL(way_dirs_at(site, wt_road), road_to)
+
+	ASSERT_EQUAL(where + ": " + citytest_cityroad(city, seed, seed), where + ": true")
+	ASSERT_TRUE(tile_x(seed.x, seed.y, seed.z).get_way(wt_road) != null)
+	ASSERT_EQUAL(where + ": " + way_dirs_at(site, wt_road), where + ": " + road_to)
+	ASSERT_EQUAL(where + ": " + (way_dirs_at(seed, wt_road) & dir.backward(side)), where + ": 0")
+
+	// clean up
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, seed, seed, "" + wt_road), null)
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, site), null)
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, site, out, "" + wt_road), null)
+	clear_townhall_and_roads(public_pl, 3, 3)
+}
+
+
+// The layout of a NE terminal stop or depot is stored as 2 (N) and that of
+// a SW one as 0 (S).  stadt_t::build_road has to read the way to know
+// which side they face, so a city road on the stored side stays apart.
+function test_city_road_beside_terminal_stored_side()
+{
+	check_city_road_beside_terminal("CarStop", dir.northeast, dir.north)
+	check_city_road_beside_terminal("CarStop", dir.southwest, dir.south)
+	check_city_road_beside_terminal("depot", dir.northeast, dir.north)
+	check_city_road_beside_terminal("depot", dir.southwest, dir.south)
 
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -410,7 +468,10 @@ function check_city_building_faces_road(name, faces)
 
 // Layouts 0..5 face S, SE, N, NW, NE and SW.  A building with four layouts
 // has none for NE and SW, which building_desc_t::adjust_layout folds onto
-// S and SE.
+// the faces 60 degrees away, N and S; one with two layouts only knows the
+// N-S and the SE-NW axis.  The fold has to commute with the half turn of
+// the map (NE and SW swap, as do S and N), or a house turned by the
+// rotated suite faces another side than the one built there.
 function test_city_building_faces_road()
 {
 	check_city_building_faces_road("TEST_RES_1x1_8L", [
@@ -418,7 +479,10 @@ function test_city_building_faces_road()
 		[dir.northwest, 3], [dir.northeast, 4], [dir.southwest, 5]])
 	check_city_building_faces_road("TEST_RES_1x1_4L", [
 		[dir.south, 0], [dir.southeast, 1], [dir.north, 2],
-		[dir.northwest, 3], [dir.northeast, 0], [dir.southwest, 1]])
+		[dir.northwest, 3], [dir.northeast, 2], [dir.southwest, 0]])
+	check_city_building_faces_road("TEST_RES_1x1_2L", [
+		[dir.south, 0], [dir.southeast, 1], [dir.north, 0],
+		[dir.northwest, 1], [dir.northeast, 0], [dir.southwest, 0]])
 
 	RESET_ALL_PLAYER_FUNDS()
 }
