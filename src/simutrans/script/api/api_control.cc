@@ -12,6 +12,7 @@
 #include "../script.h"
 #include "../../../squirrel/sq_extensions.h"
 #include "../../tool/simtool.h"
+#include "../../tool/simtool-dialogs.h"
 #include "../../world/simworld.h"
 #include "../../dataobj/environment.h"
 #include "../../dataobj/settings.h"
@@ -31,6 +32,21 @@ namespace script_api {
 	bool is_game_paused()
 	{
 		tool_pause_t t;
+		return t.is_selected();
+	}
+
+	bool enlarge_dialog(bool open)
+	{
+		if (env_t::networkmode) {
+			return false;
+		}
+		dialog_enlarge_map_t t;
+		if (open) {
+			t.init(NULL);
+		}
+		else {
+			t.exit(NULL);
+		}
 		return t.is_selected();
 	}
 
@@ -149,6 +165,14 @@ void export_control(HSQUIRRELVM vm)
 	 * @returns true when the map was rotated.
 	 */
 	STATIC register_method(vm, &rotate_map, "rotate_map", false, true);
+
+	/**
+	 * Opens (@p open true) or closes the enlarge-map dialog, which shows the
+	 * preview of the map after the enlargement.
+	 * Does not work in network games.
+	 * @returns true while the dialog is open.
+	 */
+	STATIC register_method(vm, &enlarge_dialog, "enlarge_dialog", false, true);
 
 	/**
 	 * Enlarges the map to @p w x @p h with the same depth D, as the
