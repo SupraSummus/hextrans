@@ -22,7 +22,6 @@ GitHub issues are copies of the large items:
 `epic` for multi-PR work, `decision` for questions to the maintainer.
 The maintainer answers decisions in issue comments,
 so read those at the start of a session.
-`documentation/upstream-125-merge.md` holds the staged upstream merge plan.
 New backlog comes from read-only audits:
 an agent sweeps one subsystem for a class of problem
 (say, square-grid residue) and reports `file:function` findings;

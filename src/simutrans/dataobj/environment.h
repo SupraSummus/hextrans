@@ -55,6 +55,7 @@ public:
 	static sint16 menupos;
 	static bool single_toolbar_mode;
 	static bool stack_toolbars;
+	static bool use_tool_context_bar;
 
 	static sint16 fullscreen;
 	static sint16 dpi_scale;
@@ -522,6 +523,9 @@ public:
 
 	// FluidSynth MIDI parameters
 	static std::string soundfont_filename;
+
+	/// folder the music is taken from instead of the default music.tab; empty for the default
+	static std::string music_folder;
 
 	/// @}
 

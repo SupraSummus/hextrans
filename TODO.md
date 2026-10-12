@@ -87,7 +87,8 @@ The upstream terraform tests assume a single-height slope
 refuses the step across it unless terraforming is on.
 Under hex, `slope_allows_way_axis` admits every single-height slope
 on all 6 axes (ramp or chord),
-so `is_allowed_step` accepts those steps with or without the flag;
+so `way_builder_t::check_slope` accepts those steps
+with or without the flag;
 only a double slope refuses a non-axis step
 (`slope.south_double`: N/S admitted, the other 4 refused without
 terraforming and admitted with it).
@@ -135,6 +136,27 @@ the same shape: cheap if `has_neighbour_with_way(from, wt)`, otherwise
 `!sch` already excluded it).  Refactor, not a behaviour change;
 defer until the next time any of these branches needs a real
 edit.
+
+## Way builder rough edges from upstream 125
+
+Upstream's way-builder rework (125 stage 5) left some loose ends in code
+that is otherwise grid-neutral.
+`is_allowed_step` returns `true` as soon as `check_terraforming` accepts a
+terraformed step, before the scenario's `is_work_allowed_here` check and
+without setting `*costs`, so a terraformed step costs nothing in the A*
+search and skips scenario rules.
+The two `&& build_tunnel_bridge` terms in `intern_calc_route` test the enum
+constant, not `tmp->count`, so they are always true
+(`-Wint-in-bool-context`).
+`init_builder` hands the bridge and tunnel back to a builder without a
+player after clearing them, and `dialog_way_builder_t::exit` destroys
+`magic_player_ranking` instead of `magic_way_builder`.
+Next move: run the scenario check first and charge
+`way_count_straight` plus `way_count_slope` for a terraformed step,
+decide whether the two terms meant `tmp->count & build_tunnel_bridge`,
+and fix the last two one-liners;
+`test_way_road_build_terraform_forbidden_by_scenario` (pending above)
+is the test that covers the scenario half.
 
 ## Lower_to water-tile NW-only gate
 
@@ -787,6 +809,15 @@ flat-top hex view (vs. the current 2:1 stretch that matches the
 main viewport) would be a third mode, not a fix; not on the path
 unless the main view's lattice changes.
 
+Zoom levels where the tile raster width is not a multiple of 4
+break the hex lattice: `u = W/4` truncates,
+so tiles step `4u` while sprites stay `W` wide and seams open.
+Upstream 125's zoom table (`zoom_num` / `zoom_den` in `simgraph16.cc`,
+`ZOOM_NEUTRAL` 7 of 13) only hits this at 4/3,
+e.g. 170 px for a 128 pak (85 px for pak64).
+Next move: make `set_zoom_factor` skip a level whose
+`base_tile_raster_width * num / den` is not divisible by 4.
+
 **Sprite raster choice (pinned design decision).**  The lattice
 the projection runs on is a *clean integer approximation* of hex
 iso, not a regular hex tiling.  With unit `u = IMG_SIZE/4`:
@@ -898,6 +929,19 @@ of the restore block in `grund_t::rdwr`.
 Land one with the bump:
 a headless check that generates a map with relief and water,
 saves, reloads and compares every vertex height.
+
+Upstream 125 moved the fork to `SIM_VERSION_MAJOR 125`
+with the fork's save and server minor kept (902, from the map-shape gate):
+fork saves now write 125.902,
+so every upstream `is_version_atleast(125, x)` gate holds,
+the `SAVE_VERSION_HEX_*` gates (all 124.x) still pass,
+and 124.9xx saves from before the merge load as older.
+No 125.901 save was ever written,
+so `SAVE_VERSION_HEX_MAP_SHAPE` (124, 902) stays exact.
+Upstream 125 clients now refuse fork saves as a future version
+instead of misreading them.
+The next fork-only on-disk change takes 125.903
+and a new named gate at MAJOR 125.
 
 Save-format feature gates now have names in `simversion.h` rather
 than floating against `SIM_SAVE_MINOR`.  Continue that convention for
@@ -1129,8 +1173,13 @@ A read-only audit (2026-10) of `tool/`, `builder/`, `vehicle/`, `obj/`,
 `world/`, `dataobj/`, `script/`, `gui/` and `descriptor/`
 found the sites below still reasoning in four directions or axial squares.
 Each paragraph is one PR-sized fix group.
-Groups touching code that an upstream 125 stage rewrites
-wait for that stage (`documentation/upstream-125-merge.md`).
+
+`stadt_t::generate_private_cars` under `DESTINATION_CITYCARS`
+(off by default) seeds cars from an axial 3×3 square
+and admits only the square combos `ribi_t::northsouth` / `eastwest`.
+Next move: loop over `hex_disc(1)`, accept any
+`ribi_t::is_straight` non-single road ribi,
+and build it once with the macro defined.
 
 Route heuristics.
 `way_builder_t::calc_distance` is axial Manhattan,

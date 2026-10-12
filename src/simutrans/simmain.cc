@@ -822,6 +822,7 @@ int simu_main(int argc, char** argv)
 			// we do not allow to change the global font name
 			std::string old_fontname = env_t::fontname;
 			std::string old_soundfont_filename = env_t::soundfont_filename;
+			std::string old_music_folder = env_t::music_folder;
 
 			dbg->message("simu_main()", "Parsing %s%s", env_t::base_dir, path_to_simuconf);
 			env_t::default_settings.parse_simuconf( simuconf, disp_width, disp_height, fullscreen, true );
@@ -830,6 +831,10 @@ int simu_main(int argc, char** argv)
 			if(  (old_soundfont_filename.length() > 0)  &&  (strcmp( old_soundfont_filename.c_str(), "Error" ) != 0)  ) {
 				// We had a valid soundfont saved by the user, let's restore it
 				env_t::soundfont_filename = old_soundfont_filename;
+			}
+			if(  !old_music_folder.empty()  ) {
+				// same for the music folder chosen by the user
+				env_t::music_folder = old_music_folder;
 			}
 			env_t::fontname = old_fontname;
 		}
@@ -1577,7 +1582,7 @@ int simu_main(int argc, char** argv)
 	// init midi before loading sounds
 	if(  dr_init_midi()  ) {
 		dbg->message("simu_main()","Reading midi data ...");
-		if(  !midi_init( env_t::pak_dir.c_str() )  &&  !midi_init( env_t::user_dir )  &&  !midi_init( env_t::base_dir )  ) {
+		if(  !midi_load_list()  ) {
 			midi_set_mute(true);
 			dbg->message("simu_main()","Midi disabled ...");
 		}
@@ -1714,6 +1719,7 @@ int simu_main(int argc, char** argv)
 		sets.set_factory_count(3);
 		sets.set_tourist_attractions(1);
 		sets.set_traffic_level(7);
+		sets.set_river_number(1);
 		// Test hook: -flatmap N generates an empty, perfectly flat NxN
 		// map (no mountains, rivers, cities or industry) for measurement
 		// harnesses such as tools/city_anisotropy.py; -flatmap W,H,D

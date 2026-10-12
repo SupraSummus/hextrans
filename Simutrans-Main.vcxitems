@@ -183,6 +183,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\message_stats.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\minimap.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\money_frame.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\music_folder_frame.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\obj_info.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\optionen.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\pakinstaller.cc" />
@@ -210,6 +211,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\tool_selector.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\trafficlight_info.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\vehiclelist_frame.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\way_builder_frame.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\welt.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\io\classify_file.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\io\raw_image_bmp.cc" />
@@ -565,6 +567,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\message_stats.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\minimap.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\money_frame.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\music_folder_frame.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\obj_info.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\optionen.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\pakinstaller.h" />
@@ -591,6 +594,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\tool_selector.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\trafficlight_info.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\vehiclelist_frame.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\way_builder_frame.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\welt.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\io\classify_file.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\io\raw_image.h" />

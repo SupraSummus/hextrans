@@ -14,6 +14,7 @@
 #include "../simmesg.h"
 #include "../simconvoi.h"
 #include "../gui/simwin.h"
+#include "../gui/way_builder_frame.h"
 #include "../display/viewport.h"
 
 #include "../builder/fabrikbauer.h"
@@ -2758,22 +2759,14 @@ const char* tool_build_way_t::get_default_param(player_t *player) const
 	if (player==NULL) {
 		return default_param;
 	}
-	if (desc) {
-		return desc->get_name();
-	}
-	else {
-		if (default_param == NULL) {
-			// no chance to guess anything sensible
-			return NULL;
-		}
+	if (default_param && atoi(default_param)) {
+		// numerical way type, 
 		const way_desc_t* test_desc = get_desc();
 		if (test_desc) {
 			return test_desc->get_name();
 		}
-		else {
-			return default_param;
-		}
 	}
+	return default_param;
 }
 
 bool tool_build_way_t::is_selected() const
@@ -2795,25 +2788,55 @@ bool tool_build_way_t::init( player_t *player )
 
 	// now get current desc
 	desc = get_desc();
-	if(  desc  &&  desc->get_cursor()->get_image_id(0) != IMG_EMPTY  ) {
-		cursor = desc->get_cursor()->get_image_id(0);
+	if (!desc) {
+		return false;
 	}
-
-	const char* n;
-	terraform_only = false; // a tool instance can be reused with another parameter
-	if (default_param && (n = strchr(default_param, ','))!=NULL) {
-		automatic_tunnel_and_bridges = n[1] == '1';
-		terraform_only = n[1] == '2';
-		if (n[2] == ',') {
-			max_length = atol(n + 3);
-		}
-	}
-
-	if(  desc  &&  !desc->is_available(welt->get_timeline_year_month())  &&  player!=NULL  &&  player!=welt->get_public_player()  ) {
+	if (!desc->is_available(welt->get_timeline_year_month()) && player != NULL && player != welt->get_public_player()) {
 		// non available way => fail if not public player
 		return false;
 	}
-	return desc!=NULL;
+	if(desc->get_cursor()->get_image_id(0) != IMG_EMPTY  ) {
+		cursor = desc->get_cursor()->get_image_id(0);
+	}
+	tunnel = NULL;
+	bridge = NULL;
+
+	const char* n;
+	terraform_only = false; // a tool instance can be reused with another parameter
+	if (!default_param || (n = strchr(default_param, ',')) == NULL) {
+		// dunny for correct init
+		n = "\0";
+	}
+	int i = 1;
+	automatic_tunnel_and_bridges = n[i] == 'a';
+	if (automatic_tunnel_and_bridges) i++;
+	keep_ways = n[i] == 'k';
+	if (keep_ways) i++;
+	straight_ways = n[i] == 's';
+	if (straight_ways) i++;
+	terraform_only = n[i] == 't';
+	if (terraform_only) i++;
+	if (n[i] == ',') {
+		max_length = atol(n+i+1);
+		n = strchr(n + i + 1, ',');
+		i = i;
+		if (n) {
+			// bridge name
+			char temp[1024];
+			tstrncpy(temp, n + 1, lengthof(temp));
+			char *tn = strchr(temp, ',');
+			if (tn) {
+				*tn++ = 0;
+				bridge = bridge_builder_t::get_desc(temp);
+				tunnel = tunnel_builder_t::get_desc(tn);
+			}
+			else {
+				bridge = bridge_builder_t::get_desc(temp);
+				tunnel = NULL;
+			}
+		}
+	}
+	return true;
 }
 
 void tool_build_way_t::rdwr_custom_data(memory_rw_t *packet)
@@ -2912,31 +2935,37 @@ const char *tool_build_way_t::calc_route( way_builder_t &bauigel, const koord3d 
 	if(desc->get_styp()==type_elevated  &&  desc->get_wtyp()!=air_wt) {
 		bautyp |= way_builder_t::elevated_flag;
 	}
-	const tunnel_desc_t* tunnel = NULL;
-	const bridge_desc_t* br = NULL;
-	if (automatic_tunnel_and_bridges) {
+	if (automatic_tunnel_and_bridges  ||  bridge  ||  tunnel) {
 		// automatich selecting tunnel and bridges
-		bautyp |= way_builder_t::terraform_flag;
-		br = bridge_builder_t::find_bridge(desc->get_wtyp(), desc->get_topspeed(), welt->get_timeline_year_month());
-		tunnel = tunnel_builder_t::get_tunnel_desc(desc->get_wtyp(), desc->get_topspeed(), welt->get_timeline_year_month());
+		if (!bridge  &&  automatic_tunnel_and_bridges) {
+			bridge = bridge_builder_t::find_bridge(desc->get_wtyp(), desc->get_topspeed(), welt->get_timeline_year_month());
+		}
+		if (!tunnel  && automatic_tunnel_and_bridges) {
+			tunnel = tunnel_builder_t::get_tunnel_desc(desc->get_wtyp(), desc->get_topspeed(), welt->get_timeline_year_month());
+		}
 	}
-	else if (terraform_only) {
-		// terraforming, but without a tunnel or bridge to fall back on
+	if (terraform_only  ||  automatic_tunnel_and_bridges) {
+		// terraforming
 		bautyp |= way_builder_t::terraform_flag;
 	}
 
-	bauigel.init_builder(bautyp, desc, tunnel, br);
-	if(  is_ctrl_pressed()  &&  !is_shift_pressed()) {
+	bauigel.init_builder(bautyp, desc, tunnel, bridge);
+	bauigel.set_keep_existing_faster_ways(true);
+	if (keep_ways) {
+		bauigel.set_keep_existing_faster_ways(false);
+	}
+	else if(  is_ctrl_pressed()  &&  !is_shift_pressed()) {
 		bauigel.set_keep_existing_ways( false );
 	}
 	else {
 		bauigel.set_keep_existing_faster_ways( true );
 	}
 	// if shift pressed, keep city roads
-	if (is_shift_pressed()  &&  desc->get_styp() == type_flat  &&  desc->get_wtyp() == road_wt) {
-		bauigel.set_keep_city_roads(true);
+	if (desc->get_wtyp() == road_wt && desc->get_styp() == type_flat) {
+		if (keep_ways  ||  is_shift_pressed()) {
+			bauigel.set_keep_city_roads(true);
+		}
 	}
-
 
 	koord3d my_end = end;
 	// ending point is applied that elevated ways with SHIFT selects the current layer, when already on an elevated way
@@ -3002,7 +3031,7 @@ const char *tool_build_way_t::calc_route( way_builder_t &bauigel, const koord3d 
 
 	// and continue as normal ...
 	const char *err;
-	if (is_ctrl_pressed() || (env_t::straight_way_without_control && !env_t::networkmode && !is_scripted())
+	if (is_ctrl_pressed() || (env_t::straight_way_without_control && !env_t::networkmode && !is_scripted()) || straight_ways
 #ifdef USE_TOWN_ROAD_BUILDER_TOOL
 		|| get_id() == (TOOL_BUILD_CITYROAD | GENERAL_TOOL)
 #endif
@@ -3015,7 +3044,7 @@ const char *tool_build_way_t::calc_route( way_builder_t &bauigel, const koord3d 
 	}
 
 	DBG_MESSAGE("tool_build_way_t()", "builder found route with %d squares length.", bauigel.get_count());
-	return err;
+	return err ? translator::translate(err) : NULL;
 }
 
 const char* tool_build_way_t::do_work(player_t* player, const koord3d& start, const koord3d& end)
@@ -3037,6 +3066,11 @@ const char* tool_build_way_t::do_work(player_t* player, const koord3d& start, co
 			}
 		}
 
+		win_set_static_tooltip(NULL);	// Publish the estimate first (no dummygrounds, if bauigel.calc_costs() is called).
+		if (gui_frame_t* win = win_get_magic(magic_way_builder)) {
+			((way_builder_frame_t*)win)->costs.set_text(NULL);
+		}
+
 		return NULL;
 	}
 	return err ? err : "";
@@ -3051,9 +3085,14 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 	bool is_elevated = desc->get_styp() == type_elevated && desc->get_wtyp() != air_wt;
 	uint8 offset = is_elevated ? welt->get_settings().get_way_height_clearance() : 0;
 
+	const char *tool_str = NULL;
 	if (bauigel.get_count() > 1) {
-		// Publish the estimate first (no dummygrounds, if bauigel.calc_costs() is called).
-		win_set_tool_estimate(this, bauigel.get_count(), bauigel.calc_costs());
+
+		// Set tooltip first (no dummygrounds, if bauigel.calc_casts() is called).
+		tool_str = tooltip_with_price_length("Building costs estimates", bauigel.calc_costs(), bauigel.get_count());
+		if (env_t::show_construction_info) {
+			win_set_tool_estimate(this, bauigel.get_count(), bauigel.calc_costs());
+		}
 
 		// make dummy route from bauigel
 		for (uint32 j = 0; j < bauigel.get_count(); j++) {
@@ -3061,6 +3100,91 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 			grund_t* base_gr = welt->lookup(base_pos);
 			sint8 extra_h = (is_elevated && base_gr) ? base_gr->get_bridge_slope_extra_height() : 0;
 			koord3d pos = base_pos + koord3d(0, 0, offset + extra_h);
+			if (j > 0) {
+				koord3d old_pos = bauigel.get_route()[j - 1];
+				if (koord_distance(pos, old_pos) > 1) {
+					// bridge or tunnel here
+					grund_t* from = welt->lookup(old_pos);
+					// elevates way and bridges ... we leave this for now
+					slope_t::type h = from->get_grund_hang();
+					ribi_t::ribi wr = ribi_type(old_pos-pos);
+					koord zv = koord(wr);
+					if (h == slope_t::flat || ribi_type(h) == wr) {
+						// bridges
+						// we have already put a zeiger here
+						zeiger_t* z = from->find<zeiger_t>();
+						slope_t::type wh = h ? slope_t::flat : slope_type(-zv);
+						bridge_desc_t::img_t img = bridge->get_end(h, h, wh);
+						z->set_image(bridge->get_background(img,false));
+						z->set_foreground_image(bridge->get_foreground(img, false));
+						if (z->get_image() == IMG_EMPTY && z->get_front_image() == IMG_EMPTY) {
+							z->set_image(bridge->get_background(bridge_desc_t::single_height_of(img), false));
+						}
+						z->mark_image_dirty(z->get_image(), 0);
+						sint8 z_offset = -slope_t::max_diff(h) * TILE_HEIGHT_STEP;
+						z->set_yoff(z_offset);
+						if (z_offset == 0) {
+							z_offset -= TILE_HEIGHT_STEP;
+						}
+						// now the bridge
+						while(1) {
+							old_pos -= zv;
+							if (old_pos.get_2d() == pos.get_2d()) {
+								break;
+							}
+							// now the other slope
+							grund_t* gr = welt->lookup(old_pos);
+							if (!gr) {
+								gr = new monorailboden_t(old_pos, slope_t::flat);
+								// should only be here when elevated/monorail, therefore will be at height offset above ground
+								welt->access(old_pos.get_2d())->boden_hinzufuegen(gr);
+							}
+							z = new zeiger_t(old_pos, player);
+							z->set_image(bridge->get_background(bridge->get_straight(wr, 1),false));
+							z->set_foreground_image(bridge->get_foreground(bridge->get_straight(wr, 1),false));
+							gr->obj_add(z);
+							marked.insert(z);
+							z->mark_image_dirty(z->get_image(), 0);
+							z->set_yoff(z_offset);
+						}
+						// now the other slope
+						grund_t* to = welt->lookup(pos);
+						if (!to) {
+							to = new monorailboden_t(pos, slope_t::flat);
+							// should only be here when elevated/monorail, therefore will be at height offset above ground
+							to->set_grund_hang(base_gr->get_weg_hang());
+							welt->access(pos.get_2d())->boden_hinzufuegen(to);
+						}
+						h = base_gr->get_grund_hang();
+						z = new zeiger_t(pos, player);
+						wh = h ? slope_t::flat : slope_type(wr);
+						z->set_image(bridge->get_background(bridge->get_end(h, h, wh), false));
+						z->set_foreground_image(bridge->get_foreground(bridge->get_end(h, h, wh), false));
+						to->obj_add(z);
+						marked.insert(z);
+						z->mark_image_dirty(z->get_image(), 0);
+						z->set_yoff(-slope_t::max_diff(h) * TILE_HEIGHT_STEP);
+					}
+					else {
+						// tunnel
+						// we have already put a zeiger here
+						zeiger_t* z = from->find<zeiger_t>();
+						z->set_image(tunnel->get_background_id(h, 0, 0));
+						z->set_foreground_image(tunnel->get_foreground_id(h, 0, 0));
+						z->mark_image_dirty(z->get_image(), 0);
+						// now the other slope
+						h = base_gr->get_grund_hang();
+						z = new zeiger_t(pos, player);
+						z->set_image(tunnel->get_background_id(h, 0, 0));
+						z->set_foreground_image(tunnel->get_foreground_id(h, 0, 0));
+						z->mark_image_dirty(z->get_image(), 0);
+						base_gr->obj_add(z);
+						marked.insert(z);
+						z->mark_image_dirty(z->get_image(), 0);
+					}
+					continue;
+				}
+			}
 			grund_t* gr = welt->lookup(pos);
 			if (!gr) {
 				gr = new monorailboden_t(pos, slope_t::flat);
@@ -3103,6 +3227,12 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 		// engine did not say why" state, and saying that much is still better
 		// than the silence it used to be. No reason gets invented for it.
 		win_set_tool_problem(this, err);
+		tool_str = err;
+	}
+	win_set_static_tooltip(tool_str);	// Publish the estimate first (no dummygrounds, if bauigel.calc_costs() is called).
+	if (gui_frame_t* win = win_get_magic(magic_way_builder)) {
+		((way_builder_frame_t*)win)->costs.set_text(tool_str);
+		((way_builder_frame_t*)win)->costs.set_color(SYSCOL_TEXT);
 	}
 }
 
@@ -3492,6 +3622,13 @@ const char *tool_build_tunnel_t::check_pos( player_t *player, koord3d pos)
 				return NULL;
 			}
 		}
+		else if (grund_t* boden = welt->lookup_kartenboden(pos.get_2d())) {
+			// still on map
+			if (pos.z + welt->get_settings().get_way_height_clearance() <= boden->get_pos().z) {
+				// deep enough => allow with temporary ground
+				return NULL;
+			}
+		}
 		return two_click_tool_t::check_pos(player, pos);
 	}
 }
@@ -3608,6 +3745,20 @@ uint8 tool_build_tunnel_t::is_valid_pos(  player_t *player, const koord3d &pos, 
 		}
 	}
 	else {
+		if (grund_t* boden = welt->lookup_kartenboden(pos.get_2d())) {
+			// still on map
+			if (pos.z + welt->get_settings().get_way_height_clearance() <= boden->get_pos().z) {
+				// make dummy ground:
+				gr = new tunnelboden_t(pos, slope_t::flat);
+				welt->access(pos.get_2d())->boden_hinzufuegen(gr);
+				zeiger_t* way = new zeiger_t(pos, player);
+				way->set_image(skinverwaltung_t::bauigelsymbol->get_image_id(0));
+				gr->obj_add(way);
+				marked.insert(way);
+				way->mark_image_dirty(way->get_image(), 0);
+				return 2;
+			}
+		}
 		error = NOTICE_UNSUITABLE_GROUND;
 		return 0;
 	}
