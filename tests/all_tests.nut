@@ -388,6 +388,7 @@ all_tests <- [
 	test_way_road_build_straight_auto_bridge_ne_sw,
 	test_way_road_build_terraform_forbidden_by_scenario,
 	test_way_road_build_terraform_costs_the_search,
+	test_way_road_build_terraform_raises_a_tile,
 	test_way_road_build_terraform_not_kept_by_the_tool,
 	test_way_runway_build_rw_flat,
 	test_way_runway_build_tw_flat,

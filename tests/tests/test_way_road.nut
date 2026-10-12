@@ -1411,6 +1411,53 @@ function test_way_road_build_terraform_forbidden_by_scenario()
 }
 
 
+function test_way_road_build_terraform_raises_a_tile()
+{
+	local pl      = player_x(0)
+	local remover = command_x(tool_remove_way)
+	local single  = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local double  = null
+	foreach (r in way_desc_x.get_available_ways(wt_road, st_flat)) {
+		if (r.has_double_slopes()) double = r
+	}
+	ASSERT_TRUE(double != null) // tests/test-pak ships test_road_double
+
+	// A drag from the raised tile (4,5) onto (4,4) raises the S edge of (4,4) to meet it.
+	// Whatever height the corners then share moves into the tile's height:
+	// south_wide ends flat, south_double ends as south_narrow, and from two up the
+	// double slope ends one up with E and W a step below its other corners.
+	foreach (c in [
+		[slope.south_wide,   1, single, slope.flat,                1],
+		[slope.south_double, 1, single, slope.south_narrow,        1],
+		[slope.south_double, 2, double, HEX_SLOPE(0, 1, 1, 0, 1, 1), 1]
+	]) {
+		ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), c[0]), null)
+		for (local z = 0; z < c[1]; ++z) {
+			ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 5, z), slope.all_up_slope), null)
+		}
+
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 5, c[1]), coord3d(4, 4, 0), c[2], true, true), null)
+		ASSERT_TRUE(square_x(4, 4).get_tile_at_height(0) == null)
+		ASSERT_EQUAL(tile_x(4, 4, c[4]).get_slope(), c[3])
+		ASSERT_TRUE(tile_x(4, 4, c[4]).has_way(wt_road))
+
+		// clean up
+		ASSERT_EQUAL(remover.work(pl, coord3d(4, 5, c[1]), coord3d(4, 4, c[4]), "" + wt_road), null)
+		for (local z = c[1]; z > 0; --z) {
+			ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 5, z), slope.all_down_slope), null)
+		}
+		for (local n = 0; n < 6  &&  (square_x(4, 4).get_tile_at_height(0) == null  ||  tile_x(4, 4, 0).get_slope() != slope.flat); ++n) {
+			local z = c[4]
+			while (square_x(4, 4).get_tile_at_height(z) == null) --z
+			ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, z), slope.all_down_slope), null)
+		}
+		ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.flat)
+		ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	}
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_way_road_build_terraform_costs_the_search()
 {
 	local pl        = player_x(0)

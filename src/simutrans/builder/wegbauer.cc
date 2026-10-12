@@ -1246,23 +1246,13 @@ bool way_builder_t::check_terraforming( const grund_t *from, const grund_t *to, 
 }
 
 
-/// Ground do_terraforming() installs for a computed slope; mirrors its four branches.
+/// Ground do_terraforming() installs for a computed slope: like grund_t::set_grund_hang,
+/// a height shared by all corners moves into the tile's height.
 static void terraformed_ground(slope_t::type &slope, sint8 &hgt)
 {
-	if(  slope == slope_t::all_up_two  ) {
-		hgt += 2;
-		slope = slope_t::flat;
-	}
-	else if(  slope != slope_t::all_up_one  ) {
-		if(  slope > slope_t::all_up_one  &&  slope_t::is_axis_slope( slope-slope_t::all_up_one )  ) {
-			hgt += 1;
-			slope -= slope_t::all_up_one;
-		}
-	}
-	else {
-		hgt += 1;
-		slope = slope_t::flat;
-	}
+	const uint8 h = slope_t::min_corner_height( slope );
+	hgt += h;
+	slope -= h * slope_t::all_up_one;
 }
 
 
@@ -1324,25 +1314,9 @@ void way_builder_t::do_terraforming()
 		bool changed = false;
 		// change slope of from
 		if(  from_slope != from->get_grund_hang()  ) {
-			if(  from_slope == slope_t::all_up_two  ) {
-				from->set_hoehe( from->get_hoehe() + 2 );
-				from->set_grund_hang( slope_t::flat );
-				route[i].z = from->get_hoehe();
-			}
-			else if(  from_slope != slope_t::all_up_one  ) {
-				// bit of a hack to recognise single height slopes shifted up 1
-				if(  from_slope > slope_t::all_up_one  &&  slope_t::is_axis_slope( from_slope-slope_t::all_up_one )  ) {
-					from->set_hoehe( from->get_hoehe() + 1 );
-					from_slope -= slope_t::all_up_one;
-					route[i].z = from->get_hoehe();
-				}
-				from->set_grund_hang( from_slope );
-			}
-			else {
-				from->set_hoehe( from->get_hoehe() + 1 );
-				from->set_grund_hang( slope_t::flat );
-				route[i].z = from->get_hoehe();
-			}
+			// set_grund_hang moves a height shared by all corners into the tile's height
+			from->set_grund_hang( from_slope );
+			route[i].z = from->get_hoehe();
 			changed = true;
 			if (last_terraformed != i) {
 				// charge player
@@ -1351,25 +1325,8 @@ void way_builder_t::do_terraforming()
 		}
 		// change slope of to
 		if(  to_slope != to->get_grund_hang()  ) {
-			if(  to_slope == slope_t::all_up_two  ) {
-				to->set_hoehe( to->get_hoehe() + 2 );
-				to->set_grund_hang( slope_t::flat );
-				route[i + 1].z = to->get_hoehe();
-			}
-			else if(  to_slope != slope_t::all_up_one  ) {
-				// bit of a hack to recognise single height slopes shifted up 1
-				if(  to_slope > slope_t::all_up_one  &&  slope_t::is_axis_slope( to_slope-slope_t::all_up_one )  ) {
-					to->set_hoehe( to->get_hoehe() + 1 );
-					to_slope -= slope_t::all_up_one;
-					route[i + 1].z = to->get_hoehe();
-				}
-				to->set_grund_hang(to_slope);
-			}
-			else {
-				to->set_hoehe( to->get_hoehe() + 1);
-				to->set_grund_hang(slope_t::flat);
-				route[i+1].z = to->get_hoehe();
-			}
+			to->set_grund_hang( to_slope );
+			route[i + 1].z = to->get_hoehe();
 			changed = true;
 			// charge player
 			player_t::book_construction_costs(player_builder, welt->get_settings().cst_set_slope, to->get_pos().get_2d(), ignore_wt);
