@@ -733,13 +733,22 @@ canonical edge ramp (plateau-chord rule in
 ways do not abort while drawing.  A load-time validator remains the
 proper cleanup move when save migration gets a dedicated pass.
 
-Fence sprite library is hex-sized but pakset-empty: engine
-`FENCE_IMAGE_COUNT = 7` carves natural typ 0..6 / artificial typ
-7..13 across the 7 non-zero back-wall combos, but paksets still
-ship the 3 legacy wall-0/wall-1 combos.  Pak64's old artificial
-sprites at indices 3..5 now address natural wall-2 combos and the
-artificial slot is empty.  Ship 7 natural + 7 artificial fence
-sprites in the hex pakset and pak64 to refill.
+Fences draw one whole-tile cell per set of fenced back edges:
+`display_boden` reads `fences->get_image(mask - 1)`
+(`+ FENCE_IMAGE_COUNT` on artificial ground)
+and lifts it by the higher of the NW and NE corners.
+hextrans-pak128 bakes all 14 cells (`landscape/grounds/fence/`);
+pak64 still ships 6 legacy cells,
+so its building fences land in the natural slots 3..5.
+A fence stands only on a level edge (`calc_back_image`),
+but the three back edges can be level at different heights:
+with corners W = NW = 1 and NE = E = 0,
+fences on the NW and NE edges share one lift
+and the NE one floats a step above its edge.
+Next move: draw one single-edge cell per set bit of the mask,
+each lifted by its own edge's height;
+the cells for masks 1, 2 and 4 already exist,
+and the combined cells become an optimisation for edges at one height.
 
 **Phase C — flow-on.**  Per-step vehicle interpolation offsets
 (`vehicle_base_t::set_dxdy`, shared by hop time and save/load), label / halt
@@ -1200,6 +1209,19 @@ labelled with the `nordost` and `suedwest` keys;
 multi-tile extensions and docks wait for the third footprint axis
 (see "Multi-tile building footprint"),
 and so does the meaning of layouts 4..7 on 8-layout descriptions.
+
+Tunnel-mound walls in the underground level view.
+`calc_back_image` hides the back walls next to a tunnel mouth
+when the underground view shows one level (`ugm_level`)
+with the square-era test
+`corner_se` of the neighbour's slope, `corner_nw` of the tile's own,
+and `(i==0) ^ (corner_sw(...)==0)` to pick one of two walls,
+unchanged from upstream.
+Hex has three back walls and tunnel mouths on six edges,
+and those corners do not say which back edge a mouth opens on.
+Next move: take the mouth's edge from the tunnel slope
+(its low edge, as the tunnel builder reads it)
+and hide the back wall whose `back_wall_geometry` edge it is.
 
 
 ## Pak reader child-count expectations are implicit
