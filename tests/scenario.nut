@@ -17,8 +17,15 @@ scenario.version = "0.1"
 
 include("test_helpers")
 include("all_tests")
-// rewritten by tools/test.py per run; committed default `[]` = full suite.
+// rewritten by tools/test.py per run; committed default `[]` = full suite
+// on map.file above.
 include("filter")
+
+// tools/test.py --map FILE runs on another fixture, e.g. the W x H x D
+// hexagon tests/empty-hex-9x7x5.sve for the test_map_shape tests.
+if (test_map_file != null) {
+	map.file = test_map_file
+}
 
 if (test_filter_patterns.len() > 0) {
 	local filtered = []

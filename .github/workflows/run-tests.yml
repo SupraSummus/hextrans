@@ -111,6 +111,15 @@ jobs:
         chmod +x run-automated-tests.sh
         ulimit -St 600 # 10 minutes ought to be enough for anybody.
         ./run-automated-tests.sh
+    - name: Run map-shape tests on the hexagon fixture
+      # The test_map_shape tests again, on the 9x7x5 hexagon written by
+      # the -flatmap W,H,D hook (tools/test.py --map does the same).
+      run: |
+        export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
+        export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
+        printf 'test_filter_patterns <- ["test_map_shape"]\ntest_map_file <- "empty-hex-9x7x5.sve"\n' > tests/filter.nut
+        ulimit -St 600
+        ./run-automated-tests.sh
     - name: Run heightfield import test
       # Builds a map from relief images through the engine's
       # -heightfield hook (the new-world dialog's "Load relief" path)

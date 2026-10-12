@@ -5,6 +5,9 @@ Usage:
     tools/test.py                # run every test in tests/all_tests.nut
     tools/test.py halt           # run tests whose name contains "halt"
     tools/test.py halt terraform # OR-match: name contains "halt" OR "terraform"
+    tools/test.py --map          # the test_map_shape tests on the W x H x D
+                                 # hexagon fixture tests/empty-hex-9x7x5.sve
+    tools/test.py --map FILE pat # tests matching pat on tests/FILE
 
 First run downloads pak64 (~30 MB) into simutrans/pak/; subsequent runs
 reuse it. Other setup (sim symlink, simuconf, scenario symlink) is also
@@ -104,13 +107,29 @@ def active_test_names():
     return re.findall(r"^\s*([A-Za-z_]\w*)\s*,", body, re.MULTILINE)
 
 
-def write_filter(patterns):
+HEX_MAP = "empty-hex-9x7x5.sve"
+
+
+def write_filter(patterns, map_file=None):
     body = "test_filter_patterns <- [" + ", ".join(json.dumps(p) for p in patterns) + "]\n"
+    body += "test_map_file <- " + (json.dumps(map_file) if map_file else "null") + "\n"
     FILTER.write_text(body)
 
 
 def main(argv):
     patterns = argv[1:]
+    map_file = None
+    if patterns and patterns[0] == "--map":
+        # The suite's coordinates assume the 16x16 fixture; on another map
+        # only the tests that read the shape from the settings make sense.
+        patterns = patterns[1:]
+        map_file = HEX_MAP
+        if patterns and patterns[0].endswith(".sve"):
+            map_file = patterns.pop(0)
+        if not (ROOT / "tests" / map_file).exists():
+            sys.exit(f"no fixture tests/{map_file}")
+        if not patterns:
+            patterns = ["test_map_shape"]
     if patterns:
         matches = [n for n in active_test_names() if any(p in n for p in patterns)]
         if not matches:
@@ -122,7 +141,7 @@ def main(argv):
     ensure_sim_symlink()
     build()
     ensure_test_pak()
-    write_filter(patterns)
+    write_filter(patterns, map_file)
     env = os.environ.copy()
     env["XDG_DATA_HOME"] = str(USER_DATA)
     env.setdefault("SDL_VIDEODRIVER", "dummy")
