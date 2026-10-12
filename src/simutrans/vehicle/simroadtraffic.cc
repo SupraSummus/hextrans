@@ -829,19 +829,19 @@ void private_car_t::get_screen_offset( int &xoff, int &yoff, const sint16 raster
 	vehicle_base_t::get_screen_offset( xoff, yoff, raster_width );
 
 	if(  welt->get_settings().is_drive_left()  ) {
-		const int drive_left_dir = ribi_t::get_dir(get_direction());
+		const int drive_left_dir = get_lane_offset_row();
 		xoff += tile_raster_scale_x( driveleft_base_offsets[drive_left_dir][0], raster_width );
 		yoff += tile_raster_scale_y( driveleft_base_offsets[drive_left_dir][1], raster_width );
 	}
 
 	// eventually shift position to take care of overtaking
 	if(  is_overtaking()  ) {
-		xoff += tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][0], raster_width);
-		yoff += tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][1], raster_width);
+		xoff += tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][0], raster_width);
+		yoff += tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][1], raster_width);
 	}
 	else if(  is_overtaken()  ) {
-		xoff -= tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][0], raster_width)/5;
-		yoff -= tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][1], raster_width)/5;
+		xoff -= tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][0], raster_width)/5;
+		yoff -= tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][1], raster_width)/5;
 	}
 }
 

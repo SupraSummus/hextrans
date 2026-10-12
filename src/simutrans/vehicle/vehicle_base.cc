@@ -69,6 +69,25 @@ uint16 vehicle_base_t::get_tile_steps(ribi_t::ribi edges)
 	return (ribi_t::rotate60(edges) & edges) ? STEPS_PER_SHARP_BEND : STEPS_PER_WIDE_BEND;
 }
 
+// The lane offset tables have a row per square-era direction, which is a
+// screen step dx, dy.  A hex direction takes the row of the square direction
+// with its step in set_dxdy(): SE and NW the old east and west rows.  The
+// (1,1) and (-1,-1) bend chords have no direction; their step (0, +-2) is the
+// old SE / NW diagonal.
+uint8 vehicle_base_t::get_lane_offset_row() const
+{
+	switch(direction) {
+		case ribi_t::north:     return ribi_t::dir_north;
+		case ribi_t::south:     return ribi_t::dir_south;
+		case ribi_t::southeast: return ribi_t::dir_east;
+		case ribi_t::northwest: return ribi_t::dir_west;
+		case ribi_t::northeast: return ribi_t::dir_northeast;
+		case ribi_t::southwest: return ribi_t::dir_southwest;
+		default:                return dy > 0 ? ribi_t::dir_southeast : ribi_t::dir_northwest;
+	}
+}
+
+
 // [0]=xoff [1]=yoff
 sint8 vehicle_base_t::driveleft_base_offsets[8][2] =
 {
