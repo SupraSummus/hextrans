@@ -43,7 +43,7 @@ enlarge_map_frame_t::enlarge_map_frame_t() :
 	map(MAP_PREVIEW_SIZE_X-2, MAP_PREVIEW_SIZE_Y-2)
 {
 	// the copy holds the sides W, H, D; welt->get_size() is the bounding
-	// rhombus, the same only for D = 1
+	// rhombus, the same only for D = 1.  W and H grow, D stays.
 
 	changed_number_of_towns = false;
 
@@ -61,8 +61,8 @@ enlarge_map_frame_t::enlarge_map_frame_t() :
 			map_number_label.update();
 			add_component(&map_number_label);
 
-			// Map X size edit
-			inp_x_size.init( sets->get_size_x(), welt->get_size().x, 32766, sets->get_size_x()>=512 ? 128 : 64, false );
+			// Map X size edit: it does not shrink, and the extent W + D - 1 stays within 32766
+			inp_x_size.init( sets->get_size_x(), sets->get_size_x(), 32766 - (sets->get_size_d() - 1), sets->get_size_x()>=512 ? 128 : 64, false );
 			inp_x_size.add_listener(this);
 			add_component( &inp_x_size );
 
@@ -73,11 +73,12 @@ enlarge_map_frame_t::enlarge_map_frame_t() :
 			add_component( &size_label );
 
 			// Map size Y edit
-			inp_y_size.init( sets->get_size_y(), sets->get_size_y(), 32766, sets->get_size_y()>=512 ? 128 : 64, false );
+			inp_y_size.init( sets->get_size_y(), sets->get_size_y(), 32766 - (sets->get_size_d() - 1), sets->get_size_y()>=512 ? 128 : 64, false );
 			inp_y_size.add_listener(this);
 			add_component( &inp_y_size );
 
-			// the depth D of the hexagon cannot change yet, see documentation/map-shape.md
+			// the depth D of the hexagon cannot change: that moves every tile and
+			// needs a 60° rotation step, see documentation/map-shape.md
 			new_component<gui_empty_t>();
 			depth_label.init();
 			depth_label.buf().printf("%s %d", translator::translate("Depth D:"), sets->get_size_d());
@@ -177,47 +178,53 @@ void enlarge_map_frame_t::draw(scr_coord pos, scr_size size)
 
 /**
  * Calculate the new Map-Preview. Initialize the new RNG!
+ *
+ * The preview is the relief image frame of the new hexagon, as in the new-world
+ * dialog (documentation/map-shape.md): the old map as it is, with a white outline
+ * along its far sides, and the noise of the new part.
  */
 void enlarge_map_frame_t::update_preview()
 {
 	// reset noise seed
 	setsimrand(0xFFFFFFFF, welt->get_settings().get_map_number());
 
-	// "welt" still knows the old size. The new size is saved in "sets".
-	uint16 old_x = welt->get_size().x;
-	uint16 old_y = welt->get_size().y;
-	uint16 pre_x = min(sets->get_size_x(), map.get_width());
-	uint16 pre_y = min(sets->get_size_y(), map.get_height());
+	// "welt" still knows the old shape. The new one is saved in "sets".
+	const map_shape_t old_shape = welt->get_map_shape();
+	const map_shape_t new_shape = sets->get_map_shape();
+	const koord old_size = welt->get_size();
 
-	const int mx = sets->get_size_x()/pre_x;
-	const int my = sets->get_size_y()/pre_y;
+	const scr_size map_size = gui_map_preview_t::get_preview_size(new_shape);
+	map.resize( map_size.w, map_size.h );
 
-	for(  int j=0;  j<pre_y;  j++  ) {
-		for(  int i=0;  i<pre_x;  i++  ) {
-			PIXVAL color;
-			koord pos(i*mx,j*my);
+	const PIXVAL blank = gfx->palette_lookup(COL_BLACK);
+	const PIXVAL outline = gfx->palette_lookup(COL_WHITE);
+	// does pixel (x, y) show an added tile?
+	const auto is_new = [&](int x, int y) {
+		const koord tile = gui_map_preview_t::get_preview_tile(new_shape, map_size, x, y);
+		return new_shape.contains(tile)  &&  !old_shape.contains(tile);
+	};
 
-			if(  pos.x<=old_x  &&  pos.y<=old_y  ){
-				if(  i==(old_x/mx)  ||  j==(old_y/my)  ){
+	for(  int y=0;  y<map_size.h;  y++  ) {
+		for(  int x=0;  x<map_size.w;  x++  ) {
+			const koord tile = gui_map_preview_t::get_preview_tile(new_shape, map_size, x, y);
+			if(  !new_shape.contains(tile)  ) {
+				map.at(x,y) = blank;
+			}
+			else if(  old_shape.contains(tile)  ) {
+				if(  is_new(x+1, y)  ||  is_new(x, y+1)  ||  is_new(x-1, y)  ||  is_new(x, y-1)  ) {
 					// border
-					color = gfx->palette_lookup(COL_WHITE);
+					map.at(x,y) = outline;
 				}
 				else {
-					const sint16 height = welt->min_hgt( pos );
-					color = minimap_t::calc_height_color(height, sets->get_groundwater());
+					const sint16 height = welt->min_hgt( tile );
+					map.at(x,y) = minimap_t::calc_height_color(height, sets->get_groundwater());
 				}
 			}
 			else {
 				// new part
-				const sint16 height = karte_t::perlin_hoehe(sets, pos, hex_corner_t::E, koord(old_x,old_y) );
-				color = minimap_t::calc_height_color(height, sets->get_groundwater());
+				const sint16 height = karte_t::perlin_hoehe(sets, tile, hex_corner_t::E, old_size );
+				map.at(x,y) = minimap_t::calc_height_color(height, sets->get_groundwater());
 			}
-			map.at(i,j) = color;
-		}
-	}
-	for(  uint j=0;  j<map.get_height();  j++  ) {
-		for(  uint i=(j<pre_y ? pre_x : 0);  i<map.get_width();   i++  ) {
-			map.at(i,j) = gfx->palette_lookup(COL_GREY1);
 		}
 	}
 	map_preview.set_map_data(&map);
@@ -225,10 +232,10 @@ void enlarge_map_frame_t::update_preview()
 	sets->heightfield = "";
 
 	if(!changed_number_of_towns){// Interpolate number of towns.
-		sint32 new_area = sets->get_size_x() * sets->get_size_y();
-		sint32 old_area = old_x * old_y;
+		const sint64 new_area = new_shape.get_tile_count();
+		const sint64 old_area = old_shape.get_tile_count();
 		sint32 const towns = welt->get_settings().get_city_count();
-		sets->set_city_count( towns * new_area / old_area - towns );
+		sets->set_city_count( (sint32)(towns * new_area / old_area - towns) );
 		inp_number_of_towns.set_value(abs(sets->get_city_count()) );
 	}
 
