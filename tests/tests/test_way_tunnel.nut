@@ -536,6 +536,54 @@ function test_way_tunnel_build_does_not_terraform_double_mouth()
 }
 
 
+// A tunnel mouth on a planar `*_double` ramp has a portal image, as
+// one on a `*_narrow` ramp does.  At the default `way_height_clearance`
+// 2 the tunnel tool only starts a tunnel on a double ramp and the
+// builder cuts the far mouth into one, but `tunnel_desc_t::slope_index`
+// had no entry for them, so no portal drew.  `test_tunnel_portals`
+// (tests/test-pak/) fills all six edge slots with image data;
+// `get_image` reads -1 for an empty slot.
+function test_way_tunnel_portal_image_on_double_slope()
+{
+	local pl = player_x(0)
+	local tunnel = null
+	foreach (t in tunnel_desc_x.get_available_tunnels(wt_road)) {
+		if (t.get_name() == "test_tunnel_portals") tunnel = t
+	}
+	ASSERT_TRUE(tunnel != null) // tests/test-pak ships test_tunnel_portals
+	local digger = command_x(tool_build_tunnel)
+	local remover = command_x(tool_remover)
+	local setslope = command_x.set_slope
+	local pos = coord3d(5, 5, 0)
+
+	foreach (s in [slope.north_narrow, slope.northeast_narrow, slope.southeast_narrow,
+	               slope.south_narrow, slope.southwest_narrow, slope.northwest_narrow,
+	               slope.north_double, slope.northeast_double, slope.southeast_double,
+	               slope.south_double, slope.southwest_double, slope.northwest_double]) {
+		ASSERT_EQUAL(setslope(pl, pos, s), null)
+		ASSERT_EQUAL(tile_x(5, 5, 0).get_slope(), s)
+
+		// a lone mouth: the portal is on the underground way if the
+		// mouth has one, on the tunnel object otherwise
+		digger.set_flags(2)
+		ASSERT_EQUAL(digger.work(pl, pos, tunnel.get_name()), null)
+		digger.set_flags(0)
+		local mouth = tile_x(5, 5, 0).find_object(mo_tunnel)
+		ASSERT_TRUE(mouth != null)
+		local holder = tile_x(5, 5, 0).get_way(wt_road)
+		if (holder == null) holder = mouth
+		ASSERT_TRUE(holder.get_image() != -1)
+		ASSERT_TRUE(holder.get_front_image() != -1)
+
+		ASSERT_EQUAL(remover.work(pl, pos), null)
+		ASSERT_TRUE(tile_x(5, 5, 0).find_object(mo_tunnel) == null)
+		ASSERT_EQUAL(setslope(pl, pos, slope.flat), null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_way_tunnel_build_invalid_param_type()
 {
 	local digger = command_x(tool_build_tunnel)
