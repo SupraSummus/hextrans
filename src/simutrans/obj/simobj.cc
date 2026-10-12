@@ -92,8 +92,8 @@ obj_t::~obj_t()
 		// then search entire map
 		koord k;
 		for(k.y=0; k.y<welt->get_size().y; k.y++) {
-			for(k.x=0; k.x<welt->get_size().x; k.x++) {
-				grund_t *gr = welt->access(k)->get_boden_von_obj(this);
+			for(k.x=welt->get_row_begin(k.y); k.x<welt->get_row_end(k.y); k.x++) {
+				grund_t *gr = welt->access_nocheck(k)->get_boden_von_obj(this);
 				if (gr && gr->obj_remove(this)) {
 					dbg->warning("obj_t::~obj_t()",
 						"Removed %p from (%hi,%hi,%hhi), but it should have been on (%hi,%hi,%hhi)",

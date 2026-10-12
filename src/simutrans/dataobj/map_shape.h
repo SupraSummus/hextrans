@@ -47,6 +47,46 @@ struct map_shape_t
 	bool contains(koord k) const { return contains(k.x, k.y); }
 
 	/**
+	 * The on-map tiles of row @p r (0 <= r < get_size_r()) are
+	 * get_q_begin(r) <= q < get_q_end(r); the range is never empty.
+	 */
+	sint32 get_q_begin(sint32 r) const
+	{
+		const sint32 q = get_cut_lo() - r;
+		return q > 0 ? q : 0;
+	}
+
+	sint32 get_q_end(sint32 r) const
+	{
+		const sint32 q = get_cut_hi() - r + 1;
+		return q < get_size_q() ? q : get_size_q();
+	}
+
+	/**
+	 * Hex steps from @p k to the hexagon's boundary: 0 on an edge tile,
+	 * negative off the map.  The minimum over the six half-planes, each
+	 * of which a hex step changes by at most one, so a tile at edge
+	 * distance n has the whole hex disc of radius n on the map.
+	 */
+	sint32 edge_distance(koord k) const
+	{
+		return edge_distance_cached(k.x, k.y, get_size_q() - 1, get_size_r() - 1, get_cut_lo(), get_cut_hi());
+	}
+
+	/// edge_distance() with the extents of contains_cached().
+	static sint32 edge_distance_cached(sint32 q, sint32 r, sint32 max_q, sint32 max_r, sint32 cut_lo, sint32 cut_hi)
+	{
+		sint32 dist = q;
+		const sint32 others[5] = { r, max_q - q, max_r - r, q + r - cut_lo, cut_hi - q - r };
+		for(  int i = 0;  i < 5;  i++  ) {
+			if(  others[i] < dist  ) {
+				dist = others[i];
+			}
+		}
+		return dist;
+	}
+
+	/**
 	 * contains() without branches, in the cached form
 	 * surface_t::is_within_limits uses: @p max_q = get_size_q()-1,
 	 * @p max_r = get_size_r()-1.  Each term is negative exactly when

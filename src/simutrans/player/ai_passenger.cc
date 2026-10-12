@@ -173,6 +173,9 @@ koord ai_passenger_t::find_harbour_pos(karte_t* welt, const stadt_t *s )
 	// try to find an airport place as close to the city as possible
 	for(  k.y=max(6,s->get_linksoben().y-10); k.y<=min(welt->get_size().y-3-6,s->get_rechtsunten().y+10); k.y++  ) {
 		for(  k.x=max(6,s->get_linksoben().x-25); k.x<=min(welt->get_size().x-3-6,s->get_rechtsunten().x+10); k.x++  ) {
+			if(  welt->get_edge_distance( k, koord(3, 3) ) < 6  ) {
+				continue; // the cut corners of the hexagon
+			}
 			sint32 testdist = koord_distance( k, s->get_pos() );
 			if(  testdist<bestdist  ) {
 				if(  k.x+2<s->get_linksoben().x  ||  k.y+2<s->get_linksoben().y  ||  k.x>=s->get_rechtsunten().x  ||  k.y>=s->get_rechtsunten().y  ) {
@@ -481,7 +484,7 @@ bool ai_passenger_t::create_water_transport_vehicle(const stadt_t* start_stadt, 
 halthandle_t ai_passenger_t::build_airport(const stadt_t* city, koord pos, int rotation)
 {
 	// not too close to border?
-	if(pos.x<6  ||  pos.y<6  ||  pos.x+3+6>=welt->get_size().x  ||  pos.y+3+6>=welt->get_size().y  ) {
+	if(  welt->get_edge_distance( pos, koord(4, 4) ) < 6  ) {
 		return halthandle_t();
 	}
 	// ok, not prematurely doomed
@@ -641,6 +644,9 @@ static koord find_airport_pos(karte_t* welt, const stadt_t *s )
 	// try to find an airport place as close to the city as possible
 	for(  k.y=max(6,s->get_linksoben().y-10); k.y<=min(welt->get_size().y-3-6,s->get_rechtsunten().y+10); k.y++  ) {
 		for(  k.x=max(6,s->get_linksoben().x-25); k.x<=min(welt->get_size().x-3-6,s->get_rechtsunten().x+10); k.x++  ) {
+			if(  welt->get_edge_distance( k, koord(3, 3) ) < 6  ) {
+				continue; // the cut corners of the hexagon
+			}
 			sint32 testdist = koord_distance( k, s->get_pos() );
 			if(  testdist<bestdist  ) {
 				if(  k.x+2<s->get_linksoben().x  ||  k.y+2<s->get_linksoben().y  ||  k.x>=s->get_rechtsunten().x  ||  k.y>=s->get_rechtsunten().y  ) {

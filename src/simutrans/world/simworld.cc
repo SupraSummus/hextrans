@@ -763,7 +763,10 @@ void karte_t::create_rivers( sint16 number )
 	for(  sint16 y = 8;  y < cached_size.y;  y+=16  ) {
 		for(  sint16 x = 8;  x < cached_size.x;  x+=16  ) {
 			koord k(x,y);
-			grund_t *gr = lookup_kartenboden_nocheck(k);
+			grund_t *gr = lookup_kartenboden(k);
+			if(  !gr  ) {
+				continue; // in a cut corner of the hexagon
+			}
 			const sint8 h = gr->get_hoehe() - get_water_hgt_nocheck(k);
 			if(  gr->is_water()  ) {
 				// may be good to start a river here
@@ -6874,7 +6877,8 @@ void karte_t::announce_server(server_announce_type_t status)
 			for (scr_coord_val i = 0; i < 36; i++) {
 				row <<= 1;
 				const koord pos((i * get_size().x) / 36, (j * get_size().y) / 36);
-				if (!lookup_kartenboden(pos)->is_water()) {
+				const grund_t *gr = lookup_kartenboden(pos);
+				if (gr  &&  !gr->is_water()) { // the cut corners of the hexagon read as sea
 					row |= 1;
 				}
 				// uncode in URI letters

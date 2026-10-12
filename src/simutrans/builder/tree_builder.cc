@@ -324,7 +324,7 @@ void tree_builder_t::distribute_trees(int dichte, sint16 xtop, sint16 ytop, sint
 
 	for (uint32 c1 = 0; c1 < c_forest_count ; c1++) {
 		// to have same execution order for simrand
-		koord const start = koord::koord_random(x, y);
+		koord const start = welt->get_random_tile();
 		koord const size  = koord(t_forest_size,t_forest_size) + koord::koord_random(t_forest_size, t_forest_size);
 
 		create_forest( start, size, xtop, ytop, xbottom, ybottom );

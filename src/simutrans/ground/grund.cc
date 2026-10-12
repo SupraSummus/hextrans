@@ -1388,13 +1388,14 @@ void grund_t::display_border( sint16 xpos, sint16 ypos, const sint16 raster_tile
 
 	// Each map-edge cliff is the back-wall of the phantom missing
 	// neighbour, drawn at that neighbour's screen position.  Three
-	// front directions are visible: SE (q=max), S (r=max), SW (r=max
-	// or q=0).  Corner pair, wall slot and screen offsets follow
+	// front directions are visible: SE (q=max or the far cut of the
+	// W x H x D hexagon), S (r=max or the far cut), SW (r=max or q=0);
+	// a wall stands wherever that neighbour is off the map.  Corner pair, wall slot and screen offsets follow
 	// `back_wall_geometry` named from the phantom's perspective.
 	const sint16 hgt_step = tile_raster_scale_y( TILE_HEIGHT_STEP, raster_tile_width);
 	const sint16 zz = pos.z - welt->min_height;
 	const slope_t::type slope = get_grund_hang();
-	const koord size = welt->get_size();
+	const koord k = pos.get_2d();
 
 	struct boundary_t {
 		bool need;
@@ -1403,13 +1404,13 @@ void grund_t::display_border( sint16 xpos, sint16 ypos, const sint16 raster_tile
 		uint8 wall;
 	};
 	const boundary_t boundaries[3] = {
-		{ pos.x == size.x - 1,
+		{ !welt->is_within_limits(k + koord::neighbours[0]),
 		  +3 * raster_tile_width / 4, raster_tile_width / 8,
 		  hex_corner_t::SE, hex_corner_t::E,  0 },
-		{ pos.y == size.y - 1,
+		{ !welt->is_within_limits(k + koord::neighbours[1]),
 		  0,                          raster_tile_width / 4,
 		  hex_corner_t::SW, hex_corner_t::SE, 1 },
-		{ pos.y == size.y - 1  ||  pos.x == 0,
+		{ !welt->is_within_limits(k + koord::neighbours[2]),
 		  -3 * raster_tile_width / 4, raster_tile_width / 8,
 		  hex_corner_t::W,  hex_corner_t::SW, 2 },
 	};
@@ -1457,7 +1458,7 @@ void grund_t::display_if_visible(sint16 xpos, sint16 ypos, const sint16 raster_t
 		return;
 	}
 
-	if(  env_t::draw_earth_border  &&  (pos.x-welt->get_size().x+1 == 0  ||  pos.y-welt->get_size().y+1 == 0)  ) {
+	if(  env_t::draw_earth_border  &&  welt->is_front_edge(pos.get_2d())  ) {
 		// the last tile. might need a border
 		display_border( xpos, ypos, raster_tile_width CLIP_NUM_PAR );
 	}

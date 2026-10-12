@@ -334,7 +334,8 @@ void gui_city_minimap_t::init_pax_dest( array2d_tpl<PIXVAL> &pax_dest )
 	for(  sint16 y = 0;  y < minimaps_size.h;  y++  ) {
 		for(  sint16 x = 0;  x < minimaps_size.w;  x++  ) {
 			const grund_t *gr = welt->lookup_kartenboden( koord( (x * size_x) / minimaps_size.w, (y * size_y) / minimaps_size.h ) );
-			pax_dest.at(x,y) = minimap_t::calc_ground_color(gr);
+			// black in the cut corners of the hexagon
+			pax_dest.at(x,y) = gr ? minimap_t::calc_ground_color(gr) : gfx->palette_lookup(COL_BLACK);
 		}
 	}
 }

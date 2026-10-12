@@ -102,3 +102,27 @@ function test_map_shape_no_way_into_cut()
 
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+// The raise and lower tools refuse a grid point whose tile is in a cut
+// corner (inside the grid limits, but without ground) instead of reading
+// its missing ground.  With D = 1 nothing is cut.
+function test_map_shape_no_terraform_in_cut()
+{
+	local pl = player_x(0)
+	local w = settings.get_map_side_w()
+	local h = settings.get_map_side_h()
+	local d = settings.get_map_side_d()
+	local size = world.get_size()
+	if (d == 1) {
+		return
+	}
+
+	foreach (c in [ [0, 0], [size.x - 1, size.y - 1] ]) {
+		ASSERT_FALSE(map_shape_contains(w, h, d, c[0], c[1]))
+		ASSERT_TRUE(command_x.grid_raise(pl, coord3d(c[0], c[1], 0)) != null)
+		ASSERT_TRUE(command_x.grid_lower(pl, coord3d(c[0], c[1], 0)) != null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}

@@ -444,12 +444,12 @@ int terraformer_t::raise_to(const node_t &node)
 
 	welt->lookup_kartenboden_nocheck(node.x,node.y)->calc_image();
 
-	if ( (node.x+2) < welt->get_size().x ) {
-		welt->lookup_kartenboden_nocheck(node.x+1,node.y)->calc_image();
+	// SE and S neighbours, if on the map
+	if(  grund_t *gr = welt->lookup_kartenboden(node.x+1,node.y)  ) {
+		gr->calc_image();
 	}
-
-	if ( (node.y+2) < welt->get_size().y ) {
-		welt->lookup_kartenboden_nocheck(node.x,node.y+1)->calc_image();
+	if(  grund_t *gr = welt->lookup_kartenboden(node.x,node.y+1)  ) {
+		gr->calc_image();
 	}
 
 	return n;
@@ -602,12 +602,12 @@ int terraformer_t::lower_to(const node_t &node)
 	}
 
 	welt->lookup_kartenboden_nocheck(node.x,node.y)->calc_image();
-	if( (node.x+2) < welt->get_size().x ) {
-		welt->lookup_kartenboden_nocheck(node.x+1,node.y)->calc_image();
+	// SE and S neighbours, if on the map
+	if(  grund_t *gr = welt->lookup_kartenboden(node.x+1,node.y)  ) {
+		gr->calc_image();
 	}
-
-	if( (node.y+2) < welt->get_size().y ) {
-		welt->lookup_kartenboden_nocheck(node.x,node.y+1)->calc_image();
+	if(  grund_t *gr = welt->lookup_kartenboden(node.x,node.y+1)  ) {
+		gr->calc_image();
 	}
 
 	return n;
