@@ -203,6 +203,7 @@ all_tests <- [
 	test_reservation_clear_rail,
 	test_route_heuristics_way_axes,
 	test_route_heuristics_way_open_ground_shortest,
+	test_route_heuristics_water_route_is_connected,
 	test_scenario_rules_allow_forbid_tool,
 	test_script_generator_northeast_southwest_road,
 	test_script_generator_oneway_sign_direction,
