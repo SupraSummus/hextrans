@@ -1224,6 +1224,18 @@ for example by merging the slides of the next few `pos_list_t` positions
 through a small priority queue,
 and extend the test to check that distance does not decrease.
 
+Halt and field leftovers.
+`haltestelle_t::create_name`'s factory branch tests
+`fabs.is_contained(fab)` the wrong way round (upstream has the same line),
+and its compass words for a stop's position relative to the town
+are still four-way.
+`fabrik_t::add_random_field` sizes the field ring from the layout-0
+footprint, which is wrong for a rotated non-square factory.
+Next move: flip the `is_contained` test with a naming test
+that puts a stop next to a factory,
+name the six hex directions in `create_name`,
+and take the footprint from `get_size(rotate)`.
+
 City growth geometry.
 `stadt_t::evaluate_size_res_com_ind` scores a 5×5 axial rhombus
 and its street update uses an 8-neighbour table that paves `(1,1)`;
