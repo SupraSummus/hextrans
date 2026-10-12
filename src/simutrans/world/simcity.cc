@@ -1377,20 +1377,24 @@ void stadt_t::finish_rd()
 }
 
 
-void stadt_t::rotate90( const sint16 y_size )
+void stadt_t::rotate90( const map_shape_t &from )
 {
 	// rotate town origin
-	pos.rotate90( y_size );
-	townhall_road.rotate90( y_size );
-	// rotate an rectangle
-	lo.rotate90( y_size );
-	ur.rotate90( y_size );
-	sint16 lox = lo.x;
-	lo.x = ur.x;
-	ur.x = lox;
+	pos.rotate90( from );
+	townhall_road.rotate90( from );
+	// The corners of the area move as tiles; it is an axial rectangle
+	// again on the half turn, with the corners swapped.
+	lo.rotate90( from );
+	ur.rotate90( from );
 	// reset building search
 	best_strasse.reset(pos);
 	best_haus.reset(pos);
+	if(  !welt->get_settings().is_half_turn_rotation()  ) {
+		return;
+	}
+	const koord k = lo;
+	lo = ur;
+	ur = k;
 	// townhall position may be changed a little!
 	sparse_tpl<pax_dest_status_t> pax_destinations_temp(koord( PAX_DESTINATIONS_SIZE, PAX_DESTINATIONS_SIZE ));
 
@@ -1399,7 +1403,7 @@ void stadt_t::rotate90( const sint16 y_size )
 		pax_dest_status_t dst_status;
 		pax_destinations_new.get_nonzero(i, pos, dst_status);
 		assert( dst_status != 0 );
-		pax_destinations_temp.set( PAX_DESTINATIONS_SIZE-1-pos.y, pos.x, dst_status );
+		pax_destinations_temp.set( PAX_DESTINATIONS_SIZE-1-pos.x, PAX_DESTINATIONS_SIZE-1-pos.y, dst_status );
 	}
 	swap<pax_dest_status_t>( pax_destinations_temp, pax_destinations_new );
 
@@ -1408,7 +1412,7 @@ void stadt_t::rotate90( const sint16 y_size )
 		pax_dest_status_t dst_status;
 		pax_destinations_old.get_nonzero(i, pos, dst_status);
 		assert( dst_status != 0 );
-		pax_destinations_temp.set( PAX_DESTINATIONS_SIZE-1-pos.y, pos.x, dst_status );
+		pax_destinations_temp.set( PAX_DESTINATIONS_SIZE-1-pos.x, PAX_DESTINATIONS_SIZE-1-pos.y, dst_status );
 	}
 	swap<pax_dest_status_t>( pax_destinations_temp, pax_destinations_old );
 

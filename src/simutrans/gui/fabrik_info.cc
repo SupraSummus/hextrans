@@ -297,7 +297,7 @@ bool fabrik_info_t::action_triggered( gui_action_creator_t *comp, value_t)
 }
 
 
-void fabrik_info_t::map_rotate90(sint16)
+void fabrik_info_t::map_rotate90( const map_shape_t & )
 {
 	// force update
 	old_suppliers_count ++;

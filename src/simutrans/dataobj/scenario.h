@@ -174,7 +174,7 @@ private:
 			file->rdwr_str(error);
 		}
 
-		void rotate90(const sint16 y_size);
+		void rotate90( const map_shape_t &from );
 
 	private:
 		const forbidden_t& operator=(const forbidden_t&);
@@ -343,7 +343,7 @@ public:
 	 */
 	bool set_completion(sint32 player_nr, sint32 percentage);
 
-	void rotate90(const sint16 y_size);
+	void rotate90( const map_shape_t &from );
 
 	/**
 	 * rotate original coordinates to actual world coordinates

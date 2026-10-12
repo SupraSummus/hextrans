@@ -1305,10 +1305,10 @@ void display_all_win()
 }
 
 
-void win_rotate90( sint16 new_ysize )
+void win_rotate90( const map_shape_t &from )
 {
 	for(simwin_t const& i : wins) {
-		i.gui->map_rotate90(new_ysize);
+		i.gui->map_rotate90( from );
 	}
 }
 
@@ -2221,7 +2221,7 @@ void win_display_flush(double konto)
 	}
 
 	if(  skinverwaltung_t::compass_iso  &&  env_t::compass_screen_position  ) {
-		const image_id img = skinverwaltung_t::compass_iso->get_image_id(wl->get_settings().get_rotation());
+		const image_id img = skinverwaltung_t::compass_iso->get_image_id(wl->get_settings().get_compass_rotation());
 		const scr_rect area = {
 			D_MARGIN_LEFT,
 			env_t::iconsize.h+D_MARGIN_TOP,
@@ -2406,10 +2406,10 @@ void win_display_flush(double konto)
 		else if(  haltestelle_t::get_rerouting_status()==REROUTING  ) {
 			info.append( " *" );
 		}
-		if(  skinverwaltung_t::compass_iso == NULL  &&  wl->get_settings().get_rotation()  ) {
+		if(  skinverwaltung_t::compass_iso == NULL  &&  wl->get_settings().get_compass_rotation()  ) {
 			static const char *compass_dir[4] = { "North", "East", "South", "West" };
 			info.append( " " );
-			info.append( translator::translate( compass_dir[ 4-wl->get_settings().get_rotation() ] ) );
+			info.append( translator::translate( compass_dir[ 4-wl->get_settings().get_compass_rotation() ] ) );
 		}
 	}
 #endif

@@ -188,7 +188,7 @@ public:
 	/**
 	 * Rotate freight target coordinates, has to be called after rotating factories.
 	 */
-	void rotate90_freight_destinations(const sint16 y_size);
+	void rotate90_freight_destinations(const map_shape_t &from);
 
 	/**
 	* Calculate the total quantity of goods moved

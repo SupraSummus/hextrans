@@ -43,7 +43,7 @@ public:
 
 	void fill_list();
 
-	void map_rotate90( sint16 ) OVERRIDE { fill_list(); }
+	void map_rotate90( const map_shape_t & ) OVERRIDE { fill_list(); }
 
 	void rdwr(loadsave_t* file) OVERRIDE;
 

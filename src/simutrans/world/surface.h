@@ -53,6 +53,9 @@ protected:
 	sint32 cached_cut_lo = 0;
 	sint32 cached_cut_hi = 0;
 
+	/// The shape the cached values come from.
+	map_shape_t cached_shape = map_shape_t(1, 1, 1);
+
 	/// Sets cached_grid_size (the bounding rhombus) and the other
 	/// cached extents and cut lines from @p shape.
 	void set_cached_shape(const map_shape_t &shape);
@@ -154,6 +157,11 @@ public:
 	/// Returns the number of tiles of the map in x and y direction.
 	/// @note Valid tile coords are within (0..x-1, 0..y-1)
 	inline koord get_size() const { return cached_grid_size; }
+
+	/// The W x H x D hexagon of the map; get_size() is its bounding rhombus.
+	/// While karte_t::rotate90 moves the tiles it is still the shape before
+	/// the step, the one koord::rotate90 rotates from.
+	inline const map_shape_t &get_map_shape() const { return cached_shape; }
 
 	/// Maximum size for waiting bars etc.
 	inline sint16 get_size_max() const { return cached_size_max; }

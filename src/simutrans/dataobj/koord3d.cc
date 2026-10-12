@@ -105,9 +105,9 @@ ribi_t::ribi koord3d_vector_t::get_short_ribi( uint32 index ) const
 	return ribi;
 }
 
-void koord3d_vector_t::rotate90( sint16 y_size )
+void koord3d_vector_t::rotate90( const map_shape_t &from )
 {
 	for(koord3d & i : *this) {
-		i.rotate90(y_size);
+		i.rotate90(from);
 	}
 }

@@ -14,6 +14,7 @@
 #include <stdlib.h>
 
 class loadsave_t;
+struct map_shape_t;
 
 /**
  * 2D Coordinates.
@@ -89,18 +90,13 @@ public:
 	}
 
 	/**
-	 * One 60° step of the whole map, clockwise on screen, for a map
-	 * that is a plain w x h rhombus (map_shape_t d == 1) with
-	 * @p y_size = h - 1.  Same tile as `map_shape_t(w, h, 1).rotate_tile`
-	 * for any w, i.e. hex_axial_rotate(*this, 1) shifted by (y_size, 0).
-	 *
-	 * The tile lands in the rotated hexagon (1, w, h), whose bounding
-	 * rhombus is h x (w + h - 1): one step does not map a rhombus onto
-	 * itself, only three do.  Worlds with d > 1, and several steps in
-	 * a row, go through map_shape_t::rotate_tile.
-	 * The top-level rotation is still gated off; see TODO.md.
+	 * One 60° step of the whole map, clockwise on screen:
+	 * map_shape_t::rotate_tile of the map @p from, which this tile
+	 * belongs to before the step.  The tile lands in from.rotated().
+	 * Like upstream's, it leaves illegal coordinates (both negative,
+	 * such as koord::invalid) alone.
 	 */
-	void rotate90( sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	inline void clip_min( koord k_min )
 	{

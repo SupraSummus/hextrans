@@ -127,7 +127,7 @@ void brueckenboden_t::rdwr(loadsave_t *file)
 void brueckenboden_t::rotate90()
 {
 	if( sint8 way_offset = get_weg_yoff() ) {
-		pos.rotate90( welt->get_size().y-1 );
+		pos.rotate90( welt->get_map_shape() );
 		slope = slope_t::rotate60( slope );
 		// since the y_off contains also the way height, we need to remove it before rotations and add it back afterwards
 		for( uint8 i = 0; i < objlist.get_top(); i++ ) {

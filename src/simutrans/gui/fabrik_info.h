@@ -100,7 +100,7 @@ public:
 	bool action_triggered(gui_action_creator_t*, value_t) OVERRIDE;
 
 	// rotated map need new info ...
-	void map_rotate90( sint16 ) OVERRIDE;
+	void map_rotate90( const map_shape_t & ) OVERRIDE;
 
 	void rdwr( loadsave_t *file ) OVERRIDE;
 

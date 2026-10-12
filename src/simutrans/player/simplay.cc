@@ -812,10 +812,10 @@ void player_t::finish_rd()
 }
 
 
-void player_t::rotate90( const sint16 y_size )
+void player_t::rotate90( const map_shape_t &from )
 {
-	simlinemgmt.rotate90( y_size );
-	headquarter_pos.rotate90( y_size );
+	simlinemgmt.rotate90( from );
+	headquarter_pos.rotate90( from );
 }
 
 

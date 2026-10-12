@@ -527,7 +527,7 @@ public:
 	/// gets position of a building belonging to factory
 	koord3d get_pos() const { return pos; }
 
-	void rotate90( const sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	void link_halt(halthandle_t halt);
 	void unlink_halt(halthandle_t halt);

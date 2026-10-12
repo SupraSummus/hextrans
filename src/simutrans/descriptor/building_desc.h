@@ -366,6 +366,14 @@ public:
 	uint8 adjust_layout(uint8 layout) const;
 
 	/**
+	 * The layout of this building turned by 180°.  The four layouts of
+	 * the square era are hex S, SE, N, NW by rename (ribi_t::layout_to_ribi),
+	 * so two of upstream's quarter turns are the hex half turn; six-layout
+	 * buildings swap S/N, SE/NW and NE/SW.  The footprint extents stay.
+	 */
+	uint8 get_half_turn_layout(uint8 layout) const;
+
+	/**
 	* Skin: cursor (index 0) and icon (index 1)
 	*/
 	const skin_desc_t * get_cursor() const {

@@ -7,6 +7,7 @@
 // so tools/hex_vertex_test and tools/hex_proj_test compile it as is.
 
 #include "koord.h"
+#include "map_shape.h"
 
 
 // Flat-top hex axial neighbours — clockwise from SE; see koord.h.
@@ -99,11 +100,13 @@ hex_vertex_t hex_axial_rotate(hex_vertex_t v, int steps)
 }
 
 
-// D = 1 spelling of map_shape_t::rotate_tile, which needs only
-// y_size = h - 1: the second component of its shift is -(d - 1) = 0.
-void koord::rotate90(sint16 y_size)
+void koord::rotate90(const map_shape_t &from)
 {
-	*this = hex_axial_rotate(*this, 1) + koord(y_size, 0);
+	if(  (x&y)<0  ) {
+		// do not rotate illegal coordinates
+		return;
+	}
+	*this = from.rotate_tile(*this);
 }
 
 

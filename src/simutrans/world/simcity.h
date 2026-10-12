@@ -558,7 +558,7 @@ public:
 	 */
 	void finish_rd();
 
-	void rotate90( const sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	/* change size of city */
 	void change_size( sint64 delta_citizens, bool new_town = false );

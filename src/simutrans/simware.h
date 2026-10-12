@@ -119,7 +119,7 @@ public:
 	 * Adjust target coordinates.
 	 * Must be called after factories have been rotated!
 	 */
-	void rotate90( sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	/**
 	 * Calculates transport revenue per tile and freight unit.

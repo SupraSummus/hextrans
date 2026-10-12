@@ -555,19 +555,19 @@ void convoi_t::call_convoi_tool( const char function, const char *extra ) const
 }
 
 
-void convoi_t::rotate90( const sint16 y_size )
+void convoi_t::rotate90( const map_shape_t &from )
 {
-	record_pos.rotate90( y_size );
-	home_depot.rotate90( y_size );
-	route.rotate90( y_size );
+	record_pos.rotate90( from );
+	home_depot.rotate90( from );
+	route.rotate90( from );
 	if(  schedule_target!=koord3d::invalid  ) {
-		schedule_target.rotate90( y_size );
+		schedule_target.rotate90( from );
 	}
 	if(schedule) {
-		schedule->rotate90( y_size );
+		schedule->rotate90( from );
 	}
 	for(  int i=0;  i<vehicle_count;  i++  ) {
-		fahr[i]->rotate90_freight_destinations( y_size );
+		fahr[i]->rotate90_freight_destinations( from );
 	}
 	// eventually correct freight destinations (and remove all stale freight)
 	check_freight();

@@ -32,15 +32,15 @@ void vehicle_t::rotate90()
 	vehicle_base_t::rotate90();
 	// HEX-PORT: rotate90 → rotate_for_map_rotate90 helper.
 	previous_direction = ribi_t::rotate_for_map_rotate90(previous_direction );
-	last_stop_pos.rotate90( welt->get_size().y-1 );
+	last_stop_pos.rotate90( welt->get_map_shape() );
 }
 
 
-void vehicle_t::rotate90_freight_destinations(const sint16 y_size)
+void vehicle_t::rotate90_freight_destinations(const map_shape_t &from)
 {
 	// now rotate the freight
 	for(ware_t & tmp : fracht) {
-		tmp.rotate90(y_size );
+		tmp.rotate90(from);
 	}
 }
 

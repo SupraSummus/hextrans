@@ -284,10 +284,10 @@ koord3d message_t::get_coord_from_text(const char* text)
 }
 
 
-void message_t::rotate90( sint16 size_w )
+void message_t::rotate90( const map_shape_t &from )
 {
 	for(message_node_t* const i : list) {
-		i->pos.rotate90(size_w);
+		i->pos.rotate90( from );
 	}
 }
 
@@ -498,10 +498,10 @@ void chat_message_t::chat_node::rdwr(loadsave_t* file)
 	pos.rdwr(file);
 }
 
-void chat_message_t::rotate90(sint16 size_w)
+void chat_message_t::rotate90( const map_shape_t &from )
 {
 	for (chat_node* const i : list) {
-		i->pos.rotate90(size_w);
+		i->pos.rotate90( from );
 	}
 }
 

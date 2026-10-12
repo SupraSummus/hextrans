@@ -45,7 +45,7 @@ public:
 	*/
 	void draw(scr_coord offset) OVERRIDE;
 
-	void map_rotate90( sint16 );
+	void map_rotate90( const map_shape_t & );
 
 	bool is_valid() const OVERRIDE;
 

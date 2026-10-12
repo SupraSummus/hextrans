@@ -499,7 +499,7 @@ void grund_t::sort_trees()
 
 void grund_t::rotate90()
 {
-	pos.rotate90( welt->get_size().y-1 );
+	pos.rotate90( welt->get_map_shape() );
 	slope = slope_t::rotate60( slope );
 	// then rotate the things on this tile
 	if (obj_count() == 254) {
@@ -528,7 +528,7 @@ void grund_t::finish_rotate90()
 	// first get the old hashes
 	for(auto iter : ground_texts) {
 		koord3d k = get_ground_koord3d_key( iter.key );
-		k.rotate90( welt->get_size().y-1 );
+		k.rotate90( welt->get_map_shape() );
 		ground_texts_rotating.put( get_ground_text_key(k), iter.value );
 	}
 	ground_texts.clear();

@@ -421,7 +421,7 @@ public:
 
 	static uint8 get_reconnect_counter() { return reconnect_counter; }
 
-	void rotate90( const sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	// just for info so far
 	sint64 calc_maintenance() const;

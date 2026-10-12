@@ -733,9 +733,14 @@ void gui_schedule_t::draw(scr_coord pos)
 	if( schedule ) {
 		// check if we missed a map rotation
 		const uint8 world_rotation = world()->get_settings().get_rotation();
-		while(  current_schedule_rotation != world_rotation  ) {
-			current_schedule_rotation = (current_schedule_rotation + 1) % 4;
-			schedule->rotate90( (4+current_schedule_rotation - world_rotation) & 1 ? world()->get_size().y-1 : world()->get_size().x-1 );
+		if(  current_schedule_rotation != world_rotation  ) {
+			const int missed = (6 + world_rotation - current_schedule_rotation) % 6;
+			map_shape_t shape = world()->get_map_shape().rotated( -missed );
+			for(  int i = 0;  i < missed;  i++  ) {
+				schedule->rotate90( shape );
+				shape = shape.rotated();
+			}
+			current_schedule_rotation = world_rotation;
 		}
 
 		schedule_t *scd = get_old_schedule();

@@ -1057,11 +1057,30 @@ public:
 	void set_nosave() { nosave = true; nosave_warning = true; }
 	void set_nosave_warning() { nosave_warning = true; }
 
-	/// rotate plans by 90 degrees
-	void rotate90_plans(sint16 x_min, sint16 x_max, sint16 y_min, sint16 y_max);
+private:
+	/// One 60° step of the tiles, heights and everything that holds a
+	/// position or a direction; see rotate90().
+	void rotate90_step();
 
-	/// rotate map view by 90 degrees
-	void rotate90();
+public:
+	/**
+	 * Rotates the world by @p steps 60° steps, clockwise on screen.
+	 * Each step runs the whole cascade (every obj_t::rotate90 and the
+	 * rotate90 of cities, factories, halts, convoys, ...) once.
+	 * Only can_rotate90() rotations are representable: anything else
+	 * is fatal.
+	 */
+	void rotate90(uint8 steps = 1);
+
+	/**
+	 * Whether rotate90(@p steps) leaves a world karte_t can hold:
+	 * whole half turns (steps a multiple of 3) from a world at 0° or
+	 * 180°.  A single 60° step maps the W x H x 1 rhombus to a hexagon
+	 * with D > 1 and rectangular building footprints to parallelograms,
+	 * which need the populated W x H x D map and the 6-orientation
+	 * footprint (see TODO.md, "Rotation cascade").
+	 */
+	bool can_rotate90(uint8 steps) const;
 
 	template <class T>
 	class sync_list_t

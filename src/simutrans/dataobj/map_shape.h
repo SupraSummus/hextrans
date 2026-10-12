@@ -204,6 +204,43 @@ struct map_shape_t
 		return r;
 	}
 
+	/// The shape after @p steps steps (mod 6, also negative).
+	map_shape_t rotated(int steps) const
+	{
+		map_shape_t s = *this;
+		for(  int i = ((steps % 6) + 6) % 6;  i > 0;  i--  ) {
+			s = s.rotated();
+		}
+		return s;
+	}
+
+	/**
+	 * Where tile @p k of this shape lands after @p steps steps
+	 * (mod 6, also negative: -1 maps a tile of rotated() back here).
+	 * Three steps are the point reflection
+	 * (q, r) -> (size_q-1-q, size_r-1-r) onto the same shape.
+	 */
+	koord rotate_tile(koord k, int steps) const
+	{
+		map_shape_t s = *this;
+		for(  int i = ((steps % 6) + 6) % 6;  i > 0;  i--  ) {
+			k = s.rotate_tile(k);
+			s = s.rotated();
+		}
+		return k;
+	}
+
+	/// rotate_tile for a vertex: corner c becomes c + steps.
+	hex_vertex_t rotate_vertex(hex_vertex_t v, int steps) const
+	{
+		map_shape_t s = *this;
+		for(  int i = ((steps % 6) + 6) % 6;  i > 0;  i--  ) {
+			v = s.rotate_vertex(v);
+			s = s.rotated();
+		}
+		return v;
+	}
+
 private:
 	koord rotate_shift() const { return koord((sint16)(h + d - 2), (sint16)(1 - d)); }
 };

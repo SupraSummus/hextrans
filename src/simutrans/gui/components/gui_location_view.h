@@ -25,7 +25,7 @@ public:
 	/** Set the location to be displayed. */
 	void set_location(koord3d const l) { location = l; }
 
-	void map_rotate90(sint16 const new_ysize) { location.rotate90(new_ysize); }
+	void map_rotate90( const map_shape_t &from ) { location.rotate90( from ); }
 
 	void draw(scr_coord offset) OVERRIDE { internal_draw(offset, 0); }
 
