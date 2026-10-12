@@ -1064,6 +1064,10 @@ its `check_station` reads the removed `dir.east` / `dir.west`,
 and its double-track and station-extension code
 is built on square offsets and the old straight ribis 5 / 10.
 Hide it from the AI picker until then.
+`test_ai_scripted.nut` (upstream #245/#246) attaches a fixture or shipped AI
+to a `world.create_player(slot, 4)` player,
+so the `sqai` port lands with a test there
+that reaches a target north of the start.
 
 `-ai_soak SIZE [SEED]` (see AGENTS.md) runs both AIs unattended and deterministically.
 On 128×128, 6 of seeds 1–15 abort in the first game month
@@ -1192,9 +1196,13 @@ so signals, signs and traffic-light arms on NE-SW tracks draw nothing;
 the tunnel-mouth masks clear single edges;
 the private-way image index uses the SE bit (`1 - (dir & 1)`);
 `state_to_direction[state & 7]` reads a 6-entry table.
-Upstream stage 4 (#223) rewrites the same image selection.
-Next move: after stage 4, a `state_to_direction`-style projection
-(NE → N slot, SW → S slot), image index by `straight_axis`,
+Upstream's front and drive-on-left image lists (#223) are plumbed in
+with the same four slots,
+so a single-direction front image covers N, S, NW and SE only;
+the diagonal lists stay unused (`calc_diagonal_index` is a tripwire).
+Next move: a `state_to_direction`-style projection
+(NE → N slot, SW → S slot) shared by `calc_image` and the front-image index,
+image index by `straight_axis`,
 and clamp the state on load.
 
 ## Pak reader child-count expectations are implicit
