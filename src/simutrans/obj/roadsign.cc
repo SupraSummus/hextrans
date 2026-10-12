@@ -237,7 +237,7 @@ void roadsign_t::info(cbuffer_t & buf) const
 }
 
 
-void roadsign_t::calc_diagonal_index(uint16 idx[4], ribi_t::ribi, uint16)
+void roadsign_t::calc_diagonal_index(uint16 idx[6], ribi_t::ribi, uint16)
 {
 	// Upstream numbers square bends (ribi/3-1) into the diagonal image rows.
 	// weg_t::is_diagonal() stays false under hex, so the callers never get here.
@@ -246,16 +246,64 @@ void roadsign_t::calc_diagonal_index(uint16 idx[4], ribi_t::ribi, uint16)
 }
 
 
+void roadsign_t::calc_dir_images(ribi_t::ribi dirs, uint16 base, const uint16 diag[6], bool left_offsets, bool left_variant, image_id &back_image, sint8 &xoff, sint8 &yoff)
+{
+	const sint16 XOFF = 2*desc->get_offset_left();
+	const sint16 YOFF = desc->get_offset_left();
+
+	// In the order the images are placed in. A sign stands to the right of its
+	// direction. For N, NE and SE, which lead to the right on the screen, that
+	// is the lower side of the way, in front of the vehicles; for S, SW and NW
+	// it is the upper side, behind them. Signs on the left are the other way
+	// around. A hard sign takes its layer, a soft one gives way when the layer
+	// has an image already. The move to the left side is ox and oy steps of
+	// XOFF and YOFF, to the left as seen from the direction of the sign: for
+	// NE and SW, which lead along the screen, straight up and down.
+	static const struct {
+		ribi_t::ribi dir;
+		uint8        slot;
+		bool         front;
+		bool         hard;
+		sint8        ox, oy;
+	} places[6] = {
+		{ ribi_t::southeast, roadsign_desc_t::SLOT_SE, true,  true,   1, -1 },
+		{ ribi_t::north,     roadsign_desc_t::SLOT_N,  true,  false, -1, -1 },
+		{ ribi_t::northeast, roadsign_desc_t::SLOT_NE, true,  false,  0, -1 },
+		{ ribi_t::northwest, roadsign_desc_t::SLOT_NW, false, true,  -1,  1 },
+		{ ribi_t::south,     roadsign_desc_t::SLOT_S,  false, false,  1,  1 },
+		{ ribi_t::southwest, roadsign_desc_t::SLOT_SW, false, false,  0,  1 }
+	};
+
+	for(  const auto &place : places  ) {
+		if(  !(dirs & place.dir)  ) {
+			continue;
+		}
+		const image_id img = desc->get_dir_image_id( base, place.slot, diag[place.slot], left_variant );
+		bool to_front = place.front != left_offsets;
+		if(  !place.hard  &&  (to_front ? foreground_image : back_image) != IMG_EMPTY  ) {
+			to_front = !to_front;
+		}
+		if(  to_front  ) {
+			foreground_image = img;
+			if(  left_offsets  ) {
+				after_xoffset += place.ox*XOFF;
+				after_yoffset += place.oy*YOFF;
+			}
+		}
+		else {
+			back_image = img;
+			if(  left_offsets  ) {
+				xoff += place.ox*XOFF;
+				yoff += place.oy*YOFF;
+			}
+		}
+	}
+}
+
+
 image_id roadsign_t::get_private_image() const
 {
-	// the N-S gate is the first image, the NW-SE gate the second. The NE-SW axis
-	// has no gate of its own and shows the N-S one
-	uint8 image = ribi_t::straight_axis(dir) == ribi_t::northwest ? 1 : 0;
-	if(  (1<<welt->get_active_player_nr()) & get_player_mask()  ) {
-		// gate open
-		image += 2;
-	}
-	return desc->get_image_id(image);
+	return desc->get_private_image_id( dir, ((1<<welt->get_active_player_nr()) & get_player_mask()) != 0 );
 }
 
 
@@ -272,7 +320,7 @@ void roadsign_t::calc_image()
 
 	// signs on a bend use the diagonal images. The bend comes from the unmasked ribi:
 	// a one way sign masks a direction away, and a single direction is not a bend
-	uint16 diag[4] = { roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL };
+	uint16 diag[6] = { roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL };
 	const weg_t *w = gr->get_weg(desc->get_wtyp()!=tram_wt ? desc->get_wtyp() : track_wt);
 	if(  w != NULL  &&  w->is_diagonal()  &&  desc->has_diagonal_image()  ) {
 		calc_diagonal_index( diag, w->get_ribi_unmasked(), 0 );
@@ -346,88 +394,20 @@ void roadsign_t::calc_image()
 			temp_dir &= ~ribi_type( gr->get_grund_hang() );
 		}
 
+		// no NE and SW art: they look like N and S
+		temp_dir = desc->get_drawn_dirs( temp_dir );
+
 		// signs for left side need other offsets and other front/back order
-		if(  left_offsets  ) {
-			const sint16 XOFF = 2*desc->get_offset_left();
-			const sint16 YOFF = desc->get_offset_left();
-
-			if(temp_dir&ribi_t::southeast) {
-				tmp_image = desc->get_image_id(3, diag[3], left_variant);
-				xoff += XOFF;
-				yoff += -YOFF;
-			}
-
-			if(temp_dir&ribi_t::north) {
-				if(tmp_image!=IMG_EMPTY) {
-					foreground_image = desc->get_image_id(0, diag[0], left_variant);
-					after_xoffset += -XOFF;
-					after_yoffset += -YOFF;
-				}
-				else {
-					tmp_image = desc->get_image_id(0, diag[0], left_variant);
-					xoff += -XOFF;
-					yoff += -YOFF;
-				}
-			}
-
-			if(temp_dir&ribi_t::northwest) {
-				foreground_image = desc->get_image_id(2, diag[2], left_variant);
-				after_xoffset += -XOFF;
-				after_yoffset += YOFF;
-			}
-
-			if(temp_dir&ribi_t::south) {
-				if(foreground_image!=IMG_EMPTY) {
-					tmp_image = desc->get_image_id(1, diag[1], left_variant);
-					xoff += XOFF;
-					yoff += YOFF;
-				}
-				else {
-					foreground_image = desc->get_image_id(1, diag[1], left_variant);
-					after_xoffset += XOFF;
-					after_yoffset += YOFF;
-				}
-			}
-		}
-		else {
-
-			if(temp_dir&ribi_t::southeast) {
-				foreground_image = desc->get_image_id(3, diag[3], left_variant);
-			}
-
-			if(temp_dir&ribi_t::north) {
-				if(foreground_image!=IMG_EMPTY) {
-					tmp_image = desc->get_image_id(0, diag[0], left_variant);
-				}
-				else {
-					foreground_image = desc->get_image_id(0, diag[0], left_variant);
-				}
-			}
-
-			if(temp_dir&ribi_t::northwest) {
-				tmp_image = desc->get_image_id(2, diag[2], left_variant);
-			}
-
-			if(temp_dir&ribi_t::south) {
-				if(tmp_image!=IMG_EMPTY) {
-					foreground_image = desc->get_image_id(1, diag[1], left_variant);
-				}
-				else {
-					tmp_image = desc->get_image_id(1, diag[1], left_variant);
-				}
-			}
-		}
+		calc_dir_images( temp_dir, 0, diag, left_offsets, left_variant, tmp_image, xoff, yoff );
 
 		// a pak that defines front images wants image[] drawn behind the
 		// vehicles and frontimage[] before them, instead of the position
 		// heuristics above. Only a sign showing a single direction has both
 		// slots free for that; two-direction signs keep the pairing above
-		// The image list has the four slots north, south, northwest,
-		// southeast as above; NE and SW signs have none and keep the heuristics.
-		const uint8 front_i = temp_dir==ribi_t::north ? 0 : temp_dir==ribi_t::south ? 1 : temp_dir==ribi_t::northwest ? 2 : temp_dir==ribi_t::southeast ? 3 : 4;
-		if(  front_i < 4  &&  desc->has_front_images(left_variant)  ) {
-			tmp_image        = desc->get_image_id( front_i, diag[front_i], left_variant );
-			foreground_image = desc->get_front_image_id( front_i, diag[front_i], left_variant );
+		const uint8 front_i = roadsign_desc_t::get_slot( temp_dir );
+		if(  front_i != roadsign_desc_t::SLOT_NONE  &&  desc->has_front_images(left_variant)  ) {
+			tmp_image        = desc->get_dir_image_id( 0, front_i, diag[front_i], left_variant );
+			foreground_image = desc->get_dir_front_image_id( 0, front_i, diag[front_i], left_variant );
 		}
 
 		// some signs on roads must not have a background (but then they have only two rotations)
@@ -442,12 +422,13 @@ void roadsign_t::calc_image()
 		// traffic light
 		weg_t *str=gr->get_weg(road_wt);
 		if(str) {
-			const uint8 weg_dir = str->get_ribi_unmasked();
-			// HEX-PORT: pakset's 4 direction slots are
-			// {SE-NW, NS} × {green, yellow}; NE-SW (states 2 / 5)
-			// projects onto the NS slot as placeholder visuals
-			// until 3-axis roadsign art ships (TODO.md →
+			// HEX-PORT: pakset's arm images are those of N, S, SE and NW, and
+			// its 4 direction slots {SE-NW, NS} × {green, yellow}; the NE and
+			// SW arms draw as the N and S ones, and NE-SW (states 2 / 5)
+			// projects onto the NS slot, as placeholder visuals until
+			// traffic light art for the third axis ships (TODO.md →
 			// "roadsign_writer.cc").
+			const uint8 weg_dir = roadsign_desc_t::fold_ne_sw( str->get_ribi_unmasked() );
 			static const uint8 state_to_direction[NUM_TRAFFIC_LIGHT_STATES] = {
 				/* NS green    */ 1,
 				/* SE-NW green */ 0,

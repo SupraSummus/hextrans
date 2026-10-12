@@ -413,14 +413,29 @@ design conversation before mechanical work.
 
 **`roadsign_writer.cc`** has three hardcoded direction tables
 (2/4/8 entries) and only 4 image slots for traffic lights
-({SE-NW, NS} × {green, yellow}).  The engine-side FSM is now
-3-axis adaptive; `calc_image`'s `state_to_direction[6]` table in
-`roadsign.cc` projects NE-SW (states 2 / 5) onto the NS slots as
-placeholder visuals, so 6-way intersections cycle correctly
-under the hood but render with miscoloured arms until the
-writer grows a third direction tier and pakset art ships.
-Delete the placeholder projection in the same change that
-widens the writer.
+({SE-NW, NS} × {green, yellow}).
+The engine-side FSM is 3-axis adaptive, but `calc_image` draws the
+NE and SW arms as the N and S arms and projects NE-SW (states 2 / 5)
+onto the NS slots (`state_to_direction[6]`),
+so 6-way intersections cycle correctly under the hood
+but render with miscoloured arms.
+Plain signs, signals and private way signs take NE and SW art from
+`image_ne_sw[n]` already (see `roadsign_desc_t::direction_slot`);
+a light cannot, because its 8 images per phase name arms and arm
+pairs, and two image layers cannot show six arms.
+Next move: decide the NE and SW arm layout of a traffic light,
+read it from a list of its own like `image_ne_sw`,
+add a dummy light to `tests/test-pak/test_sign_ne_sw.dat`,
+and delete the arm folding and `state_to_direction` in the same change.
+Paksets follow with `image_ne_sw[..]` entries for their signals and
+signs (`image[ne][..]` is not available as the key: it marks a
+traffic light).
+
+**Drive-on-left NE and SW sign images** have no test:
+a script can read the drive-on-left setting
+(`settings.get_drive_on_left`) but not set it.
+Next move: a setter in `api_settings.cc`, then a drive-on-left variant
+of `test_sign_oneway_ne_sw_art` with `image_ne_sw[n][1]` entries.
 
 **`vehicle_writer.cc:178-180`** has `dir_codes[8]` for sprite-facing
 direction; tied to the `ribi_t::_dir` widening tracked in "Vehicle
@@ -1269,20 +1284,6 @@ and the wind box in `settings_climates_stats_t` (0..3) are 4-way.
 Next move: `world_view_t` through `hex_proj` first,
 since every info window uses it.
 
-Signals and signs on NE/SW.
-`signal_t` and `roadsign_t` have four image slots and no NE/SW projection,
-so signals, signs and traffic-light arms on NE-SW tracks draw nothing;
-the tunnel-mouth masks clear single edges;
-the private-way image index uses the SE bit (`1 - (dir & 1)`);
-`state_to_direction[state & 7]` reads a 6-entry table.
-Upstream's front and drive-on-left image lists (#223) are plumbed in
-with the same four slots,
-so a single-direction front image covers N, S, NW and SE only;
-the diagonal lists stay unused (`calc_diagonal_index` is a tripwire).
-Next move: a `state_to_direction`-style projection
-(NE → N slot, SW → S slot) shared by `calc_image` and the front-image index,
-image index by `straight_axis`,
-and clamp the state on load.
 
 ## Pak reader child-count expectations are implicit
 
