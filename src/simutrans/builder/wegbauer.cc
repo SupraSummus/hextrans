@@ -1826,13 +1826,13 @@ sint32 way_builder_t::intern_calc_route(const vector_tpl<koord3d> &start, const 
 				// now add it to the array ...
 				next_gr.append(next_gr_t(to, new_cost, do_terraform ? build_straight | terraform : 0));
 
-				if (!do_bridge && check_for_bridges && !(tmp->count & (build_straight|build_tunnel_bridge)) && gr->get_weg_hang() && build_tunnel_bridge) {
+				if (!do_bridge && check_for_bridges && !(tmp->count & (build_straight|build_tunnel_bridge)) && gr->get_weg_hang()) {
 					// check if a bridge/tunnel is better when it is a slope
 					check_for_bridge(gr, zv, ziel, max_bridge_len);
 				}
 
 			}
-			else if (!do_bridge && check_for_bridges && r == straight_dir && !(tmp->count & build_straight) && build_tunnel_bridge) {
+			else if (!do_bridge && check_for_bridges && r == straight_dir && !(tmp->count & build_straight)) {
 				// try to build a bridge or tunnel here, since we cannot go here ...
 				check_for_bridge(gr, zv, ziel, max_bridge_len);
 			}
