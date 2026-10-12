@@ -51,14 +51,6 @@ public:
 
 	static bool double_grounds;
 
-	/// Project any 6-corner slope onto one of the 15 single-height
-	/// pakset sprites.  Always returns a valid 0..14 — the lossy
-	/// projection absorbs the 2 hex-only corners (E, W) into their
-	/// adjacent square corners, drops them, and clamps to single
-	/// height.  Centralises the 6→4 sprite lookup until real hex art
-	/// lands.
-	static uint8 project_to_square_sprite(slope_t::type slope);
-
 	// returns the pointer to an image structure
 	const image_t *get_image_ptr(uint16 typ, uint16 stage=0) const
 	{
@@ -99,14 +91,9 @@ public:
 
 	static image_id get_marker_image(slope_t::type slope_in, bool background)
 	{
-		// Pakset-owned.  Hex paksets supply marker sprites; older paksets
-		// still use the legacy 4-corner projection.
-		uint8 slope = double_grounds ? slope_in : project_to_square_sprite(slope_in);
-		uint8 index = background ? (double_grounds ? (slope % 3) + 3 * ((uint8)(slope / 9)) + 27
-		                                           : ((slope & 1) + ((slope >> 1) & 6) + 8))
-		                         : (double_grounds ?  slope % 27
-		                                           : (slope & 7 ));
-		return marker->get_image(index);
+		// Keyed by normalised raw slope_t like the borders, with the
+		// front half at stage 0 and the back half at stage 1.
+		return marker->get_image(slope_t::lower_min_corner(slope_in), background ? 1 : 0);
 	}
 
 	/// Cliff-face sprite for back-wall @p wall (0 = NW edge,

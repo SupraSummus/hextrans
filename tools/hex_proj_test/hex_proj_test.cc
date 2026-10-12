@@ -364,65 +364,7 @@ static void test_render_loop_strip_clipped()
 }
 
 
-// ---- 6. slope_t::project_to_square invariants ------------------------------
-
-static void test_slope_project_to_square_invariants()
-{
-	// Totality: every of the 729 hex slopes projects to a 4-corner
-	// subset (E and W flat) with each square corner at height 0 or 1.
-	for (slope_t::type s = 0; s < slope_t::max_slopes; s++) {
-		const slope_t::type p = slope_t::project_to_square(s);
-		assert(corner_e(p) == 0);
-		assert(corner_w(p) == 0);
-		assert(corner_se(p) <= 1);
-		assert(corner_ne(p) <= 1);
-		assert(corner_sw(p) <= 1);
-		assert(corner_nw(p) <= 1);
-	}
-}
-
-static void test_slope_project_to_square_identity_on_canonicals()
-{
-	// For every 4-corner-only single-height slope (E = W = 0,
-	// max_diff <= 1), the projection is the identity — square pakset
-	// art renders unchanged.
-	for (uint8 sw = 0; sw < 2; sw++)
-	for (uint8 se = 0; se < 2; se++)
-	for (uint8 ne = 0; ne < 2; ne++)
-	for (uint8 nw = 0; nw < 2; nw++) {
-		const slope_t::type s = encode_corners(sw, se, ne, nw);
-		assert(slope_t::project_to_square(s) == s);
-	}
-}
-
-static void test_slope_project_to_square_hex_edges()
-{
-	// The 4 hex-only single-edge slopes collapse pairwise: both
-	// east-side hex edges (NE-edge = E+NE, SE-edge = E+SE) project to
-	// the square "west" slope (NE+SE raised); both west-side hex edges
-	// (NW-edge = W+NW, SW-edge = W+SW) project to "east" (NW+SW).
-	const slope_t::type sq_west = slope_t::raised_NE + slope_t::raised_SE;
-	const slope_t::type sq_east = slope_t::raised_NW + slope_t::raised_SW;
-	assert(slope_t::project_to_square(slope_t::raised_E + slope_t::raised_NE) == sq_west);
-	assert(slope_t::project_to_square(slope_t::raised_E + slope_t::raised_SE) == sq_west);
-	assert(slope_t::project_to_square(slope_t::raised_W + slope_t::raised_NW) == sq_east);
-	assert(slope_t::project_to_square(slope_t::raised_W + slope_t::raised_SW) == sq_east);
-}
-
-static void test_slope_project_to_square_clamping()
-{
-	// Double-height slopes clamp to single height.
-	const slope_t::type sq_north_single = slope_t::raised_SE + slope_t::raised_SW;
-	assert(slope_t::project_to_square(2 * slope_t::north_narrow) == sq_north_single);
-	// all_up_one and all_up_two both saturate every square corner.
-	const slope_t::type sq_all_up = slope_t::raised_SW + slope_t::raised_SE
-	                              + slope_t::raised_NE + slope_t::raised_NW;
-	assert(slope_t::project_to_square(slope_t::all_up_one) == sq_all_up);
-	assert(slope_t::project_to_square(slope_t::all_up_two) == sq_all_up);
-}
-
-
-// ---- 7. Hex tile inscription -----------------------------------------------
+// ---- 6. Hex tile inscription -----------------------------------------------
 
 // Inscribed-hex vertex positions for a tile bbox of size `w × h`.
 // Order matches `hex_corner_t::type` (E, SE, SW, W, NW, NE).
@@ -491,7 +433,7 @@ static void test_inscribed_hex_tiles_lattice()
 }
 
 
-// ---- 7b. Visible-centre anchor matches legacy iso convention ---------------
+// ---- 6b. Visible-centre anchor matches legacy iso convention ---------------
 
 static void test_canvas_anchor_convention()
 {
@@ -505,7 +447,7 @@ static void test_canvas_anchor_convention()
 }
 
 
-// ---- 8. Render-loop iteration is a bijection -------------------------------
+// ---- 7. Render-loop iteration is a bijection -------------------------------
 
 static void test_render_loop_bijection()
 {
@@ -538,7 +480,7 @@ static void test_render_loop_bijection()
 }
 
 
-// ---- 9. Row-wise walk of a screen rectangle (small world views) ------------
+// ---- 8. Row-wise walk of a screen rectangle (small world views) ------------
 
 static void test_row_walk()
 {
@@ -624,10 +566,6 @@ int main()
 	test_corner_draw_offsets_match_terraform_arrow_tip();
 	test_corner_cursor_offsets();
 	test_render_loop_strip_clipped();
-	test_slope_project_to_square_invariants();
-	test_slope_project_to_square_identity_on_canonicals();
-	test_slope_project_to_square_hex_edges();
-	test_slope_project_to_square_clamping();
 	test_inscribed_hex_tiles_lattice();
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();

@@ -665,22 +665,15 @@ with `tools/hex_proj_test/` as its standalone invariant suite.  The
 remaining renderer work splits into:
 
 **Phase B — per-tile detail.**
-Base ground sprites, grid borders and cliff back walls
+Base ground sprites, grid borders, markers and cliff back walls
 read directly from pakset-provided descriptors
-(`LightTexture`, `Borders`, `Slopes` / `Basement`)
+(`LightTexture`, `Borders`, `Marker`, `Slopes` / `Basement`)
 indexed by raw `slope_t` or `(wall, index)`;
 the old engine-side `synth_overlay` family is gone,
 the legacy 1D 22-cell `Slopes` / `Basement` packing is gone,
 and the upstream Fabio Gonella rock-photo art for cliff faces
 is preserved under `hextrans-pak128/landscape/grounds/back_wall/src/`
 for future texture supervision.
-Markers are the exception:
-`ground_desc_t::get_marker_image` still derives the square-era
-base-3 `% 27` key from a `uint8`-truncated slope
-and reads `Marker` through `get_image(index)`,
-while the pakset bakes `Image[<slope_t>][0 front / 1 back]`.
-Key it like `get_border_image` (normalised raw `slope_t`),
-with the back / front half as the second index.
 Climate transitions use
 `vertex_owners` plus `surface_t::vertex_corner_height` /
 `climate_at_clamped` (const members; height uses `canonical_vertex`
