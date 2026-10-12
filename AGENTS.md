@@ -228,8 +228,11 @@ corners exactly on the rim (120°-pair sums) — the two diagonal corner
 families sit in different symmetry classes, which is why an axial
 square is not a hex disc.  `hex_disc` in `koord.h` iterates the
 true disc (`for (koord d : hex_disc(r))`); reach for it in any "all
-tiles within n steps" loop.  Refresh from PR #201 if a finer symmetry
-question arises.
+tiles within n steps" loop.  Around a multi-tile footprint, the same
+trap is a ring of the axial rectangle with its `(-1,-1)` and `(size)`
+corners: `koord_distance_to_rect(p, pos, size)` is the hex distance to
+the footprint, `== 1` for the tiles that touch it.  Refresh from PR #201
+if a finer symmetry question arises.
 
 ## Prose line breaks
 

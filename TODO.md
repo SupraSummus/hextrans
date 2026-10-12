@@ -1208,21 +1208,21 @@ substitute only when the greedy path lands exactly on the end tile.
 Next move: both fixes, with a NE-SW way-building test
 that compares the built length with `koord_distance`.
 
-Neighbourhood loops.
-These "tiles around here" loops walk an axial 3×3 or `(-r..r)²` square,
-which counts the non-adjacent `(1,1)` and `(-1,-1)` as neighbours:
-`suche_nahe_haltestelle`, `tool_station_building_aux`
-and `tool_make_stop_public_t::work` in `simtool.cc`;
-`add_factory_to_fab_map` and
-`factory_builder_t::find_random_construction_site`;
-`tree_builder_t::create_forest` and `spawn_tree_near`;
-the axial ellipse in `world/placefinder.cc`;
-`fabrik_t::add_random_field` field rings;
-and the nearby-name scan in `haltestelle_t::create_name`.
-Next move: replace them with `koord_distance(a, b) <= 1`, `hex_disc(r)`
-or `physical_distance_sq` as the shape needs
-(AGENTS.md → "Axial coords vs physical hex symmetry"),
-one PR, with a test per caller that a `(1,1)` offset is not adjacent.
+Placefinder box anchors.
+`pos_list_wh_t` anchors a w×h box by its corner nearest the origin
+along each axis,
+which is not the box's nearest tile in the map plane
+when the box lies in the (+q, -r) or (-q, +r) quadrant,
+so such boxes come up in the search up to half their size
+too early or too late.
+Every anchor is still visited exactly once,
+only the order is approximate
+(`tools/hex_neighbourhood_test` pins the completeness).
+Next move: order the anchors by the physical distance
+of the projection of the origin onto the box,
+for example by merging the slides of the next few `pos_list_t` positions
+through a small priority queue,
+and extend the test to check that distance does not decrease.
 
 City growth geometry.
 `stadt_t::evaluate_size_res_com_ind` scores a 5×5 axial rhombus
