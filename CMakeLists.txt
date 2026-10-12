@@ -528,3 +528,14 @@ if (SIMUTRANS_BUILD_FUZZERS)
 	endif ()
 	add_subdirectory(src/fuzz EXCLUDE_FROM_ALL)
 endif ()
+
+#
+# Perf-test rig for pakset loading (plain executable, runs headless; gcc or
+# clang).  Configure with -DSIMUTRANS_BUILD_BENCH=ON and
+# -DSIMUTRANS_BACKEND=sdl2 for the representative colour load, or
+# -DSIMUTRANS_BACKEND=none for the decode-only number; see tools/bench_pak.py.
+#
+option(SIMUTRANS_BUILD_BENCH "Build the pakset-loading perf-test rig (bench_pak)" OFF)
+if (SIMUTRANS_BUILD_BENCH)
+	add_subdirectory(src/bench EXCLUDE_FROM_ALL)
+endif ()
