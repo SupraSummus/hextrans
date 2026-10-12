@@ -54,6 +54,7 @@ include("tests/test_way_runway")
 include("tests/test_way_tram")
 include("tests/test_way_tunnel")
 include("tests/test_wayobj")
+include("tests/test_world_rotate")
 
 
 all_tests <- [
@@ -397,7 +398,7 @@ all_tests <- [
 	test_way_tunnel_build_invalid_param_type,
 	test_way_tunnel_planner_find_end,
 	test_way_tunnel_planner_invalid_direction,
-	// test_way_tunnel_planner_rotated_map: HEX-PORT PENDING.
+	test_way_tunnel_planner_rotated_map,
 	test_way_tunnel_planner_no_exit,
 	test_way_tunnel_planner_off_map,
 	test_wayobj_build_straight,
@@ -416,7 +417,7 @@ all_tests <- [
 	test_schedule_route_line_without_convoys,
 	test_schedule_route_convoy_and_line,
 	test_schedule_route_private_way,
-	// test_schedule_route_rotate: HEX-PORT PENDING.
+	test_schedule_route_rotate,
 	test_schedule_route_electric_follows_catenary,
 	test_schedule_route_diesel_ignores_catenary,
 	test_schedule_route_electric_without_catenary,
@@ -441,5 +442,6 @@ all_tests <- [
 	// after the sign tests, see "Traffic light removal follows its phase" in TODO.md
 	test_city_building_faces_road,
 	test_city_road_fills_valley_tile,
+	test_world_rotate_roundtrip,
 	test_city_population_ledger, // keep last: grows a city across the whole map
 ]
