@@ -45,6 +45,8 @@ list that path in `.git/info/exclude`).
 The prompt is self-contained:
 what to fix and where, how to build and test,
 commit identity and trailers, the branch to push,
+the open PRs and what they fix
+(so an agent ports a fix that exists instead of writing it again),
 and the shape of the final report.
 Agents configure `build/` with ccache launchers
 (`-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache`)
