@@ -87,7 +87,8 @@ The upstream terraform tests assume a single-height slope
 refuses the step across it unless terraforming is on.
 Under hex, `slope_allows_way_axis` admits every single-height slope
 on all 6 axes (ramp or chord),
-so `is_allowed_step` accepts those steps with or without the flag;
+so `way_builder_t::check_slope` accepts those steps
+with or without the flag;
 only a double slope refuses a non-axis step
 (`slope.south_double`: N/S admitted, the other 4 refused without
 terraforming and admitted with it).
@@ -135,6 +136,27 @@ the same shape: cheap if `has_neighbour_with_way(from, wt)`, otherwise
 `!sch` already excluded it).  Refactor, not a behaviour change;
 defer until the next time any of these branches needs a real
 edit.
+
+## Way builder rough edges from upstream 125
+
+Upstream's way-builder rework (125 stage 5) left some loose ends in code
+that is otherwise grid-neutral.
+`is_allowed_step` returns `true` as soon as `check_terraforming` accepts a
+terraformed step, before the scenario's `is_work_allowed_here` check and
+without setting `*costs`, so a terraformed step costs nothing in the A*
+search and skips scenario rules.
+The two `&& build_tunnel_bridge` terms in `intern_calc_route` test the enum
+constant, not `tmp->count`, so they are always true
+(`-Wint-in-bool-context`).
+`init_builder` hands the bridge and tunnel back to a builder without a
+player after clearing them, and `dialog_way_builder_t::exit` destroys
+`magic_player_ranking` instead of `magic_way_builder`.
+Next move: run the scenario check first and charge
+`way_count_straight` plus `way_count_slope` for a terraformed step,
+decide whether the two terms meant `tmp->count & build_tunnel_bridge`,
+and fix the last two one-liners;
+`test_way_road_build_terraform_forbidden_by_scenario` (pending above)
+is the test that covers the scenario half.
 
 ## Lower_to water-tile NW-only gate
 
@@ -871,6 +893,17 @@ of the restore block in `grund_t::rdwr`.
 Land one with the bump:
 a headless check that generates a map with relief and water,
 saves, reloads and compares every vertex height.
+
+Upstream 125 moved the fork to `SIM_VERSION_MAJOR 125`
+with the save and server minor kept at 901:
+fork saves now write 125.901,
+so every upstream `is_version_atleast(125, x)` gate holds,
+the `SAVE_VERSION_HEX_*` gates (all 124.x) still pass,
+and 124.901 saves from before the merge load as older.
+Upstream 125 clients now refuse fork saves as a future version
+instead of misreading them.
+The next fork-only on-disk change takes 125.902
+and a new named gate at MAJOR 125.
 
 Save-format feature gates now have names in `simversion.h` rather
 than floating against `SIM_SAVE_MINOR`.  Continue that convention for
