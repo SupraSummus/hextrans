@@ -2464,6 +2464,12 @@ void karte_t::rotate90_plans(sint16 x_min, sint16 x_max, sint16 y_min, sint16 y_
 void karte_t::rotate90()
 {
 DBG_MESSAGE( "karte_t::rotate90()", "called" );
+	// The koord, koord3d and array2d_tpl primitives take a real 60° step
+	// now, but this body and the obj_t::rotate90 overrides it calls are
+	// still upstream's 90° cascade, so running them would half-rotate the
+	// world.  See TODO.md, "Rotation cascade".
+	dbg->fatal( "karte_t::rotate90", "world rotation is not ported to hex yet; see TODO.md" );
+
 	// assume we can save this rotation
 	nosave_warning = nosave = false;
 

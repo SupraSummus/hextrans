@@ -66,17 +66,26 @@ struct map_shape_t
 	 */
 	map_shape_t rotated() const { return map_shape_t(d, w, h); }
 
-	/// Where tile @p k of this shape lands in rotated().
+	/**
+	 * Where tile @p k of this shape lands in rotated(): hex_axial_rotate
+	 * about the origin, then the shift that moves the rotated hexagon's
+	 * corner back to (0, 0).
+	 */
 	koord rotate_tile(koord k) const
 	{
-		return koord((sint16)(h + d - 2 - k.y), (sint16)(k.x + k.y - (d - 1)));
+		return hex_axial_rotate(k, 1) + rotate_shift();
 	}
 
 	/// Where vertex @p v of this shape lands in rotated().
 	hex_vertex_t rotate_vertex(hex_vertex_t v) const
 	{
-		return { rotate_tile(v.tile), (hex_corner_t::type)((v.corner + 1) % hex_corner_t::count) };
+		hex_vertex_t r = hex_axial_rotate(v, 1);
+		r.tile += rotate_shift();
+		return r;
 	}
+
+private:
+	koord rotate_shift() const { return koord((sint16)(h + d - 2), (sint16)(1 - d)); }
 };
 
 #endif

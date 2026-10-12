@@ -176,6 +176,16 @@ as upstream's `rotate90_plans` swaps W and H.
 Three steps map the shape onto itself with `(q, r) -> (W'-1-q, H'-1-r)`,
 so 180° needs no reallocation and works on today's rhombus.
 
+The linear part of a step, `(q, r) -> (-r, q + r)`,
+is `hex_axial_rotate` in `dataobj/koord_hex.cc`;
+`rotate_tile` and `rotate_vertex` add the shift `(H + D - 2, -(D - 1))`.
+`koord::rotate90(y_size)`, `koord3d::rotate90` and `array2d_tpl::rotate90()`
+are the D = 1 forms, with `y_size = H - 1`:
+upstream's signatures, one step of a W×H rhombus.
+The rotated hexagon (1, W, H) is not a rhombus,
+so `array2d_tpl::rotate90()` grows the array to its bounding rhombus.
+`tools/hex_map_shape_test` pins all of them against `rotate_tile`.
+
 ## Upstream divergence
 
 `size_x`/`size_y` (equal to the extents at D = 1), `get_size()`,
@@ -188,7 +198,7 @@ and small `contains` hunks inside upstream loops.
 1. **`map_shape_t` and its self-test.**
    `dataobj/map_shape.h` with `contains`, `contains_vertex`, `tile_count`,
    the extents, `rotated` and `rotate_tile`/`rotate_vertex`.
-   No engine caller.  Landed.
+   Landed.
    Test: `tools/hex_map_shape_test` in CI:
    tile count against enumeration, D = 1 is the full rhombus,
    central symmetry, rotation a bijection with period six

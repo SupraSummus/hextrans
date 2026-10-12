@@ -23,16 +23,6 @@ const scr_size scr_size::inf(0x7fffffff, 0x7fffffff);
 const koord koord::invalid(-1, -1);
 
 
-// See the comment at the declaration in koord.h.
-void koord::rotate90(sint16)
-{
-	dbg->fatal("koord::rotate90",
-		"90° is not a hex lattice symmetry — the rotation cascade "
-		"(karte_t::rotate90 and every obj_t::rotate90 override) "
-		"needs redesigning for the hex port.  See TODO.md.");
-}
-
-
 void koord::rdwr(loadsave_t *file)
 {
 	xml_tag_t k( file, "koord" );

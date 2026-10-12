@@ -110,8 +110,8 @@ swap in a refusal the hex builder honours,
 e.g. the span over a runway from `test_way_bridge_build_above_runway`.
 `test_way_tunnel_planner_rotated_map` and `test_schedule_route_rotate`
 call `karte_t::rotate90` through the `sroute_rotate` test hook
-and hit the `koord::rotate90` tripwire;
-they come back with the rotation redesign (see "Rotation cascade").
+and hit its tripwire;
+they come back with the hex rotation (see "Rotation cascade").
 
 **`ASSERT_THROWS` helper for scenario tests.**
 43 sites across `tests/tests/*.nut` hand-roll the same
@@ -270,11 +270,13 @@ the flat-image migration above.
 
 ## Per-vertex height storage — remaining writer-side ports
 
-`karte_t::rotate90`'s heightmap-rotation loop is still the legacy
-90° square formula — 90° is not a hex symmetry, so the result is
-deterministic but geometrically wrong.  `perlin_hoehe`'s own
-rotation code shares the bug.  Both land together with a real hex
-rotation (or a `dbg->fatal` refusal), tied to the viewport port.
+`karte_t::rotate90`'s heightmap-rotation loop (behind its tripwire)
+is still the legacy 90° square formula,
+and `perlin_hoehe`'s own rotation code shares the bug.
+Both are rewritten with the rotation cascade (see below):
+the slot permutation is `canonical_vertex(shape.rotate_vertex(v))`,
+pinned by `tools/hex_map_shape_test`,
+and `perlin_hoehe` un-rotates with `hex_axial_rotate_inv`.
 
 The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
 `surface.h` is `dbg->fatal` — every residual call is a crash so the
@@ -319,7 +321,8 @@ ahead of the tree sprite offsets in the renderer port.
 The playable world becomes the W×H×D hexagon of #280,
 stored as its bounding rhombus with a validity predicate;
 `documentation/map-shape.md` has the design and a six-step plan.
-Step 1, `map_shape_t` in `dataobj/map_shape.h`, has landed with no caller.
+Step 1, `map_shape_t` in `dataobj/map_shape.h`, has landed;
+only `array2d_tpl::rotate90` uses it so far.
 Next move is step 2: `size_d` in `settings_t` and the save,
 and the cut in `surface_t::is_within_limits`.
 
@@ -410,17 +413,31 @@ These are the shim / stub patterns spread across the caller port
 that need a second sweep once their trigger condition lands.  Each
 is named / tagged so a global grep surfaces all sites.
 
-**Rotation cascade.**  `koord::rotate90` is `dbg->fatal` and the 6
-top-level callers (`fabrikbauer` retry loops ×4, `karte_t::destroy`
-/ `karte_t::save` retry loops, the `tool_rotate90` player tool) are
-gated so the cascade is unreachable in normal play.  The underlying
-`karte_t::rotate90` body and every `obj_t::rotate90()` override
-still compile (so the binary builds and any hex-aware rotation
-replacement can drop in cleanly), and the `ribi_t::rotate_for_map_rotate90`
-/ `rotate_perpendicular` stubs (currently `rotate60`) stay for the
-same reason.  Replace with a real design when the viewport port
-lands — either a hex 60° rotation, a viewport-only rotation, or a
-formal removal.
+**Rotation cascade.**
+#281 decided on real world rotation in 60° steps,
+built on upstream's `karte_t::rotate90` cascade.
+The primitives are in:
+`hex_axial_rotate` (`dataobj/koord_hex.cc`) is the step about the origin,
+and `koord::rotate90(y_size)`, `koord3d::rotate90` and
+`array2d_tpl::rotate90()` take one step of a W×H rhombus map
+(`map_shape_t::rotate_tile` is the same step for any W×H×D).
+One step leaves the rhombus; only three steps (180°) map it onto itself.
+`karte_t::rotate90` is a `dbg->fatal` tripwire,
+because its body and every `obj_t::rotate90` override are still
+upstream's 90° cascade,
+and the 6 top-level callers (`fabrikbauer` retry loops ×4,
+`karte_t::destroy` / `karte_t::save` retry loops, the `tool_rotate90` player tool)
+are gated off.
+Next move: give the cascade hex bodies, 180° first on today's rhombus
+(`(q, r) -> (W-1-q, H-1-r)`: tiles, heights, buildings, offsets,
+`settings_t::rotation` mod 6), then drop the tripwire and open the tool;
+rename `rotate90` to `rotate_one_step` once upstream stage 5 lands;
+single 60° steps wait for the W×H×D storage (see above),
+when the `y_size` argument becomes the shape.
+Sites that rotate an extent rather than a position
+(`ai_goods.cc`'s `size1.rotate90(0)`) want the linear `hex_axial_rotate` alone.
+The `ribi_t::rotate_for_map_rotate90` / `rotate_perpendicular` stubs
+(currently `rotate60`) stay for the same reason.
 
 **`ribi_t::rotate_perpendicular` / `_l` sweep.**  Square-era "90°
 off this direction" sites — crossroads collision avoidance
