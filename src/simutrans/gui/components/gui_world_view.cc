@@ -11,6 +11,7 @@
 #include "../../obj/simobj.h"
 #include "../../obj/zeiger.h"
 #include "../../display/simgraph.h"
+#include "../../display/hex_proj.h"
 #include "../../simcolor.h"
 #include "../../ground/grund.h"
 
@@ -92,7 +93,9 @@ void world_view_t::internal_draw(const scr_coord offset, obj_t const* const obj)
 			fine_here -= scr_coord(x, y);
 		}
 	}
-	koord const height_offset(y_offset, y_offset);
+	// a flying plane is shown at its height by moving the view up the screen,
+	// which in the hex lattice is the +r axis
+	koord const height_offset(0, y_offset);
 
 	grund_t const* const kb = welt->lookup_kartenboden(here);
 	if(!kb) {
@@ -154,10 +157,10 @@ void world_view_t::internal_draw(const scr_coord offset, obj_t const* const obj)
 		size.h     - raster;          // align the bottom of the image
 	const scr_coord display_off = scr_coord((size.w - raster) / 2, hgt + yoff) + fine_here;
 
-	// display grounds
+	// display grounds; the offsets are in the order main_view_t draws the lattice in
 	for(koord const& off : offsets) {
 		const koord   k     = here + off + height_offset;
-		const sint16  off_x = (off.x - off.y) * 32 * raster / 64 + display_off.x;
+		const sint16  off_x = hex_screen_dx(off.x, raster) + display_off.x;
 
 		if(  off_x + raster < 0  ||  size.w < off_x  ||  k.x < 0  ||  k.y < 0  ) {
 			continue;
@@ -168,11 +171,9 @@ void world_view_t::internal_draw(const scr_coord offset, obj_t const* const obj)
 			continue;
 		}
 
-		const sint16 yypos = display_off.y + (off.y + off.x) * 16 * raster / 64 - tile_raster_scale_y(kb->get_disp_height() * TILE_HEIGHT_STEP, raster);
-		if(  size.h < yypos  ) {
-			break; // enough with grounds
-		}
-		else if(  0 <= yypos + raster  ) {
+		// a higher neighbour further down the list can still reach into the view
+		const sint16 yypos = display_off.y + hex_screen_dy(off.x, off.y, raster) - hex_height_raster_scale_y(kb->get_disp_height() * TILE_HEIGHT_STEP, raster);
+		if(  0 <= yypos + raster  &&  yypos <= size.h  ) {
 #ifdef MULTI_THREAD
 			kb->display_if_visible( pos.x + off_x, pos.y + yypos, raster, 0 );
 #else
@@ -184,7 +185,7 @@ void world_view_t::internal_draw(const scr_coord offset, obj_t const* const obj)
 	// display things
 	for(koord const& off : offsets) {
 		const koord   k     = here + off + height_offset;
-		const sint16  off_x = (off.x - off.y) * 32 * raster / 64 + display_off.x;
+		const sint16  off_x = hex_screen_dx(off.x, raster) + display_off.x;
 		if(  off_x + raster < 0  ||  size.w < off_x  ||  k.x < 0  ||  k.y < 0  ) {
 			continue;
 		}
@@ -206,7 +207,7 @@ void world_view_t::internal_draw(const scr_coord offset, obj_t const* const obj)
 		// maximum height: 127 for overground, underground level for sliced, ground height-1 for complete underground view
 		const sint8 hmax = grund_t::underground_mode == grund_t::ugm_all ? h - !kb->ist_tunnel() : grund_t::underground_level;
 
-		const sint16 yypos = display_off.y + (off.y + off.x) * 16 * raster / 64 - tile_raster_scale_y(kb->get_disp_height() * TILE_HEIGHT_STEP, raster);
+		const sint16 yypos = display_off.y + hex_screen_dy(off.x, off.y, raster) - hex_height_raster_scale_y(kb->get_disp_height() * TILE_HEIGHT_STEP, raster);
 		if(  0 <= yypos + raster  &&  yypos - raster * 2 < size.h  ) {
 #ifdef MULTI_THREAD
 			plan->display_obj( pos.x + off_x, pos.y + yypos, raster, false, hmin, hmax, 0 );
@@ -214,15 +215,12 @@ void world_view_t::internal_draw(const scr_coord offset, obj_t const* const obj)
 			plan->display_obj( pos.x + off_x, pos.y + yypos, raster, false, hmin, hmax );
 #endif
 		}
-		else if(  yypos > size.h  ) {
-			break; // now we can finish
-		}
 	}
 
 	// this should only happen for airplanes: out of image, so we need to extra display them
 	if(  y_offset != 0  ) {
 		const grund_t * const g     = welt->lookup(obj->get_pos());
-		const sint16          yypos = display_off.y - tile_raster_scale_y(2 * y_offset * 16, raster) - tile_raster_scale_y(g->get_disp_height() * TILE_HEIGHT_STEP, raster);
+		const sint16          yypos = display_off.y - hex_screen_dy(0, y_offset, raster) - hex_height_raster_scale_y(g->get_disp_height() * TILE_HEIGHT_STEP, raster);
 #ifdef MULTI_THREAD
 		g->display_obj_all( pos.x + display_off.x, pos.y + yypos, raster, false, 0 );
 #else
@@ -247,28 +245,30 @@ void world_view_t::set_size(scr_size size)
 
 /**
  * Recalculates the number of tiles needed
+ *
+ * The tiles are the hexes of the render lattice (display/hex_proj.h) around
+ * the centre tile, whose canvas internal_draw puts in the middle of the
+ * view with its bottom at the bottom edge.  They are listed in the order
+ * main_view_t draws in, back to front.  dy_off is the number of rows (of a
+ * quarter raster each) above the view to include for ground that lies
+ * lower than the centre tile.
  */
 void world_view_t::calc_offsets(scr_size size, sint16 dy_off)
 {
-	const sint16 max_dx = size.w/(raster/2) + 2;
-	const sint16 max_dy = (size.h/(raster/2) + dy_off)&0x0FFE;
+	// the lattice unit, a quarter of the raster; a row is one unit high,
+	// and a tile column three units wide
+	const sint32 u = raster / 4;
+	// x of the centre tile's canvas, and a raster to spare on both sides
+	// for the fine offset of a moving object
+	const sint32 cx = (size.w - raster) / 2;
+	const sint32 x_min = -(cx + 2 * raster) / u - 1;
+	const sint32 x_max = (size.w - cx + raster) / u + 1;
+	const sint32 y_min = -(size.h / u + dy_off);
+	// a tall object a few rows below the view still reaches into it
+	const sint32 y_max = 5;
 
-	// build offset list
 	offsets.clear();
-	for(  sint16 dy = -max_dy;  dy <= 5;  ) {
-		{
-			for(  sint16 dx =- 2;  dx < max_dx;  dx += 2  ) {
-				const koord check( (dy + dx) / 2, (dy - dx) / 2);
-				offsets.append(check);
-			}
-		}
-		dy++;
-		for(  sint16 dx = -1;  dx < max_dx;  dx += 2  ) {
-			const koord check( (dy + dx) / 2, (dy - dx) / 2);
-			offsets.append(check);
-		}
-		dy++;
-	}
+	hex_for_each_in_rows(y_min, y_max, x_min, x_max, [this](koord const off) { offsets.append(off); });
 
 	// determine preparation extents
 	koord offset_extent_min(0, 0);
