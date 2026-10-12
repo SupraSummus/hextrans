@@ -55,6 +55,15 @@ CI builds headless, where no images are registered:
 tests assert on state, not images,
 and a CI-only failure is reproduced with `-DSIMUTRANS_BACKEND=none`.
 Agents commit, push the branch and report; they do not open PRs.
+Before reporting, an agent reads its own diff with fresh eyes:
+right direction?
+elegant and streamlined, in the tests too?
+Do the tests carry value? (No test beats a trivial one.)
+Will a future dev be confused here,
+or think "tldr" at the comments, docs or `TODO.md` text?
+Does it open a refactor (do it if small, else one `TODO.md` line)?
+Push further, wrap up, or revert?
+The orchestrator asks the same questions in review.
 
 ## Review and merge
 
