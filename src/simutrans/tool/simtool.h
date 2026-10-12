@@ -464,6 +464,12 @@ private:
 	const building_desc_t *get_desc( sint8 &rotation ) const;
 
 public:
+	/**
+	 * Whether a dock that faces the water in direction @p water_dir and
+	 * extends @p len tiles beyond its shore tile has no footprint.
+	 */
+	static bool dock_footprint_missing(ribi_t::ribi water_dir, int len);
+
 	tool_build_station_t() : tool_t(TOOL_BUILD_STATION | GENERAL_TOOL) {}
 	bool move_has_effects() const OVERRIDE { return true; }
 	image_id get_icon(player_t*) const OVERRIDE;

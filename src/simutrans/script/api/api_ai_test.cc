@@ -29,12 +29,15 @@
 
 #include "../api_function.h"
 
+#include "../../builder/hausbauer.h"
 #include "../../dataobj/environment.h"
 #include "../../dataobj/scenario.h"
+#include "../../descriptor/building_desc.h"
 #include "../../player/ai.h"
 #include "../../player/ai_scripted.h"
 #include "../../player/simplay.h"
 #include "../../simconst.h"
+#include "../../simhalt.h"
 #include "../../utils/cbuffer.h"
 #include "../../utils/plainstring.h"
 #include "../../world/simworld.h"
@@ -262,7 +265,7 @@ static SQInteger aitest_net_state(HSQUIRRELVM vm)
 
 /**
  * Resolves a player slot to a computer player of the C++ kind (goods or
- * passenger AI), whose site search the next function drives.
+ * passenger AI), whose site search the next functions drive.
  * @returns the player, or NULL if the slot is empty or holds another player type
  */
 static ai_t* aitest_get_cpp_ai(uint8 nr)
@@ -304,6 +307,61 @@ static SQInteger aitest_suche_platz(HSQUIRRELVM vm)
 }
 
 
+/**
+ * ai_t::find_harbour(): the shore tile for a dock, and the run of rail
+ * station tiles of @p length + 1 behind it, for the factory at @p water in the
+ * sea and the destination @p target.  Arguments: slot, water, target, length.
+ */
+static SQInteger aitest_find_harbour(HSQUIRRELVM vm)
+{
+	ai_t* ai = aitest_get_cpp_ai(param<uint8>::get(vm, 2));
+	koord start = param<koord>::get(vm, 3);
+	const koord target = param<koord>::get(vm, 4);
+	koord run(param<sint16>::get(vm, 5), 0);
+
+	const bool found = ai != NULL  &&  ai->find_harbour(start, run, target);
+	return aitest_push_site(vm, ai, found, start, run);
+}
+
+
+/**
+ * The water height of the tile at (x, y), and setting it.  A shore tile for
+ * ai_t::find_harbour has the height of its own water, which on the suite's
+ * map of dry land at z = 0 is the ground water level far below; setting it
+ * lets a test shape a coast without digging down to that.  The caller puts it
+ * back.
+ */
+static SQInteger aitest_get_water_hgt(HSQUIRRELVM vm)
+{
+	const koord k(param<sint16>::get(vm, 2), param<sint16>::get(vm, 3));
+	if (!welt->is_within_limits(k)) {
+		return param<sint16>::push(vm, (sint16)0);
+	}
+	return param<sint16>::push(vm, (sint16)welt->get_water_hgt(k));
+}
+
+
+static SQInteger aitest_set_water_hgt(HSQUIRRELVM vm)
+{
+	const koord k(param<sint16>::get(vm, 2), param<sint16>::get(vm, 3));
+	const sint8 hgt = param<sint8>::get(vm, 4);
+	if (welt->is_within_limits(k)) {
+		welt->set_water_hgt_nocheck(k, hgt);
+	}
+	return 0;
+}
+
+
+/// the name of the dock the goods AI draws, "" if there is none; see hausbauer_t::get_random_station
+static SQInteger aitest_random_dock(HSQUIRRELVM vm)
+{
+	const sint16 max_length = param<sint16>::get(vm, 2);
+	const building_desc_t* desc = hausbauer_t::get_random_station(building_desc_t::dock, water_wt, welt->get_timeline_year_month(), haltestelle_t::WARE, max_length);
+
+	return param<const char*>::push(vm, desc ? desc->get_name() : "");
+}
+
+
 void export_ai_test(HSQUIRRELVM vm, bool scenario)
 {
 	// a fixture ai has to be able to report from inside its own vm
@@ -322,4 +380,8 @@ void export_ai_test(HSQUIRRELVM vm, bool scenario)
 	register_function(vm, aitest_reset_notes,       "aitest_reset_notes",       1, ".");
 	register_function(vm, aitest_net_state,         "aitest_net_state",         1, ".");
 	register_function(vm, aitest_suche_platz,       "aitest_suche_platz",       6, ".i...i");
+	register_function(vm, aitest_find_harbour,      "aitest_find_harbour",      5, ".i..i");
+	register_function(vm, aitest_random_dock,       "aitest_random_dock",       2, ".i");
+	register_function(vm, aitest_get_water_hgt,     "aitest_get_water_hgt",     3, ".ii");
+	register_function(vm, aitest_set_water_hgt,     "aitest_set_water_hgt",     4, ".iii");
 }

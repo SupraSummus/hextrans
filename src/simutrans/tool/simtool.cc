@@ -4677,13 +4677,11 @@ DBG_MESSAGE("tool_station_building_aux()", "building mail office/station buildin
 }
 
 /**
- * Whether a dock that faces the water in direction @p water_dir and
- * extends @p len tiles beyond its shore tile has no footprint.
  * building_desc_t knows a rectangle and its transpose, so a footprint runs
  * along N-S or SE-NW only; a one-tile dock needs none (AGENTS.md, "Engine
  * encoding leads the pakset").
  */
-static bool dock_footprint_missing(ribi_t::ribi water_dir, int len)
+bool tool_build_station_t::dock_footprint_missing(ribi_t::ribi water_dir, int len)
 {
 	return len > 0  &&  ribi_t::straight_axis(water_dir) == ribi_t::northeast;
 }

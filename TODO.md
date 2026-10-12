@@ -1043,7 +1043,9 @@ Docks longer than one tile are refused on the NE-SW axis for now
 (`dock_footprint_missing` in `tool/simtool.cc`, slope and flat docks alike),
 because the footprint cannot follow the water there.
 Next move: once `get_size` has the third axis,
-delete that check and its message,
+delete that check and its message
+(and the one-tile limit that `ai_goods_t::create_ship_transport_vehicle`
+asks `hausbauer_t::get_random_station` for on those shores),
 and make the NE and SW cases of `test_halt_build_harbour_all_directions`
 and `test_halt_build_flat_dock_all_directions`
 assert the same line of tiles as the other four directions.
@@ -1214,23 +1216,43 @@ crossroads design lands.
 
 The C++ AIs (`player/ai*.cc`) run on hex engine pieces
 (`koord_distance`, the way builder, hex-disc coverage),
-but their hand-written site selection is still square.
-Three sites matter most.
-`ai_t::suche_platz` searches an axial ±cov rectangle around the factory,
-which reaches 2·cov hex steps along ±(1,1),
-so goods-AI rail stations miss the factory catchment
-for about a third of directions;
-reuse the `get_tile_list` + `hex_disc` dilation
-that the road branch of `ai_goods_t::suche_platz1_platz2` already does.
-`ai_passenger_t::walk_city` follows only SE/S/SW/NW roads;
-loop over all 6.
-Harbour→rail fails on NE/SW shores:
-`suche_platz` takes the station length as `abs(size.x+size.y)`,
-which is 0 along NE-SW,
-`find_harbour` derives its second orientation by swapping x and y,
-and the dock tool refuses a harbour longer than one tile there
-(see "Multi-tile building footprint");
-the AI should pick a one-tile harbour for such a shore.
+and their station search walks the hex dilation of the factory
+and measures runs of stations along all three axes
+(`player/ai_site.h`, `tools/hex_ai_site_test`, `tests/tests/test_ai_site.nut`),
+but part of their hand-written site selection is still square.
+
+`ai_t::suche_platz` tries the two axes towards the destination,
+`(sgn dx, 0)` and `(0, sgn dy)`,
+so a rail station beside a factory only runs along N-S or SE-NW,
+and a destination to the NE or SW gets a run 60° off its direction.
+Next move: take the two of `koord::neighbours`
+with the largest `physical_dot_x2` against `target - start`
+(as `ai_shore_second_dir` does for harbours)
+and add a NE and a SW target to `test_ai_site_station_reaches_factory`.
+`ai_goods_t::baue_bahnhof` decides where to start building
+by looking at the four axial diagonals `(±1,±1)` of each station tile,
+two of which are two steps away,
+and none of which is the tile beside it along the run.
+Next move: build an own station beside the run in `test_ai_site.nut`
+to pin what it is for, then loop over `koord::neighbours`.
+
+The harbour path past `ai_t::find_harbour` has no automated check:
+`-ai_soak` never builds a harbour in its first three game years
+(none in 32 seeds on 128×128),
+so `create_ship_transport_vehicle`,
+`create_simple_rail_transport` on a NE-SW run
+and the vehicle start tile in `create_rail_transport_vehikel`
+are only covered by reading.
+Next move: let `test_ai_site.nut` build a water factory,
+a consumer and a coast with `tool_build_factory`,
+run `ai_goods_t::suche_platz1_platz2` and the build steps
+through a probe in `api_ai_test.cc`,
+and assert the ship line and the rail station on each shore direction.
+The passenger AI's two dock picks in `create_water_transport_vehicle`
+draw the same unrestricted random dock
+and fail on NE-SW shores the same way;
+pass the `max_length` that `create_ship_transport_vehicle` passes,
+together with the harbour reuse fix below.
 
 The scripted AIs in `simutrans/ai/` are untouched,
 but the script API's `dir` is already 6-way (`test_dir.nut`),

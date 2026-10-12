@@ -378,11 +378,14 @@ bool ai_goods_t::create_ship_transport_vehicle(fabrik_t *qfab, int vehicle_count
 
 	// must remove marker
 	grund_t* gr = welt->lookup_kartenboden(platz1);
-	if (gr) {
-		gr->obj_loesche_alle(this);
+	if (gr == NULL) {
+		return false;
 	}
-	// try to built dock
-	const building_desc_t* h = hausbauer_t::get_random_station(building_desc_t::dock, water_wt, welt->get_timeline_year_month(), haltestelle_t::WARE);
+	gr->obj_loesche_alle(this);
+	// try to built dock; the tool builds more than one tile only where a footprint follows the water
+	const ribi_t::ribi water_dir = ribi_t::backward(ribi_type(gr->get_grund_hang()));
+	const sint16 max_length = tool_build_station_t::dock_footprint_missing(water_dir, 1) ? 1 : 0;
+	const building_desc_t* h = hausbauer_t::get_random_station(building_desc_t::dock, water_wt, welt->get_timeline_year_month(), haltestelle_t::WARE, max_length);
 	if(h==NULL  ||  !call_general_tool(TOOL_BUILD_STATION, platz1, h->get_name())) {
 		return false;
 	}
@@ -397,7 +400,7 @@ bool ai_goods_t::create_ship_transport_vehicle(fabrik_t *qfab, int vehicle_count
 			koord p(x,y);
 			grund_t *gr = welt->lookup_kartenboden(p);
 			// check for water tile, do not start in depots
-			if(  gr->is_water()  &&  halt == get_halt(p)  &&  gr->get_depot()==NULL  ) {
+			if(  gr  &&  gr->is_water()  &&  halt == get_halt(p)  &&  gr->get_depot()==NULL  ) {
 				if(  koord_distance(best_pos,platz2)<koord_distance(p,platz2)  ) {
 					best_pos = p;
 				}
@@ -521,7 +524,7 @@ void ai_goods_t::create_rail_transport_vehikel(const koord platz1, const koord p
 		tool.exit( this );
 	}
 
-	koord3d start_pos = welt->lookup_kartenboden(pos1.get_2d() + (abs(size1.x)>abs(size1.y) ? koord(size1.x,0) : koord(0,size1.y)))->get_pos();
+	koord3d start_pos = welt->lookup_kartenboden(pos1.get_2d() + size1)->get_pos();
 	vehicle_t* v = vehicle_builder_t::build( start_pos, this, NULL, rail_engine);
 
 	// give the new convoi name from first vehicle
