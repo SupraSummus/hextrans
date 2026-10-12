@@ -17,11 +17,12 @@
 #include "../descriptor/building_desc.h"
 
 
+// the facings of building layouts 0..3, see ribi_t::layout_to_ribi
 static const char label_text[4][64] = {
 	"sued",
-	"ost",
+	"suedost",
 	"nord",
-	"west"
+	"nordwest"
 };
 
 
