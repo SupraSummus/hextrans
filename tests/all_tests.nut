@@ -382,6 +382,7 @@ all_tests <- [
 	test_way_tunnel_make_public,
 	test_way_tunnel_build_nw_double_axis_slope,
 	test_way_tunnel_build_does_not_terraform_double_mouth,
+	test_way_tunnel_portal_image_on_double_slope,
 	test_way_tunnel_build_invalid_param_type,
 	test_way_tunnel_planner_find_end,
 	test_way_tunnel_planner_invalid_direction,

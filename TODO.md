@@ -1287,16 +1287,13 @@ in `climate_smooth_cell`,
 and compare `tools/mapgen_metrics.py --generators humidity` before and after.
 
 Descriptor visuals.
-`tunnel_desc_t::slope_index` has no `*_double` slopes,
-so tunnel portals vanish at the default `way_height_clearance` 2;
 `objlist_t::intern_add_moving` orders NE movers like the square-era
 NE diagonal;
 the bridge preview in `tool_build_bridge_t::mark_tiles`
 draws the delta-2 ramp with the single-height image
 (`narrow_to_double` is missing).
-Next move: one PR, with a scenario test that counts a portal's image ids
-in the SDL build (headless CI registers no images,
-so gate the assertion on an image being present).
+Next move: order movers by whether their heading climbs the screen,
+and build the preview's ramp slopes with `narrow_to_double`.
 
 GUI views.
 `world_view_t::internal_draw` lays out the square lattice in every
