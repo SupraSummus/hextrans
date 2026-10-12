@@ -27,6 +27,10 @@ an agent sweeps one subsystem for a class of problem
 (say, square-grid residue) and reports `file:function` findings;
 the orchestrator groups them into PR-sized fix groups
 and records the ones not fixed right away in `TODO.md`.
+The orchestrator keeps its ordered queue of fix groups in a scratch file,
+so the order survives a context compaction;
+a merge or an agent report that unblocks a `TODO.md` entry
+adds that entry to the queue.
 
 ## One unit of work
 
@@ -72,6 +76,17 @@ since rebasing would rewrite upstream history.
 Agents rebase onto the latest `main` before their final test run.
 Read the `TODO.md` edits in each diff against the backlog already on `main`:
 an agent branched before an entry landed may add it a second time.
+A clean `git merge-tree` against `main`
+and changes in different functions are not the same code:
+such a PR merges on the CI run it already has.
+Check the open branches against each other too, not only against `main`:
+two PRs that each merge cleanly can still conflict,
+typically both adding a helper at the same place in `koord.h`
+or a CI step at the same place in the workflow.
+Merge the first one green and rebase the other, keeping both sides.
+When a rebase brings in another PR's new code,
+read that code for the problem the rebased branch fixes
+(a whole-map loop added while the map-shape loops were in review).
 
 ## Ordering
 
@@ -81,6 +96,10 @@ small local fixes elsewhere run in parallel with the stages.
 Consecutive upstream stages pipeline:
 stage N+1 branches from stage N's branch while stage N is in review,
 and the merge commit keeps the shared upstream history identical.
+A multi-step plan pipelines the same way:
+step N+1 branches from step N's branch while N is in review,
+and once N merges the orchestrator tells the agent to rebase onto `main`,
+which drops N's commits.
 Refactors without a hex reason are not carried
 (AGENTS.md → "Diff against the upstream `simutrans` branch").
 
