@@ -274,6 +274,7 @@ target_sources(simutrans PRIVATE
 	src/simutrans/script/api/api_scenario.cc
 	src/simutrans/script/api/api_schedule.cc
 	src/simutrans/script/api/api_ai_test.cc
+	src/simutrans/script/api/api_city_test.cc
 	src/simutrans/script/api/api_schedule_route_test.cc
 	src/simutrans/script/api/api_settings.cc
 	src/simutrans/script/api/api_simple.cc
