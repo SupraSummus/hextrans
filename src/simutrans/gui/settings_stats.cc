@@ -12,6 +12,7 @@
 #include "../player/finance.h" // MAX_PLAYER_HISTORY_YEARS
 #include "../vehicle/vehicle_base.h"
 #include "settings_stats.h"
+#include "climates.h"
 #include "components/gui_divider.h"
 
 
@@ -518,7 +519,19 @@ void settings_climates_stats_t::init(settings_t* const sets)
 	INIT_NUM_NEW( "Map roughness", mountain_roughness_start, 0, 2+min(10, 11-((mountain_height_start+99)/100)), gui_numberinput_t::AUTOLINEAR, false );
 
 	SEPERATOR
-	INIT_NUM_NEW( "Wind direction", sets->wind_direction, 0, 3, 1, true );
+	if(  new_world  ) {
+		// combobox for the wind direction, one entry per hex edge
+		wind_direction.clear_elements();
+		for(  uint32 i=0;  i<lengthof(wind_dir_text);  i++  ) {
+			wind_direction.new_component<gui_scrolled_list_t::const_text_scrollitem_t>( translator::translate( wind_dir_text[i] ), SYSCOL_TEXT ) ;
+			if(  (1 << i) == sets->wind_direction  ) {
+				wind_direction.set_selection( i );
+			}
+		}
+		wind_direction.set_focusable( false );
+		add_component( &wind_direction );
+		INIT_LB( "Wind direction" );
+	}
 	// combobox for climate generator
 	climate_generate.clear_elements();
 	for(  uint32 i=0;  i<lengthof(climate_generate_string);  i++  ) {
@@ -583,7 +596,9 @@ void settings_climates_stats_t::read(settings_t* const sets)
 	READ_NUM_VALUE_NEW( env_t::pak_height_conversion_factor );
 	READ_NUM_VALUE_NEW( sets->groundwater );
 	READ_NUM_VALUE_NEW( sets->max_mountain_height );
-	READ_NUM_VALUE_NEW( sets->wind_direction );
+	if(  new_world  ) {
+		sets->wind_direction = (ribi_t::ribi)(1 << max( 0, wind_direction.get_selection() ));
+	}
 	double n = 0;
 	READ_NUM_VALUE_NEW( n );
 	if(  new_world  ) {

@@ -182,6 +182,7 @@ class settings_climates_stats_t : protected settings_stats_t, public gui_aligned
 private:
 	gui_combobox_t climate_generate;
 	gui_combobox_t tree_generate;
+	gui_combobox_t wind_direction;
 
 	settings_t* local_sets;
 public:
