@@ -4321,8 +4321,8 @@ vector_tpl<koord>* stadt_t::random_place(const sint32 count, sint16 old_x, sint1
 		}
 	}
 	DBG_DEBUG("karte_t::init()", "get random places in climates %x", cl);
-	// search at least places which are 5x5 squares large
-	slist_tpl<koord>* list = welt->find_squares( 5, 5, (climate_bits)cl, old_x, old_y);
+	// search at least places with two free rings of tiles around them
+	slist_tpl<koord>* list = welt->find_free_discs( 2, (climate_bits)cl, old_x, old_y);
 	DBG_DEBUG("karte_t::init()", "found %i places", list->get_count());
 	vector_tpl<koord>* result = new vector_tpl<koord>(count);
 

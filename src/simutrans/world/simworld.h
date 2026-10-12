@@ -1181,10 +1181,11 @@ public:
 	void cleanup_grounds_loop(sint16, sint16, sint16, sint16);
 
 	/**
-	 * @return A list of all buildable squares with size w, h.
+	 * @return A list of the centres of all buildable hex discs of the given radius,
+	 * that is all tiles within @p radius steps of the centre.
 	 * @note Only used for town creation at the moment.
 	 */
-	slist_tpl<koord> * find_squares(sint16 w, sint16 h, climate_bits cl, sint16 old_x, sint16 old_y) const;
+	slist_tpl<koord> * find_free_discs(sint16 radius, climate_bits cl, sint16 old_x, sint16 old_y) const;
 
 	/**
 	 * Plays the sound when the position is inside the visible region.

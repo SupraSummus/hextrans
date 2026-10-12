@@ -8,7 +8,8 @@
 // legacy axial formula, so that a test that cannot fail would show.
 //
 // Covers karte_t::calc_climate_map_region (smoothing weights, patch
-// shape) and karte_t::distribute_cities (obtuse-angle test).
+// shape), karte_t::distribute_cities (obtuse-angle test) and
+// karte_t::find_free_discs (hex_disc region).
 
 #include <cmath>
 #include <cstdio>
@@ -270,11 +271,36 @@ static void test_dot()
 }
 
 
+// find_free_discs asks for hex_disc(2) free: the tiles within two steps,
+// round in the physical plane, where the 5x5 axial square it replaces is not.
+static void test_free_disc()
+{
+	std::vector<koord> disc, square;
+	for (koord d : hex_disc(2)) {
+		CHECK(koord_distance(koord(0, 0), d) <= 2);
+		disc.push_back(d);
+	}
+	for (sint16 r = -2; r <= 2; r++) {
+		for (sint16 q = -2; q <= 2; q++) {
+			square.push_back(koord(q, r));
+		}
+	}
+	CHECK(disc.size() == 19);
+	CHECK(square.size() == 25);
+	const double disc_aspect = physical_aspect(disc), square_aspect = physical_aspect(square);
+	std::printf("free site: hex_disc(2) %zu tiles, physical aspect %.3f; axial 5x5 %zu tiles, %.3f\n",
+	            disc.size(), disc_aspect, square.size(), square_aspect);
+	CHECK(disc_aspect < 1.001);
+	CHECK(square_aspect > 1.7);
+}
+
+
 int main()
 {
 	test_smoothing();
 	test_patch();
 	test_dot();
+	test_free_disc();
 
 	if (failures) {
 		std::fprintf(stderr, "hex_mapgen_test: %d check(s) failed\n", failures);

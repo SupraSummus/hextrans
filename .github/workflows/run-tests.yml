@@ -52,10 +52,9 @@ jobs:
       run: make -C tools/hex_slope_test run
     - name: Map generation shape self-test
       # dataobj/mapgen_shape.h and physical_dot_x2 in dataobj/koord.h:
-      # the climate smoothing weights add up to their divisor and every
-      # neighbour weighs the same, and a climate patch and the obtuse-angle
-      # test of the intercity roads are round in the physical plane.
-      # ~1 second.
+      # the climate smoothing weights add up to their divisor, and the
+      # climate patch, the obtuse-angle test of the intercity roads and
+      # the free city site are round in the physical plane.  ~1 second.
       run: make -C tools/hex_mapgen_test run
     - name: Cache
       uses: actions/cache@v4

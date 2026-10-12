@@ -3651,23 +3651,17 @@ void karte_t::update_history()
 }
 
 
-slist_tpl<koord> *karte_t::find_squares(sint16 w, sint16 h, climate_bits cl, sint16 old_x, sint16 old_y) const
+slist_tpl<koord> *karte_t::find_free_discs(sint16 radius, climate_bits cl, sint16 old_x, sint16 old_y) const
 {
 	slist_tpl<koord> * list = new slist_tpl<koord>();
-	koord start;
-	int last_y = -1;
+	koord centre;
 
-DBG_DEBUG("karte_t::finde_plaetze()","for size (%i,%i) in map (%i,%i)",w,h,get_size().x,get_size().y );
-	for(start.x=0; start.x<get_size().x-w; start.x++) {
-		for(start.y=start.x<old_x?old_y:0; start.y<get_size().y-h; start.y++) {
-			if(square_is_free(start, w, h, &last_y, cl)) {
-				list->insert(start);
-			}
-			else {
-				// Optimiert fuer groessere Felder, hehe!
-				// Die Idee: wenn bei 2x2 die untere Reihe nicht geht, koennen
-				// wir gleich 2 tiefer weitermachen!
-				start.y = last_y;
+DBG_DEBUG("karte_t::find_free_discs()","for radius %i in map (%i,%i)",radius,get_size().x,get_size().y );
+	for(centre.x=radius; centre.x<get_size().x-radius; centre.x++) {
+		const sint16 y_start = centre.x<old_x ? old_y : 0;
+		for(centre.y=max(radius, y_start); centre.y<get_size().y-radius; centre.y++) {
+			if(disc_is_free(centre, radius, cl)) {
+				list->insert(centre);
 			}
 		}
 	}
