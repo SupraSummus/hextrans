@@ -313,20 +313,43 @@ ahead of the tree sprite offsets in the renderer port.
 The playable world becomes the W×H×D hexagon of #280,
 stored as its bounding rhombus with a validity predicate;
 `documentation/map-shape.md` has the design and a six-step plan.
-Steps 1 to 4 have landed:
+Steps 1 to 5 have landed:
 `map_shape_t`, `size_d` in the settings and the save,
 the cut in `surface_t::is_within_limits`,
 the full-map loops, edge margins and border walls,
 so a populated D > 1 hexagon generates and plays a year of AI game
 (`-ai_soak W,H,D`, `tools/ai_soak.py --shape`, `tools/test.py --map`),
-and the new-world dialog with W, H, D and "Equal sides",
+the new-world dialog with W, H, D and "Equal sides",
 densities by tile count,
 the preview and heightfield import in offset coordinates
-(`tools/heightfield_import_test.py`)
-and the 150×150×150 default.
-Next move is step 5: `karte_t::enlarge_map` for W and H with D fixed,
-the new region being the new hexagon minus the old one,
-replacing the fatal in `enlarge_map` for D > 1.
+(`tools/heightfield_import_test.py`),
+the 150×150×150 default,
+and `karte_t::enlarge_map` with its dialog for W and H with D fixed
+(`test_map_shape_enlarge*`, run by `tools/test.py --map`).
+Next move is step 6:
+the rotation round trip on a D > 1 fixture,
+by porting the setup of `test_world_rotate_roundtrip`
+(16×16 coordinates) to positions inside the 9×7×5 hexagon,
+so that `tools/test.py --map` runs it.
+The single 60° step waits for the 6-orientation footprint
+(see "Rotation cascade").
+
+**Enlarging moves the old grid.**
+`cleanup_karte` smooths an enlargement by raising each new slot and the old
+slots next to it by one and lowering them again,
+and the raise spreads through the old vertices on the way.
+A probe in `enlarge_map` found that the second of two enlargements
+of a D = 1 map with mountains left 9 of 1626 corners of old tiles above the
+water (0 before the smoothing) different from the grid heights, the next 8 more;
+the pre-step-5 engine produces the same map,
+so this is the upstream behaviour, and not visible as a cliff between tiles yet.
+Next move: make the kept slots fixed.
+Force each kept slot on the seam to its tile's corner height
+with a `raise_vertex_to` / `lower_vertex_to` that stops at kept slots
+(the anchor in `enlarge_map` does it for the south-phantom row only),
+and smooth the new slots alone;
+then count the corners with the probe,
+or a `debug` hook that reads a vertex slot, in a test.
 
 ## Engine → pakset descriptor boundary
 
