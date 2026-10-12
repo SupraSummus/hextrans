@@ -84,12 +84,48 @@ surface_t::~surface_t()
 }
 
 
+void surface_t::set_cached_shape(const map_shape_t &shape)
+{
+	cached_shape = shape;
+	cached_grid_size = koord((sint16)shape.get_size_q(), (sint16)shape.get_size_r());
+	cached_size_max = max(cached_grid_size.x, cached_grid_size.y);
+	cached_size.x = cached_grid_size.x - 1;
+	cached_size.y = cached_grid_size.y - 1;
+	cached_cut_lo = shape.get_cut_lo();
+	cached_cut_hi = shape.get_cut_hi();
+}
+
+
 koord surface_t::get_closest_coordinate(koord outside_pos) const
 {
 	outside_pos.clip_min(koord(0,0));
 	outside_pos.clip_max(koord(get_size().x-1,get_size().y-1));
 
+	// then onto the cut lines of the hexagon, splitting the step between
+	// q and r; inside the bounding rhombus this cannot leave it
+	const sint32 below = cached_cut_lo - (outside_pos.x + outside_pos.y);
+	if(  below > 0  ) {
+		outside_pos.x += (sint16)((below + 1) / 2);
+		outside_pos.y += (sint16)(below / 2);
+	}
+	const sint32 above = (outside_pos.x + outside_pos.y) - cached_cut_hi;
+	if(  above > 0  ) {
+		outside_pos.x -= (sint16)((above + 1) / 2);
+		outside_pos.y -= (sint16)(above / 2);
+	}
+
 	return outside_pos;
+}
+
+
+koord surface_t::get_random_tile() const
+{
+	// at least 36% of the rhombus is on the map, even at 128x128x512
+	koord k;
+	do {
+		k = koord::koord_random(get_size().x, get_size().y);
+	} while(  !is_within_limits(k)  );
+	return k;
 }
 
 
@@ -145,6 +181,35 @@ bool surface_t::is_water(koord pos, koord dim) const
 }
 
 
+bool surface_t::tile_is_free(koord k_check, sint16 platz_base_h, sint16 platz_max_h, climate_bits cl) const
+{
+	const grund_t *gr = lookup_kartenboden(k_check);
+	if(  !gr  ) {
+		// off-map cell of the W x H x D hexagon
+		return false;
+	}
+
+	// we can built, if: max height all the same, everything removable and no buildings there
+	slope_t::type slope = gr->get_grund_hang();
+	sint8 max_height = gr->get_hoehe() + slope_t::max_diff(slope);
+	climate test_climate = get_climate(k_check);
+	if(  cl & (1 << water_climate)  &&  test_climate != water_climate  ) {
+		bool neighbour_water = false;
+		for(size_t i=0; i<lengthof(koord::neighbours)  &&  !neighbour_water; i++) {
+			if(  is_within_limits(k_check + koord::neighbours[i])  &&  get_climate( k_check + koord::neighbours[i] ) == water_climate  ) {
+				neighbour_water = true;
+			}
+		}
+		if(  neighbour_water  ) {
+			test_climate = water_climate;
+		}
+	}
+	return !( (platz_max_h != max_height  &&  platz_base_h != gr->get_hoehe())  ||  !gr->ist_natur()  ||  gr->kann_alle_obj_entfernen(NULL) != NULL  ||
+	     (cl & (1 << test_climate)) == 0  ||  ( slope && (lookup( gr->get_pos()+koord3d(0,0,1) ) ||
+	     (slope_t::max_diff(slope)==2 && lookup( gr->get_pos()+koord3d(0,0,2) )) ))  );
+}
+
+
 bool surface_t::square_is_free(koord pos, sint16 w, sint16 h, int *last_y, climate_bits cl) const
 {
 	if(pos.x < 0  ||  pos.y < 0  ||  pos.x+w > get_size().x || pos.y+h > get_size().y) {
@@ -152,37 +217,49 @@ bool surface_t::square_is_free(koord pos, sint16 w, sint16 h, int *last_y, clima
 	}
 
 	grund_t *gr = lookup_kartenboden(pos);
+	if(  !gr  ) {
+		// off-map cell of the W x H x D hexagon
+		if(  last_y  ) {
+			*last_y = pos.y;
+		}
+		return false;
+	}
 	const sint16 platz_base_h = gr->get_hoehe(); // remember the base height of the first tile
 	const sint16 platz_max_h = gr->get_hoehe() + slope_t::max_diff( gr->get_grund_hang() ); // remember the max height of the first tile
 
 	koord k_check;
 	for(k_check.x=pos.x; k_check.x<pos.x+w; k_check.x++) {
 		for(k_check.y=pos.y+h-1; k_check.y>=pos.y; k_check.y--) {
-			const grund_t *gr = lookup_kartenboden(k_check);
-
-			// we can built, if: max height all the same, everything removable and no buildings there
-			slope_t::type slope = gr->get_grund_hang();
-			sint8 max_height = gr->get_hoehe() + slope_t::max_diff(slope);
-			climate test_climate = get_climate(k_check);
-			if(  cl & (1 << water_climate)  &&  test_climate != water_climate  ) {
-				bool neighbour_water = false;
-				for(size_t i=0; i<lengthof(koord::neighbours)  &&  !neighbour_water; i++) {
-					if(  is_within_limits(k_check + koord::neighbours[i])  &&  get_climate( k_check + koord::neighbours[i] ) == water_climate  ) {
-						neighbour_water = true;
-					}
-				}
-				if(  neighbour_water  ) {
-					test_climate = water_climate;
-				}
-			}
-			if( (platz_max_h != max_height  &&  platz_base_h != gr->get_hoehe())  ||  !gr->ist_natur()  ||  gr->kann_alle_obj_entfernen(NULL) != NULL  ||
-			     (cl & (1 << test_climate)) == 0  ||  ( slope && (lookup( gr->get_pos()+koord3d(0,0,1) ) ||
-			     (slope_t::max_diff(slope)==2 && lookup( gr->get_pos()+koord3d(0,0,2) )) ))  ) {
+			if(  !tile_is_free(k_check, platz_base_h, platz_max_h, cl)  ) {
 				if(  last_y  ) {
 					*last_y = k_check.y;
 				}
 				return false;
 			}
+		}
+	}
+
+	return true;
+}
+
+
+bool surface_t::disc_is_free(koord centre, sint16 radius, climate_bits cl) const
+{
+	if(  !is_within_limits(centre)  ) {
+		return false;
+	}
+
+	grund_t *gr = lookup_kartenboden(centre);
+	if(  !gr  ) {
+		return false;
+	}
+	const sint16 platz_base_h = gr->get_hoehe(); // remember the base height of the centre tile
+	const sint16 platz_max_h = gr->get_hoehe() + slope_t::max_diff( gr->get_grund_hang() ); // remember the max height of the centre tile
+
+	for(  koord d : hex_disc(radius)  ) {
+		const koord k_check = centre + d;
+		if(  !is_within_limits(k_check)  ||  !tile_is_free(k_check, platz_base_h, platz_max_h, cl)  ) {
+			return false;
 		}
 	}
 
@@ -333,7 +410,8 @@ int surface_t::grid_raise(const player_t *player, koord k, hex_corner_t::type co
 {
 	int n = 0;
 
-	if(is_within_grid_limits(k)) {
+	// no tile in the cut corners of the hexagon
+	if(is_within_grid_limits(k)  &&  lookup_kartenboden_gridcoords(k)) {
 
 		const grund_t *gr = lookup_kartenboden_gridcoords(k);
 
@@ -382,7 +460,8 @@ int surface_t::grid_lower(const player_t *player, koord k, hex_corner_t::type co
 {
 	int n = 0;
 
-	if(is_within_grid_limits(k)) {
+	// no tile in the cut corners of the hexagon
+	if(is_within_grid_limits(k)  &&  lookup_kartenboden_gridcoords(k)) {
 
 		const grund_t *gr = lookup_kartenboden_gridcoords(k);
 

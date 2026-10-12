@@ -9,18 +9,22 @@ if (NOT ANDROID)
 	if (MSVC)
 		find_package(ZSTD)
 		find_package(SDL2)
+		# Optional: a machine without SDL3 simply does not offer the sdl3 backend.
+		find_package(SDL3 CONFIG)
+		find_package(SDL3_mixer CONFIG)
 		find_package(Freetype)
 		find_package(FluidSynth)
 	else ()
 		find_package(PkgConfig MODULE REQUIRED)
 		pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
 		pkg_check_modules(SDL2 IMPORTED_TARGET sdl2)
+		# Optional: a machine without SDL3 simply does not offer the sdl3 backend.
+		pkg_check_modules(SDL3 IMPORTED_TARGET sdl3)
+		pkg_check_modules(SDL3_mixer IMPORTED_TARGET sdl3-mixer)
 		pkg_check_modules(Freetype IMPORTED_TARGET freetype2)
 		pkg_check_modules(FluidSynth IMPORTED_TARGET fluidsynth>=2.1.0)
 	endif ()
 
-	set(CMAKE_THREAD_PREFER_PTHREAD ON)
-	find_package(Threads)
 else ()
 
 	if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -82,24 +86,6 @@ else ()
 	add_library(libfluidsynth-assetloader SHARED IMPORTED)
 	set_target_properties(libfluidsynth-assetloader PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libfluidsynth-assetloader.so)
 
-	add_library(libgio-2.0 SHARED IMPORTED)
-	set_target_properties(libgio-2.0 PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libgio-2.0.so)
-
-	add_library(libglib-2.0 SHARED IMPORTED)
-	set_target_properties(libglib-2.0 PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libglib-2.0.so)
-
-	add_library(libgmodule-2.0 SHARED IMPORTED)
-	set_target_properties(libgmodule-2.0 PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libgmodule-2.0.so)
-
-	add_library(libgobject-2.0 SHARED IMPORTED)
-	set_target_properties(libgobject-2.0 PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libgobject-2.0.so)
-
-	add_library(libgthread-2.0 SHARED IMPORTED)
-	set_target_properties(libgthread-2.0 PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libgthread-2.0.so)
-
-	add_library(libinstpatch-1.0 SHARED IMPORTED)
-	set_target_properties(libinstpatch-1.0 PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libinstpatch-1.0.so)
-
 	add_library(liboboe SHARED IMPORTED)
 	set_target_properties(liboboe PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/liboboe.so)
 
@@ -108,12 +94,6 @@ else ()
 
 	add_library(libopus SHARED IMPORTED)
 	set_target_properties(libopus PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libopus.so)
-
-	add_library(libpcre SHARED IMPORTED)
-	set_target_properties(libpcre PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libpcre.so)
-
-	add_library(libpcreposix SHARED IMPORTED)
-	set_target_properties(libpcreposix PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libpcreposix.so)
 
 	add_library(libsndfile SHARED IMPORTED)
 	set_target_properties(libsndfile PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../fluidsynth/lib/${CMAKE_ANDROID_ARCH_ABI}/libsndfile.so)
@@ -131,17 +111,9 @@ else ()
 	target_link_libraries(fluidsynth INTERFACE
 		libFLAC
 		libfluidsynth-assetloader
-		libgio-2.0
-		libglib-2.0
-		libgmodule-2.0
-		libgobject-2.0
-		libgthread-2.0
-		libinstpatch-1.0
 		liboboe
 		libogg
 		libopus
-		libpcre
-		libpcreposix
 		libsndfile
 		libvorbis
 		libvorbisenc
@@ -151,3 +123,33 @@ else ()
 	)
 
 endif ()
+
+# EVERY platform needs this, Android included - which is exactly why it is out here now.
+#
+# This used to live inside the `if (NOT ANDROID)` branch above, so on Android
+# find_package(Threads) was simply never called. Nothing failed and nothing warned: the
+# variable it sets, CMAKE_USE_PTHREADS_INIT, was just never set, and
+# SimutransCompileOptions.cmake reads precisely that variable to decide whether to turn
+# SIMUTRANS_MULTI_THREAD on. So it turned it off, MULTI_THREAD was never defined, and
+# environment.cc fell through to `num_threads = 1`.
+#
+# The Android build has therefore been single threaded not because Android cannot do
+# threads, but because nobody ever asked whether it could.
+#
+# It can, though the route is not the obvious one, and it is worth writing down because
+# the obvious guess is wrong. On Android, FindThreads:
+#
+#   * FAILS its libc test - bionic has no pthread_cancel, and CMake's probe calls it;
+#   * finds neither libpthread nor libpthreads - Android ships neither;
+#   * accepts -pthread, and that is what settles it: Threads_FOUND, and
+#     CMAKE_USE_PTHREADS_INIT is set because CMAKE_THREAD_LIBS_INIT is now "-pthread".
+#
+# Verified against NDK r27c: with this call, MULTI_THREAD reaches the compiler and every
+# translation unit that touches threads builds for arm64-v8a and armeabi-v7a, at API 21
+# and at API 24 - both barrier paths, since bionic says
+#     #define _POSIX_BARRIERS __BIONIC_POSIX_FEATURE_SINCE(24)
+# so below 24 simthread.h falls back to its own mutex+condvar barrier (the macOS path) and
+# at 24 and above it uses the real pthread barriers. The code was ready for Android all
+# along. Only the build never turned it on.
+set(CMAKE_THREAD_PREFER_PTHREAD ON)
+find_package(Threads)

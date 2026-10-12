@@ -35,6 +35,8 @@ class building_desc_t;
 class roadsign_desc_t;
 class factory_desc_t;
 class way_desc_t;
+class bridge_desc_t;
+class tunnel_desc_t;
 class route_t;
 class way_obj_desc_t;
 
@@ -296,6 +298,18 @@ public:
 	bool is_work_here_keeps_game_state(player_t*, koord3d) OVERRIDE { return true; }
 };
 
+
+/** tool_build_way_t
+ * deafult string either
+ * way_name[,arst,span[,bridge_name,tunnelname]
+ * 'a' bridges and tunnels
+ * 't' terraform
+ * 'r' for replace all ways
+ * 's' only straight ways
+ * span the maximum length of a way (-1: no limit)
+ * bridge and tunnel names for desc to be used (will switch tinnels and bridges on)
+ * 
+ */
 class tool_build_way_t : public two_click_tool_t {
 private:
 	static const way_desc_t *defaults[17]; // default ways for all types
@@ -306,8 +320,12 @@ private:
 
 protected:
 	const way_desc_t *desc;
+	const bridge_desc_t* bridge;
+	const tunnel_desc_t* tunnel;
 	bool   automatic_tunnel_and_bridges;
+	bool   terraform_only;
 	uint32 max_length;
+	bool  straight_ways, keep_ways;
 
 	virtual way_desc_t const* get_desc() const;
 	const char *calc_route( way_builder_t &bauigel, const koord3d &, const koord3d & );
@@ -316,16 +334,20 @@ protected:
 public:
 	tool_build_way_t(uint16 const id = TOOL_BUILD_WAY | GENERAL_TOOL) : two_click_tool_t(id), desc() {
 		automatic_tunnel_and_bridges = false;
+		terraform_only = false;
 		max_length = 0x7FFFFFFFul;
 	}
 	image_id get_icon(player_t*) const OVERRIDE;
 	static const way_desc_t* get_default_desc(waytype_t wt);
 	char const* get_tooltip(player_t const*) const OVERRIDE;
+	char const* get_context_label() const OVERRIDE;
+	uint8 get_modifier_hints(tool_hint_t*, uint8) const OVERRIDE;
 	char const* get_default_param(player_t*) const OVERRIDE;
 	bool is_selected() const OVERRIDE;
 	bool init(player_t*) OVERRIDE;
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	waytype_t get_waytype() const OVERRIDE;
+	void rdwr_custom_data(memory_rw_t*) OVERRIDE;
 	// remove preview necessary while building elevated ways
 	bool remove_preview_necessary() const OVERRIDE { return !is_first_click()  &&  (desc  &&  (desc->get_styp() == type_elevated  &&  desc->get_wtyp() != air_wt)); }
 };
@@ -356,6 +378,8 @@ public:
 	tool_build_bridge_t() : two_click_tool_t(TOOL_BUILD_BRIDGE | GENERAL_TOOL) {}
 	image_id get_icon(player_t*) const OVERRIDE { return grund_t::underground_mode==grund_t::ugm_all ? IMG_EMPTY : icon; }
 	char const* get_tooltip(player_t const*) const OVERRIDE;
+	char const* get_context_label() const OVERRIDE;
+	// no get_modifier_hints(): the bridge builder reads neither Ctrl nor Shift
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	waytype_t get_waytype() const OVERRIDE;
 	bool remove_preview_necessary() const OVERRIDE { return !is_first_click(); }
@@ -372,6 +396,8 @@ private:
 public:
 	tool_build_tunnel_t() : two_click_tool_t(TOOL_BUILD_TUNNEL | GENERAL_TOOL) {}
 	char const* get_tooltip(player_t const*) const OVERRIDE;
+	char const* get_context_label() const OVERRIDE;
+	uint8 get_modifier_hints(tool_hint_t*, uint8) const OVERRIDE;
 	char const* check_pos(player_t*, koord3d) OVERRIDE;
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	waytype_t get_waytype() const OVERRIDE;
@@ -413,6 +439,8 @@ private:
 public:
 	tool_build_wayobj_t(uint16 const id = TOOL_BUILD_WAYOBJ | GENERAL_TOOL, bool b = true) : two_click_tool_t(id), build(b) {}
 	char const* get_tooltip(player_t const*) const OVERRIDE;
+	char const* get_context_label() const OVERRIDE;
+	uint8 get_modifier_hints(tool_hint_t*, uint8) const OVERRIDE;
 	bool is_selected() const OVERRIDE;
 	bool init(player_t*) OVERRIDE;
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
@@ -436,6 +464,12 @@ private:
 	const building_desc_t *get_desc( sint8 &rotation ) const;
 
 public:
+	/**
+	 * Whether a dock that faces the water in direction @p water_dir and
+	 * extends @p len tiles beyond its shore tile has no footprint.
+	 */
+	static bool dock_footprint_missing(ribi_t::ribi water_dir, int len);
+
 	tool_build_station_t() : tool_t(TOOL_BUILD_STATION | GENERAL_TOOL) {}
 	bool move_has_effects() const OVERRIDE { return true; }
 	image_id get_icon(player_t*) const OVERRIDE;
@@ -489,6 +523,12 @@ public:
 	/// @copydoc tool_t::get_tooltip
 	const char *get_tooltip(const player_t *player) const OVERRIDE;
 
+	/// @copydoc tool_t::get_context_label
+	const char *get_context_label() const OVERRIDE;
+
+	// no get_modifier_hints(): Ctrl opens the spacing dialogue at init() time,
+	// it is not a modifier that changes what a drag builds
+
 	/// @copydoc tool_t::init
 	bool init(player_t*) OVERRIDE;
 
@@ -498,6 +538,16 @@ public:
 	/// Called by the GUI (gui/signal_spacing.*)
 	void set_values(player_t *player, uint8 spacing, bool remove, bool replace);
 	void get_values(player_t *player, uint8 &spacing, bool &remove, bool &replace);
+
+	/// Direction a one-way or choose sign gets on its first click on a way
+	/// with ribi @p way: the first edge in ribi_t::nesw order.  Another click
+	/// flips it to the other edge.
+	static ribi_t::ribi first_sign_dir(ribi_t::ribi way);
+
+	/// Direction of a signal with direction @p cur after one more click on a
+	/// way with ribi @p way.  A signal starts as @p way (both directions) and
+	/// then cycles through the first edge, the second edge and back.
+	static ribi_t::ribi next_signal_dir(ribi_t::ribi way, ribi_t::ribi cur);
 
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	void draw_after(scr_coord, bool dirty) const OVERRIDE;
@@ -725,6 +775,12 @@ public:
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	bool is_work_keeps_game_state() const OVERRIDE { return true; }
 	bool save_script(const char *fullpath, const char *command, koord area) const;
+
+	/// Writes the rebuild script of the area spanned by @p start and @p end
+	/// into @p script and its size into @p area.  @p script stays empty if
+	/// there is nothing to export.
+	/// @returns an error message, or NULL
+	static char const* build_script(player_t*, koord3d const& start, koord3d const& end, cbuffer_t& script, koord& area);
 private:
 	char const* do_work(player_t*, koord3d const&, koord3d const&) OVERRIDE;
 	void mark_tiles(player_t*, koord3d const&, koord3d const&) OVERRIDE;
@@ -1001,10 +1057,9 @@ public:
 	bool is_selected() const OVERRIDE;
 	void draw_after(scr_coord, bool dirty) const OVERRIDE;
 	bool init(player_t *) OVERRIDE;
-	char const* work(player_t*, koord3d) OVERRIDE;
-	bool exit(player_t *) OVERRIDE;
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	bool is_work_keeps_game_state() const OVERRIDE { return true; }
+	bool exit(player_t*) OVERRIDE;
 };
 
 class tool_toggle_control_t : public tool_t {

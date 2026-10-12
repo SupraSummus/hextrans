@@ -152,6 +152,14 @@ upstream-mergeable, organically sorts the layering, and a candidate
 for upstreaming back. Reach for this tier when a rename is already
 on the table; don't force it where it would be contrived.
 
+*Refactors without a hex reason.* Don't carry them.
+A cleanup that only restyles upstream code
+widens every future merge
+and makes fixes harder to send upstream.
+Offer it on the forum first;
+if upstream declines it, drop it in the fork too.
+The NETTOOL retirement (closed PRs #225, #227, #228) is the worked example.
+
 ## Cross-checking simutrans-extended
 
 `simutrans-extended` is also checked out as a local read-only
@@ -220,8 +228,11 @@ corners exactly on the rim (120°-pair sums) — the two diagonal corner
 families sit in different symmetry classes, which is why an axial
 square is not a hex disc.  `hex_disc` in `koord.h` iterates the
 true disc (`for (koord d : hex_disc(r))`); reach for it in any "all
-tiles within n steps" loop.  Refresh from PR #201 if a finer symmetry
-question arises.
+tiles within n steps" loop.  Around a multi-tile footprint, the same
+trap is a ring of the axial rectangle with its `(-1,-1)` and `(size)`
+corners: `koord_distance_to_rect(p, pos, size)` is the hex distance to
+the footprint, `== 1` for the tiles that touch it.  Refresh from PR #201
+if a finer symmetry question arises.
 
 ## Prose line breaks
 
@@ -274,6 +285,15 @@ durable context in the commit message or `AGENTS.md`.
 
 The aim is for `TODO.md` to remain a useful, current map of "what
 still needs doing". A growing TODO file is fine; a stale one is not.
+
+Work that spans several PRs, or waits on a decision,
+also gets a GitHub issue labelled `epic` or `decision`.
+The issue copies the goal and the next moves from `TODO.md`
+and adds what a file can't hold:
+discussion, decisions and progress across PRs.
+`TODO.md` stays complete and wins when the two disagree.
+A PR that finishes an issue closes it with `Closes #N`
+and deletes the matching `TODO.md` entries.
 
 To surface stale entries, blame `TODO.md` and sort paragraphs
 (blank-line separated) by their max `author-time`: the lowest
@@ -460,15 +480,25 @@ Longer-form design and planning docs live under `documentation/`:
     decisions (proxy policy, address-family, gating).  Legacy
     in-house socket code remains under `#else SIMUTRANS_USE_CURL`
     for one release cycle as a downstream fallback; retirement
-    trigger in `TODO.md` → "other".
+    trigger in `TODO.md` → "libcurl rollback gate retirement".
   - `documentation/hex-vertex-storage.md` — per-vertex height
     storage on the hex grid, canonical ownership rule and storage
     layout.  Describes live behaviour.
+  - `documentation/map-shape.md` — the W×H×D hexagon world
+    (#280): bounding-rhombus storage with a validity predicate,
+    save/load, world-creation dialog and image frame, rotation.
+    Design plus a PR-sized plan; step 1 (`map_shape_t`) is live.
   - `documentation/world-mutation-deferral.md` — why GUI handlers
     can't synchronously call `welt->init()` / `welt->load()` /
     `karte_t::destroy()` (event dispatch nests inside
     `karte_t::step`), and the `tool_t` dispatch path that fixes
     it.  Describes live behaviour.
+  - `documentation/city-anisotropy.md` — measured shape of hex city
+    growth: what was fixed, and why the remaining m=2 mode is street
+    texture, not a bias to chase.
+  - `documentation/agent-sessions.md` — how a session runs parallel
+    agents: where work comes from, one branch and PR per fix group,
+    review and merge rules.
   - `documentation/fuzz-corpora.md` — what goes in
     `src/fuzz/corpus/` and what stays out-of-band: the committed
     corpus is a regression-and-wiring gate (generated smoke seeds +
@@ -536,6 +566,14 @@ fetches pak64 on first invocation (~30 MB, cached) and skips setup it
 already did, so warm runs are dominated by sim startup. Pass substring
 filters to narrow the run: `tools/test.py halt` runs only tests whose
 name contains "halt". This is the cmake-Debug fast loop.
+The engine's user dir for these runs lives under `build/test-data/`,
+so parallel worktrees don't share scenario or test-pak links.
+`tools/test.py --map` loads the W×H×D hexagon fixture
+`tests/empty-hex-9x7x5.sve` instead of `empty-16x16.sve`
+and runs only the `test_map_shape` tests,
+the ones that read the map shape from the settings
+(`--map FILE pattern…` picks another fixture or other tests).
+Regenerate the fixture with `-flatmap 9,7,5` (see below).
 
 The harness launches the engine with `-fast` (fast-forward + uncapped
 `max_acceleration`, so `idle_time` collapses to 0 and sim steps run
@@ -564,22 +602,93 @@ human at the keyboard.
 `tools/hex_*_test/` are standalone C++ self-tests
 that CI runs before the engine build (`make -C tools/hex_vertex_test run`).
 They compile the production sources they check
-(`dataobj/koord_hex.cc`, `display/hex_proj.h`, `ground/back_image_decode.h`),
+(`dataobj/koord_hex.cc`, `dataobj/map_shape.h`, `display/hex_proj.h`,
+`ground/back_image_decode.h`, `dataobj/height_field_sample.h`),
 never a copy.
 Code that can't build standalone gets split into a dependency-free file first,
 the way `koord_hex.cc` came out of `koord.cc`.
 
+`tools/heightfield_import_test.py` imports synthetic relief images
+through the `-heightfield FILE [D]` hook in `simmain.cc`,
+the path of the new-world dialog's "Load relief"
+(`karte_t::load_heightfield`, then `enlarge_map`).
+The image size fixes W and H for D
+(`documentation/map-shape.md`, "Image coordinates").
+The hook prints every tile's base height, `-` off the hexagon,
+and the test compares them with a model of the pixel-to-tile mapping
+written in the test itself.
+CI runs it after the scenario suite.
+
 `tools/city_anisotropy.py` measures how non-round city footprints come
-out under the hex grid (see `TODO.md` → "City growth anisotropy").  It
+out under the hex grid (see `documentation/city-anisotropy.md`).  It
 maps grown-city tiles through the flat-top basis and reports the
 gyration tensor in both the axial and physical frame, separating the
 basis shear from genuine algorithmic bias.  `--run` generates a flat
 map via the `-flatmap N` hook in `simmain.cc` (a gated test flag in the
-default-map path; needs the headless none-backend build) and grows
+default-map path; `-flatmap W,H,D` writes a W×H×D hexagon instead;
+needs the headless none-backend build) and grows
 cities on it; `--series` grows a spread of city sizes and correlates the
 m=2 angular mode against footprint size (a scale-invariant m=2 floor is
 intrinsic street texture, a decaying one is founding-skeleton bias);
 `--self-test` validates the math with no engine.
+
+`-ai_soak SIZE [SEED]` (in `simmain.cc`, beside `-flatmap`)
+runs the computer players unattended,
+which nothing else in the test suite exercises.
+It generates a SIZE×SIZE map with cities and industry from SEED
+(SIZE = `W,H,D` generates that hexagon, `documentation/map-shape.md`),
+adds one goods and one passenger AI,
+skips the start-up banner,
+and steps the world flat out to `-until YEAR.MONTH`,
+logging one `ai_soak: YYYY.MM convoys=… halts=… cities=… ais=… rng=…`
+line per game month to stderr.
+`ais` counts the AIs still alive:
+once both have gone bankrupt the run only soaks an idle world.
+`dbg->fatal` and failed asserts (Debug builds) abort with SIGABRT
+instead of waiting for a key on the fatal dialog,
+so a crash is a non-zero exit status plus a core file or a `gdb` backtrace.
+Two runs with the same SIZE and SEED print the same `rng` on every line;
+a mismatch is a new source of nondeterminism.
+A full run, from `simutrans/`:
+`SDL_VIDEODRIVER=dummy ../build/simutrans/simutrans -objects pak -nosound
+-nomidi -debug 2 -ai_soak 128 1 -until 1952.1`.
+`tools/ai_soak.py [SEED…] [--until YEAR.MONTH]` wraps that for several seeds
+(default 1–3 to 1933.1, the busy phase of both AIs)
+and exits non-zero on any abort or crash;
+`--shape W,H,D` soaks the hexagon instead.
+CI runs it after the scenario suite,
+and again for a game year on 48×40×32.
+CI's `make` build defines `NDEBUG`,
+so there a failed assert shows up later as a null-handle crash;
+reproduce in a Debug build to get the assert.
+`-ai_script NAME` replaces the two C++ AIs
+by the scripted AI `ai/NAME` (`sqai`, `sqai_rail`).
+A script error does not pause the game in this mode,
+whatever the script asked for with `set_pause_on_error`,
+so a script that fails on every step gives a long log, not a hang;
+the errors are in `script-ai-2.log` in the user directory.
+Every January the run logs one line per AI
+with its halts, convoys and cash.
+`-ai_snapshot` adds a screenshot of the newest AI halt each January,
+`screenshot/aisoak-YYYY.MM-map.png` in the user directory,
+and `-windows.png` for the open script-error window, if any.
+It also shoots the info windows that embed a small world view,
+`-view-halt.png` (the newest AI halt), `-view-convoy.png` (an AI convoy
+on the road) and `-view-factory.png` (the first factory),
+and for the halt and the factory `-view-NAME-main.png`,
+the main view's picture of the area the small view shows.
+The two agree pixel for pixel
+except for the station labels and overlays only the main view draws.
+It also works with `SDL_VIDEODRIVER=dummy`.
+
+`tools/mapgen_metrics.py` prints the climate shares of generated maps
+through the `-mapstats SIZE [SEED [humidity|height]]` hook in `simmain.cc`
+(terrain, lakes and rivers as in a normal new world, no cities or industry).
+Run it once per engine build, with `--binary` for the other one,
+to compare a change to the climate passes on the same maps.
+The same seed gives the same terrain,
+but a change that draws a different number of random values
+moves the random stream after it, so compare means over several seeds.
 
 `tools/nwc_protocol_test/` is the multiplayer wire-protocol suite —
 black-box tests that spawn a headless server, send one hand-rolled

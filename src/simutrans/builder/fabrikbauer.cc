@@ -19,6 +19,7 @@
 #include "../ground/grund.h"
 
 #include "../dataobj/settings.h"
+#include "../dataobj/environment.h"
 #include "../network/pakset_info.h"
 #include "../dataobj/translator.h"
 
@@ -27,6 +28,8 @@
 #include "../world/building_placefinder.h"
 
 #include "../utils/cbuffer.h"
+
+#include "../descriptor/objversion.h"
 
 #include "../gui/minimap.h" // to update map after construction of new industry
 
@@ -58,6 +61,10 @@ static void add_factory_to_fab_map(karte_t const* const welt, fabrik_t const* co
 	sint16       const  end_x   = min(welt->get_size().x - 1, pos.x + bdsc.get_x(rotate) + spacing);
 	for (sint16 y = start_y; y < end_y; ++y) {
 		for (sint16 x = start_x; x < end_x; ++x) {
+			// the corners of the rectangle are further than spacing steps away
+			if (koord_distance_to_rect(koord(x, y), pos.get_2d(), bdsc.get_size(rotate)) > (uint32)spacing) {
+				continue;
+			}
 			fab_map[fab_map_w * y + x / 8] |= 1 << (x % 8);
 		}
 	}
@@ -389,10 +396,15 @@ koord3d factory_builder_t::find_random_construction_site(koord pos, int radius, 
 	const uint32 c = 37; // very unlikely to have this as a factor in somewhere ...
 
 	// in order to stop on the first occurence, one has to iterate over all tiles in a reproducable but random enough manner
-	for(  uint32 i = 0;  i<max_iterations; i++,  index = (a*index+c) % area  ) {
+	for(  uint32 i = 0;  i<max_iterations; i++,  index = (uint32)(((uint64)a*index+c) % area)  ) {
 
 		// so it is guaranteed that the iteration hits all tiles and does not repeat itself
 		k = koord( pos.x - radius + (index % diam), pos.y - radius + (index / diam) );
+
+		// the square also holds corners that are up to twice radius steps away
+		if(  koord_distance(k, pos) > (uint32)radius  ) {
+			continue;
+		}
 
 		// check place (it will actually check an grosse.x/y size rectangle, so we can iterate over less tiles)
 		if(  factory_builder_t::check_construction_site(k, size, site, is_factory, climates)  ) {
@@ -432,7 +444,7 @@ void factory_builder_t::distribute_attractions(int max_number)
 
 	int retrys = max_number*4;
 	while(current_number<max_number  &&  retrys-->0) {
-		koord3d pos=koord3d( koord::koord_random(welt->get_size().x,welt->get_size().y),1);
+		koord3d pos=koord3d( welt->get_random_tile(),1);
 		const building_desc_t *attraction=hausbauer_t::get_random_attraction(welt->get_timeline_year_month(),true,(climate)simrand((int)arctic_climate+1));
 
 		// no attractions for that climate or too new
@@ -603,7 +615,7 @@ bool factory_builder_t::can_factory_tree_rotate( const factory_desc_t *desc )
  * is the maximum number of good types for which suppliers chains are built
  * (meaning there are no unfinished factory chains).
  */
-int factory_builder_t::build_link(koord3d* parent, const factory_desc_t* info, sint32 initial_prod_base, int rotate, koord3d* pos, player_t* player, int number_of_chains, bool ignore_climates)
+int factory_builder_t::build_link(koord3d* parent, const factory_desc_t* info, sint32 initial_prod_base, int rotate, koord3d* pos, player_t* player, int number_of_chains, bool ignore_climates, factory_desc_t::site_t placement)
 {
 	int n = 1;
 
@@ -613,7 +625,7 @@ int factory_builder_t::build_link(koord3d* parent, const factory_desc_t* info, s
 	}
 
 	// no cities at all?
-	if (info->get_placement() == factory_desc_t::City  &&  welt->get_cities().empty()) {
+	if (placement == factory_desc_t::City  &&  welt->get_cities().empty()) {
 		return 0;
 	}
 
@@ -622,7 +634,7 @@ int factory_builder_t::build_link(koord3d* parent, const factory_desc_t* info, s
 	// is disabled here — see TODO.md.
 
 	// in town we need a different place search
-	if (info->get_placement() == factory_desc_t::City) {
+	if (placement == factory_desc_t::City) {
 
 		koord size=info->get_building()->get_size(0);
 
@@ -843,8 +855,12 @@ int factory_builder_t::build_chain_link(const fabrik_t* our_fab, const factory_d
 		koord3d parent_pos = our_fab->get_pos();
 		// ignore climates after 40 tries
 
-		// if climates are ignored, then placement as well ...
-		factory_desc_t::site_t placement = ignore_climates ? (producer_d->get_placement() == factory_desc_t::City ? factory_desc_t::City : factory_desc_t::Land) : producer_d->get_placement();
+		factory_desc_t::site_t placement = producer_d->get_placement();
+		// if climates are ignored, then special placements as well => either Land, water, or City
+		if (ignore_climates  &&  placement >= factory_desc_t::City) {
+			// ignore Shore, River, Forest to Land
+			placement = factory_desc_t::Land;
+		}
 
 		INT_CHECK("fabrikbauer 697");
 
@@ -866,7 +882,7 @@ int factory_builder_t::build_chain_link(const fabrik_t* our_fab, const factory_d
 		INT_CHECK("fabrikbauer 697");
 
 		DBG_MESSAGE("factory_builder_t::build_chain_link","Try to built supplier %s at (%i,%i) r=%i for %s.",producer_d->get_name(),k.x,k.y,rotate,info->get_name());
-		n += build_link(&parent_pos, producer_d, -1 /*random prodbase */, rotate, &k, player, 10000, ignore_climates);
+		n += build_link(&parent_pos, producer_d, -1 /*random prodbase */, rotate, &k, player, 10000, ignore_climates, placement);
 		lfound ++;
 
 		INT_CHECK( "fabrikbauer 702" );
@@ -1037,16 +1053,24 @@ int factory_builder_t::increase_industry_density( bool tell_me )
 		for(int retries=20;  retries>0;  retries--  ) {
 			const factory_desc_t *fab=get_random_consumer( no_electric==0, ALL_CLIMATES, welt->get_timeline_year_month() );
 			if(fab) {
-				const bool in_city = fab->get_placement() == factory_desc_t::City;
-				if (in_city && welt->get_cities().empty()) {
+				factory_desc_t::site_t placement = fab->get_placement();
+				// if climates are ignored, then special placements as well => either Land, water, or City
+				if (ignore_climates && placement >= factory_desc_t::City) {
+					// ignore Shore, River, Forest to Land
+					placement = factory_desc_t::Land;
+				}
+
+				const bool in_city = placement == factory_desc_t::City;
+				if (in_city  &&  welt->get_cities().empty()) {
 					// we cannot build this factory here
 					continue;
 				}
 				koord3d pos;
 				int rotation = simrand( fab->get_building()->get_all_layouts() );
 				if(!in_city) {
-					// find somewhere on the map
-					pos = find_random_construction_site( koord(welt->get_size().x/2,welt->get_size().y/2), welt->get_size_max()/2, fab->get_building()->get_size(rotation),fab->get_placement(),fab->get_building(),ignore_climates,10000);
+					// find somewhere on the map: the disc around its middle must reach the farthest corner,
+					// so most samples fall off the map (hence the larger budget)
+					pos = find_random_construction_site( koord(welt->get_size().x/2,welt->get_size().y/2), (welt->get_size().x+welt->get_size().y)/2, fab->get_building()->get_size(rotation),fab->get_placement(),fab->get_building(),ignore_climates,4*10000);
 				}
 				else {
 					// or within the city limit
@@ -1056,7 +1080,7 @@ int factory_builder_t::increase_industry_density( bool tell_me )
 				}
 				if(welt->lookup(pos)) {
 					// Space found...
-					nr += build_link(NULL, fab, -1 /* random prodbase */, rotation, &pos, welt->get_public_player(), 1, ignore_climates);
+					nr += build_link(NULL, fab, -1 /* random prodbase */, rotation, &pos, welt->get_public_player(), 1, ignore_climates, placement);
 					if(nr>0) {
 						fabrik_t *our_fab = fabrik_t::get_fab( pos.get_2d() );
 						minimap_t::get_instance()->calc_map_size();

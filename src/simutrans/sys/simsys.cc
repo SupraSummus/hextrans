@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #ifdef __HAIKU__
 #include <Message.h>
@@ -25,6 +26,7 @@
 #include "../pathes.h"
 #include "../simevent.h"
 #include "../utils/simstring.h"
+#include "../utils/unicode.h"
 #include "../simdebug.h"
 #include "../simevent.h"
 #include "../simversion.h"
@@ -42,6 +44,7 @@
 #	endif
 #	include "../simdebug.h"
 #else
+#	include <locale.h>
 #	include <limits.h>
 #	include <dirent.h>
 #	if !defined __AMIGA__ && !defined __BEOS__
@@ -49,7 +52,22 @@
 #	endif
 #	ifdef __ANDROID__
 #       include "../utils/searchfolder.h"
-#		include <SDL.h>
+		/* The Android paths below are the one place outside the backend files where
+		 * common code calls SDL directly, so this file has to know which SDL is
+		 * being built against. SDL3 moved its headers under an SDL3/ directory and
+		 * renamed these three functions; the arguments, the return values and the
+		 * SDL_ANDROID_EXTERNAL_STORAGE_* bits are unchanged, so mapping the names
+		 * back leaves the code below exactly as it was for sdl2. The include path
+		 * only carries SDL3 when the sdl3 backend was selected, which makes the
+		 * question answerable here without a new build flag. */
+#		if defined(__has_include) && __has_include(<SDL3/SDL.h>)
+#			include <SDL3/SDL.h>
+#			define SDL_AndroidGetInternalStoragePath  SDL_GetAndroidInternalStoragePath
+#			define SDL_AndroidGetExternalStorageState SDL_GetAndroidExternalStorageState
+#			define SDL_AndroidGetExternalStoragePath  SDL_GetAndroidExternalStoragePath
+#		else
+#			include <SDL.h>
+#		endif
 #		include <android/font.h>
 #		include <android/font_matcher.h>
 #	endif
@@ -60,6 +78,7 @@
 #endif
 
 #ifdef MULTI_THREAD
+#include <pthread.h>
 #endif
 
 #ifdef _OPTIMIZED
@@ -185,11 +204,12 @@ int dr_mkdir(char const* const path)
 
 #ifdef _WIN32
 	const char* new_dir_with_path = path;
+	// must outlive the block below, since new_dir_with_path may point into it
+	char abs_buf[MAX_PATH];
 
 	// Perform operation needs absolute path
 	if (path[1] != ':'  &&  path[1] !=  '\\') {
 		// so let get the absolute path
-		char abs_buf[MAX_PATH];
 		dr_getcwd(abs_buf, MAX_PATH);
 		if (strlen(abs_buf) + strlen(path) + 2 >= MAX_PATH) {
 			return -1;
@@ -882,7 +902,7 @@ const char *dr_get_locale_string()
 		{ 0x0001, "ar" },
 		{ 0x0002, "bg" },
 		{ 0x0003, "ca" },
-		{ 0x0004, "zh\0Hans" },
+		{ 0x0004, "cn" }, // Simplified chinese "zh\0Hans" },
 		{ 0x0005, "cs" },
 		{ 0x0006, "da" },
 		{ 0x0007, "de" },
@@ -1371,6 +1391,78 @@ const char *dr_get_locale_string()
 #endif
 
 
+// compare two utf8 strings
+int dr_compare_uft8_string(const utf8* s1, const utf8* s2, const utf8* locale)
+#ifdef _WIN32
+{
+	static utf8* last_used_locale = 0, *last_used_s1 = 0, *last_used_s2 = 0;
+	static WCHAR wcLocale[32], wcS1[256], wcS2[256];
+	static sint8 s1unicode = 0, s2unicode = 0;
+	static int l1 = 0, l2 = 0;
+
+	if (last_used_locale != locale) {
+		last_used_locale = (utf8 *)locale;
+		WCHAR* wcL = wcLocale;
+		while (*locale) {
+			*wcL++ = *locale++;
+		}
+		*wcL = 0;
+		locale = last_used_locale;
+//		if(locale[2]!='_')
+	}
+
+	if (last_used_s1 != s1) {
+		l1 = 0;
+		s1unicode = 0;
+		last_used_s1 = (utf8*)s1;
+		utf32 wc = utf8_decoder_t::decode(s1);
+		while (wc && l1 < 254) {
+			s1unicode |= *s1;
+			wcS1[l1++] = wc;
+			wc = utf8_decoder_t::decode(s1);
+		}
+		wcS1[l1] = 0;
+	}
+
+	if (last_used_s2 != s2) {
+		l2 = 0;
+		s2unicode = 0;
+		last_used_s2 = (utf8*)s2;
+		utf32 wc = utf8_decoder_t::decode(s2);
+		while (wc && l2 < 254) {
+			s2unicode |= *s2;
+			wcS2[l2++] = wc;
+			wc = utf8_decoder_t::decode(s2);
+		}
+		wcS2[l2] = 0;
+	}
+
+	if (s1unicode || s2unicode) {
+		int result = CompareStringEx(wcLocale, NORM_IGNORECASE | NORM_IGNOREKANATYPE, wcS1, l1, wcS2, l2, NULL, NULL, 0);
+		return result - 2;
+	}
+	else {
+		// contains no unicode
+		return STRICMP((const char *)last_used_s1, (const char *)last_used_s2);
+	}
+}
+#else
+{
+	static const utf8* last_locale = 0;
+	if (last_locale != locale) {
+		static char new_locale_utf[16];
+		sprintf(new_locale_utf, "%s.UTF-8", locale);
+		const char* current_loc = setlocale(LC_ALL, new_locale_utf);
+		setlocale(LC_CTYPE, "");
+		setlocale(LC_NUMERIC, "en_US.UTF-8");
+		printf("%s -> %p\n", new_locale_utf, current_loc);
+		last_locale = locale;
+	}
+	return strcoll( (const char*)s1, (const char *)s2 );
+}
+#endif
+
+
 void dr_fatal_notify(char const* const msg)
 {
 	fprintf(stderr, "dr_fatal_notify: ERROR: %s\n", msg);
@@ -1464,9 +1556,54 @@ char **copy_argv(int argc, char *argv[]) {
 	return new_argv;
 }
 
+#ifdef _WIN32
+/**
+ * The C runtime builds argv from the command line in the ANSI code page, but Simutrans keeps every
+ * path in UTF-8: an accented -set_basedir became invalid UTF-8, and other scripts became '?'.
+ * Re-encode the arguments from the wide command line. An argument is only replaced if the wide
+ * parse agrees with the runtime's own (same count, same text once converted to ANSI), so the
+ * splitting of the command line never changes.
+ */
+static void utf8_arguments(int argc, char **argv)
+{
+	int wargc = 0;
+	LPWSTR *const wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+	if(  !wargv  ) {
+		return;
+	}
+	if(  wargc == argc  ) {
+		for(  int i = 1;  i < argc;  i++  ) {
+			int const ansi_size = WideCharToMultiByte(CP_ACP, 0, wargv[i], -1, NULL, 0, NULL, NULL);
+			if(  ansi_size <= 0  ) {
+				continue;
+			}
+			char *const ansi = new char[ansi_size];
+			WideCharToMultiByte(CP_ACP, 0, wargv[i], -1, ansi, ansi_size, NULL, NULL);
+			bool const same_argument = strcmp(ansi, argv[i]) == 0;
+			delete[] ansi;
+			if(  same_argument  ) {
+				int const size = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, NULL, 0, NULL, NULL);
+				if(  size <= 0  ) {
+					continue;
+				}
+				char *const utf8 = new char[size];
+				WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, utf8, size, NULL, NULL);
+				delete[] argv[i];
+				argv[i] = utf8;
+			}
+		}
+	}
+	LocalFree(wargv);
+}
+#endif
+
+
 int sysmain(int const argc, char** const argv)
 {
 	char ** argv_copy = copy_argv(argc,argv);
+#ifdef _WIN32
+	utf8_arguments(argc, argv_copy);
+#endif
 	sys_event.type = SIM_NOEVENT;
 	sys_event.code = 0;
 
@@ -1505,7 +1642,8 @@ int sysmain(int const argc, char** const argv)
 	if (length != -1) {
 		buffer[length] = '\0'; /* readlink() does not NUL-terminate */
 		argv_copy[0] = buffer;
-	} else if (strchr(argv_copy[0], '/') == NULL) {
+	}
+	else if (strchr(argv_copy[0], '/') == NULL) {
 		// no /proc, no '/' in argv[0] => search PATH
 		const char* path = getenv("PATH");
 		if (path != NULL) {

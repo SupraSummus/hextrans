@@ -174,6 +174,14 @@ static void fill_event(event_t* const ev)
 					pressed_buttons &= ~MOUSE_MIDBUTTON;
 					is_dragging = false;
 					break;
+
+				case SIM_MOUSE_LONGPRESS:
+					// the finger is still down; the press/release pair still follows on lift
+					ev->ev_class = EVENT_LONG_PRESS;
+					ev->ev_code = MOUSE_LEFTBUTTON;
+					ev->click_pos.x = cx = sys_event.mx;
+					ev->click_pos.y = cy = sys_event.my;
+					break;
 			}
 			break;
 
@@ -282,5 +290,23 @@ void display_poll_event(event_t* const ev)
 
 void queue_event(event_t *events)
 {
+	// A window resize is current state, not history: only the newest client
+	// size is meaningful and an older one must never be applied after it. The
+	// loading screen stores the resizes it consumes and flushes them back here
+	// when destroyed, and the next loading screen consumes and stores them
+	// again, so without this an obsolete size is replayed and can be applied
+	// after the real one, leaving the renderer smaller than the window.
+	if(  events->ev_class == EVENT_SYSTEM  &&  events->ev_code == SYSTEM_RESIZE  ) {
+		for(  slist_tpl<event_t *>::iterator i = queued_events.begin();  i != queued_events.end();  ) {
+			event_t *old_ev = *i;
+			if(  old_ev->ev_class == EVENT_SYSTEM  &&  old_ev->ev_code == SYSTEM_RESIZE  ) {
+				i = queued_events.erase(i);
+				delete old_ev;
+			}
+			else {
+				++i;
+			}
+		}
+	}
 	queued_events.append(events);
 }

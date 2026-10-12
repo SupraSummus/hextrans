@@ -20,6 +20,11 @@
 class settings_t;
 
 
+/// Translation keys of the six wind directions, in the bit order of
+/// ribi_t::nesw (settings_t::wind_direction is the single bit of one).
+extern const char *const wind_dir_text[6];
+
+
 /**
  * set the climate borders
  */

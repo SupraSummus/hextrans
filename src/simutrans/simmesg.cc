@@ -17,6 +17,7 @@
 #include "dataobj/translator.h"
 #include "dataobj/environment.h"
 #include "dataobj/pakset_manager.h"
+#include "network/network_socket_list.h"
 #include "player/simplay.h"
 #include "utils/simstring.h"
 #include "tpl/slist_tpl.h"
@@ -68,7 +69,11 @@ void message_node_t::rdwr(loadsave_t *file)
 		color = c & 0x8000 ? PLAYER_FLAG + (c&(~0x8000)) : gfx->palette_lookup(c);
 	}
 	else {
-		file->rdwr_long( color );
+		// the saved word is 32 bit because the savegame says so, not because a
+		// screen colour happens to fit in one
+		SAVED_PIXVAL saved = (SAVED_PIXVAL)color;
+		file->rdwr_long( saved );
+		color = (FLAGGED_PIXVAL)saved;
 	}
 	file->rdwr_long( time );
 	if(  file->is_loading()  ) {
@@ -279,10 +284,10 @@ koord3d message_t::get_coord_from_text(const char* text)
 }
 
 
-void message_t::rotate90( sint16 size_w )
+void message_t::rotate90( const map_shape_t &from )
 {
 	for(message_node_t* const i : list) {
-		i->pos.rotate90(size_w);
+		i->pos.rotate90( from );
 	}
 }
 
@@ -493,10 +498,10 @@ void chat_message_t::chat_node::rdwr(loadsave_t* file)
 	pos.rdwr(file);
 }
 
-void chat_message_t::rotate90(sint16 size_w)
+void chat_message_t::rotate90( const map_shape_t &from )
 {
 	for (chat_node* const i : list) {
-		i->pos.rotate90(size_w);
+		i->pos.rotate90( from );
 	}
 }
 

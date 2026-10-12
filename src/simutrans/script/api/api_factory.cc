@@ -283,6 +283,7 @@ void export_factory(HSQUIRRELVM vm)
 	/**
 	 * Change name.
 	 * @ingroup rename_func
+	 * @param name the new name
 	 */
 	register_method(vm, &factory_set_name, "set_name", true);
 
@@ -351,6 +352,11 @@ void export_factory(HSQUIRRELVM vm)
 	 * @returns array, index [0] corresponds to current month
 	 */
 	register_method_fv(vm, &get_factory_stat, "get_mail_arrived",   freevariable<sint32>(FAB_MAIL_ARRIVED), true);
+
+	/**
+	 * @returns returns a vector with cities where workers/custome live
+	 */
+	register_method(vm, &fabrik_t::get_target_cities, "get_target_cities");
 
 	/**
 	 * Get list of all tiles occupied by buildings belonging to this factory.

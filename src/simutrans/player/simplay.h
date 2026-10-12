@@ -327,7 +327,7 @@ public:
 	 */
 	virtual void finish_rd();
 
-	virtual void rotate90( const sint16 y_size );
+	virtual void rotate90( const map_shape_t &from );
 
 	/**
 	* Calculates the assets of the player

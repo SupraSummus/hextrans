@@ -17,6 +17,7 @@
 #include "../utils/log.h"
 
 #include "../tpl/inthashtable_tpl.h"
+#include "../tpl/vector_tpl.h"
 // for error popups
 #include "../gui/help_frame.h"
 #include "../gui/simwin.h"
@@ -86,7 +87,12 @@ void script_vm_t::errorfunc(HSQUIRRELVM vm, const SQChar *s_, ...)
 			script->set_error(buf);
 			// pause game
 			if (script->pause_on_error) {
-				script_api::pause_game();
+				if (script_vm_t::ignore_pause_on_error) {
+					fputs( "ai_soak: script error would have paused the game\n", stderr );
+				}
+				else {
+					script_api::pause_game();
+				}
 			}
 		}
 	}
@@ -101,6 +107,8 @@ void script_vm_t::errorfunc(HSQUIRRELVM vm, const SQChar *s_, ...)
 }
 
 void export_include(HSQUIRRELVM vm, const char* include_path); // api_include.cc
+
+bool script_vm_t::ignore_pause_on_error = false;
 
 // virtual machine
 script_vm_t::script_vm_t(const char* include_path_, const char* log_name)
@@ -205,9 +213,19 @@ const char* script_vm_t::eval_string(const char* squirrel_string)
 }
 
 
+/// error returned by intern_prepare_call if the script does not define the function
+static const char* const FUNCTION_NOT_FOUND = "Function not found";
+
+
 bool script_vm_t::is_call_suspended(const char* err)
 {
 	return (err != NULL)  &&  ( strcmp(err, "suspended") == 0);
+}
+
+
+bool script_vm_t::is_function_missing(const char* err)
+{
+	return (err != NULL)  &&  ( strcmp(err, FUNCTION_NOT_FOUND) == 0);
 }
 
 
@@ -241,7 +259,7 @@ const char* script_vm_t::intern_prepare_call(HSQUIRRELVM &job, call_type_t ct, c
 		sq_pushroottable(job);
 	}
 	else {
-		err = "Function not found";
+		err = FUNCTION_NOT_FOUND;
 		sq_poptop(job); // array, root table
 	}
 	return err;

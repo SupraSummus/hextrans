@@ -119,7 +119,6 @@ private:
 
 	PIXVAL status_color, last_status_color;
 	uint16 last_permissions;
-	uint16 last_player_count;
 	sint16 last_bar_count;
 	vector_tpl<scr_coord_val> last_bar_height; // caches the last height of the station bar for each good type drawn in display_status(). used for dirty tile management
 	uint32 capacity[3]; // passenger, mail, goods
@@ -197,10 +196,8 @@ public:
 	*/
 	static bool remove(player_t *player, koord3d pos);
 
-	/**
-	 * Station destruction method.
-	 */
-	static void destroy(halthandle_t);
+	// destroys all tiles of the player. If nothing left, destroys the halt
+	static void destroy(halthandle_t,player_t*);
 
 	/**
 	 * destroys all stations
@@ -247,7 +244,6 @@ public:
 
 private:
 	slist_tpl<tile_t> tiles;
-
 
 	/**
 	 * Stores information about link to cargo network of a certain category
@@ -314,7 +310,7 @@ private:
 	 */
 	slist_tpl<fabrik_t *> fab_list;
 
-	player_t *owner;
+//	player_t *owner;
 	static karte_ptr_t welt;
 
 	/**
@@ -425,16 +421,18 @@ public:
 
 	static uint8 get_reconnect_counter() { return reconnect_counter; }
 
-	void rotate90( const sint16 y_size );
-
-	player_t *get_owner() const {return owner;}
+	void rotate90( const map_shape_t &from );
 
 	// just for info so far
 	sint64 calc_maintenance() const;
 
 	void merge_halt( halthandle_t halt_to_join );
 
-	void change_owner( player_t *player );
+	// Transfer stop to new_owner for all tiles belonging to old_owner
+	// Co-owners of a shared halt keep their property unless old_owner
+	// is the public player itself. Then every tile is converted.
+	// @return number of tiles converted
+	sint32 change_owner(player_t* new_owner, player_t* current_owner );
 
 	vector_tpl<connection_t> const& get_pax_connections()  const { return all_links[goods_manager_t::INDEX_PAS].connections;  }
 	vector_tpl<connection_t> const& get_mail_connections() const { return all_links[goods_manager_t::INDEX_MAIL].connections; }
@@ -671,22 +669,31 @@ public:
 
 	/**
 	 * checks, if there is an unoccupied loading bay for this kind of thing
+	 * @return unresevered matching tile or zero
 	 */
-	bool find_free_position(const waytype_t w ,convoihandle_t cnv,const obj_t::typ d) const;
+	grund_t *find_free_position(const waytype_t w ,convoihandle_t cnv,const obj_t::typ d) const;
 
 	/**
-	 * reserves a position (caution: railblocks work differently!
+	 * reserves a position (caution: railblocks work differently!)
+	 * NULL for gr will unreserve all reserved tiles
+	 * @return number of reserved tiles
 	 */
 	bool reserve_position(grund_t *gr,convoihandle_t cnv);
 
 	/**
 	 * frees a reserved  position (caution: railblocks work differently!
 	 */
-	bool unreserve_position(grund_t *gr, convoihandle_t cnv);
+	int unreserve_position(grund_t *gr, convoihandle_t cnv);
 
 	/** true, if this can be reserved
 	 */
 	bool is_reservable(const grund_t *gr, convoihandle_t cnv) const;
+
+	///  returns convoihandle for this tile
+	convoihandle_t get_reserved(const grund_t* gr) const;
+
+	///  returns first grund for this convoi
+	grund_t *get_reserved(convoihandle_t c) const;
 
 	/**
 	 * @param[out] buf Goods description text
@@ -736,7 +743,12 @@ public:
 
 	uint16 get_permissions() const { return permissions; }
 
+	player_t* get_first_owner() const;
 	uint16 get_owners() const { return owners; }
+	bool is_owner(player_t* pl) const { return (pl && (1 << pl->get_player_nr()) & owners); }
+
+	// return the owner color for single stops and grey for shared ones
+	uint8 get_player_color() const;
 
 	// create an unique name: better to be called with valid handle, although it will work without
 	char* create_name(koord k, char const* typ);

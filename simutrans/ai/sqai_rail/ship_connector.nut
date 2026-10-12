@@ -40,7 +40,7 @@ class ship_connector_t extends manager_t
   {
     base.constructor("ship_connector_t")
     c_harbour_tiles = {}
-    debug = false
+    //debug = false
   }
 
   function work()
@@ -69,8 +69,8 @@ class ship_connector_t extends manager_t
       }
       if ( (build_check_month > world.get_time().ticks || build_cost > build_cash) && industry_manager.get_combined_link(fsrc, fdest, freight) == 0 ) {
         // not build link
-        if ( debug ) gui.add_message_at(our_player, "#ship_conn# not build line : build_check_month = " + build_check_month + " or build cost link > cash : build cost line " + industry_manager.get_link_build_cost(fsrc, fdest, freight, 3) + " | build cost link " + industry_manager.get_link_build_cost(fsrc, fdest, freight, 0), world.get_time())
-        if ( debug ) gui.add_message_at(our_player, " ---> link " + fsrc + "  " + fsrc.get_name() + " - " + fdest.get_name(), world.get_time())
+        if ( ::debug.messages ) gui.add_message_at(our_player, "#ship_conn# not build line : build_check_month = " + build_check_month + " or build cost link > cash : build cost line " + industry_manager.get_link_build_cost(fsrc, fdest, freight, 3) + " | build cost link " + industry_manager.get_link_build_cost(fsrc, fdest, freight, 0), world.get_time())
+        if ( ::debug.messages ) gui.add_message_at(our_player, " ---> link " + fsrc + "  " + fsrc.get_name() + " - " + fdest.get_name(), world.get_time())
 
         industry_manager.set_link_state(fsrc, fdest, freight, industry_link_t.st_missing)
 
@@ -128,7 +128,9 @@ class ship_connector_t extends manager_t
           local err = find_route()
           if (err) {
             print("No way from " + coord_to_string(c_start[0])+ " to " + coord_to_string(c_end[0]))
-          if ( print_message_box == 2 ) { gui.add_message_at(pl, "No way from " + coord_to_string(c_start[0]) + " to " + coord_to_string(c_end[0]), world.get_time()) }
+            if ( print_message_box == 2 ) {
+              gui.add_message_at(pl, "No way from " + coord_to_string(c_start[0]) + " to " + coord_to_string(c_end[0]), world.get_time())
+            }
             return error_handler()
           }
           phase ++
@@ -194,7 +196,7 @@ class ship_connector_t extends manager_t
             key = coord3d_to_key(c_end[0])
             if (key in c_harbour_tiles) {
               if ( c_harbour_tiles[key].find_object(mo_building) != null ) {
-                if (debug) gui.add_message_at(pl, " --- tile to build harbour not free", world.get_time())
+                if ( ::debug.messages ) gui.add_message_at(pl, " --- tile to build harbour not free", world.get_time())
                 return r_t(RT_TOTAL_FAIL)
               }
               err = build_harbour(c_harbour_tiles[key], c_end)
@@ -211,6 +213,25 @@ class ship_connector_t extends manager_t
 
           c_harbour_tiles = null
           if ( print_message_box == 2 ) { gui.add_message_at(pl, "Build harbour on " + coord_to_string(c_start[0]) + " and " + coord_to_string(c_end[0]), world.get_time()) }
+
+          /*
+          if ( test_tile_is_empty(c_end[0]) ) {
+            local halt_fac_list = c_end[0].get_halt().get_factory_list()
+            //gui.add_message_at(pl, " --- halt_fac_list.len() ", c_end)
+            if ( halt_fac_list.len() > 0 ) {
+              local fs = fsrc.get_tile_list()
+              for ( local i = 0; i < halt_fac_list.len(); i++ ) {
+                local fl = halt_fac_list[i].get_desc().get_tile_list()
+                //gui.add_message_at(pl, " --- factory connect dock " + coord3d_to_string(fs[0]) + " - " + coord3d_to_string(fl[0]), c_end)
+                if ( coord3d_to_string(fs[0]) == coord3d_to_string(fl[0]) ) {
+                  //gui.add_message_at(pl, " --- factory connect dock ", c_end)
+                  //::debug.pause()
+                  return r_t(RT_TOTAL_SUCCESS)
+                }
+              }
+            }
+          }*/
+
           phase ++
         }
       case 4: // find route again after harbour was built
@@ -332,7 +353,7 @@ class ship_connector_t extends manager_t
           c_line.change_schedule(pl, c_sched);
           phase ++
         }
-      case 8: // append vehicle_constructor ans set line
+      case 8: // append vehicle_constructor and set line
         {
           local c = vehicle_constructor_t()
           c.p_depot  = depot_x(c_depot.x, c_depot.y, c_depot.z)

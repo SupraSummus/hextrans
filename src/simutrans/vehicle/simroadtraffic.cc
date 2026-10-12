@@ -8,17 +8,13 @@
 #include "../simmesg.h"
 #include "../world/simworld.h"
 #include "../utils/simrandom.h"
+#include "../display/simimg.h"
 #include "../simunits.h"
 #include "../simtypes.h"
 #include "../simconvoi.h"
 
 #include "simroadtraffic.h"
 #include "vehicle.h"
-
-#ifdef DESTINATION_CITYCARS
-// for final citycar destinations
-#include "simpeople.h"
-#endif
 
 #include "../dataobj/translator.h"
 #include "../dataobj/loadsave.h"
@@ -82,36 +78,7 @@ road_user_t::road_user_t(grund_t* bd, uint16 random) :
 		}
 	}
 
-	// HEX-PORT: same 2:1 isometric projection as vehicle_base
-	// calc_set_direction; SE takes over the old "east" offsets, NW
-	// takes over the old "west" offsets, NE/SW use the doubled
-	// screen-x step.
-	switch(direction) {
-		case ribi_t::north:
-			dx = 2;
-			dy = -1;
-			break;
-		case ribi_t::south:
-			dx = -2;
-			dy = 1;
-			break;
-		case ribi_t::southeast:
-			dx = 2;
-			dy = 1;
-			break;
-		case ribi_t::northwest:
-			dx = -2;
-			dy = -1;
-			break;
-		case ribi_t::northeast:
-			dx = 4;
-			dy = 0;
-			break;
-		case ribi_t::southwest:
-			dx = -4;
-			dy = 0;
-			break;
-	}
+	set_dxdy(direction);
 
 	set_xoff( (dx<0) ? OBJECT_OFFSET_STEPS : -OBJECT_OFFSET_STEPS );
 	set_yoff( (dy<0) ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
@@ -147,8 +114,7 @@ void road_user_t::rdwr(loadsave_t *file)
 
 	// correct old offsets ... REMOVE after savegame increase ...
 	if(file->is_version_less(99, 18)  &&  file->is_saving()) {
-		dx = dxdy[ ribi_t::get_dir(direction)*2 ];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1 ];
+		set_dxdy(direction);
 		sint8 i = steps/16;
 		set_xoff( get_xoff() + i*dx );
 		set_yoff( get_yoff() + i*dy + hoff );
@@ -184,8 +150,9 @@ void road_user_t::rdwr(loadsave_t *file)
 			file->rdwr_byte(steps_next);
 		}
 		file->rdwr_enum(direction);
-		dx = dxdy[ ribi_t::get_dir(direction)*2];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1];
+		if(file->is_loading()) {
+			set_dxdy(direction);
+		}
 		if(file->is_version_less(99, 5)  ||  file->is_version_atleast(99, 17)) {
 			sint16 dummy16 = ((16*(sint16)hoff)/OBJECT_OFFSET_STEPS);
 			file->rdwr_short(dummy16);
@@ -234,10 +201,11 @@ void road_user_t::rdwr(loadsave_t *file)
 	weg_next &= 65535;
 }
 
-void road_user_t::finish_rd()
+bool road_user_t::finish_rd()
 {
 	calc_height(NULL);
 	calc_image();
+	return false;
 }
 
 
@@ -702,7 +670,8 @@ grund_t* private_car_t::hop_check()
 		static weighted_vector_tpl<koord3d> posliste(6);
 		posliste.clear();
 		const uint8 offset = ribi_t::is_single(ribi) ? 0 : simrand(6);
-		for(uint8 r = 0; r < 6; r++) {
+		for(uint8 i = 0; i < 6; i++) {
+			const uint8 r = (i+offset) % 6;
 			if(  get_pos().get_2d()==koord::neighbours[r]+pos_next.get_2d()  ) {
 				continue;
 			}
@@ -806,7 +775,7 @@ void private_car_t::hop(grund_t* to)
 		steps_next = 0; // mark for starting at end of tile!
 	}
 	else {
-		direction = calc_set_direction( get_pos(), pos_next_next );
+		direction = calc_set_direction( get_pos(), pos_next, pos_next_next );
 	}
 	calc_image();
 
@@ -860,19 +829,19 @@ void private_car_t::get_screen_offset( int &xoff, int &yoff, const sint16 raster
 	vehicle_base_t::get_screen_offset( xoff, yoff, raster_width );
 
 	if(  welt->get_settings().is_drive_left()  ) {
-		const int drive_left_dir = ribi_t::get_dir(get_direction());
+		const int drive_left_dir = get_lane_offset_row();
 		xoff += tile_raster_scale_x( driveleft_base_offsets[drive_left_dir][0], raster_width );
 		yoff += tile_raster_scale_y( driveleft_base_offsets[drive_left_dir][1], raster_width );
 	}
 
 	// eventually shift position to take care of overtaking
 	if(  is_overtaking()  ) {
-		xoff += tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][0], raster_width);
-		yoff += tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][1], raster_width);
+		xoff += tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][0], raster_width);
+		yoff += tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][1], raster_width);
 	}
 	else if(  is_overtaken()  ) {
-		xoff -= tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][0], raster_width)/5;
-		yoff -= tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][1], raster_width)/5;
+		xoff -= tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][0], raster_width)/5;
+		yoff -= tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][1], raster_width)/5;
 	}
 }
 
@@ -894,6 +863,10 @@ void private_car_t::calc_disp_lane()
 void private_car_t::rotate90()
 {
 	road_user_t::rotate90();
+#ifdef DESTINATION_CITYCARS
+	target.rotate90( welt->get_map_shape() );
+#endif
+	pos_next_next.rotate90( welt->get_map_shape() );
 	calc_disp_lane();
 }
 
@@ -1030,7 +1003,7 @@ bool private_car_t::can_overtake( overtaker_t *other_overtaker, sint32 other_spe
 			return false;
 		}
 
-		int d = ribi_t::is_straight(str->get_ribi()) ? VEHICLE_STEPS_PER_TILE : diagonal_vehicle_steps_per_tile;
+		int d = get_tile_steps(str->get_ribi());
 		distance -= d;
 		time_overtaking += d;
 
@@ -1096,12 +1069,7 @@ bool private_car_t::can_overtake( overtaker_t *other_overtaker, sint32 other_spe
 	time_overtaking = (time_overtaking << 16)/(sint32)current_speed;
 	do {
 		// we can allow crossings or traffic lights here, since they will stop also oncoming traffic
-		if(  ribi_t::is_straight(str->get_ribi())  ) {
-			time_overtaking -= (VEHICLE_STEPS_PER_TILE<<16) / kmh_to_speed(str->get_max_speed());
-		}
-		else {
-			time_overtaking -= (diagonal_vehicle_steps_per_tile<<16) / kmh_to_speed(str->get_max_speed());
-		}
+		time_overtaking -= (get_tile_steps(str->get_ribi())<<16) / kmh_to_speed(str->get_max_speed());
 
 		// start of bridge is one level deeper
 		if(gr->get_weg_yoff()>0)  {

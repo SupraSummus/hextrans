@@ -29,6 +29,26 @@ function ASSERT_EQUAL(act, exp)
 }
 
 
+//
+// Announce an engine error that this test is about to provoke on purpose.
+//
+// The runner fails the suite when the log carries an engine script error,
+// because normally one means a test broke without saying so. A test that
+// deliberately drives a failure path produces exactly such a line, and without
+// this it cannot be told apart from the accident the check exists for.
+//
+// Call it immediately before the call that fails, passing enough of the
+// expected message to identify it and no more - the name of the missing file,
+// not "error". The runner ignores error lines containing that text and only
+// those, and fails if an announced error never appeared, so an announcement
+// cannot rot into a blanket excuse.
+//
+function EXPECT_SCRIPT_ERROR(what)
+{
+	print("EXPECTED SCRIPT ERROR: " + what)
+}
+
+
 function ASSERT_TRUE(a)
 {
 	if (!(a == true)) {
@@ -46,6 +66,15 @@ function ASSERT_FALSE(a)
 		err.a = make_assertion_str(a)
 		throw err.tostring()
 	}
+}
+
+
+// Hex steps between two axial tiles.  (1,1) is two steps away, (1,-1) one.
+function hex_distance(ax, ay, bx, by)
+{
+	local dx = ax - bx
+	local dy = ay - by
+	return (abs(dx) + abs(dy) + abs(dx + dy)) / 2
 }
 
 
@@ -318,4 +347,25 @@ function get_depot_by_wt(waytype)
 	}
 
 	return null
+}
+
+
+// Directions (ribi) of the way of waytype `wt` on the tile at `pos`; 0 if
+// there is none.  `pos` is a coord3d.
+function way_dirs_at(pos, wt)
+{
+	return tile_x(pos.x, pos.y, pos.z).get_way_dirs(wt)
+}
+
+
+// Two flat road descriptors of different speed, [slower, faster], for
+// tests that build a road and then upgrade it.
+function get_slow_and_fast_road()
+{
+	local ways = way_desc_x.get_available_ways(wt_road, st_flat)
+	ways.sort(@(a, b) a.get_topspeed() <=> b.get_topspeed())
+
+	ASSERT_TRUE(ways.len() >= 2)
+	ASSERT_TRUE(ways[0].get_topspeed() < ways[1].get_topspeed())
+	return [ways[0], ways[1]]
 }

@@ -14,6 +14,7 @@
 // scripting
 #include "../script/script.h"
 #include "../script/script_loader.h"
+#include "../script/api/api.h"
 
 // TODO ai debug window
 

@@ -1,0 +1,26 @@
+# Test-only road tunnel whose six edge portals carry image data, for
+# the automated test scenario.  Baked into test-pak.pak by
+# tools/test.py::ensure_test_pak.
+#
+# pak64 tunnels predate the hex edge keys (n, s, ne, se, sw, nw), so a
+# test that asks which portal a slope picks cannot read the answer off
+# a pak64 tunnel.  Every slot here is filled with the same sprite; the
+# tests only ask whether a slot is non-empty.
+
+obj=tunnel
+name=test_tunnel_portals
+copyright=hextrans test
+waytype=road
+topspeed=120
+backimage[n]=icon.0.0
+backimage[s]=icon.0.0
+backimage[ne]=icon.0.0
+backimage[se]=icon.0.0
+backimage[sw]=icon.0.0
+backimage[nw]=icon.0.0
+frontimage[n]=icon.0.0
+frontimage[s]=icon.0.0
+frontimage[ne]=icon.0.0
+frontimage[se]=icon.0.0
+frontimage[sw]=icon.0.0
+frontimage[nw]=icon.0.0

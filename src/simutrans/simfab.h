@@ -527,7 +527,7 @@ public:
 	/// gets position of a building belonging to factory
 	koord3d get_pos() const { return pos; }
 
-	void rotate90( const sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	void link_halt(halthandle_t halt);
 	void unlink_halt(halthandle_t halt);
@@ -615,6 +615,9 @@ public:
 
 	// infostring on targets/sources
 	void info_conn(cbuffer_t& buf) const;
+
+	// infostring on electricity output; only meaningful for is_electricity_producer()
+	void info_power(cbuffer_t& buf) const;
 
 	void rdwr(loadsave_t *file);
 

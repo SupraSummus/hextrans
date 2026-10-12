@@ -115,6 +115,13 @@ const groundobj_desc_t *movingobj_t::random_movingobj_for_climate(climate cl)
 
 
 // recalculates only the seasonal image
+void movingobj_t::rotate90()
+{
+	vehicle_base_t::rotate90();
+	pos_next_next.rotate90( welt->get_map_shape() );
+}
+
+
 void movingobj_t::calc_image()
 {
 	const groundobj_desc_t *desc=get_desc();
@@ -189,8 +196,7 @@ void movingobj_t::rdwr(loadsave_t *file)
 	file->rdwr_enum(direction);
 	if (file->is_loading()) {
 		// restore dxdy information
-		dx = dxdy[ ribi_t::get_dir(direction)*2];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1];
+		set_dxdy(direction);
 	}
 
 	file->rdwr_byte(steps);
@@ -329,20 +335,12 @@ bool movingobj_t::check_next_tile( const grund_t *gr ) const
 
 grund_t* movingobj_t::hop_check()
 {
-	/* since we may be going diagonal without any road
-	 * determining the next koord is a little tricky:
-	 * If it is a diagonal, pos_next_next is calculated from current pos,
-	 * Else pos_next_next is a single step from pos_next.
-	 * otherwise objects would jump left/right on some diagonals
+	/* Going straight on repeats the step from the current to the next tile.
+	 * (Not the step of `direction`: that is the chord through the current
+	 * tile, which after a bend is not the step just taken.)
 	 */
 	if (timetochange != 0) {
-		koord k(direction);
-		if(k.x&k.y) {
-			pos_next_next = get_pos() + k;
-		}
-		else {
-			pos_next_next = pos_next + k;
-		}
+		pos_next_next = pos_next + (pos_next.get_2d() - get_pos().get_2d());
 
 		grund_t *gr = welt->lookup_kartenboden(pos_next_next.get_2d());
 		if (check_next_tile(gr)) {
@@ -398,7 +396,7 @@ void movingobj_t::hop(grund_t* gr)
 	}
 	else {
 		ribi_t::ribi old_dir = direction;
-		direction = calc_set_direction( get_pos(), pos_next_next );
+		direction = calc_set_direction( get_pos(), pos_next, pos_next_next );
 		if(old_dir!=direction) {
 			calc_image();
 		}

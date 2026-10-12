@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "../simtypes.h"
 #include "../simmem.h"
 #include "freelist.h"
 #include "../tpl/freelist_tpl.h"
@@ -30,7 +31,7 @@ static freelist_size_t* all_lists[NUM_LIST] = {
 };
 
 #ifdef MULTI_THREAD
-static pthread_mutex_t freelist_mutex_create = PTHREAD_MUTEX_INITIALIZER;;
+static pthread_mutex_t freelist_mutex_create = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
 void* freelist_t::gimme_node(size_t size)

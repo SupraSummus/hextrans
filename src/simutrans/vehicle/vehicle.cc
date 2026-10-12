@@ -30,17 +30,16 @@
 void vehicle_t::rotate90()
 {
 	vehicle_base_t::rotate90();
-	// HEX-PORT: rotate90 → rotate_for_map_rotate90 helper.
 	previous_direction = ribi_t::rotate_for_map_rotate90(previous_direction );
-	last_stop_pos.rotate90( welt->get_size().y-1 );
+	last_stop_pos.rotate90( welt->get_map_shape() );
 }
 
 
-void vehicle_t::rotate90_freight_destinations(const sint16 y_size)
+void vehicle_t::rotate90_freight_destinations(const map_shape_t &from)
 {
 	// now rotate the freight
 	for(ware_t & tmp : fracht) {
-		tmp.rotate90(y_size );
+		tmp.rotate90(from);
 	}
 }
 
@@ -79,6 +78,10 @@ void vehicle_t::set_convoi(convoi_t *c)
 		for(ware_t & c : fracht) {
 			c.finish_rd(welt);
 		}
+	}
+	else {
+		// out of a convoi there is nothing left to demand catenary for
+		needs_electric = false;
 	}
 }
 
@@ -300,6 +303,20 @@ void vehicle_t::play_sound() const
 }
 
 
+// A save from before the hex bend lengths holds the square-era diagonal
+// length (181 steps) for a 60 degree bend and a full tile for a 120 degree
+// one.  Only a vehicle with a tile before and after it on the route is
+// checked; the ends of a route keep lengths that hop() does not derive.
+bool vehicle_t::need_realignment() const
+{
+	route_t const& r = *cnv->get_route();
+	if(  route_index < 2  ||  route_index >= r.get_count()  ||  r.at(route_index - 1) != get_pos()  ||  r.at(route_index) != pos_next  ) {
+		return false;
+	}
+	return steps_next != calc_chord_steps_next(r.at(route_index - 2), get_pos(), pos_next);
+}
+
+
 /**
  * Prepare vehicle for new ride.
  * Sets route_index, pos_next, steps_next.
@@ -320,6 +337,9 @@ void vehicle_t::initialise_journey(route_t::index_t start_route_index, bool reca
 		// always set pos_next
 		pos_next = r.at(route_index);
 		assert(get_pos() == r.at(start_route_index));
+		// the vehicle stays in its tile: refresh its length as hop() set it,
+		// from the tile before this one to the next
+		steps_next = calc_chord_steps_next(r.at(start_route_index > 0 ? start_route_index - 1 : 0), get_pos(), pos_next);
 	}
 	else {
 		// set pos_next
@@ -343,12 +363,6 @@ void vehicle_t::initialise_journey(route_t::index_t start_route_index, bool reca
 		set_yoff( (dy<0) ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
 
 		calc_image();
-	}
-	if ( ribi_t::is_single(direction) ) {
-		steps_next = VEHICLE_STEPS_PER_TILE - 1;
-	}
-	else {
-		steps_next = diagonal_vehicle_steps_per_tile - 1;
 	}
 }
 
@@ -376,6 +390,7 @@ vehicle_t::vehicle_t(koord3d pos, const vehicle_desc_t* desc, player_t* player) 
 	check_for_finish = false;
 	use_calc_height = true;
 	has_driven = false;
+	needs_electric = false;
 
 	previous_direction = direction = ribi_t::none;
 	target_halt = halthandle_t();
@@ -398,6 +413,7 @@ vehicle_t::vehicle_t() :
 	leading = last = false;
 	check_for_finish = false;
 	use_calc_height = true;
+	needs_electric = false;
 
 	previous_direction = direction = ribi_t::none;
 }
@@ -553,11 +569,11 @@ void vehicle_t::hop(grund_t* gr)
 	}
 	else {
 		if(  pos_next!=get_pos()  ) {
-			direction = calc_set_direction( pos_prev, pos_next );
+			direction = calc_set_direction( pos_prev, get_pos(), pos_next );
 		}
 		else if(  (  check_for_finish  &&  welt->lookup(pos_next)  &&  ribi_t::is_straight(welt->lookup(pos_next)->get_weg_ribi_unmasked(get_waytype()))  )  ||  welt->lookup(pos_next)->is_halt()) {
 			// allow diagonal stops at waypoints on diagonal tracks but avoid them on halts and at straight tracks...
-			direction = calc_set_direction( pos_prev, pos_next );
+			direction = calc_set_direction( pos_prev, get_pos(), pos_next );
 		}
 	}
 
@@ -884,12 +900,9 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(purchase_time%12
 			file->rdwr_byte(dy);
 		}
 		else {
+			// an outdated tile length restarts the convoi, see need_realignment()
 			file->rdwr_byte(steps);
 			file->rdwr_byte(steps_next);
-			if(steps_next==old_diagonal_vehicle_steps_per_tile - 1  &&  file->is_loading()) {
-				// reset diagonal length (convoi will be reset anyway, if game diagonal is different)
-				steps_next = diagonal_vehicle_steps_per_tile - 1;
-			}
 		}
 		sint16 dummy16 = ((16*(sint16)hoff)/TILE_HEIGHT_STEP);
 		file->rdwr_short(dummy16);
@@ -900,16 +913,16 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(purchase_time%12
 		file->rdwr_long(fracht_count);
 		file->rdwr_short(route_index);
 		// restore dxdy information
-		dx = dxdy[ ribi_t::get_dir(direction)*2];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1];
+		if(file->is_loading()) {
+			set_dxdy(direction);
+		}
 	}
 
 	// convert steps to position
 	if(file->is_version_less(99, 18)) {
 		sint8 ddx=get_xoff(), ddy=get_yoff()-hoff;
 		sint8 i=1;
-		dx = dxdy[ ribi_t::get_dir(direction)*2];
-		dy = dxdy[ ribi_t::get_dir(direction)*2+1];
+		set_dxdy(direction);
 
 		while(  !is_about_to_hop(ddx+dx*i,ddy+dy*i )  &&  i<16 ) {
 			i++;
@@ -918,15 +931,9 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(purchase_time%12
 		set_xoff( ddx-(16-i)*dx );
 		set_yoff( ddy-(16-i)*dy );
 		if(file->is_loading()) {
-			if(dx && dy) {
-				steps = min( VEHICLE_STEPS_PER_TILE - 1, VEHICLE_STEPS_PER_TILE - 1-(i*16) );
-				steps_next = VEHICLE_STEPS_PER_TILE - 1;
-			}
-			else {
-				// will be corrected anyway, if in a convoi
-				steps = min( diagonal_vehicle_steps_per_tile - 1, diagonal_vehicle_steps_per_tile - 1-(uint8)(((uint16)i*(uint16)(diagonal_vehicle_steps_per_tile - 1))/8) );
-				steps_next = diagonal_vehicle_steps_per_tile - 1;
-			}
+			// will be corrected anyway on a bend, if in a convoi
+			steps = min( VEHICLE_STEPS_PER_TILE - 1, VEHICLE_STEPS_PER_TILE - 1-(i*16) );
+			steps_next = VEHICLE_STEPS_PER_TILE - 1;
 		}
 	}
 
@@ -971,7 +978,6 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(purchase_time%12
 		}
 		if(desc==NULL) {
 			pakset_manager_t::add_missing_paks( s, MISSING_VEHICLE );
-			dbg->warning("vehicle_t::rdwr_from_convoi()","no vehicle pak for '%s' search for something similar", s);
 		}
 	}
 
@@ -1120,15 +1126,9 @@ vehicle_t::~vehicle_t()
 }
 
 
-#ifdef MULTI_THREAD
 void vehicle_t::display_overlay(int xpos, int ypos) const
 {
 	if(  cnv  &&  leading  ) {
-#else
-void vehicle_t::display_after(int xpos, int ypos, bool is_global) const
-{
-	if(  is_global  &&  cnv  &&  leading  ) {
-#endif
 		PIXVAL color = 0; // not used, but stop compiler warning about uninitialized
 		char tooltip_text[1024];
 		tooltip_text[0] = 0;

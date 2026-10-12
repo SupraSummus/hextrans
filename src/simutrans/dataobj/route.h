@@ -83,7 +83,7 @@ public:
 
 	const koord3d_vector_t &get_route() const { return route; }
 
-	void rotate90( sint16 y_size ) { route.rotate90( y_size ); }
+	void rotate90( const map_shape_t &from ) { route.rotate90( from ); }
 
 
 	bool is_contained(const koord3d &k) const { return route.is_contained(k); }

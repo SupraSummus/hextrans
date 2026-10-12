@@ -11,6 +11,7 @@
 #include "../dataobj/scenario.h"
 
 #include "../descriptor/bridge_desc.h"
+#include "../descriptor/building_desc.h"
 
 #include "../ground/boden.h"
 #include "../ground/brueckenboden.h"
@@ -20,8 +21,10 @@
 
 #include "../obj/bruecke.h"
 #include "../obj/depot.h"
+#include "../obj/gebaeude.h"
 #include "../obj/leitung2.h"
 #include "../obj/pillar.h"
+#include "../obj/signal.h"
 #include "../obj/wayobj.h"
 
 #include "../player/simplay.h"
@@ -119,7 +122,7 @@ static bool compare_bridges(const bridge_desc_t* a, const bridge_desc_t* b)
 }
 
 
-void bridge_builder_t::fill_menu(tool_selector_t *tool_selector, const waytype_t wtyp, sint16 /*sound_ok*/)
+void bridge_builder_t::fill_menu(tool_selector_t *tool_selector, const waytype_t wtyp, sint16 sound_ok)
 {
 	// check if scenario forbids this
 	if (!welt->get_scenario()->is_tool_allowed(welt->get_active_player(), TOOL_BUILD_BRIDGE | GENERAL_TOOL, wtyp)) {
@@ -140,9 +143,20 @@ void bridge_builder_t::fill_menu(tool_selector_t *tool_selector, const waytype_t
 		}
 	}
 
+	// register_desc() builds one tool per bridge while the pakset is loading, which
+	// happens before read_menu() has parsed menuconf.tab, so the sound configured for
+	// TOOL_BUILD_BRIDGE cannot be copied there yet. By the time the toolbar is filled it
+	// is known, so take it from the tool the pakset configured unless this toolbar entry
+	// names one of its own. NO_SOUND stays NO_SOUND: a pakset that configures no sound
+	// keeps a silent tool.
+	if(  sound_ok == NO_SOUND  &&  TOOL_BUILD_BRIDGE < tool_t::general_tool.get_count()  ) {
+		sound_ok = tool_t::general_tool[TOOL_BUILD_BRIDGE]->ok_sound;
+	}
+
 	// now sorted ...
 	for(bridge_desc_t const *i : matching) {
 		i->get_builder()->enabled = enable  &&  welt->get_scenario()->is_tool_enabled(welt->get_active_player(), TOOL_BUILD_BRIDGE | GENERAL_TOOL, wtyp, i->get_name());
+		i->get_builder()->ok_sound = sound_ok;
 		tool_selector->add_tool_selector(i->get_builder());
 	}
 }
@@ -321,7 +335,7 @@ bool bridge_builder_t::is_monorail_junction(koord3d pos, player_t *player, const
 		if(  gr2->get_typ() == grund_t::monorailboden  ) {
 			// now check if our way
 			if(  obj_t *o = gr2->obj_bei(0)  ) {
-				if(  !player_t::check_owner(o->get_owner(),player)  ) {
+				if(  !o->check_owner(player)  ) {
 					// not our way
 					error_msg = "Das Feld gehoert\neinem anderen Spieler\n";
 					return false;
@@ -340,7 +354,7 @@ bool bridge_builder_t::is_monorail_junction(koord3d pos, player_t *player, const
 
 
 /**
- * checks if a bridge can start (or end) on this tile in priciple
+ * checks if a bridge can start (or end) on this tile in principle
  * @returns either an error_message (must abort bridge building) or NULL
  */
 static bool is_bridge_start_slope(slope_t::type sl)
@@ -402,7 +416,7 @@ const char* bridge_builder_t::check_start_tile(const player_t* player, const gru
 	}
 
 	if (const char* err = gr->kann_alle_obj_entfernen(player)) {
-		// therse is something not from us blocking construction
+		// there is something not from us blocking construction
 		return err;
 	}
 
@@ -543,6 +557,21 @@ const char *bridge_builder_t::can_span_bridge(const player_t* player, koord3d st
 		grund_t* gr = pl->get_kartenboden();
 		if (desc->get_max_height()  &&  height - gr->get_hoehe() > desc->get_max_height()) {
 			return "bridge is too high for its type!";
+		}
+
+		// every building below must fit under the deck ("" lets a higher deck be tried)
+		for (unsigned b = 0; b < pl->get_boden_count(); b++) {
+			grund_t* below = pl->get_boden_bei(b);
+			if (below->get_hoehe() >= height) {
+				continue;
+			}
+			const gebaeude_t* gb = below->find<gebaeude_t>();
+			if (gb == NULL) {
+				gb = below->get_depot();
+			}
+			if (gb  &&  height - below->get_hoehe() < gb->get_tile()->get_desc()->get_height_clearance()) {
+				return "";
+			}
 		}
 
 		if (gr->hat_weg(air_wt)  &&  gr->get_styp(air_wt) == type_runway) {
@@ -722,15 +751,18 @@ const char *bridge_builder_t::find_end_pos(player_t* player, koord3d &pos, const
 				pos = end;
 				return NULL;
 			}
-			max_length = i-1;  // try shorter bridge then
 			break;
 		}
 	}
 
 	if(also_flat_ends) {
-		// now try shorter bridge
+		// a flat end may be found at any length, also beyond the slope tested above
 		for (uint8 i = min_length;  i <= max_length; i++) {
-			const grund_t* gr_end = welt->lookup_kartenboden(pos.get_2d() + zv * i);	// must succeed, we tested above
+			const grund_t* gr_end = welt->lookup_kartenboden(pos.get_2d() + zv * i);
+			if (!gr_end) {
+				// not on map any more
+				break;
+			}
 			koord3d end = gr_end->get_pos();
 			if (const char* err = bridge_builder_t::can_build_bridge(player, pos, end, bridge_height, desc)) {
 				if (err && *err) {
@@ -773,12 +805,14 @@ bool bridge_builder_t::is_start_of_bridge( const grund_t *gr )
 }
 
 
-// Way-hang for a bridge ramp climbing in direction `zv` by `delta`
-// z-steps.  Replaces the upstream square-era arithmetic
-// `slope_type(zv) * delta`, which under hex's base-4 corner encoding
-// produces a kinked-cliff shape (no sprite) at delta=2.
-static slope_t::type ramp_for_climb(koord zv, sint8 delta)
+// Replaces the upstream square-era arithmetic `slope_type(zv) * delta`,
+// which under hex's base-4 corner encoding produces a kinked-cliff
+// shape (no sprite) at delta=2.
+slope_t::type bridge_builder_t::ramp_for_climb(koord zv, sint8 delta)
 {
+	if (delta <= 0) {
+		return slope_t::flat;
+	}
 	const slope_t::type narrow = slope_type(zv);
 	return delta == 2 ? slope_t::narrow_to_double(narrow) : narrow;
 }
@@ -967,6 +1001,13 @@ void bridge_builder_t::build_ramp(player_t* player, koord3d end, ribi_t::ribi ri
 			bruecke->neuen_weg_bauen(weg, ribi_neu, 0);
 			weg->set_owner(player);
 		}
+		else {
+			// A way that was already here is paying maintenance to its owner, while the one
+			// built just above is booked to nobody. From here on both are part of the bridge,
+			// and remove() drops the owner of a way on a bridge tile rather than refunding it
+			// - so a charge left standing here is never given back.
+			player_t::add_maintenance( weg->get_owner(), -weg->get_desc()->get_maintenance(), weg->get_desc()->get_finance_waytype() );
+		}
 		weg->set_max_speed(desc->get_topspeed());
 	}
 	else {
@@ -1023,8 +1064,12 @@ const char* bridge_builder_t::renovate(player_t* player, koord3d pos_start, wayt
 			return "Das Feld gehoert\neinem anderen Spieler\n";
 		}
 		if (br->get_desc() == desc) {
-			// same bridge already ...
-			return NULL;
+			// This bridge is already the one that was asked for: nothing is built,
+			// nothing is charged, and nothing changes. Reporting success would make
+			// the tool sound its ok_sound for an operation that did not happen, so
+			// report the "do not try again" result the rest of this file already
+			// uses when there is nothing to do.
+			return "";
 		}
 
 	}
@@ -1232,7 +1277,7 @@ const char *bridge_builder_t::remove(player_t *player, koord3d pos_start, waytyp
 		// can we delete everything there?
 		msg = from->kann_alle_obj_entfernen(player);
 
-		if(msg != NULL  ||  (from->get_halt().is_bound()  &&  from->get_halt()->get_owner()!=player)) {
+		if(msg != NULL  ||  (from->get_halt().is_bound()  &&  from->get_halt()->get_first_owner()!=player)) {
 			simachievements_t::set_achievement(ACH_TOOL_REMOVE_BUSY_BRIDGE);
 			return "Die Bruecke ist nicht frei!\n";
 		}
@@ -1313,8 +1358,6 @@ const char *bridge_builder_t::remove(player_t *player, koord3d pos_start, waytyp
 			p->cleanup(p->get_owner());
 			delete p;
 		}
-		// refresh map
-		minimap_t::get_instance()->calc_map_pixel(pos.get_2d());
 	}
 
 	// finally delete the bridge ends (all are kartenboden)
@@ -1433,6 +1476,8 @@ const char *bridge_builder_t::remove(player_t *player, koord3d pos_start, waytyp
 		}
 	}
 
+	// refresh map
+	minimap_t::get_instance()->set_dirty();
 	welt->set_dirty();
 	return NULL;
 }

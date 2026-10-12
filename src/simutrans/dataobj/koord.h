@@ -8,11 +8,13 @@
 
 
 #include "ribi.h"
+#include "../macros.h"
 #include "../simtypes.h"
 
 #include <stdlib.h>
 
 class loadsave_t;
+struct map_shape_t;
 
 /**
  * 2D Coordinates.
@@ -87,9 +89,14 @@ public:
 		return *this;
 	}
 
-	// 90° is not a hex lattice symmetry; calling this is a
-	// `dbg->fatal`.  Top-level callers are gated; see TODO.md.
-	void rotate90( sint16 y_size );
+	/**
+	 * One 60° step of the whole map, clockwise on screen:
+	 * map_shape_t::rotate_tile of the map @p from, which this tile
+	 * belongs to before the step.  The tile lands in from.rotated().
+	 * Like upstream's, it leaves illegal coordinates (both negative,
+	 * such as koord::invalid) alone.
+	 */
+	void rotate90( const map_shape_t &from );
 
 	inline void clip_min( koord k_min )
 	{
@@ -223,6 +230,28 @@ struct hex_pos_t {
 hex_pos_t hex_vertex_pos(hex_vertex_t v);
 
 
+/**
+ * Rotation about the centre of tile (0, 0) by @p steps * 60° clockwise
+ * on screen: one step takes SE to S and S to SW, i.e. koord::neighbours[i]
+ * to neighbours[(i + 1) % 6], the direction of ribi_t::rotate60 and
+ * slope_t::rotate60.  The step is linear, (q, r) -> (-r, q + r).
+ * Negative @p steps rotate counter-clockwise; six steps are the
+ * identity and three the point reflection (-q, -r).
+ *
+ * This is the one definition of the map-rotation geometry.  Shifting
+ * it into the rotated map's rhombus is map_shape_t::rotate_tile's job.
+ *
+ * The vertex form rotates the name too: corner c becomes corner c + steps,
+ * and all three names of a world vertex rotate to names of one world vertex.
+ */
+koord hex_axial_rotate(koord c, int steps);
+
+/// Inverse of hex_axial_rotate: @p steps * 60° counter-clockwise.
+koord hex_axial_rotate_inv(koord c, int steps);
+
+hex_vertex_t hex_axial_rotate(hex_vertex_t v, int steps);
+
+
 // Hex axial distance (cube formula: (|dx|+|dy|+|dz|)/2 with x+y+z=0).
 // Replaces the legacy Manhattan distance; semantics are hex-grid steps
 // between two axial coords.
@@ -258,6 +287,52 @@ static inline uint32 physical_distance_sq(const koord &a, const koord &b)
 	const sint32 dq = a.x - b.x;
 	const sint32 dr = a.y - b.y;
 	return (uint32)(dq * dq + dq * dr + dr * dr);
+}
+
+// Twice the *physical* dot product of two axial offsets, as an integer:
+// (q1*e_q + r1*e_r) . (q2*e_q + r2*e_r) = q1*q2 + (q1*r2 + r1*q2)/2 + r1*r2
+// for the basis above, so physical_distance_sq(a, b) is half of
+// physical_dot_x2(a - b, a - b).  Its sign is the sign of the cosine of
+// the physical angle between the offsets (negative: obtuse).  The
+// square-grid q1*q2 + r1*r2 is not that cosine: e_q and e_r are 60 degrees
+// apart, not 90.
+static inline sint32 physical_dot_x2(const koord &a, const koord &b)
+{
+	return 2 * a.x * b.x + a.x * b.y + a.y * b.x + 2 * a.y * b.y;
+}
+
+// How sharply a route turns where it steps into a tile by `in` and out of
+// it by `out` (two neighbour steps), in 60 degree units: 0 straight on,
+// 1 a 60 degree turn, 2 a 120 degree turn, 3 turning back.  Neighbour
+// steps are unit vectors in the physical plane, so physical_dot_x2 of two
+// of them is twice the cosine of the turn: 2, 1, -1, -2.
+//
+// The sum of the two steps (the delta between the tiles before and after)
+// does not tell: it is twice a step, so on a hex axis, for straight on, and
+// one step along the axis in between for a 120 degree turn, and off the axes
+// only for a 60 degree turn.  ribi_type(sum) calls a 120 degree turn straight.
+static inline uint32 hex_turn_steps(const koord &in, const koord &out)
+{
+	switch (physical_dot_x2(in, out)) {
+		case  2: return 0;
+		case  1: return 1;
+		case -1: return 2;
+		default: return 3;
+	}
+}
+
+// Hex distance from tile p to the nearest tile of the axial rectangle
+// pos .. pos+size-1 (size.x by size.y tiles).  A rectangle in (q, r) is
+// a parallelogram, so the tiles within n steps of it are the rectangle
+// grown by n minus two corner triangles: the (-n,-n) and (+n,+n) corners
+// of the grown rectangle are 2n steps away.  Clamping p into the
+// rectangle picks the nearest tile on every side.
+//
+//   koord_distance_to_rect(p, pos, size) == 1   p touches the footprint
+static inline uint32 koord_distance_to_rect(const koord &p, const koord &pos, const koord &size)
+{
+	return koord_distance(p, koord(clamp<sint16>(p.x, pos.x, pos.x + size.x - 1),
+	                               clamp<sint16>(p.y, pos.y, pos.y + size.y - 1)));
 }
 
 // multiply the value by the distance weight
@@ -326,6 +401,25 @@ class hex_disc
 
 public:
 	explicit hex_disc(sint16 radius) : r(radius) {}
+
+	/// Number of offsets in the disc, 3r(r+1)+1.
+	uint32 size() const { return 3u * (uint32)r * ((uint32)r + 1u) + 1u; }
+
+	/// The index-th offset in iteration order, 0 <= index < size():
+	/// a uniformly random tile of the disc from one random number.
+	koord at(uint32 index) const
+	{
+		sint16 dy = -r;
+		for(;;) {
+			const uint32 row = 2u * (uint32)r + 1u - (uint32)(dy < 0 ? -dy : dy);
+			if (index < row) {
+				break;
+			}
+			index -= row;
+			dy++;
+		}
+		return koord((sint16)(min_dx(dy, r) + (sint32)index), dy);
+	}
 
 	class iterator
 	{

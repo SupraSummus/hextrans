@@ -3,11 +3,13 @@
  * (see LICENSE.txt)
  */
 
+#include <stdio.h>
+#include "../simdebug.h"
+#include "../simconst.h"
 #include "ribi.h"
 #include "koord.h"
 #include "koord3d.h"
 #include "../macros.h"
-#include "../simdebug.h"
 
 // since we have now a dummy function instead an array
 const ribi_t::_nesw ribi_t::nesw;
@@ -37,6 +39,16 @@ uint8 ribi_t::ribi_to_layout(ribi single)
 		}
 	}
 	dbg->fatal("ribi_t::ribi_to_layout", "ribi %d is not a single direction", single);
+}
+
+
+uint8 ribi_t::axis_to_layout(ribi x)
+{
+	const ribi axis = straight_axis(x);
+	if (axis == none) {
+		dbg->fatal("ribi_t::axis_to_layout", "ribi %d is not straight", x);
+	}
+	return ribi_to_layout(backward(axis));
 }
 
 

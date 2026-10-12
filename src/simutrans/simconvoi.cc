@@ -216,9 +216,6 @@ DBG_MESSAGE("convoi_t::~convoi_t()", "destroying %d, %p", self.get_id(), this);
 
 	// force asynchronous recalculation
 	if(schedule) {
-		if(!schedule->is_editing_finished()) {
-			destroy_win((ptrdiff_t)schedule);
-		}
 		if (!schedule->empty() && !line.is_bound()) {
 			welt->set_schedule_counter();
 		}
@@ -285,7 +282,7 @@ void convoi_t::reserve_route()
 		for(  route_t::index_t idx = back()->get_route_index();  idx < next_reservation_index  /*&&  idx < route.get_count()*/;  idx++  ) {
 			if(  grund_t *gr = welt->lookup( route.at(idx) )  ) {
 				if(  schiene_t *sch = (schiene_t *)gr->get_weg( front()->get_waytype() )  ) {
-					sch->reserve( self );
+					sch->reserve( self, idx );
 				}
 			}
 		}
@@ -389,7 +386,6 @@ DBG_MESSAGE("convoi_t::finish_rd()","state=%s, next_stop_index=%d", state_names[
 			// test also for realignment
 			sint16 step_pos = 0;
 			koord3d drive_pos;
-			uint8 const diagonal_vehicle_steps_per_tile = (uint8)(130560U / welt->get_settings().get_pak_diagonal_multiplier());
 			for( uint8 i=0;  i<vehicle_count;  i++ ) {
 				vehicle_t* v = fahr[i];
 				v->set_leading( i==0 );
@@ -400,8 +396,8 @@ DBG_MESSAGE("convoi_t::finish_rd()","state=%s, next_stop_index=%d", state_names[
 
 				// wrong alignment here => must relocate
 				if(v->need_realignment()) {
-					// diagonal => convoi must restart
-					realign_position |= ribi_t::is_bend(v->get_direction())  &&  (state==DRIVING  ||  is_waiting());
+					// tile length changed => convoi must restart
+					realign_position |= (state==DRIVING  ||  is_waiting());
 				}
 				// if version is 99.17 or lower, some convois are broken, i.e. had too large gaps between vehicles
 				if(  !realign_position  &&  state!=INITIAL  &&  state!=LEAVING_DEPOT  ) {
@@ -410,13 +406,13 @@ DBG_MESSAGE("convoi_t::finish_rd()","state=%s, next_stop_index=%d", state_names[
 					}
 					else {
 						if(  drive_pos!=v->get_pos()  ) {
-							// with long vehicles on diagonals, vehicles need not to be on consecutive tiles
+							// with long vehicles, vehicles need not to be on consecutive tiles
 							// do some guessing here
 							uint32 dist = koord_distance(drive_pos, v->get_pos());
 							if (dist>1) {
-								step_pos += (dist-1) * diagonal_vehicle_steps_per_tile;
+								step_pos += (dist-1) * VEHICLE_STEPS_PER_TILE;
 							}
-							step_pos += ribi_t::is_bend(v->get_direction()) ? diagonal_vehicle_steps_per_tile : VEHICLE_STEPS_PER_TILE;
+							step_pos += v->get_steps_next() + 1;
 						}
 						dbg->message("convoi_t::finish_rd()", "v: pos(%s) steps(%d) len=%d ribi=%d prev (%s) step(%d)", v->get_pos().get_str(), v->get_steps(), v->get_desc()->get_length()*16, v->get_direction(),  drive_pos.get_2d().get_str(), step_pos);
 						if(  abs( v->get_steps() - step_pos )>15  ) {
@@ -504,7 +500,7 @@ DBG_MESSAGE("convoi_t::finish_rd()","next_stop_index=%d", next_stop_index );
 				grund_t *gr=welt->lookup(v->get_pos());
 				// airplanes may have no ground ...
 				if (schiene_t* const sch0 = obj_cast<schiene_t>(gr->get_weg(fahr[i]->get_waytype()))) {
-					sch0->reserve(self);
+					sch0->reserve(self, fahr[i]->get_route_index());
 				}
 			}
 			fahr[0]->set_leading(true);
@@ -558,19 +554,19 @@ void convoi_t::call_convoi_tool( const char function, const char *extra ) const
 }
 
 
-void convoi_t::rotate90( const sint16 y_size )
+void convoi_t::rotate90( const map_shape_t &from )
 {
-	record_pos.rotate90( y_size );
-	home_depot.rotate90( y_size );
-	route.rotate90( y_size );
+	record_pos.rotate90( from );
+	home_depot.rotate90( from );
+	route.rotate90( from );
 	if(  schedule_target!=koord3d::invalid  ) {
-		schedule_target.rotate90( y_size );
+		schedule_target.rotate90( from );
 	}
 	if(schedule) {
-		schedule->rotate90( y_size );
+		schedule->rotate90( from );
 	}
 	for(  int i=0;  i<vehicle_count;  i++  ) {
-		fahr[i]->rotate90_freight_destinations( y_size );
+		fahr[i]->rotate90_freight_destinations( from );
 	}
 	// eventually correct freight destinations (and remove all stale freight)
 	check_freight();
@@ -1723,7 +1719,7 @@ bool convoi_t::add_vehicle(vehicle_t* v, bool infront)
 			has_obsolete = info->is_retired( welt->get_timeline_year_month() );
 		}
 		// cannot run without catenary
-		needs_electric = sum_gear_and_power_electric > 0  &&  sum_gear_and_power_non_electric == 0;
+		set_needs_electrification( sum_gear_and_power_electric > 0  &&  sum_gear_and_power_non_electric == 0 );
 	}
 	else {
 		return false;
@@ -1791,7 +1787,7 @@ vehicle_t *convoi_t::remove_vehicle_at(uint16 i)
 
 		// still requires electrifications?
 		// cannot run without catenary
-		needs_electric = sum_gear_and_power_electric > 0 && sum_gear_and_power_non_electric == 0;
+		set_needs_electrification( sum_gear_and_power_electric > 0 && sum_gear_and_power_non_electric == 0 );
 	}
 	return v;
 }
@@ -1833,6 +1829,18 @@ void convoi_t::set_erstes_letztes()
 	}
 	else {
 		dbg->warning("convoi_t::set_erstes_letzes()", "called with vehicle_count==0!");
+	}
+}
+
+
+void convoi_t::set_needs_electrification(bool janein)
+{
+	needs_electric = janein;
+	// only the leading vehicle reads this, but the whole convoi shares one value, so it
+	// is simply set on all of them: then it does not matter in which order the weights,
+	// this flag and set_erstes_letztes() are recalculated when vehicles come and go
+	for(  uint8 i = 0;  i < vehicle_count;  i++  ) {
+		fahr[i]->set_needs_electrification( janein );
 	}
 }
 
@@ -1934,7 +1942,14 @@ bool convoi_t::can_go_alte_richtung()
 	}
 
 	// going backwards? then recalculate all
-	ribi_t::ribi neue_richtung_rwr = ribi_t::backward(fahr[0]->calc_direction(route.front(), route.at(min(2, route.get_count() - 1))));
+	// Chords are classified the way calc_set_direction stores alte_richtung.
+	// The first step is looked at on its own as well: the chord of two steps
+	// that bend is off-axis and names at most one edge, which may not be the
+	// one that leads back (a dead end with a bend behind it).
+	ribi_t::ribi neue_richtung_rwr = ribi_t::backward(vehicle_base_t::calc_chord_direction(route.front(), route.at(min(2, route.get_count() - 1))));
+	if(route.get_count() > 1) {
+		neue_richtung_rwr |= ribi_t::backward(vehicle_base_t::calc_chord_direction(route.front(), route.at(1)));
+	}
 //	DBG_MESSAGE("convoi_t::go_alte_richtung()","neu=%i,rwr_neu=%i,alt=%i",neue_richtung_rwr,ribi_t::backward(neue_richtung_rwr),alte_richtung);
 	if(neue_richtung_rwr&alte_richtung) {
 		akt_speed = 8;
@@ -1956,7 +1971,7 @@ bool convoi_t::can_go_alte_richtung()
 			convoi_length += v->get_desc()->get_length();
 		}
 
-		if(gr==NULL  ||  (pred!=NULL  &&  (abs(v->get_pos().x-pred->get_pos().x)>=2  ||  abs(v->get_pos().y-pred->get_pos().y)>=2))  ) {
+		if(gr==NULL  ||  (pred!=NULL  &&  koord_distance(v->get_pos(), pred->get_pos())>=2)  ) {
 			// ending here is an error!
 			// this is an already broken train => restart
 			dbg->warning("convoi_t::go_alte_richtung()","broken convoy (id %i) found => fixing!",self.get_id());
@@ -1973,13 +1988,13 @@ bool convoi_t::can_go_alte_richtung()
 		}
 
 		if(  pred  &&  pred->get_pos()!=v->get_pos()  ) {
-			tile_length += (ribi_t::is_straight(welt->lookup(pred->get_pos())->get_weg_ribi_unmasked(pred->get_waytype())) ? 16 : 8192/vehicle_t::get_diagonal_multiplier())*koord_distance(pred->get_pos(),v->get_pos());
+			tile_length += (vehicle_base_t::get_tile_steps(welt->lookup(pred->get_pos())->get_weg_ribi_unmasked(pred->get_waytype())) / VEHICLE_STEPS_PER_CARUNIT)*koord_distance(pred->get_pos(),v->get_pos());
 		}
 
 		pred = v;
 	}
 	// check if convoi is way too short (even for diagonal tracks)
-	tile_length += (ribi_t::is_straight(welt->lookup(fahr[vehicle_count-1]->get_pos())->get_weg_ribi_unmasked(fahr[vehicle_count-1]->get_waytype())) ? 16 : 8192/vehicle_t::get_diagonal_multiplier());
+	tile_length += vehicle_base_t::get_tile_steps(welt->lookup(fahr[vehicle_count-1]->get_pos())->get_weg_ribi_unmasked(fahr[vehicle_count-1]->get_waytype())) / VEHICLE_STEPS_PER_CARUNIT;
 	if(  convoi_length>tile_length  ) {
 		dbg->warning("convoi_t::go_alte_richtung()","convoy too short (id %i) => fixing!",self.get_id());
 		akt_speed = 8;
@@ -2036,11 +2051,15 @@ bool convoi_t::can_go_alte_richtung()
 				ok = true;
 
 				// check direction
+				// (same chord as the vehicle's own direction, see calc_set_direction)
+				const koord3d& pos_before = route.at(max(idx-1,0));
 				uint8 richtung = v->get_direction();
-				uint8 neu_richtung = v->calc_direction( route.at(max(idx-1,0)), v->get_pos_next());
+				uint8 neu_richtung = vehicle_base_t::calc_chord_direction( pos_before, v->get_pos_next());
+				// the route bends here, unless it goes on in the same step
+				const bool bend = idx > 0  &&  pos_before.get_2d() + v->get_pos_next().get_2d() != v->get_pos().get_2d() * 2;
 				// we need to move to this place ...
-				if(neu_richtung!=richtung  &&  (i!=0  ||  vehicle_count==1  ||  ribi_t::is_bend(neu_richtung)) ) {
-					// 90 deg bend!
+				if(neu_richtung!=richtung  &&  (i!=0  ||  vehicle_count==1  ||  bend) ) {
+					// bend!
 					return false;
 				}
 
@@ -2183,7 +2202,8 @@ void convoi_t::vorfahren()
 			// eventually reserve this
 			vehicle_t const& v = *fahr[i];
 			if (schiene_t* const sch0 = obj_cast<schiene_t>(welt->lookup(v.get_pos())->get_weg(v.get_waytype()))) {
-				sch0->reserve(self);
+				// since reserve expect the entrance tile position
+				sch0->reserve(self,v.get_route_index()-1);
 			}
 			else {
 				break;
@@ -2397,14 +2417,20 @@ void convoi_t::rdwr(loadsave_t *file)
 					}
 					state = INITIAL;
 				}
-				// add to blockstrecke
-				if(schiene_t* sch = dynamic_cast<schiene_t*>(gr->get_weg(v->get_waytype()))) {
-					sch->reserve(self);
-				}
-				// add to crossing
-				if(crossing_t *cr = gr->get_crossing()) {
-					cr->finish_rd();	// add crossing logic if needed (as finish_rd() was not yet processed
-					cr->add_to_crossing(v);
+				// ,aybe reserve tile
+				if (v->get_waytype() != air_wt) {
+					// airplanes are complicated and not done here
+
+					// full reservations are restored in set convoi later
+					if (schiene_t* sch = dynamic_cast<schiene_t*>(gr->get_weg(v->get_waytype()))) {
+						sch->reserve(self, v->get_route_index()-1);
+					}
+
+					// add to crossing
+					if (crossing_t* cr = gr->get_crossing()) {
+						cr->finish_rd();	// add crossing logic if needed (as finish_rd() was not yet processed
+						cr->add_to_crossing(v);
+					}
 				}
 				if(  gr->obj_count()>253  ) {
 					dbg->warning( "convoi_t::rdwr()", "cannot put vehicle on ground at (%s)", gr->get_pos().get_str() );
@@ -2421,7 +2447,7 @@ void convoi_t::rdwr(loadsave_t *file)
 		}
 		sum_gesamtweight = sum_weight;
 		// cannot run without catenary
-		needs_electric = sum_gear_and_power_electric > 0 && sum_gear_and_power_non_electric == 0;
+		set_needs_electrification( sum_gear_and_power_electric > 0 && sum_gear_and_power_non_electric == 0 );
 	}
 
 	bool has_schedule = (schedule != NULL);
@@ -2798,6 +2824,16 @@ void convoi_t::open_schedule_window( bool show )
 		// TODO: what happens if no client opens the window??
 	}
 	schedule->start_editing();
+}
+
+
+void convoi_t::close_schedule_editor()
+{
+	if(  schedule  &&  !schedule->is_editing_finished()  ) {
+		// the schedule dialog was its own window with the schedule as magic
+		// once; nowadays it is the schedule tab of the info window
+		destroy_win( magic_convoi_info+self.get_id() );
+	}
 }
 
 
@@ -3282,10 +3318,6 @@ void convoi_t::destroy()
 		}
 	}
 	state = SELF_DESTRUCT;
-
-	if(schedule!=NULL  &&  !schedule->is_editing_finished()) {
-		destroy_win((ptrdiff_t)schedule);
-	}
 
 	if(  line.is_bound()  ) {
 		// needs to be done here to remove correctly ware catg from lines
@@ -3848,7 +3880,7 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, sint32 other_speed, si
 			return false;
 		}
 
-		int d = ribi_t::is_straight(str->get_ribi()) ? VEHICLE_STEPS_PER_TILE : vehicle_base_t::get_diagonal_vehicle_steps_per_tile();
+		int d = vehicle_base_t::get_tile_steps(str->get_ribi());
 		distance -= d;
 		time_overtaking += d;
 
@@ -3906,14 +3938,9 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, sint32 other_speed, si
 			return false;
 		}
 
-		if(  ribi_t::is_straight(str->get_ribi())  ) {
-			time_overtaking -= (VEHICLE_STEPS_PER_TILE<<16) / kmh_to_speed(str->get_max_speed());
-			distance -= VEHICLE_STEPS_PER_TILE;
-		}
-		else {
-			time_overtaking -= (vehicle_base_t::get_diagonal_vehicle_steps_per_tile()<<16) / kmh_to_speed(str->get_max_speed());
-			distance -= vehicle_base_t::get_diagonal_vehicle_steps_per_tile();
-		}
+		const sint32 d = vehicle_base_t::get_tile_steps(str->get_ribi());
+		time_overtaking -= (d<<16) / kmh_to_speed(str->get_max_speed());
+		distance -= d;
 
 		// Check for other vehicles in facing direction
 		ribi_t::ribi their_direction = ribi_t::backward( fahr[0]->calc_direction(pos_prev, pos_next) );

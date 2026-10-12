@@ -5,6 +5,8 @@
 
 #include "simobj.h"
 
+#include "baum.h"
+
 #include "../ground/grund.h"
 #include "../dataobj/loadsave.h"
 #include "../dataobj/translator.h"
@@ -90,8 +92,8 @@ obj_t::~obj_t()
 		// then search entire map
 		koord k;
 		for(k.y=0; k.y<welt->get_size().y; k.y++) {
-			for(k.x=0; k.x<welt->get_size().x; k.x++) {
-				grund_t *gr = welt->access(k)->get_boden_von_obj(this);
+			for(k.x=welt->get_row_begin(k.y); k.x<welt->get_row_end(k.y); k.x++) {
+				grund_t *gr = welt->access_nocheck(k)->get_boden_von_obj(this);
 				if (gr && gr->obj_remove(this)) {
 					dbg->warning("obj_t::~obj_t()",
 						"Removed %p from (%hi,%hi,%hhi), but it should have been on (%hi,%hi,%hhi)",
@@ -120,6 +122,16 @@ void obj_t::set_owner(player_t *player)
 player_t *obj_t::get_owner() const
 {
 	return welt->get_player(owner_n);
+}
+
+
+// true if one can change this object
+bool obj_t::check_owner(const player_t* player) const
+{
+	if (owner_n!=PLAYER_UNOWNED  &&  player  &&  !player->is_public_service()) {
+		return player->get_player_nr() == owner_n;
+	}
+	return true;
 }
 
 
@@ -157,12 +169,10 @@ bool obj_t::has_managed_lifecycle() const {
 // returns NULL, if removal is allowed
 const char *obj_t::get_removal_error(const player_t *player)
 {
-	if(owner_n==PLAYER_UNOWNED  ||  welt->get_player(owner_n) == player  ||  welt->get_public_player() == player) {
+	if (check_owner(player)) {
 		return NULL;
 	}
-	else {
-		return "Der Besitzer erlaubt das Entfernen nicht";
-	}
+	return "Der Besitzer erlaubt das Entfernen nicht";
 }
 
 
@@ -240,10 +250,13 @@ void obj_t::display(int xpos, int ypos  CLIP_NUM_DEF) const
 void obj_t::rotate90()
 {
 	// most basic: rotate coordinate
-	pos.rotate90( welt->get_size().y-1 );
-	sint8 new_dx = -2*yoff;
-	yoff = xoff/2;
-	xoff = new_dx;
+	pos.rotate90( welt->get_map_shape() );
+	// A pixel offset has no exact 60° turn on the 2:1 raster, but the
+	// half turn is the point reflection: negate it on that step.
+	if(  welt->get_settings().is_half_turn_rotation()  ) {
+		xoff = -xoff;
+		yoff = -yoff;
+	}
 }
 
 

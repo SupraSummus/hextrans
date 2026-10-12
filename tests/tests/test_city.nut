@@ -197,3 +197,498 @@ function test_city_change_size_to_minimum()
 	clear_townhall_and_roads(player_x(1), 1, 1)
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+function test_city_population_ledger()
+{
+	local pl = player_x(1)
+
+	// recompute the city population ledger from the map: every tile of a
+	// residential city building houses level*10 citizens, every tile of a
+	// commercial/industrial one provides level*20 jobs.
+	// stadt_t::build_city_house() maintains the same numbers incrementally.
+	local check_ledger = function(city, where) {
+		local sum_res = 0
+		local sum_jobs = 0
+		for (local x = 0; x < 16; x++) {
+			for (local y = 0; y < 16; y++) {
+				local b = square_x(x, y).get_ground_tile().find_object(mo_building)
+				if (b == null) {
+					continue
+				}
+				local d = b.get_desc()
+				local t = d.get_type()
+				if (t == building_desc_x.city_res) {
+					sum_res += d.get_level()
+				}
+				else if (t == building_desc_x.city_com || t == building_desc_x.city_ind) {
+					sum_jobs += d.get_level()
+				}
+			}
+		}
+		ASSERT_EQUAL("housing " + where + ": " + city.get_housing(), "housing " + where + ": " + (sum_res * 10))
+		ASSERT_EQUAL("jobs " + where + ": " + city.get_jobs(), "jobs " + where + ": " + (sum_jobs * 20))
+	}
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(pl, coord3d(8, 8, 0), "0"), null)
+	local city = city_x(8, 8)
+	check_ledger(city, "after founding")
+
+	// plant the test-only 2x2 residential building; this also goes through
+	// stadt_t::build_city_house and must keep the ledger consistent
+	ASSERT_EQUAL(command_x(tool_build_house).work(pl, coord3d(4, 8, 0), "1ATEST_RES_2x2"), null)
+	check_ledger(city, "after planting 2x2")
+
+	// grow the city until renovation replaces a TEST_RES_2x2 by a smaller
+	// building.  TEST_RES_2x2 is the only multi-tile city building
+	// available, so a renovation of it necessarily goes through the
+	// leftover-tile conversion in build_city_house.
+	local count_2x2_tiles = function() {
+		local n = 0
+		for (local x = 0; x < 16; x++) {
+			for (local y = 0; y < 16; y++) {
+				local b = square_x(x, y).get_ground_tile().find_object(mo_building)
+				if (b != null && b.get_desc().get_name() == "TEST_RES_2x2") {
+					n++
+				}
+			}
+		}
+		return n
+	}
+
+	local shrunk = false
+	local seen_max = count_2x2_tiles()
+	for (local i = 0; i < 300 && !shrunk; i++) {
+		city.change_size(100)
+		local n = count_2x2_tiles()
+		if (n < seen_max) {
+			// one of the 2x2 buildings was replaced by something smaller
+			shrunk = true
+		}
+		else if (n > seen_max) {
+			seen_max = n
+		}
+	}
+	ASSERT_TRUE(shrunk) // if this fails, growth never renovated a 2x2; test setup issue, not a ledger bug
+
+	check_ledger(city, "after renovation")
+
+	// clean up: removing the townhall removes the city and all its buildings
+	local cp = city.get_pos()
+	local th_tile = square_x(cp.x, cp.y).get_ground_tile()
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(cp.x, cp.y, th_tile.z)), null)
+	for (local x = 0; x < 16; x++) {
+		for (local y = 0; y < 16; y++) {
+			local tile = square_x(x, y).get_ground_tile()
+			if (tile.get_way(wt_road) != null) {
+				local p = coord3d(x, y, tile.z)
+				command_x(tool_remove_way).work(pl, p, p, "" + wt_road)
+			}
+		}
+	}
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// A 1x1 townhall seeds its road on one neighbour tile.  With every
+// neighbour but `seed` flooded the seed lands on `seed`, and on the
+// townhall's NE or SW face that goes through stadt_t::build_road, which
+// decides what the new city road joins.  `seed` touches a stop or depot on
+// a dead end, built from a road that leaves along `road_to`.
+//   kind      "depot", or the name of a stop
+//   road_to   direction of the building's road
+//   seed_dir  direction from the building to the seed tile
+//   town_dir  direction from the seed tile to the townhall (NE or SW)
+//   joins     whether the seed road is to connect to the building
+function check_city_seed_next_to_building(kind, road_to, seed_dir, town_dir, joins)
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local site = coord3d(8, 8, 0)
+	local out = site + dir.to_coord(road_to)
+	local seed = site + dir.to_coord(seed_dir)
+	local townhall = seed + dir.to_coord(town_dir)
+
+	ASSERT_EQUAL(command_x.build_way(pl, site, out, road, true), null)
+	if (kind == "depot") {
+		ASSERT_EQUAL(command_x.build_depot(pl, site, get_depot_by_wt(wt_road)), null)
+	}
+	else {
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, site, kind), null)
+	}
+	ASSERT_EQUAL(way_dirs_at(site, wt_road), road_to)
+
+	local flooded = []
+	foreach (d in dir.nsew) {
+		local c = townhall + dir.to_coord(d)
+		if (c.x == seed.x && c.y == seed.y) continue
+		ASSERT_EQUAL(command_x(tool_set_climate).work(pl, c, c, "" + cl_water), null)
+		flooded.append(c)
+	}
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, townhall, "0"), null)
+
+	ASSERT_TRUE(tile_x(seed.x, seed.y, seed.z).get_way(wt_road) != null)
+	if (joins) {
+		ASSERT_EQUAL(way_dirs_at(site, wt_road), road_to | seed_dir)
+		ASSERT_EQUAL(way_dirs_at(seed, wt_road), dir.backward(seed_dir))
+	}
+	else {
+		ASSERT_EQUAL(way_dirs_at(site, wt_road), road_to)
+		ASSERT_EQUAL(way_dirs_at(seed, wt_road), 0)
+	}
+
+	// clean up
+	clear_townhall_and_roads(public_pl, townhall.x, townhall.y)
+	foreach (c in flooded) {
+		ASSERT_EQUAL(command_x(tool_set_climate).work(pl, c, c, "" + cl_mediterran), null)
+	}
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, site), null)
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, site, out, "" + wt_road), null)
+}
+
+
+// building_desc_t::adjust_layout folds a NE terminal stop onto layout 2
+// (N), a SW one onto layout 0 (S), and a through stop on a NE-SW road onto
+// layout 0, the N-S image, so the stored layout names another side than
+// the way does.  The city road has to go by the way: it must not bend a
+// terminal from a side it does not face, and a through stop on a NE-SW
+// dead end takes the city road at its open end, and not across the
+// platform (the N side, which is the one the stored layout would pass).
+// The stored side of a terminal cannot be a seed here, the townhall's
+// flooded neighbours would take the stop's road:
+// test_city_road_beside_terminal_stored_side builds there directly.
+function test_city_road_seed_next_to_stop()
+{
+	check_city_seed_next_to_building("CarStop", dir.northeast, dir.south,     dir.southwest, false)
+	check_city_seed_next_to_building("CarStop", dir.southwest, dir.southeast, dir.northeast, false)
+	check_city_seed_next_to_building("BusStop", dir.southwest, dir.northeast, dir.northeast, true)
+	check_city_seed_next_to_building("BusStop", dir.southwest, dir.north,     dir.northeast, false)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+function test_city_road_seed_next_to_depot()
+{
+	check_city_seed_next_to_building("depot", dir.northeast, dir.south,     dir.southwest, false)
+	check_city_seed_next_to_building("depot", dir.southwest, dir.southeast, dir.northeast, false)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// A city road on the tile beside a terminal stop or depot, on the side its
+// stored layout names, must not join it: `kind` is "depot" or the name of
+// a stop, built on a dead end whose road leaves along `road_to`, and the
+// road is laid on the tile in direction `side` from it.
+function check_city_road_beside_terminal(kind, road_to, side)
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local site = coord3d(8, 8, 0)
+	local out = site + dir.to_coord(road_to)
+	local seed = site + dir.to_coord(side)
+	local where = kind + " with a road to " + road_to + ", city road to " + side
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(3, 3, 0), "0"), null)
+	local city = city_x(3, 3)
+
+	ASSERT_EQUAL(command_x.build_way(pl, site, out, road, true), null)
+	if (kind == "depot") {
+		ASSERT_EQUAL(command_x.build_depot(pl, site, get_depot_by_wt(wt_road)), null)
+	}
+	else {
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, site, kind), null)
+	}
+	ASSERT_EQUAL(way_dirs_at(site, wt_road), road_to)
+
+	ASSERT_EQUAL(where + ": " + citytest_cityroad(city, seed, seed), where + ": true")
+	ASSERT_TRUE(tile_x(seed.x, seed.y, seed.z).get_way(wt_road) != null)
+	ASSERT_EQUAL(where + ": " + way_dirs_at(site, wt_road), where + ": " + road_to)
+	ASSERT_EQUAL(where + ": " + (way_dirs_at(seed, wt_road) & dir.backward(side)), where + ": 0")
+
+	// clean up
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, seed, seed, "" + wt_road), null)
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, site), null)
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, site, out, "" + wt_road), null)
+	clear_townhall_and_roads(public_pl, 3, 3)
+}
+
+
+// The layout of a NE terminal stop or depot is stored as 2 (N) and that of
+// a SW one as 0 (S).  stadt_t::build_road has to read the way to know
+// which side they face, so a city road on the stored side stays apart.
+function test_city_road_beside_terminal_stored_side()
+{
+	check_city_road_beside_terminal("CarStop", dir.northeast, dir.north)
+	check_city_road_beside_terminal("CarStop", dir.southwest, dir.south)
+	check_city_road_beside_terminal("depot", dir.northeast, dir.north)
+	check_city_road_beside_terminal("depot", dir.southwest, dir.south)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// stadt_t::orient_city_building turns a one-tile city building to face a
+// road on any of its six sides.  `faces` lists [side, layout] pairs: a
+// road on `side` of the building must give it `layout`.
+function check_city_building_faces_road(name, faces)
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local site = coord3d(10, 10, 0)
+
+	// the building is only placed if there is a city to own it
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(3, 3, 0), "0"), null)
+
+	foreach (face in faces) {
+		local near = site + dir.to_coord(face[0])
+		local far = near + dir.to_coord(face[0])
+		local where = name + " with a road to " + face[0]
+		ASSERT_EQUAL(command_x.build_way(pl, near, far, road, true), null)
+
+		// the "A" in the parameter asks for the automatic orientation
+		ASSERT_EQUAL(command_x(tool_build_house).work(public_pl, site, "1A" + name), null)
+		local house = tile_x(site.x, site.y, site.z).find_object(mo_building)
+		ASSERT_TRUE(house != null)
+		ASSERT_EQUAL(where + ": layout " + house.get_layout(), where + ": layout " + face[1])
+
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, site), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, near, far, "" + wt_road), null)
+	}
+
+	// clean up
+	clear_townhall_and_roads(public_pl, 3, 3)
+}
+
+
+// Layouts 0..5 face S, SE, N, NW, NE and SW.  A building with four layouts
+// has none for NE and SW, which building_desc_t::adjust_layout folds onto
+// the faces 60 degrees away, N and S; one with two layouts only knows the
+// N-S and the SE-NW axis.  The fold has to commute with the half turn of
+// the map (NE and SW swap, as do S and N), or a house turned by the
+// rotated suite faces another side than the one built there.
+function test_city_building_faces_road()
+{
+	check_city_building_faces_road("TEST_RES_1x1_8L", [
+		[dir.south, 0], [dir.southeast, 1], [dir.north, 2],
+		[dir.northwest, 3], [dir.northeast, 4], [dir.southwest, 5]])
+	check_city_building_faces_road("TEST_RES_1x1_4L", [
+		[dir.south, 0], [dir.southeast, 1], [dir.north, 2],
+		[dir.northwest, 3], [dir.northeast, 2], [dir.southwest, 0]])
+	check_city_building_faces_road("TEST_RES_1x1_2L", [
+		[dir.south, 0], [dir.southeast, 1], [dir.north, 0],
+		[dir.northwest, 1], [dir.northeast, 0], [dir.southwest, 0]])
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// stadt_t::orient_city_building turns a multi-tile building to face the
+// roads round its footprint.  TEST_RES_3x2 has layouts 0 and 2 on 3x2
+// tiles and 1 and 3 on 2x3.  The building is placed at `site` with the
+// automatic orientation a dozen times, beside the road tiles in `roads`,
+// each [x, y, spur_x, spur_y] relative to `site`: the tile that is to
+// vote, and a tile further out that keeps the way a way.  The layout is
+// picked at random when the roads do not decide it, so it takes all runs
+// giving `layout` to show that they do.
+function check_city_building_3x2_picks(roads, layout)
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local site = coord3d(10, 10, 0)
+
+	// the building is only placed if there is a city to own it
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(3, 3, 0), "0"), null)
+	foreach (r in roads) {
+		local from = site + coord3d(r[0], r[1], 0)
+		local to = site + coord3d(r[2], r[3], 0)
+		ASSERT_EQUAL(command_x.build_way(pl, from, to, road, true), null)
+	}
+
+	local picked = ""
+	local wanted = ""
+	for (local i = 0; i < 12; i++) {
+		ASSERT_EQUAL(command_x(tool_build_house).work(public_pl, site, "1ATEST_RES_3x2"), null)
+		local house = tile_x(site.x, site.y, site.z).find_object(mo_building)
+		ASSERT_TRUE(house != null)
+		picked += house.get_layout() + " "
+		wanted += layout + " "
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, site), null)
+	}
+
+	// clean up
+	foreach (r in roads) {
+		local from = site + coord3d(r[0], r[1], 0)
+		local to = site + coord3d(r[2], r[3], 0)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, from, to, "" + wt_road), null)
+	}
+	clear_townhall_and_roads(public_pl, 3, 3)
+
+	ASSERT_EQUAL(picked, wanted)
+}
+
+
+// A road votes for a side of the footprint only on a tile that touches it.
+// Of the four corner tiles of the ring round an axial rectangle, the NE
+// one (size.x, -1) and the SW one (-1, size.y) touch it, and (-1, -1) and
+// (size.x, size.y) are two steps away.  The layouts face S, SE, N and NW,
+// so a road on the +x side of the 2x3 footprint gives layout 1 (SE) and
+// one on its -x side, here the SW corner (-1, 3), layout 3 (NW); one on
+// the NE corner (3, -1) of the 3x2 footprint gives layout 2 (N).  With a
+// road on the far corner (3, 2) of the 3x2 footprint, or (2, 3) of the
+// 2x3 one, the far road has no say.
+function test_city_building_3x2_faces_road()
+{
+	check_city_building_3x2_picks([[2, 0, 2, 1]], 1)
+	check_city_building_3x2_picks([[-1, 3, -1, 4]], 3)
+	check_city_building_3x2_picks([[3, -1, 4, -1]], 2)
+	check_city_building_3x2_picks([[-1, 3, -1, 4], [3, 2, 4, 2]], 3)
+	check_city_building_3x2_picks([[3, -1, 4, -1], [2, 3, 2, 4]], 2)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// stadt_t::test_and_build_cityroad lays a straight piece of city road along
+// any of the three hex axes, in either direction.  The founding of a
+// townhall only asks it for strips that run S or SE, so the tests call it
+// through citytest_cityroad.  A line of four tiles from (10, 10) in each of
+// the six directions has to get a road on every tile; a displacement that
+// is on no axis, here (3, -1), builds nothing.
+function test_city_cityroad_along_all_axes()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(3, 3, 0), "0"), null)
+	local city = city_x(3, 3)
+
+	local start = coord3d(10, 10, 0)
+	foreach (d in [dir.southeast, dir.south, dir.southwest, dir.northwest, dir.north, dir.northeast]) {
+		local c = dir.to_coord(d)
+		local end = coord3d(start.x + 3 * c.x, start.y + 3 * c.y, 0)
+		local mid = coord3d(start.x + c.x, start.y + c.y, 0)
+		local where = "line towards " + d
+		ASSERT_EQUAL(where + ": " + citytest_cityroad(city, start, end), where + ": true")
+		ASSERT_EQUAL(way_dirs_at(start, wt_road), d)
+		ASSERT_EQUAL(way_dirs_at(mid, wt_road), d | dir.backward(d))
+		ASSERT_EQUAL(way_dirs_at(end, wt_road), dir.backward(d))
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, start, end, "" + wt_road), null)
+	}
+
+	// no axis, so no line; clean up what a wrong answer built
+	local built = citytest_cityroad(city, start, coord3d(13, 9, 0))
+	for (local x = 10; x <= 13; x++) {
+		for (local y = 9; y <= 10; y++) {
+			if (tile_x(x, y, 0).get_way(wt_road) != null) {
+				local p = coord3d(x, y, 0)
+				ASSERT_EQUAL(command_x(tool_remove_way).work(pl, p, p, "" + wt_road), null)
+			}
+		}
+	}
+	clear_townhall_and_roads(public_pl, 3, 3)
+	ASSERT_EQUAL("off-axis line: " + built, "off-axis line: false")
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// The tiles [x, y] with a road in the 3x3 axial ring around (q, r).
+function city_ring_roads(q, r)
+{
+	local roads = []
+	for (local x = q - 1; x <= q + 1; x++) {
+		for (local y = r - 1; y <= r + 1; y++) {
+			if (square_x(x, y).get_ground_tile().get_way(wt_road) != null) {
+				roads.append([x, y])
+			}
+		}
+	}
+	return roads
+}
+
+
+// Remove the townhall at (q, r) and the roads on the ring around it.
+function clear_city_on_raised_ground(pl, q, r)
+{
+	local th = square_x(q, r).get_ground_tile()
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(q, r, th.z)), null)
+	foreach (c in city_ring_roads(q, r)) {
+		local p = coord3d(c[0], c[1], square_x(c[0], c[1]).get_ground_tile().z)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, p, p, "" + wt_road), null)
+	}
+}
+
+
+// stadt_t::build_road joins a new city road to a road at another height.
+// Where the ground cannot be levelled it bends the tile instead, and a
+// tile with all its corners but one at the road's height is raised whole
+// rather than turned into a ramp.  The tile K = (8, 8) lies between the
+// townhall T = (7, 9) on its SW side, a hill one level up, and a road on
+// two tiles to the north, one level up as well.  Its SE corner is up too,
+// so the E corner is the only low one, and the old check, which counted
+// the NE, SE, NW and SW corners, saw four of five.  A label on the SE
+// neighbour of K, which shares the E corner, keeps the ground from being
+// levelled.
+//
+// A townhall founds its road on one of its six sides: a strip of three
+// tiles on the sides but NE and SW, which have a single tile and go
+// through build_road.  The strips would terrace the ground around K, so
+// water at (6, 8) and (8, 10) stops all four.  Of the six random starting
+// sides all but SW then end on K.
+function test_city_road_fills_valley_tile()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local water = [coord3d(6, 8, 0), coord3d(8, 10, 0)]
+
+	raise_hex_tile(pl, 7, 9, 0)
+	raise_hex_tile_pair_S(pl, 8, 6, 0)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(8, 8, 0), 1), null)
+	ASSERT_EQUAL(tile_x(8, 8, 0).get_slope(), HEX_SLOPE(0, 1, 1, 1, 1, 1))
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 6, 1), coord3d(8, 7, 1), road, true), null)
+	ASSERT_EQUAL(label_x.create(coord3d(9, 8, 0), pl, "unlevelled"), null)
+	foreach (c in water) {
+		ASSERT_EQUAL(command_x(tool_set_climate).work(pl, c, c, "" + cl_water), null)
+	}
+
+	local seeded = false
+	for (local i = 0; i < 20 && !seeded; i++) {
+		ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(7, 9, 1), "0"), null)
+		local roads = city_ring_roads(7, 9)
+		seeded = roads.len() == 1 && roads[0][0] == 8 && roads[0][1] == 8
+		if (!seeded) {
+			clear_city_on_raised_ground(public_pl, 7, 9)
+		}
+	}
+	ASSERT_TRUE(seeded)
+
+	// the tile is level with the townhall and the road, and joins the road
+	local ground = square_x(8, 8).get_ground_tile()
+	ASSERT_EQUAL("tile height " + ground.z, "tile height 1")
+	ASSERT_EQUAL(ground.get_slope(), slope.flat)
+	ASSERT_EQUAL(way_dirs_at(coord3d(8, 8, 1), wt_road), dir.north)
+
+	// clean up
+	clear_city_on_raised_ground(public_pl, 7, 9)
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(9, 8, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(8, 6, 1), coord3d(8, 7, 1), "" + wt_road), null)
+	foreach (c in water) {
+		ASSERT_EQUAL(command_x(tool_set_climate).work(pl, c, c, "" + cl_mediterran), null)
+	}
+	// raising K to the road left its slope at odds with the corners
+	ASSERT_EQUAL(command_x(tool_restoreslope).work(pl, coord3d(8, 8, 1)), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(8, 8, 0), 1), null)
+	lower_hex_tile_pair_S(pl, 8, 6, 0)
+	lower_hex_tile(pl, 7, 9, 0)
+	ASSERT_EQUAL(tile_x(8, 8, 0).get_slope(), slope.flat)
+
+	RESET_ALL_PLAYER_FUNDS()
+}

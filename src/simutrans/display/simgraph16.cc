@@ -10,30 +10,32 @@
 #include "../dataobj/environment.h"
 #include "../dataobj/translator.h"
 #include "../descriptor/image.h"
+#include "../gui/simwin.h"
 #include "../io/raw_image.h"
 #include "../macros.h"
+#include "../obj/roadsign.h"
 #include "../pathes.h"
 #include "../simconst.h"
 #include "../simdebug.h"
 #include "../simmem.h"
+#include "../simticker.h"
 #include "../simtypes.h"
 #include "../sys/simsys.h"
+#include "../utils/simstring.h"
 #include "../utils/unicode.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 
-#ifdef _MSC_VER
-#	include <io.h>
-#	define W_OK 2
-#else
-#	include <unistd.h>
-#endif
-
 #ifdef MULTI_THREAD
+#include "../utils/simthread.h"
+#if defined _MSC_VER
+#include <intrin.h>
+#endif
 
 // currently just redrawing/rezooming
 static pthread_mutex_t rezoom_img_mutex[MAX_THREADS];
@@ -328,9 +330,9 @@ struct imd {
 	uint8 recode_flags;
 	uint16 player_flags; // bit # is player number, ==1 cache image needs recoding
 
-	PIXVAL* data[MAX_PLAYER_COUNT]; // current data - zoomed and recolored (player + daynight)
+	PIXVAL* data[MAX_PLAYER_COUNT]; // recoded screen space - zoomed and recolored (player + daynight)
 
-	PIXVAL* zoom_data; // zoomed original data
+	STORED_PIXVAL* zoom_data; // zoomed original data, stored space
 	uint32 len;    // current zoom image data size (or base if not zoomed) (used for allocation purposes only)
 
 	sint16 base_x; // min x offset
@@ -338,7 +340,7 @@ struct imd {
 	sint16 base_w; // width
 	sint16 base_h; // height
 
-	PIXVAL* base_data; // original image data
+	STORED_PIXVAL* base_data; // original image data, stored space
 };
 
 // Flags for recoding
@@ -489,6 +491,7 @@ static const rgb888_t special_pal[SPECIAL_COLOR_COUNT] =
 static PIXVAL          simgraph16_palette_lookup             (palette_index_t idx);
 static palette_index_t simgraph16_palette_indexof            (PIXVAL color);
 static rgb888_t        simgraph16_get_color_rgb              (palette_index_t idx);
+static rgb888_t        simgraph16_get_pixval_rgb             (PIXVAL c);
 static void            simgraph16_env_t_rgb_to_system_colors ();
 static void            simgraph16_set_player_color_scheme    (const int player, const uint8 col1, const uint8 col2);
 static void            simgraph16_set_light_color            (int color_idx, rgb888_t day_colour, rgb888_t night_colour);
@@ -496,6 +499,7 @@ static void            simgraph16_set_daynight_level         (int night);
 static scr_coord_val   simgraph16_set_base_raster_width      (scr_coord_val new_raster);
 static int             simgraph16_zoom_factor_up             ();
 static int             simgraph16_zoom_factor_down           ();
+static uint32          simgraph16_get_zoom_factor            ();
 static bool            simgraph16_init                       (scr_size window_size, sint16 full_screen);
 static bool            simgraph16_is_display_init            ();
 static void            simgraph16_exit                       ();
@@ -531,6 +535,7 @@ static PIXVAL          simgraph16_blend_colors               (PIXVAL background,
 static void            simgraph16_tint_rect                  (scr_coord_val xp, scr_coord_val yp, scr_coord_val w, scr_coord_val h, PIXVAL colval, int opacity);
 static void            simgraph16_draw_rect                  (scr_coord_val xp, scr_coord_val yp, scr_coord_val w, scr_coord_val h, PIXVAL color, bool dirty);
 static void            simgraph16_draw_rect_clipped          (scr_coord_val xp, scr_coord_val yp, scr_coord_val w, scr_coord_val h, PIXVAL color, bool dirty  CLIP_NUM_DEF);
+static void            simgraph16_draw_rect_colors_clipped   (scr_coord_val xp, scr_coord_val yp, scr_coord_val w, scr_coord_val h, PIXVAL* color, scr_coord_val num_colors, bool horizontal, bool dirty  CLIP_NUM_DEF);
 static void            simgraph16_draw_rounded_rect_clipped  (scr_coord_val xp, scr_coord_val yp, scr_coord_val w, scr_coord_val h, PIXVAL color, bool dirty);
 static void            simgraph16_draw_vline_clipped         (scr_coord_val xp, scr_coord_val yp, scr_coord_val h, PIXVAL color, bool dirty  CLIP_NUM_DEF);
 static void            simgraph16_flush_framebuffer          ();
@@ -560,7 +565,7 @@ static void            simgraph16_draw_empty_circle          (scr_coord_val, scr
 static void            simgraph16_draw_filled_circle         (scr_coord_val, scr_coord_val, int, const PIXVAL);
 static void            simgraph16_draw_bezier                (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val, const PIXVAL, scr_coord_val, scr_coord_val);
 static void            simgraph16_draw_right_triangle        (scr_coord_val, scr_coord_val, scr_coord_val, const PIXVAL, const bool);
-static bool            simgraph16_take_screenshot            (const scr_rect &);
+static bool            simgraph16_take_screenshot            (const scr_rect &, const char *);
 static void            simgraph16_draw_signal_direction      (scr_coord_val, scr_coord_val, uint8, uint8, PIXVAL, PIXVAL, sint16);
 static void            simgraph16_set_clip_rect              (scr_coord_val, scr_coord_val, scr_coord_val, scr_coord_val  CLIP_NUM_DEF, bool fit);
 static clip_dimension  simgraph16_get_clip_rect              (CLIP_NUM_DEF_NOUSE0);
@@ -583,12 +588,13 @@ simgraph_t g_simgraph16 = {
 	/*.draw_blend                =*/ NULL,
 	/*.draw_alpha                =*/ NULL,
 
-	/*.zoom_num =*/ { 2, 3, 4, 1, 3, 5, 1, 3, 1, 1 },
-	/*.zoom_den =*/ { 1, 2, 3, 1, 4, 8, 2, 8, 4, 8 },
+	/*.zoom_num =*/ { 2, 7, 3, 11, 4, 5, 9, 1, 3, 5, 1, 3, 1, 1 },
+	/*.zoom_den =*/ { 1, 4, 2,  8, 3, 4, 8, 1, 4, 8, 2, 8, 4, 8 }, /* attention, denominator can be only 1,2,3,4,8! */
 
 	/*.palette_lookup              =*/ simgraph16_palette_lookup,
 	/*.palette_indexof             =*/ simgraph16_palette_indexof,
 	/*.get_color_rgb               =*/ simgraph16_get_color_rgb,
+	/*.pixval_to_rgb               =*/ simgraph16_get_pixval_rgb,
 	/*.env_t_rgb_to_system_colors  =*/ simgraph16_env_t_rgb_to_system_colors,
 	/*.set_player_color_scheme     =*/ simgraph16_set_player_color_scheme,
 	/*.set_light_color             =*/ simgraph16_set_light_color,
@@ -597,6 +603,7 @@ simgraph_t g_simgraph16 = {
 	/*.set_base_raster_width       =*/ simgraph16_set_base_raster_width,
 	/*.zoom_factor_up              =*/ simgraph16_zoom_factor_up,
 	/*.zoom_factor_down            =*/ simgraph16_zoom_factor_down,
+	/*.get_zoom_factor             =*/ simgraph16_get_zoom_factor,
 	/*.init                        =*/ simgraph16_init,
 	/*.is_display_init             =*/ simgraph16_is_display_init,
 	/*.exit                        =*/ simgraph16_exit,
@@ -632,6 +639,7 @@ simgraph_t g_simgraph16 = {
 	/*.tint_rect                   =*/ simgraph16_tint_rect,
 	/*.draw_rect                   =*/ simgraph16_draw_rect,
 	/*.draw_rect_clipped           =*/ simgraph16_draw_rect_clipped,
+	/*.draw_rect_colors_clipped    =*/ simgraph16_draw_rect_colors_clipped,
 	/*.draw_rounded_rect_clipped   =*/ simgraph16_draw_rounded_rect_clipped,
 	/*.draw_vline_clipped          =*/ simgraph16_draw_vline_clipped,
 	/*.flush_framebuffer           =*/ simgraph16_flush_framebuffer,
@@ -675,6 +683,7 @@ simgraph_t g_simgraph16 = {
 
 static uint32 zoom_factor = ZOOM_NEUTRAL;
 
+static uint32 simgraph16_get_zoom_factor() { return zoom_factor; }
 
 static inline rgb888_t pixval_to_rgb888(PIXVAL colour)
 {
@@ -727,6 +736,13 @@ static rgb888_t simgraph16_get_color_rgb(palette_index_t idx)
 	// Return black for anything else
 	return rgb888_t{0,0,0};
 }
+
+
+rgb888_t simgraph16_get_pixval_rgb(PIXVAL c)
+{
+	return pixval_to_rgb888(c);
+}
+
 
 /**
  * Convert indexed colors to rgb and back
@@ -965,6 +981,31 @@ inline void get_xrange_and_step_y(int &xmin, int &xmax  CLIP_NUM_DEF)
 // ------------------------------ dirty tile stuff --------------------------------
 
 
+/**
+ * Set bits in one word of the dirty tile bitmap.
+ *
+ * A word covers 32 tiles of one row, i.e. 512 pixels, but a display thread only
+ * owns a vertical band of the screen, so several threads mark tiles in the same
+ * word and the read-modify-write must be indivisible. Nothing beyond that is
+ * needed: the barrier that ends the threaded display already orders these
+ * against the reader in simgraph16_flush_framebuffer().
+ */
+static inline void mark_dirty_word(uint32 *word, uint32 bits)
+{
+#ifdef MULTI_THREAD
+#	if defined _MSC_VER
+	// there is no unsigned counterpart; long is 32 bit on every Windows target
+	static_assert( sizeof(long) == sizeof(uint32), "_InterlockedOr would not cover the whole word" );
+	_InterlockedOr( (volatile long *)word, (long)bits );
+#	else
+	__atomic_fetch_or( word, bits, __ATOMIC_RELAXED );
+#	endif
+#else
+	*word |= bits;
+#endif
+}
+
+
 /*
  * Simutrans keeps a list of dirty areas, i.e. places that received new graphics
  * and must be copied to the screen after an update
@@ -1005,7 +1046,7 @@ static void mark_rect_dirty_nc(scr_coord_val x1, scr_coord_val y1, scr_coord_val
 		int bit = y1 * tile_buffer_per_line + x1;
 		const int end = bit + x2 - x1;
 		do {
-			tile_dirty[bit >> 5] |= 1 << (bit & 31);
+			mark_dirty_word( &tile_dirty[bit >> 5], 1 << (bit & 31) );
 		} while(  ++bit <= end  );
 	}
 }
@@ -1417,7 +1458,7 @@ static void rezoom_img(const image_id n)
 				free( rezoom_baseimage[n % env_t::num_threads] );
 				rezoom_size[n % env_t::num_threads] = new_size;
 				rezoom_baseimage[n % env_t::num_threads]  = MALLOCN( uint8, new_size );
-				rezoom_baseimage2[n % env_t::num_threads] = (PIXVAL *)MALLOCN( uint8, new_size );
+				rezoom_baseimage2[n % env_t::num_threads] = reinterpret_cast<PIXVAL *>(MALLOCN(uint8, new_size));
 			}
 			memset( rezoom_baseimage[n % env_t::num_threads], 255, new_size ); // fill with invalid data to mark transparent regions
 
@@ -1709,7 +1750,7 @@ static void rezoom_img(const image_id n)
 			}
 
 			// now encode the image again
-			dest = (PIXVAL*)rezoom_baseimage[n % env_t::num_threads];
+			dest = reinterpret_cast<PIXVAL *>(rezoom_baseimage[n % env_t::num_threads]);
 			for(  sint16 y = 0;  y < newzoomheight;  y++  ) {
 				PIXVAL *line = ((PIXVAL *)rezoom_baseimage2[n % env_t::num_threads]) + (y * newzoomwidth);
 				PIXVAL count;
@@ -2118,9 +2159,33 @@ static inline void pixcopy(PIXVAL *dest, const PIXVAL *src, const PIXVAL * const
 
 
 /**
- * Copy pixel, replace player color
+ * Composite semi-transparent pixels that are already in SCREEN space.
+ *
+ * The source is a recoded cache, and the caller has already established from
+ * the run header (TRANSPARENT_RUN) that this run is semi-transparent, so no
+ * classification by pixel value is needed or done here.
  */
-static inline void colorpixcopy(PIXVAL* dest, const PIXVAL* src, const PIXVAL* const end)
+static inline void colorpixcopy_screen(PIXVAL* dest, const PIXVAL* src, const PIXVAL* const end)
+{
+	while (src < end) {
+		// a semi-transparent pixel
+		uint16 aux   = *src++ - 0x8020;
+		uint16 alpha = (aux % 31) + 1;
+
+		*dest = colors_blend_alpha32(*dest, rgbmap_day_night[0x8000 + aux / 31], alpha);
+		dest++;
+	}
+}
+
+
+/**
+ * Copy pixel from STORED space, replace player color.
+ *
+ * The source is original image data, so the historical stored encoding applies
+ * and classifying a pixel by its value is part of that encoding, not an
+ * assumption about screen colours.
+ */
+static inline void colorpixcopy_stored(PIXVAL* dest, const STORED_PIXVAL* src, const STORED_PIXVAL* const end)
 {
 	if (*src < 0x8020) {
 		while (src < end) {
@@ -2141,9 +2206,10 @@ static inline void colorpixcopy(PIXVAL* dest, const PIXVAL* src, const PIXVAL* c
 
 
 /**
- * Copy pixel, replace player color
+ * As colorpixcopy_stored(), but resolving semi-transparent pixels against the
+ * all-day table. Also STORED space.
  */
-static inline void colorpixcopydaytime(PIXVAL* dest, const PIXVAL* src, const PIXVAL* const end)
+static inline void colorpixcopydaytime_stored(PIXVAL* dest, const STORED_PIXVAL* src, const STORED_PIXVAL* const end)
 {
 	if (*src < 0x8020) {
 		while (src < end) {
@@ -2174,7 +2240,24 @@ enum pixcopy_routines {
 };
 
 
-template<pixcopy_routines copyroutine> void templated_pixcopy(PIXVAL *dest, const PIXVAL *src, const PIXVAL * const end);
+/**
+ * Which source space each routine reads.
+ *
+ * plain draws from a recoded screen cache; colored and daytime draw from the
+ * original stored image data. Keeping that in the type is what stops the two
+ * being confused once a screen pixel is no longer the same width as a stored
+ * one.
+ */
+template<pixcopy_routines copyroutine> struct pixcopy_source_t;
+template<> struct pixcopy_source_t<plain>   { typedef PIXVAL        type; };
+template<> struct pixcopy_source_t<colored> { typedef STORED_PIXVAL type; };
+template<> struct pixcopy_source_t<daytime> { typedef STORED_PIXVAL type; };
+
+template<pixcopy_routines copyroutine>
+using pixcopy_src = typename pixcopy_source_t<copyroutine>::type;
+
+
+template<pixcopy_routines copyroutine> void templated_pixcopy(PIXVAL *dest, const pixcopy_src<copyroutine> *src, const pixcopy_src<copyroutine> * const end);
 
 
 template<> void templated_pixcopy<plain>(PIXVAL *dest, const PIXVAL *src, const PIXVAL * const end)
@@ -2183,15 +2266,43 @@ template<> void templated_pixcopy<plain>(PIXVAL *dest, const PIXVAL *src, const 
 }
 
 
-template<> void templated_pixcopy<colored>(PIXVAL* dest, const PIXVAL* src, const PIXVAL* const end)
+template<> void templated_pixcopy<colored>(PIXVAL* dest, const STORED_PIXVAL* src, const STORED_PIXVAL* const end)
 {
-	colorpixcopy(dest, src, end);
+	colorpixcopy_stored(dest, src, end);
 }
 
 
-template<> void templated_pixcopy<daytime>(PIXVAL* dest, const PIXVAL* src, const PIXVAL* const end)
+template<> void templated_pixcopy<daytime>(PIXVAL* dest, const STORED_PIXVAL* src, const STORED_PIXVAL* const end)
 {
-	colorpixcopydaytime(dest, src, end);
+	colorpixcopydaytime_stored(dest, src, end);
+}
+
+
+/**
+ * The semi-transparent run of the same routine.
+ *
+ * daytime deliberately maps to the day/night stored variant rather than the
+ * all-day one: that is what the historical code did for alpha runs, and this
+ * cut preserves it rather than correcting it.
+ */
+template<pixcopy_routines copyroutine> void templated_alphacopy(PIXVAL *dest, const pixcopy_src<copyroutine> *src, const pixcopy_src<copyroutine> * const end);
+
+
+template<> void templated_alphacopy<plain>(PIXVAL *dest, const PIXVAL *src, const PIXVAL * const end)
+{
+	colorpixcopy_screen(dest, src, end);
+}
+
+
+template<> void templated_alphacopy<colored>(PIXVAL* dest, const STORED_PIXVAL* src, const STORED_PIXVAL* const end)
+{
+	colorpixcopy_stored(dest, src, end);
+}
+
+
+template<> void templated_alphacopy<daytime>(PIXVAL* dest, const STORED_PIXVAL* src, const STORED_PIXVAL* const end)
+{
+	colorpixcopy_stored(dest, src, end);
 }
 
 
@@ -2199,7 +2310,7 @@ template<> void templated_pixcopy<daytime>(PIXVAL* dest, const PIXVAL* src, cons
  * draws image with clipping along arbitrary lines
  */
 template<pixcopy_routines copyroutine>
-static void display_img_pc(scr_coord_val h, const scr_coord_val xp, const scr_coord_val yp, const PIXVAL *sp  CLIP_NUM_DEF)
+static void display_img_pc(scr_coord_val h, const scr_coord_val xp, const scr_coord_val yp, const pixcopy_src<copyroutine> *sp  CLIP_NUM_DEF)
 {
 	if(  h > 0  ) {
 		PIXVAL *tp = textur + yp * disp_width;
@@ -2232,7 +2343,7 @@ static void display_img_pc(scr_coord_val h, const scr_coord_val xp, const scr_co
 						templated_pixcopy<copyroutine>(tp + xpos + left, sp + left, sp + len);
 					}
 					else {
-						colorpixcopy(tp + xpos + left, sp + left, sp + len);
+						templated_alphacopy<copyroutine>(tp + xpos + left, sp + left, sp + len);
 					}
 				}
 
@@ -2278,7 +2389,7 @@ static void display_img_wc(scr_coord_val h, const scr_coord_val xp, const scr_co
 						pixcopy(tp + xpos + left, sp + left, sp + len);
 					}
 					else {
-						colorpixcopy(tp + xpos + left, sp + left, sp + len);
+						colorpixcopy_screen(tp + xpos + left, sp + left, sp + len);
 					}
 				}
 
@@ -2313,7 +2424,7 @@ static void display_img_nc(scr_coord_val h, const scr_coord_val xp, const scr_co
 				runlen = *sp++;
 				if(  runlen & TRANSPARENT_RUN  ) {
 					runlen &= ~TRANSPARENT_RUN;
-					colorpixcopy( p, sp, sp+runlen );
+					colorpixcopy_screen( p, sp, sp+runlen );
 					p += runlen;
 					sp += runlen;
 				}
@@ -2335,7 +2446,7 @@ static void display_img_nc(scr_coord_val h, const scr_coord_val xp, const scr_co
 						// aligned fast copy loop
 						bool const postalign = runlen & 1;
 						runlen >>= 1;
-						uint32 *ld = (uint32 *)p;
+						uint32 *ld = reinterpret_cast<uint32 *>(p);
 						while (runlen--) {
 #if defined _MSC_VER // MSVC can read unaligned
 							*ld++ = *(uint32 const *const)sp;
@@ -2659,7 +2770,7 @@ static void simgraph16_draw_stretch_map_blend(const stretch_map_t &imag, scr_rec
  * assumes height is ok and valid data are calculated.
  * color replacement needs the original data => sp points to non-cached data
  */
-static void display_color_img_wc(const PIXVAL* sp, scr_coord_val x, scr_coord_val y, scr_coord_val h  CLIP_NUM_DEF)
+static void display_color_img_wc(const STORED_PIXVAL* sp, scr_coord_val x, scr_coord_val y, scr_coord_val h  CLIP_NUM_DEF)
 {
 	PIXVAL* tp = textur + y * disp_width;
 
@@ -2682,7 +2793,7 @@ static void display_color_img_wc(const PIXVAL* sp, scr_coord_val x, scr_coord_va
 				const int left = (xpos >= CR.clip_rect.x ? 0 : CR.clip_rect.x - xpos);
 				const int len = (CR.clip_rect.xx - xpos > runlen ? runlen : CR.clip_rect.xx - xpos);
 
-				colorpixcopy(tp + xpos + left, sp + left, sp + len);
+				colorpixcopy_stored(tp + xpos + left, sp + left, sp + len);
 			}
 
 			sp += runlen;
@@ -2697,7 +2808,7 @@ static void display_color_img_wc(const PIXVAL* sp, scr_coord_val x, scr_coord_va
 /**
  * Draw Image, replace player color, as above, but uses daytime colors for transparent pixels
  */
-static void display_color_img_wc_daytime(const PIXVAL* sp, scr_coord_val x, scr_coord_val y, scr_coord_val h  CLIP_NUM_DEF)
+static void display_color_img_wc_daytime(const STORED_PIXVAL* sp, scr_coord_val x, scr_coord_val y, scr_coord_val h  CLIP_NUM_DEF)
 {
 	PIXVAL* tp = textur + y * disp_width;
 
@@ -2720,7 +2831,7 @@ static void display_color_img_wc_daytime(const PIXVAL* sp, scr_coord_val x, scr_
 				const int left = (xpos >= CR.clip_rect.x ? 0 : CR.clip_rect.x - xpos);
 				const int len = (CR.clip_rect.xx - xpos > runlen ? runlen : CR.clip_rect.xx - xpos);
 
-				colorpixcopydaytime(tp + xpos + left, sp + left, sp + len);
+				colorpixcopydaytime_stored(tp + xpos + left, sp + left, sp + len);
 			}
 
 			sp += runlen;
@@ -2773,7 +2884,7 @@ void simgraph16_draw_color_img(const image_id n, scr_coord_val xp, scr_coord_val
 			activate_player_color( player_nr, daynight );
 
 			// color replacement needs the original data => sp points to non-cached data
-			const PIXVAL *sp = images[n].zoom_data != NULL ? images[n].zoom_data : images[n].base_data;
+			const STORED_PIXVAL *sp = images[n].zoom_data != NULL ? images[n].zoom_data : images[n].base_data;
 
 			// clip top/bottom
 			scr_coord_val yoff = clip_wh( &y, &h, CR.clip_rect.y, CR.clip_rect.yy );
@@ -2839,7 +2950,7 @@ static void simgraph16_draw_base_img(const image_id n, scr_coord_val xp, scr_coo
 		}
 
 		// color replacement needs the original data => sp points to non-cached data
-		const PIXVAL *sp = images[n].base_data;
+		const STORED_PIXVAL *sp = images[n].base_data;
 
 		// clip top/bottom
 		scr_coord_val yoff = clip_wh( &y, &h, CR.clip_rect.y, CR.clip_rect.yy );
@@ -3216,9 +3327,10 @@ static void simgraph16_draw_rezoomed_img_blend(const image_id n, scr_coord_val x
 			// needed now ...
 			const scr_coord_val w = images[n].w;
 			// get the real color
-			const PIXVAL color = color_index & 0xFFFF;
+			const PIXVAL color = get_flagged_colour( color_index );
 			// we use function pointer for the blend runs for the moment ...
-			blend_proc pix_blend = (color_index&OUTLINE_FLAG) ? outline[ (color_index&TRANSPARENT_FLAGS)/TRANSPARENT25_FLAG - 1 ] : blend[ (color_index&TRANSPARENT_FLAGS)/TRANSPARENT25_FLAG - 1 ];
+			const uint8 level = get_transparency_level( color_index );
+			blend_proc pix_blend = has_outline_flag( color_index ) ? outline[ level - 1 ] : blend[ level - 1 ];
 
 			// marking change?
 			if(  dirty  ) {
@@ -3297,7 +3409,7 @@ static void simgraph16_draw_rezoomed_img_alpha(const image_id n, const image_id 
 			// needed now ...
 			const scr_coord_val w = images[n].w;
 			// get the real color
-			const PIXVAL color = color_index & 0xFFFF;
+			const PIXVAL color = get_flagged_colour( color_index );
 
 			// marking change?
 			if(  dirty  ) {
@@ -3356,11 +3468,12 @@ static void simgraph16_draw_base_img_blend(const image_id n, scr_coord_val xp, s
 
 		// new block for new variables
 		{
-			const PIXVAL color = color_index & 0xFFFF;
-			blend_proc pix_blend = (color_index&OUTLINE_FLAG) ? outline[ (color_index&TRANSPARENT_FLAGS)/TRANSPARENT25_FLAG - 1 ] : blend_recode[ (color_index&TRANSPARENT_FLAGS)/TRANSPARENT25_FLAG - 1 ];
+			const PIXVAL color = get_flagged_colour( color_index );
+			const uint8 level = get_transparency_level( color_index );
+			blend_proc pix_blend = has_outline_flag( color_index ) ? outline[ level - 1 ] : blend_recode[ level - 1 ];
 
 			// recode is needed only for blending
-			if(  !(color_index&OUTLINE_FLAG)  ) {
+			if(  !has_outline_flag( color_index )  ) {
 				// colors for 2nd company color
 				if(player_nr>=0) {
 					activate_player_color( player_nr, daynight );
@@ -3434,10 +3547,10 @@ static void simgraph16_draw_base_img_alpha(const image_id n, const image_id alph
 
 		// new block for new variables
 		{
-			const PIXVAL color = color_index & 0xFFFF;
+			const PIXVAL color = get_flagged_colour( color_index );
 
 			// recode is needed only for blending
-			if(  !(color_index & OUTLINE_FLAG)  ) {
+			if(  !has_outline_flag( color_index )  ) {
 				// colors for 2nd company color
 				if(  player_nr >= 0  ) {
 					activate_player_color( player_nr, daynight );
@@ -3546,7 +3659,7 @@ static void display_fb_internal(scr_coord_val xp, scr_coord_val yp, scr_coord_va
 			// aligned fast fill loop
 			bool const postalign = count & 1;
 			count >>= 1;
-			uint32 *lp = (uint32 *)p;
+			uint32 *lp = reinterpret_cast<uint32 *>(p);
 			while(count--) {
 				*lp++ = colvald;
 			}
@@ -3581,6 +3694,27 @@ static void simgraph16_draw_rect_clipped(scr_coord_val xp, scr_coord_val yp, scr
 }
 
 
+static void simgraph16_draw_rect_colors_clipped(scr_coord_val xp, scr_coord_val yp, scr_coord_val w, scr_coord_val h, PIXVAL *colors, scr_coord_val num_colors, bool horizontal, bool dirty  CLIP_NUM_DEF)
+{
+	if (horizontal) {
+		scr_coord_val last_w = 0;
+		for (scr_coord_val i = 0; i < num_colors; i++) {
+			scr_coord_val next_w = (w * (1 + i)) / num_colors;
+			display_fb_internal(xp+last_w, yp, next_w-last_w, h, colors[i], dirty, CR.clip_rect.x, CR.clip_rect.xx, CR.clip_rect.y, CR.clip_rect.yy);
+			last_w = next_w;
+		}
+	}
+	else {
+		scr_coord_val last_h = 0;
+		for (scr_coord_val i = 0; i < num_colors; i++) {
+			scr_coord_val next_h = (h * (1 + i)) / num_colors;
+			display_fb_internal(xp, yp+last_h, w, next_h-last_h, colors[i], dirty, CR.clip_rect.x, CR.clip_rect.xx, CR.clip_rect.y, CR.clip_rect.yy);
+			last_h = next_h;
+		}
+	}
+}
+
+
 static void simgraph16_draw_rounded_rect_clipped(scr_coord_val xp, scr_coord_val yp, scr_coord_val w, scr_coord_val h, PIXVAL color, bool dirty)
 {
 	simgraph16_draw_rect_clipped(xp+2,   yp,   w-4, h,   color, dirty CLIP_NUM_DEFAULT);
@@ -3609,7 +3743,7 @@ static void display_vl_internal(const scr_coord_val xp, scr_coord_val yp, scr_co
 }
 
 
-void display_vline_wh_rgb(const scr_coord_val xp, scr_coord_val yp, scr_coord_val h, const PIXVAL color, bool dirty)
+void simgraph16_draw_vline(const scr_coord_val xp, scr_coord_val yp, scr_coord_val h, const PIXVAL color, bool dirty)
 {
 	display_vl_internal(xp, yp, h, color, dirty, 0, disp_width, 0, disp_height);
 }
@@ -4042,8 +4176,8 @@ static void simgraph16_draw_box3d(scr_coord_val x1, scr_coord_val y1, scr_coord_
 
 	h -= 2;
 
-	display_vline_wh_rgb(x1,         y1 + 1, h, tl_color, dirty);
-	display_vline_wh_rgb(x1 + w - 1, y1 + 1, h, rd_color, dirty);
+	simgraph16_draw_vline(x1,         y1 + 1, h, tl_color, dirty);
+	simgraph16_draw_vline(x1 + w - 1, y1 + 1, h, rd_color, dirty);
 }
 
 
@@ -4419,7 +4553,7 @@ static void simgraph16_draw_right_triangle(scr_coord_val x, scr_coord_val y, scr
 {
 	y += (height / 2);
 	while(  height > 0  ) {
-		display_vline_wh_rgb( x, y-(height/2), height, colval, dirty );
+		simgraph16_draw_vline( x, y-(height/2), height, colval, dirty );
 		x++;
 		height -= 2;
 	}
@@ -4549,10 +4683,10 @@ static void simgraph16_flush_framebuffer()
 				}
 
 #ifdef DEBUG_FLUSH_BUFFER
-				display_vline_wh_rgb( (x1 << DIRTY_TILE_SHIFT) - 1, y1 << DIRTY_TILE_SHIFT, (y2 - y1) << DIRTY_TILE_SHIFT, gfx->palette_lookup(COL_YELLOW), false);
-				display_vline_wh_rgb( x2 << DIRTY_TILE_SHIFT,  y1 << DIRTY_TILE_SHIFT, (y2 - y1) << DIRTY_TILE_SHIFT, gfx->palette_lookup(COL_YELLOW), false);
-				display_fillbox_wh_rgb( x1 << DIRTY_TILE_SHIFT, y1 << DIRTY_TILE_SHIFT, (x2 - x1) << DIRTY_TILE_SHIFT, 1, gfx->palette_lookup(COL_YELLOW), false);
-				display_fillbox_wh_rgb( x1 << DIRTY_TILE_SHIFT, (y2 << DIRTY_TILE_SHIFT) - 1, (x2 - x1) << DIRTY_TILE_SHIFT, 1, gfx->palette_lookup(COL_YELLOW), false);
+				simgraph16_draw_vline( (x1 << DIRTY_TILE_SHIFT) - 1, y1 << DIRTY_TILE_SHIFT, (y2 - y1) << DIRTY_TILE_SHIFT, gfx->palette_lookup(COL_YELLOW), false);
+				simgraph16_draw_vline( x2 << DIRTY_TILE_SHIFT,  y1 << DIRTY_TILE_SHIFT, (y2 - y1) << DIRTY_TILE_SHIFT, gfx->palette_lookup(COL_YELLOW), false);
+				simgraph16_draw_rect( x1 << DIRTY_TILE_SHIFT, y1 << DIRTY_TILE_SHIFT, (x2 - x1) << DIRTY_TILE_SHIFT, 1, gfx->palette_lookup(COL_YELLOW), false);
+				simgraph16_draw_rect( x1 << DIRTY_TILE_SHIFT, (y2 << DIRTY_TILE_SHIFT) - 1, (x2 - x1) << DIRTY_TILE_SHIFT, 1, gfx->palette_lookup(COL_YELLOW), false);
 				simgraph16_draw_line( x1 << DIRTY_TILE_SHIFT, y1 << DIRTY_TILE_SHIFT, x2 << DIRTY_TILE_SHIFT, (y2 << DIRTY_TILE_SHIFT) - 1, gfx->palette_lookup(COL_YELLOW) );
 				simgraph16_draw_line( x1 << DIRTY_TILE_SHIFT, (y2 << DIRTY_TILE_SHIFT) - 1, x2 << DIRTY_TILE_SHIFT, y1 << DIRTY_TILE_SHIFT, gfx->palette_lookup(COL_YELLOW) );
 #else
@@ -4775,20 +4909,8 @@ static void simgraph16_on_window_resized(scr_size new_window_size)
 /**
  * Take Screenshot
  */
-static bool simgraph16_take_screenshot(const scr_rect &area)
+static bool simgraph16_take_screenshot(const scr_rect &area, const char *filename)
 {
-	if (access(SCREENSHOT_PATH_X, W_OK) == -1) {
-		return false; // directory not accessible
-	}
-
-	static int number = 0;
-	char filename[80];
-
-	// find the first not used screenshot image
-	do {
-		sprintf(filename, SCREENSHOT_PATH_X "simscr%02d.png", number++);
-	} while (access(filename, W_OK) != -1);
-
 	// now save the screenshot
 	scr_rect clipped_area = area;
 	clipped_area.clip(scr_rect(0, 0, disp_actual_width, disp_height));
@@ -4814,7 +4936,7 @@ static bool simgraph16_take_screenshot(const scr_rect &area)
 static void simgraph16_set_image_procs(bool is_global)
 {
 	if(  is_global  ) {
-		g_simgraph16.draw_normal = simgraph16_draw_img_aux;;
+		g_simgraph16.draw_normal = simgraph16_draw_img_aux;
 		g_simgraph16.draw_color  = simgraph16_draw_color_img;
 		g_simgraph16.draw_blend  = simgraph16_draw_rezoomed_img_blend;
 		g_simgraph16.draw_alpha  = simgraph16_draw_rezoomed_img_alpha;

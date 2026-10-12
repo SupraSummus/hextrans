@@ -16,6 +16,7 @@
 #include "../obj/way/weg.h"
 
 #include "../dataobj/loadsave.h"
+#include "../dataobj/environment.h"
 #include "../dataobj/translator.h"
 
 #include "../utils/cbuffer.h"
@@ -63,8 +64,6 @@ crossing_t::~crossing_t()
 void crossing_t::rotate90()
 {
 	obj_t::rotate90();
-	// Rotation cascade is gated unreachable today (see TODO.md);
-	// kept internally consistent for whoever revives it.
 	axis = ribi_t::rotate_for_map_rotate90(axis);
 }
 
@@ -167,11 +166,12 @@ void crossing_t::rdwr(loadsave_t *file)
 }
 
 
-void crossing_t::finish_rd()
+bool crossing_t::finish_rd()
 {
 	grund_t *gr=welt->lookup(get_pos());
 	if(gr==NULL  ||  !gr->hat_weg(desc->get_waytype(0))  ||  !gr->hat_weg(desc->get_waytype(1))) {
 		dbg->error("crossing_t::finish_rd","way/ground missing at %i,%i => ignore", get_pos().x, get_pos().y );
+		return true;
 	}
 	else {
 		// try to find crossing that matches way max speed
@@ -197,6 +197,7 @@ void crossing_t::finish_rd()
 #endif
 		}
 	}
+	return false;
 }
 
 

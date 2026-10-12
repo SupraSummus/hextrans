@@ -21,9 +21,9 @@ gui_rotation_item_t::gui_rotation_item_t(uint8 r) : gui_scrolled_list_t::const_t
 	rotation = r;
 	switch(rotation) {
 		case 0:         text = translator::translate("[0] south-facing");       break;
-		case 1:         text = translator::translate("[1] east-facing");        break;
+		case 1:         text = translator::translate("[1] southeast-facing");   break;
 		case 2:         text = translator::translate("[2] north-facing");       break;
-		case 3:         text = translator::translate("[3] west-facing");        break;
+		case 3:         text = translator::translate("[3] northwest-facing");   break;
 		case 4:         text = translator::translate("[4] southeast corner");   break;
 		case 5:         text = translator::translate("[5] northeast corner");   break;
 		case 6:         text = translator::translate("[6] northwest corner");   break;

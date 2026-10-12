@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "simmem.h"
 #include "simdebug.h"
 #include "simfab.h"
 #include "simhalt.h"
@@ -152,9 +153,9 @@ void ware_t::finish_rd(karte_t *welt)
 }
 
 
-void ware_t::rotate90(sint16 y_size )
+void ware_t::rotate90( const map_shape_t &from )
 {
-	target_pos.rotate90( y_size );
+	target_pos.rotate90( from );
 	update_factory_target();
 }
 

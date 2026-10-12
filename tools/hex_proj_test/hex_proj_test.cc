@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <set>
 #include <utility>
+#include <vector>
 
 #include "simutrans/display/hex_proj.h"
 #include "simutrans/dataobj/koord.h"
@@ -70,6 +71,30 @@ static void test_forward_neighbours()
 			std::abort();
 		}
 	}
+}
+
+
+// ---- 2b. Draw order of objects moving on a tile ----------------------------
+
+// hex_heading_climbs_screen picks which end of a tile's object list a
+// vehicle entering the tile goes to (objlist_t::intern_add_moving): one
+// heading up the screen is appended, one heading down is prepended.  It
+// has to follow the sign of the projected step for every edge.  The
+// square-era rule appended N and NW only, which sent NE (3u, -u) down.
+static void test_heading_climbs_screen()
+{
+	static const char *const names[] = { "SE", "S", "SW", "NW", "N", "NE" };
+	for (int i = 0; i < 6; i++) {
+		const ribi_t::ribi dir = (ribi_t::ribi)(1 << i);
+		const sint32 sy = hex_screen_dy(koord::neighbours[i].x, koord::neighbours[i].y, W);
+		if (sy == 0 || hex_heading_climbs_screen(dir) != (sy < 0)) {
+			std::fprintf(stderr,
+				"heading %s: screen dy = %d, hex_heading_climbs_screen = %d\n",
+				names[i], sy, (int)hex_heading_climbs_screen(dir));
+			std::abort();
+		}
+	}
+	assert(!hex_heading_climbs_screen(ribi_t::none));
 }
 
 
@@ -513,10 +538,84 @@ static void test_render_loop_bijection()
 }
 
 
+// ---- 9. Row-wise walk of a screen rectangle (small world views) ------------
+
+static void test_row_walk()
+{
+	const sint32 y_lo = -9, y_hi = 5;
+	const sint32 x_lo = -8, x_hi = 8;
+
+	std::vector<koord> walked;
+	hex_for_each_in_rows(y_lo, y_hi, x_lo, x_hi, [&](koord k) { walked.push_back(k); });
+
+	// Every hex whose centre is inside the rectangle, exactly once: the
+	// walk and a brute-force scan over (q, r) agree.
+	std::set<std::pair<sint16, sint16>> expected;
+	for (sint16 q = -20; q <= 20; q++) {
+		for (sint16 r = -20; r <= 20; r++) {
+			const sint32 x = 3 * q, y = q + 2 * r;
+			if (x >= x_lo && x <= x_hi && y >= y_lo && y <= y_hi) {
+				expected.insert(std::make_pair(q, r));
+			}
+		}
+	}
+	std::set<std::pair<sint16, sint16>> seen;
+	for (const koord &k : walked) {
+		assert(seen.insert(std::make_pair(k.x, k.y)).second);
+	}
+	assert(seen == expected);
+	assert(walked.size() > 30);
+
+	// Back to front, as main_view_t draws: screen rows top to bottom, and
+	// left to right inside a row.
+	for (size_t i = 1; i < walked.size(); i++) {
+		const koord &a = walked[i - 1], &b = walked[i];
+		const sint32 ya = a.x + 2 * a.y, yb = b.x + 2 * b.y;
+		assert(ya < yb || (ya == yb && a.x < b.x));
+	}
+
+	// On the screen the walked hexes are where the viewport puts them:
+	// hex_screen_dx/dy in pixels are the walk's (x, y) in W/4 units.
+	for (const koord &k : walked) {
+		assert(hex_screen_dx(k.x, W) == 3 * k.x * U);
+		assert(hex_screen_dy(k.x, k.y, W) == (k.x + 2 * k.y) * U);
+	}
+
+	// With the left bound of the main render loop it is that loop: same
+	// phase, same step, same tiles.
+	for (sint16 y = -12; y < 12; y++) {
+		std::vector<koord> loop;
+		for (sint16 x = hex_render_x_start(y); x < 40; x += hex_render_x_step()) {
+			const sint16 q = x / 3;
+			loop.push_back(koord(q, (y - q) / 2));
+		}
+		std::vector<koord> row;
+		hex_for_each_in_rows(y, y, hex_render_x_start(y), 39, [&](koord k) { row.push_back(k); });
+		assert(row.size() == loop.size());
+		for (size_t i = 0; i < loop.size(); i++) {
+			assert(row[i] == loop[i]);
+		}
+	}
+
+	// A left bound that is not on the row's phase starts at the next hex.
+	std::vector<koord> row;
+	hex_for_each_in_rows(1, 1, -4, 3, [&](koord k) { row.push_back(k); });
+	// Odd row: centres at x = ..., -3, 3, 9, ...
+	assert(row.size() == 2);
+	assert(row[0] == koord(-1, 1));
+	assert(row[1] == koord(1, 0));
+
+	// Empty rectangles visit nothing.
+	hex_for_each_in_rows(3, 2, -8, 8, [](koord) { assert(false); });
+	hex_for_each_in_rows(0, 0, 1, 2, [](koord) { assert(false); });
+}
+
+
 int main()
 {
 	test_forward_unit_steps();
 	test_forward_neighbours();
+	test_heading_climbs_screen();
 	test_round_trip();
 	test_inverse_noise();
 	test_inverse_picks_screen_closest();
@@ -532,6 +631,7 @@ int main()
 	test_inscribed_hex_tiles_lattice();
 	test_canvas_anchor_convention();
 	test_render_loop_bijection();
+	test_row_walk();
 
 	std::printf("hex_proj_test: all checks passed\n");
 	return 0;

@@ -5,8 +5,10 @@
 
 #include <stdio.h>
 
+#include "../simdebug.h"
 #include "../world/simworld.h"
 #include "simobj.h"
+#include "../obj/way/schiene.h"
 #include "../ground/grund.h"
 #include "../display/simimg.h"
 #include "../dataobj/ribi.h"
@@ -45,11 +47,16 @@ void signal_t::calc_image()
 {
 	foreground_image = IMG_EMPTY;
 	image_id image = IMG_EMPTY;
+	uint16 diag[6] = { roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL };
 
 	after_xoffset = 0;
 	after_yoffset = 0;
 	sint8 xoff = 0, yoff = 0;
 	const bool left_swap = welt->get_settings().is_signals_left()  &&  desc->get_offset_left();
+	// use the drive-on-left variant lists when the pak has them and signals
+	// stand on the left; the lists repeat the layout of the normal one, so
+	// the state and electrification arithmetic below applies unchanged
+	const bool left_variant = welt->get_settings().is_signals_left()  &&  desc->has_left_images();
 
 	grund_t *gr = welt->lookup(get_pos());
 	if(gr) {
@@ -66,6 +73,12 @@ void signal_t::calc_image()
 			ribi_t::ribi dir = sch->get_ribi_unmasked() & (~calc_mask());
 			if(sch->is_electrified()  &&  (desc->get_count()/8)>1) {
 				offset = (desc->is_pre_signal()  ||  desc->is_priority_signal()) ? 12 : 8;
+			}
+
+			// the bend comes from the unmasked ribi: a one way signal masks a direction away,
+			// and a single direction is not a bend. The diagonal rows are twice as long
+			if(  sch->is_diagonal()  &&  desc->has_diagonal_image()  ) {
+				calc_diagonal_index( diag, sch->get_ribi_unmasked(), state*8 + offset*2 );
 			}
 
 			// vertical offset of the signal positions
@@ -90,86 +103,15 @@ void signal_t::calc_image()
 			ribi_t::ribi temp_dir = dir;
 			if(  gr->get_typ()==grund_t::tunnelboden  &&  gr->ist_karten_boden()  &&
 				(grund_t::underground_mode==grund_t::ugm_none  ||  (grund_t::underground_mode==grund_t::ugm_level  &&  gr->get_hoehe()<grund_t::underground_level))   ) {
-				// entering tunnel here: hide the image further in if not undergroud/sliced
-				const ribi_t::ribi tunnel_hang_dir = ribi_t::backward( ribi_type(gr->get_grund_hang()) );
-				if(  tunnel_hang_dir==ribi_t::southeast ||  tunnel_hang_dir==ribi_t::north  ) {
-					temp_dir &= ~ribi_t::southwest;
-				}
-				else {
-					temp_dir &= ~ribi_t::northeast;
-				}
+				// entering tunnel here: hide the image further in, the direction the slope climbs, if not undergroud/sliced
+				temp_dir &= ~ribi_type( gr->get_grund_hang() );
 			}
+
+			// no NE and SW art: they look like N and S
+			temp_dir = desc->get_drawn_dirs( temp_dir );
 
 			// signs for left side need other offsets and other front/back order
-			if(  left_swap  ) {
-				const sint16 XOFF = 2*desc->get_offset_left();
-				const sint16 YOFF = desc->get_offset_left();
-
-				if(temp_dir&ribi_t::southeast) {
-					image = desc->get_image_id(3+state*4+offset);
-					xoff += XOFF;
-					yoff += -YOFF;
-				}
-
-				if(temp_dir&ribi_t::north) {
-					if(image!=IMG_EMPTY) {
-						foreground_image = desc->get_image_id(0+state*4+offset);
-						after_xoffset += -XOFF;
-						after_yoffset += -YOFF;
-					}
-					else {
-						image = desc->get_image_id(0+state*4+offset);
-						xoff += -XOFF;
-						yoff += -YOFF;
-					}
-				}
-
-				if(temp_dir&ribi_t::northwest) {
-					foreground_image = desc->get_image_id(2+state*4+offset);
-					after_xoffset += -XOFF;
-					after_yoffset += YOFF;
-				}
-
-				if(temp_dir&ribi_t::south) {
-					if(foreground_image!=IMG_EMPTY) {
-						image = desc->get_image_id(1+state*4+offset);
-						xoff += XOFF;
-						yoff += YOFF;
-					}
-					else {
-						foreground_image = desc->get_image_id(1+state*4+offset);
-						after_xoffset += XOFF;
-						after_yoffset += YOFF;
-					}
-				}
-			}
-			else {
-				if(temp_dir&ribi_t::southeast) {
-					foreground_image = desc->get_image_id(3+state*4+offset);
-				}
-
-				if(temp_dir&ribi_t::north) {
-					if(foreground_image==IMG_EMPTY) {
-						foreground_image = desc->get_image_id(0+state*4+offset);
-					}
-					else {
-						image = desc->get_image_id(0+state*4+offset);
-					}
-				}
-
-				if(temp_dir&ribi_t::northwest) {
-					image = desc->get_image_id(2+state*4+offset);
-				}
-
-				if(temp_dir&ribi_t::south) {
-					if(image==IMG_EMPTY) {
-						image = desc->get_image_id(1+state*4+offset);
-					}
-					else {
-						foreground_image = desc->get_image_id(1+state*4+offset);
-					}
-				}
-			}
+			calc_dir_images( temp_dir, state*4+offset, diag, left_swap, left_variant, image, xoff, yoff );
 		}
 	}
 	set_xoff( xoff );

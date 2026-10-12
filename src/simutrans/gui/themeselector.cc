@@ -7,6 +7,7 @@
 
 #include "themeselector.h"
 #include "simwin.h"
+#include "../sys/simsys.h"
 #include "../simevent.h"
 #include "gui_theme.h"
 #include "../utils/simstring.h"

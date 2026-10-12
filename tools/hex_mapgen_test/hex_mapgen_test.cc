@@ -1,0 +1,379 @@
+// Checks the map generation shapes in dataobj/mapgen_shape.h and
+// physical_dot_x2 in dataobj/koord.h: that they are round (isotropic)
+// in the physical plane, which axial-grid formulas are not.  The axial
+// basis e_q, e_r is 60 degrees apart, so a set of tiles that is round in
+// (q, r) has a physical gyration tensor with eigenvalues in the ratio
+// 3 : 1 (an aspect of sqrt(3)), and a "cosine" q1*q2 + r1*r2 is not the
+// cosine of anything.  Each check pairs the hex-aware shape with the
+// legacy axial formula, so that a test that cannot fail would show.
+//
+// Covers karte_t::calc_climate_map_region (smoothing weights and rounding,
+// patch shape), karte_t::distribute_cities (obtuse-angle test) and
+// karte_t::find_free_discs (hex_disc region).
+
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+
+#include "simutrans/dataobj/koord.h"
+#include "simutrans/dataobj/mapgen_shape.h"
+
+
+static int failures = 0;
+
+#define CHECK(cond) do { \
+	if (!(cond)) { \
+		std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); \
+		failures++; \
+	} \
+} while (0)
+
+
+// Physical position of an axial offset, flat-top basis e_q = (sqrt3/2, 1/2), e_r = (0, 1).
+static double phys_x(koord k) { return std::sqrt(3.0) / 2.0 * k.x; }
+static double phys_y(koord k) { return 0.5 * k.x + k.y; }
+
+
+// sqrt(l1 / l2) of the gyration tensor of the tiles in the physical
+// plane: 1 for a round set, sqrt(3) for an axial circle.
+static double physical_aspect(const std::vector<koord> &tiles)
+{
+	double cx = 0, cy = 0;
+	for (koord k : tiles) {
+		cx += phys_x(k);
+		cy += phys_y(k);
+	}
+	cx /= tiles.size();
+	cy /= tiles.size();
+	double a = 0, b = 0, c = 0;
+	for (koord k : tiles) {
+		const double dx = phys_x(k) - cx, dy = phys_y(k) - cy;
+		a += dx * dx;
+		b += dx * dy;
+		c += dy * dy;
+	}
+	const double tr = a + c;
+	const double disc = std::sqrt((a - c) * (a - c) + 4 * b * b);
+	return std::sqrt((tr + disc) / (tr - disc));
+}
+
+
+static std::vector<koord> patch_tiles(const climate_patch_t &patch)
+{
+	std::vector<koord> tiles;
+	for (sint16 dr = -patch.reach_r(); dr <= patch.reach_r(); dr++) {
+		for (sint16 dq = -patch.reach_q(); dq <= patch.reach_q(); dq++) {
+			if (patch.contains(dq, dr)) {
+				tiles.push_back(koord(dq, dr));
+			}
+		}
+	}
+	return tiles;
+}
+
+
+// The patch test of the square-grid generator: an ellipse on the axial
+// offsets inside the wx by wy box, with the square root and the integer
+// division of the original.
+static bool legacy_axial_patch_contains(sint32 wx, sint32 wy, sint32 x_off, sint32 y_off)
+{
+	if (x_off < -(wx >> 1)  ||  x_off > wx - 1 - (wx >> 1)  ||  y_off < -(wy >> 1)  ||  y_off > wy - 1 - (wy >> 1)) {
+		return false;
+	}
+	const uint64 distance = 1 + (uint64)std::sqrt((double)((uint64)x_off * x_off * (wx * wx) + (uint64)y_off * y_off * (wy * wy)));
+	return (8 * (uint32)(wx * wx + wy * wy)) / distance > 40;
+}
+
+
+// The smoothing of the square grid with its weights cut to six neighbours:
+// alternate neighbours weigh 1 and 2, which sum to 13, over 16.
+static sint32 legacy_smooth_cell(sint32 centre, const sint32 (&neighbour)[6])
+{
+	sint32 sum = 4 * centre;
+	for (int i = 0; i < 6; i++) {
+		sum += (i & 1) ? 2 * neighbour[i] : neighbour[i];
+	}
+	return sum / 16;
+}
+
+
+// The smoothing with the hex weights, rounded down as it was until the
+// weights were fixed: the result is the mean truncated.
+static sint32 truncating_smooth_cell(sint32 centre, const sint32 (&neighbour)[6])
+{
+	sint32 sum = CLIMATE_SMOOTH_CENTRE * centre;
+	for (int i = 0; i < 6; i++) {
+		sum += CLIMATE_SMOOTH_NEIGHBOUR * neighbour[i];
+	}
+	return sum / CLIMATE_SMOOTH_TOTAL;
+}
+
+
+// climate_smooth_cell: an average, the same in every direction.
+static void test_smoothing()
+{
+	// a field of one climate is a fixed point
+	for (sint32 c = 0; c <= 7; c++) {
+		const sint32 same[6] = { c, c, c, c, c, c };
+		CHECK(climate_smooth_cell(c, same) == c);
+	}
+	// the legacy weights are not: every pass drags temperate (4) toward
+	// water (0), which is how the humidity generator turned land to sea
+	{
+		const sint32 same[6] = { 4, 4, 4, 4, 4, 4 };
+		CHECK(legacy_smooth_cell(4, same) == 3);
+	}
+
+	// each neighbour pulls the tile by the same amount, whichever it is
+	for (int i = 0; i < 6; i++) {
+		sint32 impulse[6] = { 0, 0, 0, 0, 0, 0 };
+		impulse[i] = 16;
+		CHECK(climate_smooth_cell(0, impulse) == 2);
+	}
+	// ... and so does the tile itself
+	{
+		const sint32 none[6] = { 0, 0, 0, 0, 0, 0 };
+		CHECK(climate_smooth_cell(16, none) == 4);
+	}
+	// the weights are a mean: the result stays between the extremes
+	for (sint32 lo = 0; lo <= 7; lo++) {
+		for (sint32 hi = lo; hi <= 7; hi++) {
+			for (int mask = 0; mask < 64; mask++) {
+				sint32 nb[6];
+				for (int i = 0; i < 6; i++) {
+					nb[i] = (mask >> i) & 1 ? hi : lo;
+				}
+				for (sint32 centre = lo; centre <= hi; centre += hi > lo ? hi - lo : 1) {
+					const sint32 v = climate_smooth_cell(centre, nb);
+					CHECK(v >= lo  &&  v <= hi);
+				}
+			}
+		}
+	}
+}
+
+
+// climate_smooth_cell rounds the mean to the nearest climate.  Truncating
+// it turns a tile into the climate below as soon as one neighbour is lower
+// and never the other way round, so small pockets of a climate drain into
+// the climate below them.
+static void test_smoothing_rounds_to_nearest()
+{
+	// centre 3 with n neighbours of 2 has a mean of 3 - n/8: it stays 3
+	// while the mean is above 2.5, which is up to four lower neighbours
+	for (int n = 0; n <= 6; n++) {
+		sint32 nb[6];
+		for (int i = 0; i < 6; i++) {
+			nb[i] = i < n ? 2 : 3;
+		}
+		CHECK(climate_smooth_cell(3, nb) == (n <= 4 ? 3 : 2));
+		CHECK(truncating_smooth_cell(3, nb) == (n == 0 ? 3 : 2));
+	}
+	// and the other way round: centre 2 with n neighbours of 3 turns 3
+	// from four of them on
+	for (int n = 0; n <= 6; n++) {
+		sint32 nb[6];
+		for (int i = 0; i < 6; i++) {
+			nb[i] = i < n ? 3 : 2;
+		}
+		CHECK(climate_smooth_cell(2, nb) == (n >= 4 ? 3 : 2));
+		CHECK(truncating_smooth_cell(2, nb) == 2);
+	}
+
+	// the result is the nearest integer to the mean, a half going up,
+	// so the mean error over all inputs is 1/16 of a climate (the ties
+	// are 1 in 8 inputs); the truncated mean is 7/16 of a climate low
+	double error = 0, truncating_error = 0;
+	int cases = 0, not_nearest = 0;
+	sint32 nb[6];
+	for (sint32 centre = 0; centre <= 7; centre++) {
+		for (int mask = 0; mask < 8 * 8 * 8 * 8 * 8 * 8; mask++) {
+			int m = mask;
+			sint32 sum = CLIMATE_SMOOTH_CENTRE * centre;
+			for (int i = 0; i < 6; i++) {
+				nb[i] = m & 7;
+				m >>= 3;
+				sum += CLIMATE_SMOOTH_NEIGHBOUR * nb[i];
+			}
+			const double mean = (double)sum / CLIMATE_SMOOTH_TOTAL;
+			not_nearest += climate_smooth_cell(centre, nb) != (sint32)std::floor(mean + 0.5);
+			error += climate_smooth_cell(centre, nb) - mean;
+			truncating_error += truncating_smooth_cell(centre, nb) - mean;
+			cases++;
+		}
+	}
+	CHECK(not_nearest == 0);
+	CHECK(std::fabs(error / cases - 1.0 / 16) < 0.001);
+	CHECK(std::fabs(truncating_error / cases + 7.0 / 16) < 0.001);
+}
+
+
+// climate_patch_t: round in the physical plane, symmetric under the
+// symmetries of the physical plane, and bounded by its reach.
+static void test_patch()
+{
+	for (sint32 w = 4; w <= 80; w++) {
+		const climate_patch_t patch(w, w);
+		const std::vector<koord> tiles = patch_tiles(patch);
+		CHECK(!tiles.empty());
+
+		// the patch is the disc of the physical metric of koord.h ...
+		const sint64 limit = (8 * 2 * (sint64)w * w) / 41;
+		for (sint16 dr = -(sint16)w; dr <= w; dr++) {
+			for (sint16 dq = -(sint16)w; dq <= w; dq++) {
+				const bool in_disc = (sint64)physical_distance_sq(koord(dq, dr), koord(0, 0)) * w * w < limit * limit;
+				CHECK(patch.contains(dq, dr) == in_disc);
+			}
+		}
+		// ... so it is invariant under the 60 degree rotation
+		for (koord k : tiles) {
+			const koord rot = hex_axial_rotate(k, 1);
+			CHECK(patch.contains(rot.x, rot.y));
+		}
+
+		if (w >= 8) {
+			// round in the physical plane, to the resolution of the lattice
+			CHECK(physical_aspect(tiles) < 1.05);
+
+			// the axial ellipse of the legacy test is 3:1 elongated there
+			std::vector<koord> legacy;
+			for (sint16 dr = -(sint16)w; dr <= w; dr++) {
+				for (sint16 dq = -(sint16)w; dq <= w; dq++) {
+					if (legacy_axial_patch_contains(w, w, dq, dr)) {
+						legacy.push_back(koord(dq, dr));
+					}
+				}
+			}
+			CHECK(physical_aspect(legacy) > 1.5);
+		}
+	}
+
+	// any size ratio: symmetric under the half turn and both mirrors of
+	// the physical plane, and nothing lies beyond the reach
+	for (sint32 wx = 2; wx <= 40; wx += 3) {
+		for (sint32 wy = 2; wy <= 40; wy += 3) {
+			const climate_patch_t patch(wx, wy);
+			const sint16 span = (sint16)(wx + wy);
+			sint32 count = 0;
+			for (sint16 dr = -span; dr <= span; dr++) {
+				for (sint16 dq = -span; dq <= span; dq++) {
+					const bool in = patch.contains(dq, dr);
+					count += in;
+					CHECK(in == patch.contains(-dq, -dr));    // half turn
+					CHECK(in == patch.contains(-dq, dr + dq)); // x -> -x
+					CHECK(in == patch.contains(dq, -dq - dr)); // y -> -y
+					if (in) {
+						CHECK(std::abs(dq) <= patch.reach_q()  &&  std::abs(dr) <= patch.reach_r());
+					}
+				}
+			}
+			CHECK(count > 0);
+		}
+	}
+
+	// about as many tiles as the legacy patch, a little more because a
+	// tile covers less of the physical plane than a square does
+	{
+		const std::vector<koord> now = patch_tiles(climate_patch_t(20, 20));
+		sint32 legacy = 0;
+		for (sint16 dr = -20; dr <= 20; dr++) {
+			for (sint16 dq = -20; dq <= 20; dq++) {
+				legacy += legacy_axial_patch_contains(20, 20, dq, dr);
+			}
+		}
+		std::printf("patch 20x20: %d tiles, legacy axial %d\n", (int)now.size(), (int)legacy);
+		CHECK((sint32)now.size() * 10 < legacy * 14  &&  (sint32)now.size() * 10 > legacy * 9);
+	}
+}
+
+
+// physical_dot_x2 against the exact dot product of the physical vectors,
+// and the obtuse-angle test of the intercity roads (distribute_cities)
+// against the symmetries of the hex grid.
+static void test_dot()
+{
+	const sint16 N = 7;
+	sint32 axial_flips = 0, physical_flips = 0, pairs = 0;
+	for (sint16 aq = -N; aq <= N; aq++) {
+		for (sint16 ar = -N; ar <= N; ar++) {
+			for (sint16 bq = -N; bq <= N; bq++) {
+				for (sint16 br = -N; br <= N; br++) {
+					const koord a(aq, ar), b(bq, br);
+					const double exact = phys_x(a) * phys_x(b) + phys_y(a) * phys_y(b);
+					CHECK(std::fabs(physical_dot_x2(a, b) - 2 * exact) < 1e-9);
+
+					// the sign survives the 60 degree rotation of both offsets
+					const koord ra = hex_axial_rotate(a, 1), rb = hex_axial_rotate(b, 1);
+					const bool obtuse = physical_dot_x2(a, b) < 0;
+					const bool rotated = physical_dot_x2(ra, rb) < 0;
+					physical_flips += obtuse != rotated;
+					const bool axial_obtuse = a.x * b.x + a.y * b.y < 0;
+					const bool axial_rotated = ra.x * rb.x + ra.y * rb.y < 0;
+					axial_flips += axial_obtuse != axial_rotated;
+					pairs++;
+				}
+			}
+		}
+	}
+	std::printf("obtuse-angle test, %d offset pairs: %d change under a 60 degree rotation "
+	            "(axial q1*q2 + r1*r2: %d)\n", (int)pairs, (int)physical_flips, (int)axial_flips);
+	CHECK(physical_flips == 0);
+	CHECK(axial_flips > pairs / 10);
+
+	// physical_distance_sq is the norm of the same product
+	for (sint16 q = -N; q <= N; q++) {
+		for (sint16 r = -N; r <= N; r++) {
+			const koord d(q, r);
+			CHECK(2 * (sint32)physical_distance_sq(d, koord(0, 0)) == physical_dot_x2(d, d));
+		}
+	}
+
+	// physical +x and +y are at a right angle: not obtuse (the axial product is -1)
+	CHECK(physical_dot_x2(koord(2, -1), koord(0, 1)) == 0);
+	// SE and N are 120 degrees apart: obtuse (the axial product is 0)
+	CHECK(physical_dot_x2(koord(1, 0), koord(0, -1)) < 0);
+	// SE and S are 60 degrees apart: acute
+	CHECK(physical_dot_x2(koord(1, 0), koord(0, 1)) > 0);
+}
+
+
+// find_free_discs asks for hex_disc(2) free: the tiles within two steps,
+// round in the physical plane, where the 5x5 axial square it replaces is not.
+static void test_free_disc()
+{
+	std::vector<koord> disc, square;
+	for (koord d : hex_disc(2)) {
+		CHECK(koord_distance(koord(0, 0), d) <= 2);
+		disc.push_back(d);
+	}
+	for (sint16 r = -2; r <= 2; r++) {
+		for (sint16 q = -2; q <= 2; q++) {
+			square.push_back(koord(q, r));
+		}
+	}
+	CHECK(disc.size() == 19);
+	CHECK(square.size() == 25);
+	const double disc_aspect = physical_aspect(disc), square_aspect = physical_aspect(square);
+	std::printf("free site: hex_disc(2) %zu tiles, physical aspect %.3f; axial 5x5 %zu tiles, %.3f\n",
+	            disc.size(), disc_aspect, square.size(), square_aspect);
+	CHECK(disc_aspect < 1.001);
+	CHECK(square_aspect > 1.7);
+}
+
+
+int main()
+{
+	test_smoothing();
+	test_smoothing_rounds_to_nearest();
+	test_patch();
+	test_dot();
+	test_free_disc();
+
+	if (failures) {
+		std::fprintf(stderr, "hex_mapgen_test: %d check(s) failed\n", failures);
+		return 1;
+	}
+	std::printf("hex_mapgen_test: all checks passed\n");
+	return 0;
+}

@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 
+#include "../../obj/simobj.h"
 #include "../../simdebug.h"
 #include "../../simskin.h"
 

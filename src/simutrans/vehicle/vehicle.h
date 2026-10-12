@@ -78,6 +78,7 @@ protected:
 	bool smoke:1;
 	bool check_for_finish:1; // true, if on the last tile
 	bool has_driven:1;
+	bool needs_electric:1;   // true, if this vehicle may only drive on electrified ways
 
 	bool check_next_tile(const grund_t* ) const OVERRIDE {return false;}
 
@@ -155,7 +156,11 @@ public:
 	 * Sets route_index, pos_next, steps_next.
 	 * If @p recalc is true this sets position and recalculates/resets movement parameters.
 	 */
-	void initialise_journey( route_t::index_t start_route_index, bool recalc );
+	virtual void initialise_journey( route_t::index_t start_route_index, bool recalc );
+
+	/// True if the convoi must restart for correct alignment: the loaded
+	/// tile length is not the one hop() gives this tile now.
+	bool need_realignment() const;
 
 	vehicle_t();
 	vehicle_t(koord3d pos, const vehicle_desc_t* desc, player_t* player);
@@ -187,7 +192,7 @@ public:
 	/**
 	 * Rotate freight target coordinates, has to be called after rotating factories.
 	 */
-	void rotate90_freight_destinations(const sint16 y_size);
+	void rotate90_freight_destinations(const map_shape_t &from);
 
 	/**
 	* Calculate the total quantity of goods moved
@@ -237,6 +242,11 @@ public:
 	void set_last(bool janein) {last = janein;}
 	bool is_last() {return last;}
 
+	// the convoi keeps this in sync, so that check_next_tile() does not have to ask it;
+	// a test driver without a convoi can then be given the same restriction
+	void set_needs_electrification(bool janein) { needs_electric = janein; }
+	bool needs_electrification() const { return needs_electric; }
+
 	// marks the vehicle as really used
 	void set_driven() { has_driven = true; }
 
@@ -277,11 +287,7 @@ public:
 	bool is_stuck() OVERRIDE;
 
 	// this routine will display a tooltip for lost, on depot order, and stuck vehicles
-#ifdef MULTI_THREAD
 	void display_overlay(int xpos, int ypos) const OVERRIDE;
-#else
-	void display_after(int xpos, int ypos, bool dirty) const OVERRIDE;
-#endif
 };
 
 

@@ -270,7 +270,7 @@ public:
 	 * (A better description is needed here)
 	 * Operations needed on map rotation.
 	 */
-	void rotate90( sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	viewport_t( karte_t *world, const koord ij_off = koord::invalid, sint16 x_off = 0, sint16 y_off = 0 );
 };

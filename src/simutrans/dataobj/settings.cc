@@ -8,16 +8,17 @@
 
 #include "../builder/wegbauer.h"
 #include "../descriptor/way_desc.h"
+#include "../pathes.h"
 #include "../player/finance.h"
 #include "../player/simplay.h"
 #include "../simconst.h"
 #include "../simdebug.h"
 #include "../simmain.h"
 #include "../simtypes.h"
+#include "../simversion.h"
 #include "../sys/simsys.h"
 #include "../utils/simrandom.h"
 #include "../utils/simstring.h"
-#include "../vehicle/vehicle_base.h"
 #include "../world/simworld.h"
 #include "environment.h"
 #include "loadsave.h"
@@ -143,6 +144,11 @@ void settings_t::rdwr(loadsave_t *file)
 {
 	// used to be called einstellungen_t - keep old name during save/load for compatibility
 	xml_tag_t e( file, "einstellungen_t" );
+
+	if(  file->is_loading()  ) {
+		// saves before SAVE_VERSION_HEX_MAP_SHAPE hold the plain W x H rhombus
+		size_d = 1;
+	}
 
 	if(file->is_version_less(86, 0)) {
 		uint32 dummy;
@@ -335,15 +341,11 @@ void settings_t::rdwr(loadsave_t *file)
 			file->rdwr_short( winter_snowline );
 		}
 
-		// vehicle may need realignment afterwards!
-		if(file->is_version_less(99, 19)) {
-			vehicle_base_t::set_diagonal_multiplier( pak_diagonal_multiplier, 1024 );
-		}
-		else {
-			uint16 old_multiplier = pak_diagonal_multiplier;
-			file->rdwr_short( old_multiplier );
-			vehicle_base_t::set_diagonal_multiplier( pak_diagonal_multiplier, old_multiplier );
-			// since vehicle will need realignment afterwards!
+		// The square-era diagonal_multiplier; the length of a bend tile now
+		// follows from the hex geometry (vehicle_base_t::get_tile_steps).
+		if(file->is_version_atleast(99, 19)) {
+			uint16 diagonal_multiplier = 724;
+			file->rdwr_short( diagonal_multiplier );
 		}
 
 		if(file->is_version_atleast(101, 0)) {
@@ -754,6 +756,10 @@ void settings_t::rdwr(loadsave_t *file)
 		else {
 			cst_kw_per_credit = 512;
 		}
+
+		if (file->is_version_atleast(SAVE_VERSION_HEX_MAP_SHAPE_MAJOR, SAVE_VERSION_HEX_MAP_SHAPE_MINOR)) {
+			file->rdwr_long(size_d);
+		}
 	}
 
 	// sometimes broken savegames could have no legal direction for take off ...
@@ -826,6 +832,7 @@ void settings_t::parse_simuconf( tabfile_t& simuconf, sint16& disp_width, sint16
 	env_t::stack_toolbars            = contents.get_int( "stack_toolbars",            env_t::stack_toolbars ) != 0;
 	env_t::dpi_scale                 = contents.get_int( "dpi_scaling",               env_t::dpi_scale );
 
+	env_t::show_construction_info = contents.get_int(     "show_construction_info", env_t::show_construction_info ) != 0;
 	env_t::show_tooltips      = contents.get_int(         "show_tooltips",      env_t::show_tooltips ) != 0;
 	env_t::tooltip_delay      = contents.get_int_clamped( "tooltip_delay",      env_t::tooltip_delay,      0, INT_MAX);
 	env_t::tooltip_duration   = contents.get_int_clamped( "tooltip_duration",   env_t::tooltip_duration,   0, INT_MAX);
@@ -838,6 +845,7 @@ void settings_t::parse_simuconf( tabfile_t& simuconf, sint16& disp_width, sint16
 
 	// display stuff
 	env_t::show_names                  = contents.get_int_clamped( "show_names",                     env_t::show_names,                0, 7 );
+	env_t::horizontal_stripe_owner     = contents.get_int("horizontal_stripe_owner",                 env_t::horizontal_stripe_owner) != 0;
 	env_t::show_month                  = contents.get_int_clamped( "show_month",                     env_t::show_month,                0, 7 );
 	env_t::show_vehicle_states         = contents.get_int_clamped( "show_vehicle_states",            env_t::show_vehicle_states,       0, 3 );
 	env_t::follow_convoi_underground   = contents.get_int_clamped( "follow_convoi_underground",      env_t::follow_convoi_underground, 0, 2 );
@@ -1152,7 +1160,7 @@ void settings_t::parse_simuconf( tabfile_t& simuconf, sint16& disp_width, sint16
 			int k = 0;
 			for( k = 0; k < i; k++ ) {
 				if( startingmoneyperyear[ k ].year > test[ 0 ] ) {
-					for( int l = j; l >= k; l-- )
+					for( int l = j - 1; l >= k; l-- )
 						memcpy( &startingmoneyperyear[ l + 1 ], &startingmoneyperyear[ l ], sizeof( yearmoney ) );
 					break;
 				}
@@ -1213,7 +1221,7 @@ void settings_t::parse_simuconf( tabfile_t& simuconf, sint16& disp_width, sint16
 			int k = 0;
 			for( k = 0; k < i; k++ ) {
 				if( locality_factor_per_year[ k ].year > test[ 0 ] ) {
-					for( int l = j; l >= k; l-- )
+					for( int l = j - 1; l >= k; l-- )
 						memcpy( &locality_factor_per_year[ l + 1 ], &locality_factor_per_year[ l ], sizeof( yearly_locality_factor_t ) );
 					break;
 				}
@@ -1334,9 +1342,6 @@ void settings_t::parse_simuconf( tabfile_t& simuconf, sint16& disp_width, sint16
 	tree_distribution = contents.get_int_clamped( "tree_distribution", tree_distribution, TREE_DIST_NONE, TREE_DIST_COUNT-1 );
 	lake_height       = contents.get_int("no_lakes", 1 )==0 ? -128 : lake_height;
 	lake_height       = contents.get_int_clamped("lake_height", lake_height, groundwater, 127 );
-
-	// these are pak specific; the diagonal length affect travelling time (is game critical)
-	pak_diagonal_multiplier = contents.get_int_clamped("diagonal_multiplier", pak_diagonal_multiplier, 1, INT_MAX );
 
 	// the height in z-direction will only cause pixel errors but not a different behaviour
 	env_t::pak_tile_height_step = contents.get_int_clamped("tile_height", env_t::pak_tile_height_step, 1, INT_MAX );
@@ -1503,6 +1508,11 @@ void settings_t::parse_simuconf( tabfile_t& simuconf, sint16& disp_width, sint16
 		env_t::soundfont_filename = ltrim(contents.get("soundfont_filename"));
 	}
 
+	// a folder of music instead of the default music.tab; a user choice, so not from a pakset
+	if(  set_objfilename  &&  *contents.get("music_folder")  ) {
+		env_t::music_folder = ltrim(contents.get("music_folder"));
+	}
+
 	env_t::pakset_tutorial_dir = ltrim( contents.get_string("pakset_tutorial_dir", env_t::pakset_tutorial_dir.c_str()) );
 }
 
@@ -1558,6 +1568,10 @@ sint64 settings_t::get_starting_money(sint16 const year) const
 		// too early: use first entry
 		return startingmoneyperyear[0].money;
 	}
+	else if (i==10) {
+		// all ten entries are in the past: use the last one
+		return startingmoneyperyear[9].money;
+	}
 	else {
 		// now: startingmoneyperyear[i-1].year <= year < startingmoneyperyear[i].year
 		if (startingmoneyperyear[i-1].interpol) {
@@ -1592,6 +1606,10 @@ uint32 settings_t::get_locality_factor(sint16 const year) const
 	if(  i==0  ) {
 		// too early: use first entry
 		return locality_factor_per_year[0].factor;
+	}
+	else if(  i==10  ) {
+		// all ten entries are in the past: use the last one
+		return locality_factor_per_year[9].factor;
 	}
 	else {
 #if 0

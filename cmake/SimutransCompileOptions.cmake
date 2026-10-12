@@ -46,6 +46,8 @@ if (FluidSynth_FOUND AND NOT WIN32)
 	option(SIMUTRANS_USE_FLUIDSYNTH_MIDI "Enable FluidSynth for MIDI playback" ON)
 endif (FluidSynth_FOUND AND NOT WIN32)
 
+option(SIMUTRANS_USE_SDL3_MIXER "sdl3 backend only: play music in any format SDL3_mixer decodes, instead of the per-platform MIDI routine" OFF)
+
 if(Fontconfig_FOUND)
 	option(SIMUTRANS_USE_FONTCONFIG "Use Fontconfig for font autodetection" ON)
 endif()
@@ -140,6 +142,7 @@ if (MSVC)
 	add_definitions(-D_SCL_SECURE_NO_WARNINGS)
 	add_definitions(-DNOMINMAX)
 	add_definitions(-DWIN32_LEAN_AND_MEAN)
+	add_definitions( -DWINVER=_WIN32_WINNT_VISTA )
 
 	if (SIMUTRANS_WARNINGS_AS_ERRORS)
 		add_compile_options(/WX)
@@ -170,17 +173,14 @@ else (MSVC) # Assume GCC/Clang
 	SIMUTRANS_CHECK_CXX_COMPILER_FLAGS(SIMUTRANS_COMMON_COMPILE_OPTIONS
 		-Wno-format-nonliteral       # Mostly for translator
 		-Wno-overloaded-virtual      # For makeobj
-		-Wno-deprecated-declarations # auto_ptr for squirrel
-		-Wno-deprecated-copy         # for squirrel
-		-Wno-cast-align              # for squirrel
-		-Wno-cast-qual               # for squirrel (sqstdstring.cc rex_typetag)
-		-Wno-return-std-move         # for squirrel
-		-Wno-implicit-fallthrough    # for squirrel
-		-Wno-class-memaccess         # for squirrel (memmove of non-trivial SQObjectPtr)
 	)
 
 	if (SIMUTRANS_WARNINGS_AS_ERRORS)
-		add_compile_options(-Werror)
+		add_compile_options(
+			-Werror
+			-Wno-error=unused-function   # For script tools
+			-Wno-error=cpp               # For 32-bit build warning
+		)
 	endif ()
 
 	# Only add for MinGW 32 bit buids

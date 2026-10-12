@@ -53,6 +53,7 @@ function test_factory_build_pp()
 		ASSERT_EQUAL(factory.get_transformer(), null)
 		ASSERT_EQUAL(factory.get_field_count(), 0)
 		ASSERT_EQUAL(factory.get_min_field_count(), 0)
+		ASSERT_EQUAL(factory.get_target_cities().len(), 0)
 
 		ASSERT_TRUE(factory.input.len() == 0)
 		ASSERT_TRUE(factory.output.len() == 0)
@@ -62,6 +63,23 @@ function test_factory_build_pp()
 		// and remove factory; only public player can remove them
 		ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(3, 4, 0)), "Der Besitzer erlaubt das Entfernen nicht")
 		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(3, 4, 0)), null)
+	}
+
+	// now with city
+	{
+		ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(7, 8, 0)), null)
+		local city = city_x(7,8)
+		ASSERT_TRUE(city != null)
+		ASSERT_EQUAL(build_factory(public_pl, coord3d(3, 4, 0), 0, 1, 1024, "Aufwindkraftwerk"), null)
+		local factory = factory_x(3, 4)
+		ASSERT_EQUAL(factory.get_target_cities().len(), 1)
+		ASSERT_TRUE(factory.get_target_cities()[0].get_name()==city.get_name())
+
+		// and remove
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(3, 4, 0)), null)
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(7, 8, 0)), null)
+		// remove street (the hex townhall seeds it on a random face)
+		clear_seed_roads(pl, 7, 8)
 	}
 
 	RESET_ALL_PLAYER_FUNDS()
@@ -169,6 +187,43 @@ function test_factory_build_on_water_occupied()
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(player_x(1), coord3d(4,4,0)), null)
 	ASSERT_EQUAL(command_x(tool_set_climate).work(player_x(1), coord3d(0,0,0), coord3d(8,8,0), "" + cl_mediterran), null)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+function test_factory_build_short_param()
+{
+	local pl = player_x(0)
+	local setclimate = command_x(tool_set_climate)
+	local short_params = ["", "1", "1#"]
+
+	// default_param is "<ignore climates><rotation><production>,<name>".
+	// A string too short to hold that prefix is treated like no param
+	// (random consumer, random rotation) and must not be read past its end.
+
+	// no consumer is allowed in water, so none is picked and nothing is built
+	ASSERT_EQUAL(setclimate.work(pl, coord3d(0, 0, 0), coord3d(7, 7, 0), "" + cl_water), null)
+	foreach (tool in [tool_build_factory, tool_land_chain, tool_city_chain]) {
+		foreach (param in short_params) {
+			ASSERT_EQUAL(command_x(tool).work(pl, coord3d(4, 4, 0), param), "")
+		}
+	}
+
+	// single desert tile in the water: every consumer allowed in desert
+	// needs more than one tile, so whichever one is picked does not fit
+	ASSERT_EQUAL(setclimate.work(pl, coord3d(4, 4, 0), coord3d(4, 4, 0), "" + cl_desert), null)
+	foreach (tool in [tool_build_factory, tool_land_chain]) {
+		foreach (param in short_params) {
+			// consumer and rotation are random, so try often
+			for (local i = 0; i < 100; ++i) {
+				ASSERT_EQUAL(command_x(tool).work(pl, coord3d(4, 4, 0), param), "No suitable ground!")
+			}
+		}
+	}
+	ASSERT_EQUAL(factory_list_x().get_count(), 0)
+
+	// clean up
+	ASSERT_EQUAL(setclimate.work(pl, coord3d(0, 0, 0), coord3d(7, 7, 0), "" + cl_mediterran), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
@@ -423,4 +478,77 @@ function test_factory_desc()
 		local list = factory_desc_x.get_list()
 		ASSERT_TRUE("Aufwindkraftwerk" in list)
 	}
+}
+
+
+// Fields are laid in shells around the factory: every tile at one step
+// first, then every tile at two steps.  The 3x3 axial square around the
+// factory has two tiles, (1,1) and (-1,-1), that are two steps away.
+function test_factory_fields_fill_hex_shells()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+
+	// the field positions are random, and so is whether a corner comes up
+	// before the six real neighbours are used
+	for (local n = 0; n < 6; n++) {
+		ASSERT_EQUAL(command_x(tool_build_factory).work(pl, coord3d(7, 7, 0), "011024,PVkraftwerk"), null)
+
+		local fab = factory_x(7, 7)
+		local fields = fab.get_fields_list()
+		ASSERT_TRUE(fields.len() >= fab.get_min_field_count())
+		ASSERT_TRUE(fields.len() > 6)
+
+		// listed in the order they were laid
+		local prev = 1
+		foreach (i, t in fields) {
+			local d = hex_distance(t.x, t.y, 7, 7)
+			ASSERT_TRUE(d >= prev)
+			prev = d
+			if (i < 6) {
+				ASSERT_EQUAL(d, 1)
+			}
+		}
+
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(7, 7, 0)), null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// The shell of fields follows the footprint of the layout the factory was
+// built in.  TEST_FIELD_FACTORY is 3x1 in layout 0 and 1x3 in layout 1, and
+// as many fields as touch the footprint (ten), so a field at a larger
+// distance means the shell was taken around the other footprint.
+function test_factory_fields_follow_rotated_footprint()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+
+	for (local rotation = 0; rotation < 2; rotation++) {
+		ASSERT_EQUAL(build_factory(pl, coord3d(7, 7, 0), 1, rotation, 1024, "TEST_FIELD_FACTORY"), null)
+
+		local fab = factory_x(7, 7)
+		local tiles = fab.get_tile_list()
+		ASSERT_EQUAL(tiles.len(), 3)
+		// layout 0 runs along q, layout 1 along r
+		foreach (t in tiles) {
+			ASSERT_EQUAL(rotation == 0 ? t.y : t.x, 7)
+		}
+
+		local fields = fab.get_fields_list()
+		ASSERT_EQUAL(fields.len(), 10)
+		foreach (f in fields) {
+			local d = 99
+			foreach (t in tiles) {
+				d = min(d, hex_distance(f.x, f.y, t.x, t.y))
+			}
+			ASSERT_EQUAL(d, 1)
+		}
+
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(7, 7, 0)), null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
 }

@@ -31,7 +31,14 @@ public:
 	const char *get_str() const;
 	const char *get_fullstr() const; // including brackets
 
-	void rotate90( sint16 y_diff );
+	/// koord::rotate90 of the xy part; z is kept, as the hex grid stacks right prisms.
+	void rotate90( const map_shape_t &from )
+	{
+		koord k( x, y );
+		k.rotate90( from );
+		x = k.x;
+		y = k.y;
+	}
 
 	void rdwr(loadsave_t* file);
 
@@ -147,7 +154,7 @@ public:
 	ribi_t::ribi get_ribi( uint32 index ) const;
 	// computes ribi at position i only if distance to previous/next is not larger than 1
 	ribi_t::ribi get_short_ribi( uint32 index ) const;
-	void rotate90( sint16 );
+	void rotate90( const map_shape_t &from );
 };
 
 #endif

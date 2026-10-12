@@ -7,6 +7,7 @@
 // so tools/hex_vertex_test and tools/hex_proj_test compile it as is.
 
 #include "koord.h"
+#include "map_shape.h"
 
 
 // Flat-top hex axial neighbours — clockwise from SE; see koord.h.
@@ -44,9 +45,9 @@ koord::koord(ribi_t::ribi r) : x(0), y(0)
 // of the same axis edge share the uphill direction — track on either
 // climbs the same path along the axis.  Planar double-height
 // (`*_double`) slopes face the same direction with a 0→2 climb.
-// ::east / ::west are legacy 2-corner square diagonals, no longer
-// way-buildable but kept projected onto the closest hex direction for
-// any non-way consumer.
+// ::east / ::west are legacy 2-corner square diagonals, way-buildable
+// only as side chords (see `slope_t::is_way`) and with no hex uphill
+// of their own, so projected onto the closest hex direction.
 koord::koord(slope_t::type slope) : x(0), y(0)
 {
 	switch (slope) {
@@ -67,6 +68,45 @@ koord::koord(slope_t::type slope) : x(0), y(0)
 koord koord::step(ribi_t::ribi r)
 {
 	return koord(r);
+}
+
+
+// Steps are reduced mod 6 first (also for negative values), then each
+// power of the step (q, r) -> (-r, q + r) is written out.
+koord hex_axial_rotate(koord c, int steps)
+{
+	const sint32 q = c.x, r = c.y;
+	switch (((steps % 6) + 6) % 6) {
+		case 1:  return koord((sint16)(-r),     (sint16)(q + r));
+		case 2:  return koord((sint16)(-q - r), (sint16)q);
+		case 3:  return koord((sint16)(-q),     (sint16)(-r));
+		case 4:  return koord((sint16)r,        (sint16)(-q - r));
+		case 5:  return koord((sint16)(q + r),  (sint16)(-q));
+		default: return c;
+	}
+}
+
+
+koord hex_axial_rotate_inv(koord c, int steps)
+{
+	return hex_axial_rotate(c, -steps);
+}
+
+
+hex_vertex_t hex_axial_rotate(hex_vertex_t v, int steps)
+{
+	const int corner = (((int)v.corner + steps) % 6 + 6) % 6;
+	return { hex_axial_rotate(v.tile, steps), (hex_corner_t::type)corner };
+}
+
+
+void koord::rotate90(const map_shape_t &from)
+{
+	if(  (x&y)<0  ) {
+		// do not rotate illegal coordinates
+		return;
+	}
+	*this = from.rotate_tile(*this);
 }
 
 

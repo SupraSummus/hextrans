@@ -66,7 +66,9 @@
 #include "../obj/way/weg.h"
 
 #include "back_image_decode.h"
+#include "fundament.h"
 #include "grund.h"
+#include "tunnelboden.h"
 #include "wasser.h"
 
 
@@ -263,7 +265,7 @@ void grund_t::rdwr(loadsave_t *file)
 		}
 		if(  !ground_desc_t::double_grounds  ) {
 			// truncate double slopes to single slopes
-			slope = encode_corners(min( corner_sw(slope), 1 ), min( corner_se(slope), 1 ), min( corner_ne(slope), 1 ), min( corner_nw(slope), 1 ));
+			slope = encode_corners_hex(min( corner_e(slope), 1 ), min( corner_se(slope), 1 ), min( corner_sw(slope), 1 ), min( corner_w(slope), 1 ), min( corner_nw(slope), 1 ), min( corner_ne(slope), 1 ));
 		}
 		set_grund_hang(slope);
 	}
@@ -497,7 +499,7 @@ void grund_t::sort_trees()
 
 void grund_t::rotate90()
 {
-	pos.rotate90( welt->get_size().y-1 );
+	pos.rotate90( welt->get_map_shape() );
 	slope = slope_t::rotate60( slope );
 	// then rotate the things on this tile
 	if (obj_count() == 254) {
@@ -526,7 +528,7 @@ void grund_t::finish_rotate90()
 	// first get the old hashes
 	for(auto iter : ground_texts) {
 		koord3d k = get_ground_koord3d_key( iter.key );
-		k.rotate90( welt->get_size().y-1 );
+		k.rotate90( welt->get_map_shape() );
 		ground_texts_rotating.put( get_ground_text_key(k), iter.value );
 	}
 	ground_texts.clear();
@@ -609,9 +611,14 @@ void grund_t::info(cbuffer_t& buf) const
 				buf.printf(translator::translate("Constructed by %s"), maker);
 				buf.append("\n\n");
 			}
-#if DEBUG
+#ifdef DEBUG
 			if (get_weg_nr(0)->get_waytype() == road_wt && get_weg_nr(0)->hat_gehweg()) {
 				buf.append("Has sidewalk (cityroad)\n\n");
+			}
+#endif
+#if MSG_LEVEL >= 4
+			if (wayobj_t* wo = get_wayobj(get_weg_nr(0)->get_waytype())) {
+				buf.printf("Wayobj ribi %d\n\n", wo->get_dir());
 			}
 #endif
 			// second way
@@ -648,6 +655,11 @@ void grund_t::info(cbuffer_t& buf) const
 		buf.printf("\ncanal ribi: %i", ((const wasser_t*)this)->get_canal_ribi());
 	}
 	buf.printf("\ndraw_as_obj= %i",(flags&draw_as_obj)!=0);
+	if (this_halt.is_bound()) {
+		if (this_halt->get_reserved(this).is_bound()) {
+			buf.printf("\nhalt %i reserevd by convoi %i", this_halt->get_init_pos(), this_halt->get_reserved(this).get_id());
+		}
+	}
 #endif
 }
 
@@ -749,6 +761,17 @@ static const back_wall_geometry_t back_wall_geometry[grund_t::BACK_WALL_COUNT] =
 	{ koord( 0, -1), ribi_t::north,     hex_corner_t::NW, hex_corner_t::NE, hex_corner_t::SW, hex_corner_t::SE }, // wall 1: N  edge
 	{ koord( 1, -1), ribi_t::northeast, hex_corner_t::NE, hex_corner_t::E,  hex_corner_t::W,  hex_corner_t::SW }, // wall 2: NE edge
 };
+
+
+void grund_t::recalc_back_wall_dependants(koord k)
+{
+	for(  const back_wall_geometry_t &g : back_wall_geometry  ) {
+		// the tile that has `k` as its `g.nbr` neighbour
+		if(  grund_t *gr = welt->lookup_kartenboden(k - g.nbr)  ) {
+			gr->calc_image();
+		}
+	}
+}
 
 
 // Per-edge clip lines for the 3 hex back walls (NW, N, NE).  Two
@@ -1151,11 +1174,8 @@ void grund_t::display_boden(const sint16 xpos, const sint16 ypos, const sint16 r
 					continue;
 				}
 
-				// HEX-PORT: cliff yoff in hex z-basis to match synth
-				// back-wall sprites and `simview.cc` tile world-z.
-				// Pakset cliff sprites (the synth fallback) are
-				// authored in legacy z and now under-shoot — see
-				// TODO.md "synth back-wall fallback".
+				// HEX-PORT: cliff yoff in hex z-basis to match
+				// `simview.cc` tile world-z.
 				sint16 yoff = hex_height_raster_scale_y( -TILE_HEIGHT_STEP*back_height, raster_tile_width );
 				if(  back_image[i]  ) {
 					// Draw extra wall images for walls that cannot be represented by a image.
@@ -1379,13 +1399,14 @@ void grund_t::display_border( sint16 xpos, sint16 ypos, const sint16 raster_tile
 
 	// Each map-edge cliff is the back-wall of the phantom missing
 	// neighbour, drawn at that neighbour's screen position.  Three
-	// front directions are visible: SE (q=max), S (r=max), SW (r=max
-	// or q=0).  Corner pair, wall slot and screen offsets follow
+	// front directions are visible: SE (q=max or the far cut of the
+	// W x H x D hexagon), S (r=max or the far cut), SW (r=max or q=0);
+	// a wall stands wherever that neighbour is off the map.  Corner pair, wall slot and screen offsets follow
 	// `back_wall_geometry` named from the phantom's perspective.
 	const sint16 hgt_step = tile_raster_scale_y( TILE_HEIGHT_STEP, raster_tile_width);
 	const sint16 zz = pos.z - welt->min_height;
 	const slope_t::type slope = get_grund_hang();
-	const koord size = welt->get_size();
+	const koord k = pos.get_2d();
 
 	struct boundary_t {
 		bool need;
@@ -1394,13 +1415,13 @@ void grund_t::display_border( sint16 xpos, sint16 ypos, const sint16 raster_tile
 		uint8 wall;
 	};
 	const boundary_t boundaries[3] = {
-		{ pos.x == size.x - 1,
+		{ !welt->is_within_limits(k + koord::neighbours[0]),
 		  +3 * raster_tile_width / 4, raster_tile_width / 8,
 		  hex_corner_t::SE, hex_corner_t::E,  0 },
-		{ pos.y == size.y - 1,
+		{ !welt->is_within_limits(k + koord::neighbours[1]),
 		  0,                          raster_tile_width / 4,
 		  hex_corner_t::SW, hex_corner_t::SE, 1 },
-		{ pos.y == size.y - 1  ||  pos.x == 0,
+		{ !welt->is_within_limits(k + koord::neighbours[2]),
 		  -3 * raster_tile_width / 4, raster_tile_width / 8,
 		  hex_corner_t::W,  hex_corner_t::SW, 2 },
 	};
@@ -1448,7 +1469,7 @@ void grund_t::display_if_visible(sint16 xpos, sint16 ypos, const sint16 raster_t
 		return;
 	}
 
-	if(  env_t::draw_earth_border  &&  (pos.x-welt->get_size().x+1 == 0  ||  pos.y-welt->get_size().y+1 == 0)  ) {
+	if(  env_t::draw_earth_border  &&  welt->is_front_edge(pos.get_2d())  ) {
 		// the last tile. might need a border
 		display_border( xpos, ypos, raster_tile_width CLIP_NUM_PAR );
 	}
@@ -1833,69 +1854,76 @@ void grund_t::display_obj_fg(const sint16 xpos, const sint16 ypos, const bool is
 // display text label in player colors using different styles set by env_t::show_names
 void grund_t::display_text_label(sint16 xpos, sint16 ypos, const char* text, const uint16 players_bit, bool dirty)
 {
-	player_t* players[16];
+	uint8 players[16];
 	uint16 num_players = 0;
-	players[0] = NULL;
+	players[0] = COL_ORANGE;
 	for (uint16 i = 0; i < MAX_PLAYER_COUNT; i++) {
-		if ((1 << i) & players_bit) {
-			players[num_players++] = welt->get_player(i);
+		if ((1 << i) & players_bit  &&  welt->get_player(i)) {
+			players[num_players++] = welt->get_player(i)->get_player_color1();
 		}
 	}
 
 	if (num_players <= 1) {
-		player_t* player = players[0];
 		switch (env_t::show_names >> 2) {
-			case 0: {
-					const PIXVAL bg_color = player ? gfx->palette_lookup(player->get_player_color1() + 4) : SYSCOL_TEXT_HIGHLIGHT;
-					gfx->draw_textbox3d_clipped(xpos, ypos, bg_color, gfx->palette_lookup(COL_BLACK), text, dirty CLIP_NUM_DEFAULT);
-					break;
-				}
-			case 1: {
-					const PIXVAL text_color = player ? gfx->palette_lookup(player->get_player_color1() + 7) : SYSCOL_TEXT_HIGHLIGHT;
-					gfx->draw_text_outlined(xpos, ypos, text_color, gfx->palette_lookup(COL_BLACK), text, dirty);
-					break;
-				}
-			case 2: {
-					const PIXVAL dark = player ? gfx->palette_lookup(player->get_player_color1() + 2) : SYSCOL_TEXT_HIGHLIGHT;
-					const PIXVAL normal = player ? gfx->palette_lookup(player->get_player_color1() + 4) : SYSCOL_TEXT_HIGHLIGHT;
-					const PIXVAL bright = player ? gfx->palette_lookup(player->get_player_color1() + 6) : SYSCOL_TEXT_HIGHLIGHT;
-
-					gfx->draw_text_outlined(xpos + LINESPACE + D_H_SPACE, ypos, gfx->palette_lookup(COL_YELLOW), gfx->palette_lookup(COL_BLACK), text, dirty);
-					gfx->draw_box3d_clipped(xpos, ypos, LINESPACE, LINESPACE, dark, PLAYER_FLAG | bright);
-					gfx->draw_rect(xpos + 1, ypos + 1, LINESPACE - 2, LINESPACE - 2, normal, dirty);
-					break;
-				}
+			case 0:
+				gfx->draw_textbox3d_clipped(xpos, ypos, gfx->palette_lookup(players[0] + 4), gfx->palette_lookup(COL_BLACK), text, dirty CLIP_NUM_DEFAULT);
+				break;
+			case 1:
+				gfx->draw_text_outlined(xpos, ypos, gfx->palette_lookup(players[0] + 7), gfx->palette_lookup(COL_BLACK), text, dirty);
+				break;
+			case 2: 
+				gfx->draw_text_outlined(xpos + LINESPACE + D_H_SPACE, ypos, gfx->palette_lookup(COL_YELLOW), gfx->palette_lookup(COL_BLACK), text, dirty);
+				gfx->draw_rect(xpos, ypos, LINESPACE, LINESPACE, gfx->palette_lookup(COL_BLACK), dirty );
+				gfx->draw_rect(xpos + 1, ypos + 1, LINESPACE - 2, LINESPACE - 2, gfx->palette_lookup(players[0] + 4), false );
+				break;
 		}
 	}
 	else {
-		const int vpadding = (env_t::show_names >> 2) == 1 ? 1 : LINESPACE / 7;
-		const int h = vpadding * 2 + LINESPACE;
-		for (int i = 0; i < num_players; i++) {
-			PUSH_CLIP_FIT(xpos, ypos - vpadding + (i*h)/num_players, 1000, h / num_players + 1);
-			player_t* player = players[i];
-			switch (env_t::show_names >> 2) {
-				case 0: {
-					const PIXVAL bg_color = player ? gfx->palette_lookup(player->get_player_color1() + 4) : SYSCOL_TEXT_HIGHLIGHT;
-					gfx->draw_textbox3d_clipped(xpos, ypos, bg_color, gfx->palette_lookup(COL_BLACK), text, dirty CLIP_NUM_DEFAULT);
-					break;
-				}
-				case 1: {
-					const PIXVAL text_color = player ? gfx->palette_lookup(player->get_player_color1() + 7) : SYSCOL_TEXT_HIGHLIGHT;
-					gfx->draw_text_outlined(xpos, ypos, text_color, gfx->palette_lookup(COL_BLACK), text, dirty);
-					break;
-				}
-				case 2: {
-					const PIXVAL dark = player ? gfx->palette_lookup(player->get_player_color1() + 2) : SYSCOL_TEXT_HIGHLIGHT;
-					const PIXVAL normal = player ? gfx->palette_lookup(player->get_player_color1() + 4) : SYSCOL_TEXT_HIGHLIGHT;
-					const PIXVAL bright = player ? gfx->palette_lookup(player->get_player_color1() + 6) : SYSCOL_TEXT_HIGHLIGHT;
-
-					gfx->draw_text_outlined(xpos + LINESPACE + D_H_SPACE, ypos, gfx->palette_lookup(COL_YELLOW), gfx->palette_lookup(COL_BLACK), text, dirty);
-					gfx->draw_box3d_clipped(xpos, ypos, LINESPACE, LINESPACE, dark, PLAYER_FLAG | bright);
-					gfx->draw_rect(xpos + 1, ypos + 1 + (i*(LINESPACE-2))/num_players, LINESPACE - 2, (LINESPACE-2)/num_players +1, normal, dirty);
-					break;
+		if (env_t::show_names >> 2 == 2) {
+			PIXVAL colors[MAX_PLAYER_COUNT];
+			for (int i = 0; i < num_players; i++) {
+				colors[i] = gfx->palette_lookup(players[i] + 4);
+			}
+			gfx->draw_text_outlined(xpos + LINESPACE + D_H_SPACE, ypos, gfx->palette_lookup(COL_YELLOW), gfx->palette_lookup(COL_BLACK), text, dirty);
+			gfx->draw_rect(xpos, ypos, LINESPACE, LINESPACE, gfx->palette_lookup(COL_BLACK), dirty );
+			gfx->draw_rect_colors_clipped(xpos + 1, ypos + 1, LINESPACE - 2, (LINESPACE - 2), colors, num_players, env_t::horizontal_stripe_owner, dirty CLIP_NUM_DEFAULT);
+		}
+		else {
+			for (int i = 0; i < num_players; i++) {
+				const int hpadding = (env_t::show_names >> 2) == 1 ? 1 : LINESPACE / 4;
+				const int vpadding = (env_t::show_names >> 2) == 1 ? 1 : LINESPACE / 7;
+				const int w = hpadding * 2 + gfx->calc_text_width_n(text, 0x7FFFu);
+				const int h = vpadding * 2 + LINESPACE;
+				for (int i = 0; i < num_players; i++) {
+					int cx, cy, cw, ch;
+					if (env_t::horizontal_stripe_owner) {
+						cx = xpos + (i * w) / num_players;
+						cy = ypos - vpadding;
+						cw = w / num_players + 1;
+						ch = h;
+					}
+					else {
+						cx = xpos;
+						cy = ypos - vpadding + (i * h) / num_players;
+						cw = 1000;
+						ch = h / num_players + 1;
+					}
+					PUSH_CLIP_FIT(cx, cy, cw, ch);
+					switch (env_t::show_names >> 2) {
+						case 0: {
+							const PIXVAL bg_color = gfx->palette_lookup(players[i] + 4);
+							gfx->draw_textbox3d_clipped(xpos, ypos, bg_color, gfx->palette_lookup(COL_BLACK), text, dirty CLIP_NUM_DEFAULT);
+							break;
+						}
+						case 1: {
+							const PIXVAL text_color = gfx->palette_lookup(players[i] + 7);
+							gfx->draw_text_outlined(xpos, ypos, text_color, gfx->palette_lookup(COL_BLACK), text, dirty);
+							break;
+						}
+					}
+					POP_CLIP()
 				}
 			}
-			POP_CLIP()
 		}
 	}
 }
@@ -1904,9 +1932,7 @@ void grund_t::display_text_label(sint16 xpos, sint16 ypos, const char* text, con
 void grund_t::display_overlay(const sint16 xpos, const sint16 ypos)
 {
 	const bool dirty = get_flag(grund_t::dirty);
-#ifdef MULTI_THREAD
 	objlist.display_obj_overlay( xpos, ypos );
-#endif
 	// marker/station text
 	if(  get_flag(has_text)  ) {
 		
@@ -2083,7 +2109,9 @@ bool grund_t::weg_erweitern(waytype_t wegtyp, ribi_t::ribi ribi)
 							wayobj_t *wo2 = next_gr->get_wayobj( wegtyp );
 							if( wo2 ) {
 								wo->set_dir( wo->get_dir() | ribi_t::nesw[i] );
+								wo->calc_cached_image();
 								wo2->set_dir( wo2->get_dir() | ribi_t::backward(ribi_t::nesw[i]) );
+								wo2->calc_cached_image();
 							}
 						}
 					}
@@ -2181,7 +2209,7 @@ sint64 grund_t::neuen_weg_bauen(weg_t *weg, ribi_t::ribi ribi, player_t *player)
 		}
 
 		// may result in a crossing, but the wegebauer will recalc all images anyway
-		weg->calc_image();
+		calc_image();
 	}
 	return cost;
 }
@@ -2193,7 +2221,6 @@ sint32 grund_t::weg_entfernen(waytype_t wegtyp, bool ribi_rem)
 	if(weg!=NULL) {
 
 		weg->mark_image_dirty(get_image(), 0);
-
 		if(ribi_rem) {
 			ribi_t::ribi ribi = weg->get_ribi();
 			grund_t *to;
@@ -2311,30 +2338,9 @@ bool grund_t::remove_everything_from_way(player_t* player, waytype_t wt, ribi_t:
 		const koord here = pos.get_2d();
 
 		// stops
-		if(flags&is_halt_flag  &&  (get_halt()->get_owner()==player  || player==welt->get_public_player())) {
-			bool remove_halt = get_typ()!=boden;
-			// remove only if there is no other way
-			if(get_weg_nr(1)==NULL) {
-				remove_halt = true;
-			}
-			else {
-#ifdef delete_matching_stops
-				// delete halts with the same waytype ... may lead to confusing / unexpected but completely logical results ;)
-				gebaeude_t *gb = find<gebaeude_t>();
-				if (gb) {
-					waytype_t halt_wt = (waytype_t)gb->get_tile()->get_desc()->get_extra();
-					if (halt_wt == wt || (wt==track_wt && halt_wt==tram_wt) || (wt==tram_wt && halt_wt==track_wt)) {
-						remove_halt = true;
-					}
-				}
-#else
-				remove_halt = false;
-#endif
-			}
-			if (remove_halt) {
-				if (!haltestelle_t::remove(player, pos)) {
-					return false;
-				}
+		if (is_halt() && !has_two_ways()) {
+			if (!haltestelle_t::remove(player, pos)) {
+				return false;
 			}
 		}
 		// remove ribi from canals to sea level
@@ -2358,13 +2364,18 @@ bool grund_t::remove_everything_from_way(player_t* player, waytype_t wt, ribi_t:
 			}
 			if (roadsign_t* const sign = obj_cast<roadsign_t>(obj)) {
 				// roadsigns: check dir: dirs changed => delete
-				if (sign->get_desc()->get_wtyp() == wt && (sign->get_dir() & ~add) != 0) {
+				// a traffic light's dir is the axis green at the moment, so it
+				// stays exactly as long as the way is still a junction
+				const bool gone = sign->get_desc()->is_traffic_light()
+					? !ribi_t::is_threeway(add)
+					: (sign->get_dir() & ~add) != 0;
+				if (sign->get_desc()->get_wtyp() == wt && gone) {
 					costs -= sign->get_desc()->get_price();
 					delete sign;
 				}
 			}
 			else if (signal_t* const signal = obj_cast<signal_t>(obj)) {
-				// signal: not on crossings => remove all
+				// signal: not on crossings => can remove all
 				if (signal->get_desc()->get_wtyp() == wt) {
 					costs -= signal->get_desc()->get_price();
 					delete signal;
@@ -2372,11 +2383,12 @@ bool grund_t::remove_everything_from_way(player_t* player, waytype_t wt, ribi_t:
 			}
 			else if (wayobj_t* const wayobj = obj_cast<wayobj_t>(obj)) {
 				// wayobj: check dir
-				if (add == ribi_t::none && wayobj->get_desc()->get_wtyp() == wt) {
-					uint8 new_dir=wayobj->get_dir()&add;
+				if (wayobj->get_desc()->get_wtyp() == wt) {
+					uint8 new_dir = wayobj->get_dir() & add;
 					if(new_dir) {
 						// just change dir
 						wayobj->set_dir(new_dir);
+						wayobj->calc_image();
 					}
 					else {
 						costs -= wayobj->get_desc()->get_price();

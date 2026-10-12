@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "../dataobj/koord.h"
+#include "../dataobj/map_shape.h"
 #include "../simdebug.h"
 
 /**
@@ -82,22 +83,35 @@ public:
 		h = resize_y;
 	}
 
-	void rotate90()
+	/**
+	 * One 60° step of the map @p from this array holds a cell per tile
+	 * of, sized to its bounding rhombus: the cell of each tile moves to
+	 * from.rotate_tile, and the array becomes the bounding rhombus of
+	 * from.rotated().  Cells that are no tile of the rotated map are T().
+	 */
+	void rotate90( const map_shape_t &from )
 	{
 		if(  w*h > 0  ) {
-			T *new_data = new T[w*h];
+			const map_shape_t to = from.rotated();
+			const unsigned new_w = (unsigned)to.get_size_q();
+			const unsigned new_h = (unsigned)to.get_size_r();
+			T *new_data = new T[new_w*new_h];
+			for(  unsigned i = 0;  i < new_w*new_h;  i++  ) {
+				new_data[i] = T();
+			}
 			for(  unsigned y=0;  y<h;  y++  ) {
 				for(  unsigned x=0;  x<w;  x++  ) {
-					const unsigned nr = x+(y*w);
-					const unsigned new_nr = (h-y-1)+(x*h);
-					new_data[new_nr] = data[nr];
+					const koord k0( (sint16)x, (sint16)y );
+					if(  from.contains( k0 )  ) {
+						const koord k = from.rotate_tile( k0 );
+						new_data[k.x + k.y*new_w] = data[x+(y*w)];
+					}
 				}
 			}
 			delete [] data;
 			data = new_data;
-			unsigned temp = w;
-			w = h;
-			h = temp;
+			w = new_w;
+			h = new_h;
 		}
 	}
 

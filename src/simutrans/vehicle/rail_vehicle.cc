@@ -157,7 +157,6 @@ bool rail_vehicle_t::check_next_tile(const grund_t *bd) const
 	}
 
 	// check for electrification
-	const bool needs_electric = cnv != NULL  &&  cnv->needs_electrification();
 	if(  needs_electric  &&  !sch->is_electrified()  ) {
 		return false;
 	}
@@ -247,7 +246,6 @@ bool rail_vehicle_t::is_target(const grund_t* gr, const grund_t* prev_gr) const
 					return false;
 				}
 				// make sure that we are at the end of the platform or usable area
-				const bool needs_electric = cnv != NULL && cnv->needs_electrification();
 				grund_t* to;
 				if (gr->get_neighbour(to, get_waytype(), ribi)) {
 					weg_t* w = to->get_weg(get_waytype());
@@ -778,14 +776,14 @@ bool rail_vehicle_t::block_reserver(const route_t *route, route_t::index_t start
 					next_signal_index = i;
 				}
 			}
-			if (!sch1->reserve(cnv->self)) {
+			if (!sch1->reserve(cnv->self, i)) {
 				success = false;
 			}
 			if (gr->has_two_ways()) {
 				// we may need to reserve the other way as well
 				if (schiene_t* sch0 = dynamic_cast<schiene_t*>(gr->get_weg_nr(gr->get_weg_nr(0) == sch1))) {
 					// the other way is reservable too => try to reserve it
-					if (!sch0->reserve(cnv->self)) {
+					if (!sch0->reserve(cnv->self, i)) {
 						success = false;
 					}
 				}
@@ -896,7 +894,7 @@ void rail_vehicle_t::enter_tile(grund_t* gr)
 		sch0->book(cargo, WAY_STAT_GOODS);
 		if(leading) {
 			sch0->book(1, WAY_STAT_CONVOIS);
-			sch0->reserve( cnv->self );
+			sch0->reserve( cnv->self, get_route_index()-1 );
 		}
 	}
 }

@@ -7,6 +7,7 @@
  * The depot window, where to buy convois
  */
 
+#include <algorithm>
 #include <stdio.h>
 #include <string.h>
 
@@ -40,6 +41,7 @@
 #include "../builder/vehikelbauer.h"
 #include "../dataobj/schedule.h"
 #include "../dataobj/translator.h"
+#include "../dataobj/environment.h"
 
 #include "../player/simplay.h"
 
@@ -1111,7 +1113,7 @@ void depot_frame_t::image_from_convoi_list(uint nr, bool to_end)
 		while(  start_nr > 0  ) {
 			start_nr--;
 			const vehicle_desc_t *info = cnv->get_vehicle(start_nr)->get_desc();
-			if(  info->get_trailer_count() != 1  ) {
+			if (info->get_trailer_count() != 1  ||  info->get_trailer(0) != vehicle_desc_t::any_vehicle) {
 				start_nr++;
 				break;
 			}
@@ -1138,8 +1140,8 @@ bool depot_frame_t::action_triggered( gui_action_creator_t *comp, value_t p)
 	if(  comp != NULL  ) { // message from outside!
 		if(  comp == &bt_start  ) {
 			if(  cnv.is_bound()  ) {
-				//first: close schedule (will update schedule on clients)
-				destroy_win( (ptrdiff_t)cnv->get_schedule() );
+				//first: close schedule editor (will update schedule on clients)
+				cnv->close_schedule_editor();
 				// only then call the tool to start
 				char tool = (event_get_last_control_shift() ^ tool_t::control_invert)==2 ? 'B' : 'b'; // start all with CTRL-click
 				depot->call_depot_tool( tool, cnv, NULL);

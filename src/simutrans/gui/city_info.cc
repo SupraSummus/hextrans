@@ -3,10 +3,12 @@
  * (see LICENSE.txt)
  */
 
+#include "../simdebug.h"
 #include "../world/simcity.h"
 #include "../tool/simmenu.h"
 #include "../world/simworld.h"
 #include "../simcolor.h"
+#include "../dataobj/environment.h"
 #include "../dataobj/translator.h"
 #include "../display/viewport.h"
 #include "../utils/cbuffer.h"
@@ -249,6 +251,7 @@ void city_info_t::init()
 		button_to_chart.append(buttons[i], &mchart, curve);
 	}
 
+	minimap_t::get_instance()->set_selected_city(city);
 	update_labels();
 	set_resizemode(diagonal_resize);
 	reset_min_windowsize();
@@ -265,6 +268,10 @@ city_info_t::~city_info_t()
 		if (b2c->get_button()->pressed) {
 			flags |= 1 << b2c->get_curve();
 		}
+	}
+	if (minimap_t::get_instance()->is_city_selected(city)) {
+		// unselect us
+		minimap_t::get_instance()->set_selected_city(NULL);
 	}
 	city->stadtinfo_options = flags;
 }
@@ -327,7 +334,8 @@ void gui_city_minimap_t::init_pax_dest( array2d_tpl<PIXVAL> &pax_dest )
 	for(  sint16 y = 0;  y < minimaps_size.h;  y++  ) {
 		for(  sint16 x = 0;  x < minimaps_size.w;  x++  ) {
 			const grund_t *gr = welt->lookup_kartenboden( koord( (x * size_x) / minimaps_size.w, (y * size_y) / minimaps_size.h ) );
-			pax_dest.at(x,y) = minimap_t::calc_ground_color(gr);
+			// black in the cut corners of the hexagon
+			pax_dest.at(x,y) = gr ? minimap_t::calc_ground_color(gr) : gfx->palette_lookup(COL_BLACK);
 		}
 	}
 }
@@ -385,6 +393,10 @@ void city_info_t::update_labels()
 
 void city_info_t::draw(scr_coord pos, scr_size size)
 {
+	if (minimap_t::get_instance()->is_city_selected(NULL)) {
+		// nothing there => we claim it
+		minimap_t::get_instance()->set_selected_city(city);
+	}
 	// update chart seed
 	chart.set_seed(welt->get_last_year());
 	update_labels();
@@ -409,7 +421,7 @@ bool city_info_t::action_triggered( gui_action_creator_t *comp,value_t /* */)
 }
 
 
-void city_info_t::map_rotate90( sint16 )
+void city_info_t::map_rotate90( const map_shape_t & )
 {
 	pax_map->set_size( pax_map->get_size() );
 }

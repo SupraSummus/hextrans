@@ -102,7 +102,8 @@ way_curve=5
 way_double_curve=10
 way_90_curve=30
 way_slope=20
-way_tunnel=16
+way_tunnel=10
+way_bridge=8
 way_leaving_road=50
 way_avoid_crossings=8
 way_max_bridge_len=15
@@ -382,6 +383,10 @@ numpad_always_moves_map = 1
 # display scaling factor in percent or -1 for auto
 # dpi_scaling = 100
 
+# 1=show the construction information band beside the status bar (cost,
+# length, why a build is refused). Turn it off to keep the screen space.
+#show_construction_info = 1
+
 ###################################money stuff##################################
 #
 # These values are usually set in the pak files
@@ -477,10 +482,6 @@ allow_merge_distant_halt=2
 
 ##################################pak set stuff#################################
 #
-
-# how long is a diagonal (512: factor 2=1024/512, old way, 724: sqrt(2)=1024/724
-# THIS WILL BE ONLY USED, WHEN THIS FILE IS IN THE pakxyz/config!
-#diagonal_multiplier = 724
 
 # new height for old slopes when old single height savegame loaded with double height pak (default 1=single height, 2=double height)
 # THIS WILL BE ONLY USED, WHEN THIS FILE IS IN THE pakxyz/config!

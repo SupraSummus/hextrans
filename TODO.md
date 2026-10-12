@@ -44,16 +44,6 @@ and `test_way_tram_build_in_tunel` additionally shows
 a 2-axis tunnel cross (S-axis road + SE-axis tram)
 threading one buried hex tile with ribi 16|2|8|1=27.
 
-**Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner
-diagonals are still admitted as way slopes by the post-slope-way
-predicate (side-chord branch with samples both at 1), but the names
-project poorly onto the hex axes and read as historical baggage.  Four
-call sites (`test_building_rotate_harbour`, the "east-west direction"
-block in `test_depot_build_on_bridge_end` and the matching block in
-`test_halt_build_on_bridge_end`, `test_powerline_remove_powerbridge`)
-migrated to `slope.southeast_narrow` / `slope.northwest_narrow`, the hex axis they were
-already projecting onto.
-
 **Deep-water grid-height clobber in `tool_change_water_height_t`.**
 The hex apply loop ends with `set_grid_hgt_nocheck(kt, c, hn[c])` for
 all six corners, `hn[c] = max(new_water_height, h0[c])`.  Upstream
@@ -82,18 +72,6 @@ connection FSM support (`leitung2.cc` diagonal-image table is keyed on
 4 old-combo values).  Restore after the crossing-cluster / 3rd-axis
 work lands.
 
-**Missing `terraform=` in `command_x.build_way`.**
-`command_x.build_way` in the Squirrel API has no `terraform=` flag,
-so the `terraform_flag` paths in `way_builder_t` (set by city / AI
-builders via `simcity.cc` and `ai*.cc`) have no scenario-test
-coverage.  Add a `terraform` bool mirroring `straight` /
-`keep_city_roads`; wire through the `TOOL_BUILD_WAY` param
-encoding in `script/api/api_command.cc:306-314`.  Lands alongside
-the first scenario test that exercises AI / city-shape
-terraforming — including a regression test for the
-`check_terraforming` widening + corner-index fixes that currently
-have no end-to-end coverage.
-
 **`ASSERT_THROWS` helper for scenario tests.**
 43 sites across `tests/tests/*.nut` hand-roll the same
 `local caught = false; try { ... } catch (e) { ASSERT_EQUAL(e, "<msg>"); caught = true } ASSERT_TRUE(caught)`
@@ -102,6 +80,16 @@ Add `ASSERT_THROWS(expected_msg, callable)` to `test_helpers.nut`
 and collapse the sites to one line each.
 Soft trigger:
 fold in next time a test file in this set is being rewritten anyway.
+
+## Test leftovers
+
+`test_city_building_3x2_faces_road` ends with zero maintenance
+but still leaves something behind:
+run before the halt tests, it shifts the money check
+of `test_halt_make_public_single` by 256.
+It runs near the end of `tests/all_tests.nut` until that is found.
+Next move: diff the world (cities, ground objects, ownership) before and after the test,
+fix its cleanup, and move it back beside the other city tests.
 
 ## `is_allowed_step` prefer_parallel branches near-duplicated
 
@@ -251,20 +239,6 @@ the flat-image migration above.
 
 ## Per-vertex height storage — remaining writer-side ports
 
-`karte_t::rotate90`'s heightmap-rotation loop is still the legacy
-90° square formula — 90° is not a hex symmetry, so the result is
-deterministic but geometrically wrong.  `perlin_hoehe`'s own
-rotation code shares the bug.  Both land together with a real hex
-rotation (or a `dbg->fatal` refusal), tied to the viewport port.
-
-The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
-`surface.h` is `dbg->fatal` — every residual call is a crash so the
-port can't accidentally regress new sites onto the old E-slot of
-tile `(x-1, y-1)`.  Gameplay code should not call the fatal
-`lookup_hgt` / `lookup_hgt_nocheck` `(x,y)` / `(koord)` overloads;
-use `(tile, hex_corner_t)`, `min_hgt` / `max_hgt`, or
-`grund_t::get_hoehe` as appropriate.
-
 The natural-height channel (`natural_grid_hgts`) is not yet persisted
 in saves.  On load it is seeded from `grid_hgts` as a best effort, so
 saves that include set-slope-tool overlays will round-trip with those
@@ -283,27 +257,60 @@ square-axis read), so it's still computing the same horizontal slope
 regardless of wind direction.  Both quirks land together in a
 hex-aware rewrite of the climate generator.
 
-## Map storage shape — open architectural choice
+## Slope readers that still look at four corners
 
-Tiles are stored as a `W × H` rhombus in axial `(q, r)`, indexed
-`plan[q + r*W]`.  Under the flat-top hex projection that rhombus
-becomes a strongly-skewed parallelogram in world space — y-extent
-~2.6× x-extent at `W = H`, NE / SW corners far apart,
-look-around-from-centre asymmetric.  A regular hex region — all
-tiles with axial distance ≤ d from the centre, `3d² + 3d + 1` tiles
-— would be spatially compact, give roughly equal sightlines in
-every direction, and reduce the world-create UI to a single radius.
+`baum_t::calc_off` in `obj/baum.cc` interpolates a tree's vertical
+offset bilinearly over `corner_sw/se/ne/nw` inside a 32x32 box.
+On a slope whose only raised corner is E or W the offset comes out
+0, so the tree stands on the tile base.
+Replace the box with the hex tile: pick the in-tile sample point in
+hex coordinates and interpolate over the three corners of the
+triangle it falls in.
+The sample-point choice is square-shaped too, so both move together,
+ahead of the tree sprite offsets in the renderer port.
 
-Not in flight, flagged so it doesn't get closed off by side-effect.
-It touches every `plan[q + r*W]` indexing site,
-every map-iteration loop,
-the save format (or leaves corner cells empty for round-trip compatibility),
-the world-create / `enlarge_map_frame` UI which currently asks for `(W, H)`,
-and the `init_perlin_map` cache —
-sized today against rhombus-in-world-space extents
-and would want recomputing for whatever shape we pick.
-Pick a direction before any of those adjacent items gets done
-in a way that bakes in rhombus assumptions.
+## W×H×D hexagon world
+
+The playable world becomes the W×H×D hexagon of #280,
+stored as its bounding rhombus with a validity predicate;
+`documentation/map-shape.md` has the design and a six-step plan.
+Steps 1 to 5 have landed:
+`map_shape_t`, `size_d` in the settings and the save,
+the cut in `surface_t::is_within_limits`,
+the full-map loops, edge margins and border walls,
+so a populated D > 1 hexagon generates and plays a year of AI game
+(`-ai_soak W,H,D`, `tools/ai_soak.py --shape`, `tools/test.py --map`),
+the new-world dialog with W, H, D and "Equal sides",
+densities by tile count,
+the preview and heightfield import in offset coordinates
+(`tools/heightfield_import_test.py`),
+the 150×150×150 default,
+and `karte_t::enlarge_map` with its dialog for W and H with D fixed
+(`test_map_shape_enlarge*`, run by `tools/test.py --map`).
+Next move is step 6:
+the rotation round trip on a D > 1 fixture,
+by porting the setup of `test_world_rotate_roundtrip`
+(16×16 coordinates) to positions inside the 9×7×5 hexagon,
+so that `tools/test.py --map` runs it.
+The single 60° step waits for the 6-orientation footprint
+(see "Rotation cascade").
+
+**Enlarging moves the old grid.**
+`cleanup_karte` smooths an enlargement by raising each new slot and the old
+slots next to it by one and lowering them again,
+and the raise spreads through the old vertices on the way.
+A probe in `enlarge_map` found that the second of two enlargements
+of a D = 1 map with mountains left 9 of 1626 corners of old tiles above the
+water (0 before the smoothing) different from the grid heights, the next 8 more;
+the pre-step-5 engine produces the same map,
+so this is the upstream behaviour, and not visible as a cliff between tiles yet.
+Next move: make the kept slots fixed.
+Force each kept slot on the seam to its tile's corner height
+with a `raise_vertex_to` / `lower_vertex_to` that stops at kept slots
+(the anchor in `enlarge_map` does it for the south-phantom row only),
+and smooth the new slots alone;
+then count the corners with the probe,
+or a `debug` hook that reads a vertex slot, in a test.
 
 ## Engine → pakset descriptor boundary
 
@@ -366,14 +373,29 @@ design conversation before mechanical work.
 
 **`roadsign_writer.cc`** has three hardcoded direction tables
 (2/4/8 entries) and only 4 image slots for traffic lights
-({SE-NW, NS} × {green, yellow}).  The engine-side FSM is now
-3-axis adaptive; `calc_image`'s `state_to_direction[6]` table in
-`roadsign.cc` projects NE-SW (states 2 / 5) onto the NS slots as
-placeholder visuals, so 6-way intersections cycle correctly
-under the hood but render with miscoloured arms until the
-writer grows a third direction tier and pakset art ships.
-Delete the placeholder projection in the same change that
-widens the writer.
+({SE-NW, NS} × {green, yellow}).
+The engine-side FSM is 3-axis adaptive, but `calc_image` draws the
+NE and SW arms as the N and S arms and projects NE-SW (states 2 / 5)
+onto the NS slots (`state_to_direction[6]`),
+so 6-way intersections cycle correctly under the hood
+but render with miscoloured arms.
+Plain signs, signals and private way signs take NE and SW art from
+`image_ne_sw[n]` already (see `roadsign_desc_t::direction_slot`);
+a light cannot, because its 8 images per phase name arms and arm
+pairs, and two image layers cannot show six arms.
+Next move: decide the NE and SW arm layout of a traffic light,
+read it from a list of its own like `image_ne_sw`,
+add a dummy light to `tests/test-pak/test_sign_ne_sw.dat`,
+and delete the arm folding and `state_to_direction` in the same change.
+Paksets follow with `image_ne_sw[..]` entries for their signals and
+signs (`image[ne][..]` is not available as the key: it marks a
+traffic light).
+
+**Drive-on-left NE and SW sign images** have no test:
+a script can read the drive-on-left setting
+(`settings.get_drive_on_left`) but not set it.
+Next move: a setter in `api_settings.cc`, then a drive-on-left variant
+of `test_sign_oneway_ne_sw_art` with `image_ne_sw[n][1]` entries.
 
 **`vehicle_writer.cc:178-180`** has `dir_codes[8]` for sprite-facing
 direction; tied to the `ribi_t::_dir` widening tracked in "Vehicle
@@ -392,26 +414,107 @@ These are the shim / stub patterns spread across the caller port
 that need a second sweep once their trigger condition lands.  Each
 is named / tagged so a global grep surfaces all sites.
 
-**Rotation cascade.**  `koord::rotate90` is `dbg->fatal` and the 6
-top-level callers (`fabrikbauer` retry loops ×4, `karte_t::destroy`
-/ `karte_t::save` retry loops, the `tool_rotate90` player tool) are
-gated so the cascade is unreachable in normal play.  The underlying
-`karte_t::rotate90` body and every `obj_t::rotate90()` override
-still compile (so the binary builds and any hex-aware rotation
-replacement can drop in cleanly), and the `ribi_t::rotate_for_map_rotate90`
-/ `rotate_perpendicular` stubs (currently `rotate60`) stay for the
-same reason.  Replace with a real design when the viewport port
-lands — either a hex 60° rotation, a viewport-only rotation, or a
-formal removal.
+**Rotation cascade.**
+#281 decided on real world rotation in 60° steps,
+built on upstream's `karte_t::rotate90` cascade
+(`documentation/map-shape.md`, "Rotation").
+One call of the cascade is one 60° step of every stateful object,
+positions through `koord::rotate90(shape)` = `map_shape_t::rotate_tile`.
+Layouts, footprints, pixel offsets and axial rectangles
+(city area, scenario rects) have no 60° form yet:
+they turn by 180° on the step that completes a half turn
+(`settings_t::is_half_turn_rotation`).
+So `karte_t::can_rotate90` allows whole half turns only,
+from a world at 0° or 180°,
+and the rotate tool turns by three steps, offline;
+a lone `rotate90()` is fatal.
+The rotate-until-saveable retry loops in `fabrikbauer` and
+`karte_t::destroy` / `save` stay gated dead;
+next move (#281 step 4) is to revive them as half-turn retries
+or delete them, per site.
+Next move for the single step: populated W×H×D maps (map-shape step 4+)
+and the 6-orientation footprint (AGENTS.md),
+then give layouts, footprints and offsets a 60° body
+and widen `can_rotate90` to any step count;
+`perlin_hoehe`, `enlarge_map`'s origin shift, `enlarge_map_frame`,
+the script layout transform and the compass handle 0° and 180° only.
+Rename `rotate90` to `rotate_one_step` in its own mechanical PR.
+`objlist_t::rotate90_moving` still reorders movers with the square
+heading sets (`append_dirs`, `rotated_append_dirs`, `rotated_mirror_dirs`);
+its hex body takes both append tests from `hex_heading_climbs_screen`,
+on the heading before and after the step.
+The `ribi_t::rotate_for_map_rotate90` / `rotate_perpendicular` stubs
+(currently `rotate60`) stay until that rename.
+
+**Rotated suite.**
+`tools/test.py --rotate` (and its CI step) runs the suite
+on the 16×16 map turned by 180°,
+which the scripts see unturned,
+without the tests in `tests/rotate-pending.txt`;
+each of those fails turned but passes unturned,
+so it shows a direction or anchor the engine still takes from the world frame.
+Rerun a class with `tools/test.py --rotate =<name>` after its fix
+and drop the names that pass.
+A multi-tile footprint is anchored at its world NW corner,
+the far corner as the script sees it after the half turn,
+so the house, factory, dock, transformer and footprint tests
+build somewhere else or off the map:
+next move is a `coordinate_transform_t` footprint transform
+(script corner `p` to world corner `C - p - (size - 1)`)
+applied where the script API passes a building position
+(`build_house`, `build_factory`, `build_station`, `build_depot`),
+the same move for the 60° step later.
+The sign and signal tests see `get_dirs_masked` flip:
+`roadsign_t` picks a new sign's first direction by ribi bit order in the
+world frame;
+next move is to pick it from the way's axis
+so that the choice turns with the map.
+The image-slot, render, back-wall and script-generator tests
+read world-frame output
+(`image[s]` vs `image[n]`, image ids, `tile_x::get_back_walls`,
+the generated `NoEntry:x:y`);
+next move is to report them through the script transform
+(the generator writes script coordinates and directions)
+or to mark them world-frame and keep them out of the rotated run.
+`test_toolkit_slope_constants` and `test_toolkit_slope_commands`
+only run out of opcodes in `include()` in the rotated run,
+where the generator tests that sleep before them are left out;
+they come back with them.
+The `test_ai_site_*` tests call the test-only probes of
+`script/api/api_ai_test.cc`, which take and return world coordinates;
+next move is to pass their coordinates through the script transform
+like the rest of the API.
+`test_air_takeoff_and_landing_all_runway_axes`:
+`aircraft_t::calc_route`'s landing circle (`circle_koord[16]`, offsets
+for N, NW, S, SE runway ends only) is square-era,
+so a NE-SW runway circles off the map once turned;
+next move is a hex circle over the six edges.
+`test_trees_plant_forest` and `test_way_tunnel_planner_no_exit`
+meet the map edge differently on the far side:
+next move is to read the edge test of `tree_builder_t::plant_forest`
+and `tunnel_builder_t::find_end_pos` against `get_edge_distance`.
+`test_way_bridge_over_building` passes turned
+but leaves tile (3,1) one level down
+after its `set_slope(all_down_slope)` cleanup,
+which the unturned run does not:
+the terraforming under `tool_setslope_t` is not mirror symmetric;
+next move is a scenario test that sets and restores the same ramp
+on the N and the S edge and compares the neighbours.
+`test_city_road_fills_valley_tile` does the same with its raised terrain:
+it passes turned but breaks the money check of `test_halt_make_public_single`
+after it;
+the same scenario test covers its cleanup.
+`is_within_grid_limits` (14 more sites) is the square grid-point range;
+`tool_set_climate_t` used it as the neighbour-tile test
+and read off-map heights at the far edges, which the rotated run exposed;
+the other sites want the same review against `is_within_limits`.
 
 **`ribi_t::rotate_perpendicular` / `_l` sweep.**  Square-era "90°
 off this direction" sites — crossroads collision avoidance
 (`road_vehicle.cc`, `pedestrian.cc`, `vehicle_base.cc`),
 broad-tunnel side tiles (`tunnel.cc`, `tunnelbauer.cc`), canal
 orthogonality (`wasser.cc`), parallel-way and shore-perpendicular
-build heuristics (`simtool.cc`), and the roadsign map-rotate call
-that mis-uses `rotate_perpendicular` where the comment intends
-`rotate_for_map_rotate90` (`roadsign.cc`).  Also stubbed to
+build heuristics (`simtool.cc`).  Also stubbed to
 `rotate60` (the "one step over" axis).  Triggered by the
 crossing-cluster port: per-site review, some may want both 60°
 and 120° (test both adjacent axes), some may redesign the check
@@ -520,11 +623,17 @@ See also the vehicle-direction compound-displacement note above —
 18 distinct visual states under hex, 8 slots in the current dir enum.
 
 **Aircraft landing-circle 4-of-6 runways.**
-`air_vehicle_t::calc_route` in `air_vehicle.cc:415` switches on the
+`air_vehicle_t::calc_route` in `air_vehicle.cc:418` switches on the
 runway end's `get_weg_ribi` to pick an offset into the 16-step
 `circle_koord` hold-pattern table — N=0, NW=4, S=8, SE=12.
 NE and SW runways fall through to the implicit `offset=0` default
 and put aircraft on those runways into the N-approach hold pattern.
+They still take off and land through it
+(`test_air_takeoff_and_landing_all_runway_axes`),
+but the pattern reaches 4 tiles in +q from the landing start,
+past the 5-tile margin `intern_calc_route_runways` checks:
+on the 16×16 test map a NE-SW runway at (9,5)-(6,8) builds
+and every landing fails with "airport too close to the edge".
 The 16-step `circle_koord` table is itself hand-rolled for
 4-direction airports —
 widening the switch alone isn't enough;
@@ -536,22 +645,14 @@ and pre-port savegames, not from AI gameplay.
 Lands together with a hex-aware hold-pattern geometry —
 likely 6-direction symmetric circles rather than 4.
 
-`do_terraforming` in `wegbauer.cc` has an
-`if (from_slope > slope_t::all_up_one  &&  is_axis_slope(from_slope -
-slope_t::all_up_one))` branch (and its `to_slope` twin) that was
-unreachable while slopes were stored in `uint8` (`all_up_one ==
-1365 > 255`).  After the widening in this branch it can fire for
-the first time under hex.  The semantic — "shifted-up axis slope
-means raise tile by 1 and unshift" — is geometrically plausible
-under the hex 6-corner encoding (axis slopes still subtract
-cleanly when both layers' corners are at the same height), but
-hasn't been exercised by a concrete trace.  Run one through and
-either confirm or replace with a hex-aware lift; lands alongside
-the first real-gameplay surfacing of city / AI terraforming.
-While here, consider widening the predicate to `is_axis_ramp` —
-shifted-up `*_double` slopes have corner heights up to 3 (still in
-the base-4 encoding) and currently fall through the
-single-only filter into the "leave alone" branch.
+**Wind direction in the settings window.**
+`settings_climates_stats_t` (`gui/settings_stats.cc`, inherited from upstream)
+edits `wind_direction` as a number 0..3,
+so the window can only set none, SE, S or SE|S;
+anything but a single edge leaves planes with no takeoff end.
+The new-map dialog in `climates.cc` already has a 6-entry combobox.
+Next move: reuse that combobox there, or drop the field,
+and clamp the value as `settings_t::rdwr` does.
 
 ## Renderer port
 
@@ -620,12 +721,6 @@ coverage, or move the realisability check to a tripwire in
 condition.
 Deep water still pairs with the pakset `Water` animation block as
 below; on-slope water and snow now use LightTexture-derived shapes.
-`rotate_transitions` still applies a 60° bit-rotate as a stand-in for
-90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
-
-On-slope water tiles now use the same required `LightTexture`
-ground-lightmap path as climate ground.
-Deep water still comes from the pakset `Water` animation block.
 
 Cliff back-wall middle-slope indices 9 / 10 are baked as single-step
 half-cliffs (one corner at 0, one at 1) — placeholder for the legacy
@@ -659,7 +754,7 @@ artificial slot is empty.  Ship 7 natural + 7 artificial fence
 sprites in the hex pakset and pak64 to refill.
 
 **Phase C — flow-on.**  Per-step vehicle interpolation offsets
-(`vehicle_base_t::calc_set_direction` and friends), label / halt
+(`vehicle_base_t::set_dxdy`, shared by hop time and save/load), label / halt
 screen-anchor positions.  The label / halt group rides along on
 `get_screen_coord` so positions become hex-correct automatically;
 per-tile drawing under each anchor still assumes square geometry
@@ -669,23 +764,48 @@ legacy square-iso pair (`(±2, ±1)` for the four edges that survive
 the rename, `(±4, 0)` for NE/SW); under the hex lattice N/S
 neighbours are at screen distance `2u` while NE/SW are at `u·√10`
 ≈ `3.16u`, so NE/SW vehicles visibly drift off-tile mid-hop on
-straight segments.  Rebase the per-edge offsets on the lattice and
-match the diagonal-step substep count to the longer hex chord.
+straight segments.  Rebase the per-edge offsets on the lattice; every
+edge crosses a tile in the same number of steps.
+The screen path through a bend is still the square-era one:
+`vehicle_base_t::get_display_steps` stretches the chord lengths
+(222 steps for a 60 degree turn, 128 for a 120 degree one)
+onto the old 181 and 256,
+and scales a step with `dx` or `dy` 0 by the old 724/1024;
+rebase it on the chord between the two edge middles together with the
+per-edge offsets.
 
-Minimap (`gui/minimap.cc`) now hex-projects in isometric mode:
-`map_to_screen_coord` / `screen_to_map_coord` use the `(3u, u)` /
-`(0, 2u)` lattice with `u = zoom_in`, and `set_map_color` paints
-the `3u × 2u` screen-aligned cell that the floor-inverse picks for
-a click in that cell — so paints and clicks stay in lockstep.  The
-schedule-overlay tint walks the sheared parallelogram outline
-scanline by scanline (slope 1/3, derived from `map_to_screen_coord`
-on the four world corners).  Plan (non-iso) mode is unchanged —
-still an axial-coordinate plot, lying about hex shape but compact.
-Residual: at `zoom_out ≥ 2` multiple tiles still collapse to one
-pixel as before — inherited from the legacy projection.  A regular
-flat-top hex view (vs. the current 2:1 stretch that matches the
-main viewport) would be a third mode, not a fix; not on the path
-unless the main view's lattice changes.
+**Chord direction of vehicles.**
+`vehicle_base_t::direction` and `calc_direction` both hold
+`calc_chord_direction` of the tiles before and after a tile,
+which sorts the off-axis chords of 60 degree bends into NE / SW or none.
+One bit names only one of the two edges an off-axis chord lies between
+(SE then NE lies between SE and NE and is filed as NE),
+so a "does this chord lead back over that edge" test can miss.
+`can_go_alte_richtung`'s going-backwards test therefore uses
+`calc_chord_direction` and adds the route's first step,
+which is always an edge.
+`no_cars_blocking` has the same gap:
+it rebuilds the edge it enters by (`current_90direction`) from the chord
+with the square identity `~(next_direction | backward(next_90direction))`,
+which on a hex bend gives three or four bits,
+and its `current_90direction == none` case can no longer happen
+now that `backward(none)` is none.
+Next move: pass the step into the tile
+(`curr_90direction` in `road_vehicle_t::can_enter_tile`
+and the same step in `private_car_t`)
+into `no_cars_blocking` and take `current_90direction` as its backward;
+`test_vehicle_buses_meet_on_bend` passes before and after,
+so the change wants a scenario where a bus turns across oncoming traffic
+at a hex junction.
+
+Zoom levels where the tile raster width is not a multiple of 4
+break the hex lattice: `u = W/4` truncates,
+so tiles step `4u` while sprites stay `W` wide and seams open.
+Upstream 125's zoom table (`zoom_num` / `zoom_den` in `simgraph16.cc`,
+`ZOOM_NEUTRAL` 7 of 13) only hits this at 4/3,
+e.g. 170 px for a 128 pak (85 px for pak64).
+Next move: make `set_zoom_factor` skip a level whose
+`base_tile_raster_width * num / den` is not divisible by 4.
 
 **Sprite raster choice (pinned design decision).**  The lattice
 the projection runs on is a *clean integer approximation* of hex
@@ -695,7 +815,11 @@ iso, not a regular hex tiling.  With unit `u = IMG_SIZE/4`:
 * row step    (axial `+r`): `(  0, 2·u)`
 
 Adjacent +q tiles are at screen distance `u·√10` while adjacent +r
-tiles are at `2·u` — the +q axis is ~14% off true regular hex.
+tiles are at `2·u`, a ratio of √10/2 ≈ 1.58.
+In world space the lattice is still a regular flat-top hex,
+seen in orthographic projection from 35.26° elevation:
+sin = 1/√3, so y compresses by 1/√3.
+That is the elevation of true isometric, without its 45° yaw.
 What the lattice *does* preserve: (1) the existing
 `IMG_SIZE × IMG_SIZE/2` ground footprint, so legacy diamond sprites
 overlay on the right footprint until pakset art lands; (2) the iso
@@ -733,12 +857,13 @@ bends fills the gap.  *Doesn't transform cleanly*: vehicles need
 ~18 distinct hex direction states (see "Vehicle direction enum"
 above) vs. typically 4 sprite slots with ~8 rotation frames in
 square pakset art — pixel rotation of vehicles breaks silhouette
-and shading; the realistic plan is `get_dir()` projecting 6 hex
-edges onto whichever 4-slot table the current sprite has, accepting
-visibly wrong direction in roughly 1/3 of cases.  Recommended
-order if a "playable but visibly stubby" demo is wanted before
-real art lands: base ground now comes from LightTexture, so next is
-`get_dir()` 6→4 projection for vehicles (has to land anyway).
+and shading.
+`get_dir()` already maps each hex edge onto the same-named slot
+of the 8-direction sprite table,
+so 8-direction vehicle art shows a sprite in every hex direction,
+at an approximate angle.
+Recommended order if a "playable but visibly stubby" demo is wanted before
+real art lands: base ground now comes from LightTexture.
 Skip the 60° way-bend rotations — that's where the cost-quality
 curve gets bad and where pakset replacement most likely lands
 first, so the transform code becomes pure dead weight.
@@ -794,11 +919,6 @@ Land one with the bump:
 a headless check that generates a map with relief and water,
 saves, reloads and compares every vertex height.
 
-Save-format feature gates now have names in `simversion.h` rather
-than floating against `SIM_SAVE_MINOR`.  Continue that convention for
-future on-disk changes so later fork-version bumps do not silently
-change the meaning of old readers.
-
 ## Multi-tile building footprint — still 2 of 6 hex axes
 
 `building_desc_t::get_size(layout)` (`descriptor/building_desc.h`)
@@ -817,58 +937,37 @@ all 6 directions in `iter_building_cells` /
 swap.  Soft trigger — only matters once residual misalignment is
 the visible artefact in-engine.
 
-## City growth anisotropy
+Docks longer than one tile are refused on the NE-SW axis for now
+(`dock_footprint_missing` in `tool/simtool.cc`, slope and flat docks alike),
+because the footprint cannot follow the water there.
+Next move: once `get_size` has the third axis,
+delete that check and its message
+(and the one-tile limit that `ai_goods_t::create_ship_transport_vehicle`
+asks `hausbauer_t::get_random_station` for on those shores),
+and make the NE and SW cases of `test_halt_build_harbour_all_directions`
+and `test_halt_build_flat_dock_all_directions`
+assert the same line of tiles as the other four directions.
 
-City footprints come out elongated rather than round.
-`tools/city_anisotropy.py` measures it: `--run` generates a flat empty
-map (via the `-flatmap` headless hook), grid-seeds cities, grows each,
-and dumps their building tiles; it maps the axial `(q, r)` through the
-flat-top basis and reports the gyration tensor in both the axial and
-physical frame plus the m=2/m=4/m=6 angular modes.  Reporting both
-frames is the point — physical elongation with a round axial blob means
-the basis shear, physical elongation with an elongated axial blob means
-the growth algorithm itself biases a direction.  The tool's
-`--self-test` validates the math (an axial-isotropic disk reads as
-physical aspect sqrt3 at bearing 60 deg).
+Broken-townhall layout guess.
+`check_bau_townhall` guesses the layout of a one-layout, non-square townhall
+by probing the four corners of its axial rectangle,
+turning the corner offset with `koord(-y, x)`.
+That enumerates the corners of a rectangle and its transpose,
+not a hex rotation, so it stays right while `get_size` keeps the
+`layout & 1` rule.
+Nothing runs it today:
+every pak64 townhall is square, and so is the one in `tests/test-pak/`.
+Upstream wrote it for the arrangement an odd 90° map step leaves,
+because `gebaeude_t::rotate90` cannot turn a one-layout building.
+The 180° step planned first for the rotation cascade mirrors the offsets
+and leaves the footprint whole,
+and a 60° step leaves a parallelogram that no corner probe finds.
+Next move: delete the guess loop and keep the origin from
+`gb->get_tile()->get_offset()` just above it
+when `gebaeude_t::rotate90` gets its hex body
+(see "Rotation cascade").
 
-The gross elongation is fixed.  Pre-fix baseline (flat 192x192, 25
-cities spaced 40 to stay clear of each other): physical aspect 1.68
-along ~60°.  Two fixes landed: `bewerte_pos`/`bewerte_loc` widened from
-4 to 6 rotations, and `build()`'s candidate-start sampling confined to
-the physical disk inscribed in the `[lo,ur]` box-rhombus (radius^2 =
-3*min(dx,dy)^2/16 via `koord.h`'s `physical_distance_sq`, the Euclidean
-metric, not the hex-step `koord_distance`).  Physical aspect is now
-~1.16 (round); axial rose to ~1.67, the footprint deliberately
-axial-elongated to cancel the basis shear.  Two caveats when re-running:
-the disk confinement packs cities denser (~100 tiles vs ~130 — revisit
-only if a pakset looks cramped), and the aspect number is only honest at
-spacing that keeps neighbours from colliding (spacing 30 reads ~2.3 from
-competition for ground).
-
-The per-city m=2 angular-density mode (not a hex symmetry) is the only
-residual the gyration aspect can't see, and it is now understood, not
-pending.  It used to be elevated in small cities (~0.3-0.4 below ~50
-tiles) by the founding skeleton: pak64's 1-layout townhall always seeded
-its road South (bearings {30°,90°} — a 2-fold set, exactly what m=2
-reads).  Seeding the founding road isotropically over all 6 hex faces
-(`check_bau_townhall`) fixed that — `--series` now reads m=2 ~0.18 for
-small cities rising to ~0.32 for large (Pearson r = +0.26), i.e. the
-remaining m=2 is intrinsic street-layout texture (houses lining up along
-straight streets, read from building-tile coords) that grows with the
-street network, not a removable bias.  Both tile-placement layers are
-isotropic anyway (rule matching is 6-fold symmetric; `physical_distance_sq`
-= q^2+qr+r^2 makes the `build()` sampling disk a true physical circle).
-Don't chase it further: symmetrising the cityrules to full dihedral D6
-was measured to do nothing, and the multi-tile-townhall NE/SW orientation
-AGENTS.md flags is a footprint-model change, not an m=2 lever.
-
-The flat map the baseline needs is produced by the `-flatmap N` test
-hook in `simmain.cc`'s default-map path (size N, no mountains/rivers/
-cities); it only fires under the headless none-backend build.  An empty
-flat map needs no simulation, so the hook saves it directly and sets
-`quit_simutrans` rather than running the loop to `-until` (which crawled
-the quit month in NORMAL mode and hung in teardown).
-`tools/city_anisotropy.py` generates and caches it automatically.
+## City growth
 
 City road triangles at branch starts.
 `stadt_t::build_road` connects a new road tile to every adjacent road tile.
@@ -900,13 +999,24 @@ maps a 4-layout depot's dead-end ribi through `ribi_t::ribi_to_layout`,
 so all 6 directions get a layout;
 `building_desc_t::adjust_layout` folds the NE and SW layouts
 onto the images the pakset ships.
-A 2-layout through depot still picks `layout = 0` (N-S axis)
-or `layout = 1` (SE-NW = old E-W) from the way's ribi.
-Its 3rd hex axis (NE-SW) falls through to layout 0,
-so 2-layout depots on NE-SW track render mis-oriented.
-Real fix is a 3-layout depot descriptor;
+A 2-layout through depot, and every through stop,
+picks its layout with `ribi_t::axis_to_layout`:
+the S, SE and SW end give layouts 0, 1 and 5,
+and `adjust_layout` folds 5 onto 0,
+so NE-SW track shows the N-S image.
+Real fix is a 3-axis depot and through-stop descriptor;
 needs `depot_t` rotation handling
-and pakset depot images for all three axes.
+and pakset images for all three axes.
+
+*Stop and depot facing is read from the way.*
+`get_layout()` is folded for NE and SW,
+so `hausbauer_t::get_facing_ribi` reads a stop's or depot's exit or axis
+from its way and falls back to the layout.
+A lone NE or SW terminal whose road was removed
+can only be reconnected from its folded N or S side.
+Next move: store the real facing in `gebaeude_t` with the next save-format bump,
+read it first in `get_facing_ribi`,
+then drop the way-derived path and the fallback.
 
 *Crossroads collision FSM.*
 `vehicle_base_t::no_cars_blocking` (`vehicle_base.cc:491`)
@@ -936,21 +1046,43 @@ crossroads design lands.
 
 The C++ AIs (`player/ai*.cc`) run on hex engine pieces
 (`koord_distance`, the way builder, hex-disc coverage),
-but their hand-written site selection is still square.
-Three sites matter most.
-`ai_t::suche_platz` searches an axial ±cov rectangle around the factory,
-which reaches 2·cov hex steps along ±(1,1),
-so goods-AI rail stations miss the factory catchment
-for about a third of directions;
-reuse the `get_tile_list` + `hex_disc` dilation
-that the road branch of `ai_goods_t::suche_platz1_platz2` already does.
-`ai_passenger_t::walk_city` follows only SE/S/SW/NW roads;
-loop over all 6.
-Harbour→rail fails on NE/SW shores:
-`suche_platz` takes the station length as `abs(size.x+size.y)`,
-which is 0 along NE-SW,
-`find_harbour` derives its second orientation by swapping x and y,
-and `tool_station_dock_aux` orients only N and S shore slopes.
+and their station search walks the hex dilation of the factory
+and measures runs of stations along all three axes
+(`player/ai_site.h`, `tools/hex_ai_site_test`, `tests/tests/test_ai_site.nut`),
+but part of their hand-written site selection is still square.
+
+`ai_t::suche_platz` tries the two axes towards the destination,
+`(sgn dx, 0)` and `(0, sgn dy)`,
+so a rail station beside a factory only runs along N-S or SE-NW,
+and a destination to the NE or SW gets a run 60° off its direction.
+Next move: take the two of `koord::neighbours`
+with the largest `physical_dot_x2` against `target - start`
+(as `ai_shore_second_dir` does for harbours)
+and add a NE and a SW target to `test_ai_site_station_reaches_factory`.
+`ai_goods_t::baue_bahnhof` decides where to start building
+by looking at the four axial diagonals `(±1,±1)` of each station tile,
+two of which are two steps away,
+and none of which is the tile beside it along the run.
+Next move: build an own station beside the run in `test_ai_site.nut`
+to pin what it is for, then loop over `koord::neighbours`.
+
+The harbour path past `ai_t::find_harbour` has no automated check:
+`-ai_soak` never builds a harbour in its first three game years
+(none in 32 seeds on 128×128),
+so `create_ship_transport_vehicle`,
+`create_simple_rail_transport` on a NE-SW run
+and the vehicle start tile in `create_rail_transport_vehikel`
+are only covered by reading.
+Next move: let `test_ai_site.nut` build a water factory,
+a consumer and a coast with `tool_build_factory`,
+run `ai_goods_t::suche_platz1_platz2` and the build steps
+through a probe in `api_ai_test.cc`,
+and assert the ship line and the rail station on each shore direction.
+The passenger AI's two dock picks in `create_water_transport_vehicle`
+draw the same unrestricted random dock
+and fail on NE-SW shores the same way;
+pass the `max_length` that `create_ship_transport_vehicle` passes,
+together with the harbour reuse fix below.
 
 The scripted AIs in `simutrans/ai/` are untouched,
 but the script API's `dir` is already 6-way (`test_dir.nut`),
@@ -964,16 +1096,120 @@ its `check_station` reads the removed `dir.east` / `dir.west`,
 and its double-track and station-extension code
 is built on square offsets and the old straight ribis 5 / 10.
 Hide it from the AI picker until then.
+`test_ai_scripted.nut` (upstream #245/#246) attaches a fixture or shipped AI
+to a `world.create_player(slot, 4)` player,
+so the `sqai` port lands with a test there
+that reaches a target north of the start.
 
-Nothing exercises the AIs in tests.
-A headless run with an AI goods and an AI passenger player on a 128×128 map
-trips the `end_connect_hub.is_bound()` assert
-in `ai_passenger_t::create_air_transport_vehicle`
-within the first game year.
-Next move: a test hook
-(fixed seed, AI players, no start-up banner —
-its modal dialog runs the world at normal speed and defeats `-fast`)
-that CI runs for a few game years under ASAN.
+The passenger AI's hub test and hub search
+(`ai_passenger_t::get_our_hub` and `find_area_for_hub`)
+share the axial `lo`/`ur` rectangle of `stadt_t`,
+a sheared box rather than a hex disc,
+and `find_airport_pos` / `find_harbour_pos` measure "out of town"
+against it too.
+The hub test has to use whatever the search uses,
+or the AI stops finding the hubs it builds.
+Next move: one hex-distance predicate on `stadt_t` for "tile is in the city",
+used by all four together with the city growth geometry group below,
+which decides what shape the city has.
+
+Reusing a harbour or airport the AI already built reads the wrong tile.
+`create_water_transport_vehicle` takes `get_basis_pos()` of a halt
+that has a dock as the dock tile,
+but that is the tile nearest the halt's centre
+(`haltestelle_t::recalc_basis_pos`),
+which can be its bus stop,
+so the route test for the ship would start on land
+and no second ferry from the town gets built.
+The end-city branch of `create_water_transport_vehicle`
+and `create_air_transport_vehicle` also assigns `start_hub = h`
+where it means `end_hub`, as upstream does.
+Next move: take the dock tile from the halt's tiles by station type,
+assign `end_hub`,
+and soak a map where one town gets a second route.
+
+## Square-grid residue — audit backlog
+
+A read-only audit (2026-10) of `tool/`, `builder/`, `vehicle/`, `obj/`,
+`world/`, `dataobj/`, `script/`, `gui/` and `descriptor/`
+found the sites below still reasoning in four directions or axial squares.
+Each paragraph is one PR-sized fix group.
+
+Route heuristics.
+`get_next_dirs` in `route.cc` orders the six successors of an A* node
+by their dot product with the target vector in axial coordinates,
+which is not the angle on the map:
+for a target at `(-3, 1)` it ranks SW before NW,
+though NW points 19° off it and SW 41°.
+Route costs stay correct,
+because only ties between equal-cost nodes break the wrong way.
+Next move: score with `physical_dot_x2(koord::neighbours[i], d)`
+(AGENTS.md → "Axial coords vs physical hex symmetry"),
+and soak a map for changed convoy routes.
+
+Stop name zones.
+`haltestelle_t::create_name` decides `inside` and `suburb`
+from the axial bounding rectangle of the town grown by 2 and then 6 tiles.
+That is a parallelogram on the map
+whose (+q, +r) and (-q, -r) corners lie twice as far out as its sides
+(AGENTS.md → "Axial coords vs physical hex symmetry"),
+so a stop there gets a centre or suburb name
+up to a town radius past the town's edge.
+Next move: measure with `koord_distance_to_rect`
+from the town's rectangle grown by 1
+(inside is 0, suburb is at most 6),
+and test it with a stop on the (+q, +r) corner.
+
+Back-wall redraw sets.
+`grund_t::recalc_back_wall_dependants` redraws the SE, S and SW tiles
+after a height or building change,
+the tiles that read it as their NW, N and NE neighbour
+in `calc_back_image`,
+and the terraform, building and city sites call it.
+What is left is the hide test in `calc_back_image` that sets `draw_as_obj`.
+It still steps along the square back diagonal
+(`testdir` and `koord(step, step)`, up to `MAXIMUM_HIDE_TEST_DISTANCE`),
+which runs up and to the left on the hex screen,
+so the tiles it reads are not the tiles the helper redraws.
+Next move: step the hide test straight up the screen
+(`koord(0, -1)` per step, see `display/hex_proj.h`)
+and add the tiles that read a tile that way to the helper,
+reading both from one table as the wall table does for the walls.
+
+Descriptor visuals.
+The bridge branch of `tool_build_way_t::mark_tiles` previews every ramp
+with the single-height slope (`wh`) and every deck one level up,
+although `way_builder_t` builds delta-2 ramps from flat ground
+where the span needs them.
+Next move: ask `bridge_builder_t::can_build_bridge` for the height of each
+gap in the preview, pass `bridge_builder_t::ramp_for_climb` as `wh` and
+`-(height - z) * TILE_HEIGHT_STEP` as the deck offset,
+as `tool_build_bridge_t::mark_tiles` now does for its ramps.
+Neither preview is reachable from the script API;
+a test wants a hook in a `script/api/*_test.cc` (like
+`api_schedule_route_test.cc`) that calls `two_click_tool_t::move` twice
+and reads the marker images off the tiles.
+
+GUI views.
+The facing lists are four-way.
+The station building selector offers `min(layouts, 4)` buttons
+(S, SE, N, NW),
+and the editors' rotation combobox lists `get_all_layouts()` entries,
+with `gui_rotation_item_t` naming 0..3 after the hex edges
+and 4..7 as the square corner layouts of 8-layout stations and city buildings.
+Those corner layouts clash with layouts 4 and 5 meaning NE and SW
+in `ribi_t::layout_to_ribi`.
+Next move: for a 1x1 extension building that is not a dock,
+add NE and SW buttons to the selector
+and entries 4 and 5 to the editors,
+only for descriptions with at most four layouts,
+where `building_desc_t::adjust_layout` folds them onto S and SE
+as the townhall seed does,
+labelled with the `nordost` and `suedwest` keys;
+multi-tile extensions and docks wait for the third footprint axis
+(see "Multi-tile building footprint"),
+and so does the meaning of layouts 4..7 on 8-layout descriptions.
+
 
 ## Pak reader child-count expectations are implicit
 
@@ -1096,7 +1332,9 @@ on-map `pos`) does not hold for an attacker-controlled `nwc_tool_t`.  The
 NULL-`default_param` derefs found so far are fixed (the `*::init` guards in
 `simtool.cc` and the NULL guards in `way_builder_t::get_desc` /
 `roadsign_t::find_desc` / `hausbauer_t::find_tile`, matching the existing
-bridge/tunnel ones), plus `tool_change_line_t::init`'s terminator over-read
+bridge/tunnel ones), plus `tool_change_line_t::init`'s terminator over-read,
+the `default_param` length over-reads in the industry build tools
+(`has_factory_param`) and `tool_work_world_t::init`,
 and `tool_transformer_t::work` / `tool_build_depot_t::get_waytype`'s
 unchecked tile lookups.  Two sub-classes remain, each a per-site missing
 guard rather than one central fix (a `do_command` bounds gate would wrongly
@@ -1108,14 +1346,38 @@ reject the non-positional tools that legitimately carry `koord3d::invalid`):
 candidates.  Next move: continue the campaign, add `if(!gr) return "";`
 per offending site (the pattern the guarded sites already use).
 
-*`default_param` length-assumption over-reads.*  The build-chain work()s
-(`tool_build_factory_t::work` at `simtool.cc:6283`, and the
-`tool_build_house_t` / `tool_city_chain_t` / `tool_build_land_chain_t`
-siblings) do `default_param+2` / `default_param[1]` guarded only by
-`strempty` (length > 0), so a 1-char param reads past the buffer.  Next
-move: tighten the guard to the format's real minimum length
-(`strlen(default_param) >= 3`, as `tool_load_scenario_t::init` already
-does) at each site.
+*`default_param` content that is not a length problem.*
+Three per-site crashes of the same attacker-input shape remain,
+each reproduced under ASAN with one `command_x` call.
+`tool_build_factory_t` and `tool_build_land_chain_t` turn the rotation byte
+into `(c - '0') % layouts` unchecked
+(`tool_build_house_t` has the same expression, not reproduced),
+so `"1!1024,TANKE"` gives a negative rotation
+and `building_tile_desc_t::get_tile` aborts;
+`tool_build_station_t::get_desc` already range-checks its rotation.
+`tool_plant_groundobj_t::work` dereferences `desc` before checking it,
+so `"00,nonexistent"` is a NULL dereference.
+`tool_add_city_t::work` writes through the NULL result of its second `strchr`,
+so a parameter with exactly one comma (`"5,nonexistent"`) writes to address 0.
+Next move: make the three `init()`s reject a rotation byte that is neither
+a digit nor `#` (`A` too for houses),
+add `if (!desc) return "";` after the groundobj lookup,
+move the stray `*p = 0;` into the `if` that assigns `p`,
+and add an invalid-parameter test for each.
+
+*World-lifecycle tools over the wire (unverified, read from the code).*
+`tool_quit_t`, `tool_load_scenario_t` and `tool_work_world_t`
+set `WFL_LOCAL | WFL_NO_CHK`,
+and `simmenu.h` says such calls never go to the server.
+But `nwc_tool_t::clone` clears `WFL_NO_CHK` only for non-server senders,
+skips the unlock check for `player_nr >= PLAYER_UNOWNED`,
+and `do_command` then calls `init()`,
+so a connected client may make the server quit, load or save.
+`tools/nwc_protocol_test` sends tools with `exec=True`,
+which the server rejects before `clone()`, so it never covers this.
+Next move: a wire test that joins and sends `TOOL_QUIT`
+with `exec=False` and `player_nr=15`;
+if the server quits, have `clone()` drop `WFL_LOCAL` tools from non-server senders.
 
 ## Descriptor-driven allocation OOM in pak readers
 
@@ -1187,6 +1449,19 @@ anything registered at static init), which would surface as an ASAN
 use-after-free at exit.  Next move: build `-DSIMUTRANS_TRACK_DESCRIPTORS=ON`
 with ASAN, run a headless load-then-quit, and resolve any post-free
 deref by reordering the call or clearing the offending holder before it.
+
+`fuzz_pak` given a complete pak64 file
+(`bridge.ClassicRoad.pak`, `ground_obj.flowers.pak`)
+hits a heap-use-after-free when libFuzzer runs the input a second time:
+`free_all_descriptors()` frees the descriptors,
+but the per-type tables they were registered into
+(`bridge_builder_t::desc_table`, the ground-object list, …)
+keep their name pointers,
+and the next `register_desc` calls `remove(name)` on them.
+The committed corpus holds no complete descriptor, so CI does not see it.
+Next move: clear those tables in `free_all_descriptors()`
+(one `clear` per `register_desc` owner),
+then commit a minimized real-pak seed under `src/fuzz/corpus/pak/`.
 
 The production payoff that motivated the engine-side option is freeing
 on *pakset reload* (GUI pakset switch, server map reload), where the

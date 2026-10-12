@@ -104,6 +104,9 @@ public:
 	 */
 	player_t *get_owner() const;
 
+	/// returns true if modifiable by current player
+	bool check_owner(const player_t *) const;
+
 	/**
 	 * routines to set, clear, get bit flags
 	 */
@@ -258,8 +261,9 @@ public:
 
 	/**
 	 * Called after the world is completely loaded from savegame
+	 * return true to be removed
 	 */
-	virtual void finish_rd() {}
+	virtual bool finish_rd() { return false; }
 
 	/**
 	 * @return position
@@ -309,13 +313,11 @@ public:
 	virtual void display_after(int xpos, int ypos, bool is_global) const;
 #endif
 
-#ifdef MULTI_THREAD
 	/**
 	 * Draw overlays
 	 * (convoi tooltips)
 	 */
 	virtual void display_overlay(int /*xpos*/, int /*ypos*/) const { return; }
-#endif
 
 	/**
 	* When a vehicle moves or a cloud moves, it needs to mark the old spot as dirty (to copy to screen).

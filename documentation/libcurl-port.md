@@ -24,9 +24,10 @@ full URL — currently only the pakset installer.
 The legacy in-house socket code is preserved under `#else` for one
 release cycle so a downstream packager can fall back via
 `-DSIMUTRANS_USE_CURL=OFF` if a regression slips out; retirement is
-tracked in `TODO.md` → "other".  `parse_http_url` (the URL-splitting
-helper added when the e2e suite was wired up) is only reachable from
-the legacy branch now and retires with it.
+tracked in `TODO.md` → "libcurl rollback gate retirement".
+`parse_http_url` (the URL-splitting helper added when the e2e suite
+was wired up) is only reachable from the legacy branch now and
+retires with it.
 
 `pakset_downloader.cc` collapses its desktop fan-out into a single
 `network_curl_download_url` call on the libcurl path.  Android keeps
@@ -54,6 +55,13 @@ that mangles explicit-port redirect targets (also bit
 handle https: Server returned %d" string returned for every non-200.
 They remain present in the legacy `#else` branch since fixing them
 there is wasted work ahead of retirement.
+Upstream's https handoff (#242, #243) lives only in that branch:
+`network_http_get_file` reports an http→https redirect target
+through its `redirect_to` parameter,
+and the legacy pakset path hands it to `download_https`
+(PowerShell, `URLDownloadToFile` or system curl).
+The libcurl `network_http_get_file` takes the same parameter
+and never fills it.
 
 ## Tests
 

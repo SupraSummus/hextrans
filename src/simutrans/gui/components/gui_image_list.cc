@@ -3,6 +3,7 @@
  * (see LICENSE.txt)
  */
 
+#include "../../simdebug.h"
 #include "gui_image_list.h"
 #include "../../display/simgraph.h"
 #include "../../simevent.h"

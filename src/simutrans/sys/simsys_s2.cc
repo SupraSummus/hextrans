@@ -45,6 +45,26 @@ extern char **__argv;
 #else
 #endif
 
+// a finger held this long without moving is a long press (Android's own default)
+#define LONGPRESS_MS (500)
+
+// how far it may still wander and count as held; a resting finger is never quite still
+#define LONGPRESS_SLOP (16)
+
+/* A finger held down stays held, so the state is re-announced while it lasts.
+ * This is insurance, not a fix for a known loss: during development one long
+ * press was seen to be announced and never arrive, and the cause was never
+ * established. Repeating costs two extra events per gesture and nothing else,
+ * because the announcement is idempotent by contract - a consumer that has
+ * already acted on it must ignore the next one, which is what the text field
+ * does. Set LONGPRESS_REPEAT_UNTIL_MS to LONGPRESS_MS to switch it off. */
+#define LONGPRESS_REPEAT_MS (250)
+
+// and it stops: in_finger_handling is cleared by SDL_FINGERUP alone, so a touch
+// sequence that ends without one would otherwise repeat for as long as the app
+// lives. Bounded, it can never become a stream.
+#define LONGPRESS_REPEAT_UNTIL_MS (LONGPRESS_MS + 1000)
+
 // threshold for zooming in/out with multitouch
 #define DELTA_PINCH (0.033)
 
@@ -320,9 +340,10 @@ bool dr_os_init(const int* parameter)
 	if (has_soft_keyboard  &&  !env_t::hide_keyboard) {
 		env_t::hide_keyboard = true;
 	}
-	if (!env_t::hide_keyboard) {
+// we always enable it
+//	if (!env_t::hide_keyboard) {
 		SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
-	}
+//	}
 
 	sync_blit = parameter[0];  // hijack SDL1 -async flag for SDL2 vsync
 	use_dirty_tiles = !parameter[1]; // hijack SDL1 -use_hw flag to turn off dirty tile updates (force fullscreen updates)
@@ -632,6 +653,37 @@ static inline unsigned int ModifierKeys()
 }
 
 
+/**
+ * A finger resting in place is a long press, the one touch gesture Simutrans
+ * did not use yet. It has to be recognised here: SDL_FINGERDOWN carries no
+ * event of its own, and a held finger sends nothing else to go by. The caller
+ * has already established that the finger has not wandered off.
+ */
+static bool emit_longpress_if_due(uint32 down_time, bool &already_sent, uint32 &last_sent, sint32 mx, sint32 my)
+{
+	const uint32 now = dr_time();
+	if(  now - down_time >= LONGPRESS_REPEAT_UNTIL_MS  ) {
+		// said often enough; whoever wanted it has had it
+		return false;
+	}
+	if(  already_sent  ?  now - last_sent < LONGPRESS_REPEAT_MS  :  now - down_time < LONGPRESS_MS  ) {
+		return false;
+	}
+	if(  !already_sent  ) {
+		DBG_MESSAGE("SDL_FINGERDOWN", "SIM_MOUSE_LONGPRESS at %i,%i", mx, my);
+	}
+	already_sent      = true;
+	last_sent         = now;
+	sys_event.type    = SIM_MOUSE_BUTTONS;
+	sys_event.code    = SIM_MOUSE_LONGPRESS;
+	sys_event.mb      = 0;
+	sys_event.mx      = mx;
+	sys_event.my      = my;
+	sys_event.key_mod = ModifierKeys();
+	return true;
+}
+
+
 static uint16 conv_mouse_buttons(Uint8 const state)
 {
 	return
@@ -654,6 +706,15 @@ static void internal_GetEvents()
 	static bool has_queued_finger_release = false;
 	static bool has_queued_zero_mouse_move = false;
 	static sint32 last_mx, last_my; // last finger down pos
+
+	// A long press is the one touch gesture Simutrans did not use yet, and the
+	// only deliberate one a bare tap cannot be mistaken for. SDL_FINGERDOWN
+	// delivers nothing by itself (the press is synthesised from motion or from
+	// the lift), so the hold has to be timed here instead.
+	static uint32 finger_down_time = 0;
+	static sint32 finger_down_mx = 0, finger_down_my = 0;
+	static bool longpress_sent = false;
+	static uint32 longpress_last_sent = 0;
 
 	if (has_queued_finger_release) {
 		// we need to send a finger release, which was not done yet
@@ -684,6 +745,11 @@ static void internal_GetEvents()
 	SDL_Event event;
 	event.type = 1;
 	if (SDL_PollEvent(&event) == 0) {
+		// An idle queue is one of the two moments a hold can be noticed; a single
+		// finger that has not become a drag or a pinch is still resting.
+		if(  in_finger_handling  &&  !previous_multifinger_touch  &&  dLastDist == 0.0  ) {
+			emit_longpress_if_due( finger_down_time, longpress_sent, longpress_last_sent, finger_down_mx, finger_down_my );
+		}
 		return;
 	}
 
@@ -785,6 +851,14 @@ static void internal_GetEvents()
 				DBG_MESSAGE("SDL_FINGERDOWN", "FirstfingerID=%x", FirstFingerId);
 				in_finger_handling = true;
 				previous_multifinger_touch = 0;
+				// remember when and where, to be able to recognise a hold later
+				if(  screen  ) {
+					const scr_size screen_size = gfx->get_screen_size();
+					finger_down_mx = event.tfinger.x * screen_size.w;
+					finger_down_my = event.tfinger.y * screen_size.h;
+				}
+				finger_down_time = dr_time();
+				longpress_sent = false;
 			}
 			else if (FirstFingerId != event.tfinger.fingerId) {
 				previous_multifinger_touch = 2;
@@ -795,14 +869,27 @@ static void internal_GetEvents()
 			// move whatever
 			if(  screen  &&  previous_multifinger_touch==0  &&  FirstFingerId==event.tfinger.fingerId) {
 				const scr_size screen_size = gfx->get_screen_size();
+				const sint32 mx = event.tfinger.x * screen_size.w;
+				const sint32 my = event.tfinger.y * screen_size.h;
+
+				if(  dLastDist == 0.0  &&  abs(mx - finger_down_mx) + abs(my - finger_down_my) <= LONGPRESS_SLOP  ) {
+					/* Still resting, not dragging. Reporting a press here would
+					 * clear the selection a long press is about to copy, and the
+					 * hold would never be recognised because these events keep
+					 * the queue busy. The press still follows from the lift. */
+					in_finger_handling = true;
+					emit_longpress_if_due( finger_down_time, longpress_sent, longpress_last_sent, finger_down_mx, finger_down_my );
+					break;
+				}
 
 				if (dLastDist == 0.0) {
 					// not yet a finger down event before => we send one
 					dLastDist = 1e-99;
 					sys_event.type = SIM_MOUSE_BUTTONS;
 					sys_event.code = SIM_MOUSE_LEFTBUTTON;
-					sys_event.mx = event.tfinger.x * screen_size.w;
-					sys_event.my = event.tfinger.y * screen_size.h;
+					// anchor it where the finger landed, not where it has got to
+					sys_event.mx = finger_down_mx;
+					sys_event.my = finger_down_my;
 					previous_multifinger_touch = 0;
 	DBG_MESSAGE("SDL_FINGERMOTION", "SIM_MOUSE_LEFTBUTTON at %i,%i", sys_event.mx, sys_event.my);
 				}
@@ -810,8 +897,8 @@ static void internal_GetEvents()
 
 					sys_event.type = SIM_MOUSE_MOVE;
 					sys_event.code = SIM_MOUSE_MOVED;
-					sys_event.mx = event.tfinger.x * screen_size.w;
-					sys_event.my = event.tfinger.y * screen_size.h;
+					sys_event.mx = mx;
+					sys_event.my = my;
 	DBG_MESSAGE("SDL_FINGERMOTION", "SIM_MOUSE_MOVED at %i,%i", sys_event.mx, sys_event.my);
 				}
 				sys_event.mb = MOUSE_LEFTBUTTON;
@@ -943,8 +1030,8 @@ static void internal_GetEvents()
 				case SDLK_BACKSPACE:  code = SIM_KEYCODE_BACKSPACE;             break;
 				case SDLK_TAB:        code = SIM_KEYCODE_TAB;                   break;
 				case SDLK_RETURN:     code = SIM_KEYCODE_ENTER;                 break;
+				case SDLK_AC_BACK: // to avoid deleting text on Android instead closing windows
 				case SDLK_ESCAPE:     code = SIM_KEYCODE_ESCAPE;                break;
-				case SDLK_AC_BACK:
 				case SDLK_DELETE:     code = SIM_KEYCODE_DELETE;                break;
 				case SDLK_DOWN:       code = SIM_KEYCODE_DOWN;                  break;
 				case SDLK_END:        code = SIM_KEYCODE_END;                   break;
@@ -1050,6 +1137,8 @@ static void internal_GetEvents()
 		case SDL_KEYUP: {
 			sys_event.type = SIM_KEYBOARD;
 			sys_event.code = 0;
+			// key_mod is not reset between events, so a released modifier would otherwise stay set
+			sys_event.key_mod = ModifierKeys();
 			break;
 		}
 		case SDL_QUIT: {
@@ -1098,21 +1187,16 @@ void dr_sleep(uint32 usec)
 
 void dr_start_textinput()
 {
-	if(  env_t::hide_keyboard  ) {
-	    SDL_StartTextInput();
-		DBG_MESSAGE("SDL_StartTextInput", "");
-	}
+	SDL_StartTextInput();
+	DBG_MESSAGE("SDL_StartTextInput", "");
 }
 
 
 void dr_stop_textinput()
 {
-	if(  env_t::hide_keyboard  ) {
-	    SDL_StopTextInput();
-		DBG_MESSAGE("SDL_StoptTextInput", "");
-	}
-	else {
-		SDL_EventState(SDL_TEXTINPUT, SDL_ENABLE);
+	if (env_t::hide_keyboard) {
+		SDL_StopTextInput();
+		DBG_MESSAGE("SDL_StopTextInput", "");
 	}
 }
 

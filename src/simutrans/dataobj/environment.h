@@ -19,6 +19,8 @@
 #include "../utils/log.h"
 
 
+#define MAX_MOTD_LEN 0x7FFF
+
 #define TILE_HEIGHT_STEP (env_t::pak_tile_height_step)
 
 enum { MENU_LEFT, MENU_TOP, MENU_RIGHT, MENU_BOTTOM };
@@ -53,6 +55,7 @@ public:
 	static sint16 menupos;
 	static bool single_toolbar_mode;
 	static bool stack_toolbars;
+	static bool use_tool_context_bar;
 
 	static sint16 fullscreen;
 	static sint16 dpi_scale;
@@ -264,6 +267,9 @@ public:
 	static sint16 iconscaling;
 	static scr_size iconsize;
 
+	/// show the contextual construction band beside the status bar
+	static bool show_construction_info;
+
 	/// customize your tooltips
 	static bool show_tooltips;
 	static rgb888_t tooltip_color_rgb;
@@ -379,6 +385,9 @@ public:
 	 * @see grund_t::display_overlay
 	 */
 	static sint32 show_names;
+
+	/// In case of multiple owners, decide the orientation of the player colours
+	static bool horizontal_stripe_owner;
 
 	/// Show factory storage bar
 	static uint8 show_factory_storage_bar;
@@ -514,6 +523,9 @@ public:
 
 	// FluidSynth MIDI parameters
 	static std::string soundfont_filename;
+
+	/// folder the music is taken from instead of the default music.tab; empty for the default
+	static std::string music_folder;
 
 	/// @}
 

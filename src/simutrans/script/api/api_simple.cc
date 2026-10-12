@@ -11,6 +11,8 @@
 #include "../api_class.h"
 #include "../api_function.h"
 #include "../../dataobj/ribi.h"
+#include "../../world/simworld.h"
+#include "../../dataobj/scenario.h"
 
 using namespace script_api;
 
@@ -44,6 +46,28 @@ public:
 	integer next_month_ticks; ///< new month will start at this time
 #endif
 }; // end_class
+
+/**
+ * Struct to hold the state of the tool interaction that triggered a callback.
+ * It is only filled by the game, it is never used as argument to api-calls.
+ * The values describe the tool currently selected by the player, which is not
+ * necessarily the tool named by the callback's tool_id parameter.
+ * @see is_work_allowed_here
+ */
+class tool_data_x { // begin_class("tool_data_x")
+public:
+#ifdef SQAPI_DOC // document members
+	/// Position of the first click of a two-click tool.
+	/// Invalid as long as the first click is still pending, and for all other tools
+	/// it is simply the position that is being checked.
+	coord3d start_pos;
+	/// True if a two-click tool already received its first click and the second
+	/// position is still pending. It does not tell whether a tool can be dragged.
+	bool is_drag_tool;
+	bool is_ctrl;  ///< ctrl-key state of the tool invocation
+	bool is_shift; ///< shift-key state of the tool invocation
+#endif
+}; // end_class
 #endif
 
 // pushes table = { raw = , year = , month = }
@@ -65,6 +89,7 @@ SQInteger param<mytime_ticks_t>::push(HSQUIRRELVM vm, mytime_ticks_t const& v)
 	return 1;
 }
 
+// pushes table = { start_pos = , is_drag_tool = , is_ctrl = , is_shift = }
 SQInteger param<mytool_data_t>::push(HSQUIRRELVM vm, mytool_data_t const& v)
 {
 	sq_newtableex(vm, 6);
@@ -252,59 +277,60 @@ void export_simple(HSQUIRRELVM vm)
 	begin_class(vm, "dir");
 
 #ifdef SQAPI_DOC // document members
-	/** @name Named directions. */
+	/**
+	 * @name Named directions.
+	 * Flat-top hex tiles have six edges: the single directions run SE, S, SW, NW, N, NE
+	 * (bits 0..5, in the order of the neighbour tiles).
+	 * There is no due-east or due-west direction.
+	 */
 	//@{
 	static const dir none;
-	static const dir north;
-	static const dir east;
-	static const dir northeast;
-	static const dir south;
-	static const dir northsouth;
 	static const dir southeast;
-	static const dir northsoutheast;
-	static const dir west;
-	static const dir northwest;
-	static const dir eastwest;
-	static const dir northeastwest;
+	static const dir south;
 	static const dir southwest;
-	static const dir northsouthwest;
-	static const dir southeastwest;
-	static const dir all;
+	static const dir northwest;
+	static const dir north;
+	static const dir northeast;
+	static const dir northsouth;           ///< north + south
+	static const dir northeast_southwest;  ///< northeast + southwest
+	static const dir northwest_southeast;  ///< northwest + southeast
+	static const dir all;                  ///< all six directions
+	static const array nsew;               ///< the six single directions, in the order southeast, south, southwest, northwest, north, northeast
 	//@}
 #endif
 	/**
 	 * @param d direction to test
-	 * @return whether direction is single direction, i.e. just one of n/s/e/w
+	 * @return whether direction is single direction, i.e. just one of the six edges
 	 */
 	STATIC register_method(vm, &export_is_single,  "is_single", false, true);
 	/**
 	 * @param d direction to test
-	 * @return whether direction is double direction, e.g. n+e, n+s.
+	 * @return whether direction is double direction, e.g. n+s, n+ne.
 	 */
 	STATIC register_method(vm, &export_is_twoway,  "is_twoway", false, true);
 	/**
 	 * @param d direction to test
-	 * @return whether direction is triple direction, e.g. n+s+e or n+s+e+w.
+	 * @return whether direction has three or more edges, e.g. n+s+se or n+ne+se+s.
 	 */
 	STATIC register_method(vm, &export_is_threeway,  "is_threeway", false, true);
 	/**
 	 * @param d direction to test
-	 * @return whether direction is curve, e.g. n+e, s+w.
+	 * @return whether direction is curve, i.e. two edges that are not opposite, e.g. n+ne, n+se.
 	 */
 	STATIC register_method(vm, &export_is_bend,  "is_curve", false, true);
 	/**
 	 * @param d direction to test
-	 * @return whether direction is straight and has no curves in it, e.g. n+s, w.
+	 * @return whether direction is straight and has no curves in it, i.e. a single direction or two opposite ones, e.g. n+s, nw.
 	 */
 	STATIC register_method(vm, &export_is_straight,  "is_straight", false, true);
 	/**
 	 * @param d direction
-	 * @return complements direction to complete straight, i.e. w -> w+e, but n+w -> 0.
+	 * @return complements direction to complete straight, i.e. nw -> nw+se, but n+ne -> 0.
 	 */
 	STATIC register_method(vm, &export_doubles,  "double", false, true);
 	/**
-	 * @param d direction to test
-	 * @return backward direction, e.g. w -> e, n+w -> s+e, n+w+s -> e.
+	 * @param d direction
+	 * @return backward direction, i.e. every edge is replaced by the opposite one, e.g. nw -> se, n+nw -> s+se, n+s+nw -> n+s+se.
 	 */
 	STATIC register_method(vm, &export_backward,  "backward", false, true);
 
@@ -357,7 +383,7 @@ void export_simple(HSQUIRRELVM vm)
 	static const slope northwest_double;    ///< low edge NW, planar 2-step
 	static const slope east;                ///< 2-W-corner diagonal (legacy square)
 	static const slope west;                ///< 2-E-corner diagonal (legacy square)
-	static const slope raised;              ///< special meaning: used as slope of bridgeheads
+	static const slope raised;              ///< all six corners raised by one (1365)
 	static const slope all_up_slope   = 4097; ///< used for terraforming tools
 	static const slope all_down_slope = 4098; ///< used for terraforming tools
 	//@}

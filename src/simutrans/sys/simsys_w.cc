@@ -20,6 +20,8 @@
 #include <shellapi.h>
 #include <shlobj.h>
 
+#include <string>
+
 #ifdef __CYGWIN__
 extern int __argc;
 extern char **__argv;
@@ -28,12 +30,18 @@ extern char **__argv;
 #include "simsys.h"
 
 #include "../macros.h"
+#include "../simconst.h"
 #include "../simdebug.h"
 #include "../simmem.h"
 #include "../simversion.h"
 #include "../simevent.h"
+#include "../dataobj/environment.h"
 #include "../display/simgraph.h"
 #include "../gui/simwin.h"
+#include "../gui/gui_frame.h"
+#include "../gui/components/gui_component.h"
+#include "../gui/components/gui_textinput.h"
+#include "../utils/unicode.h"
 
 // needed for wheel
 #ifndef WM_MOUSEWHEEL
@@ -296,8 +304,14 @@ int dr_textur_resize(unsigned short** const textur, int w, int const h)
 
 	AllDib->bmiHeader.biWidth  = img_w;
 	AllDib->bmiHeader.biHeight = img_h;
-	WindowSize.right           = w;
-	WindowSize.bottom          = h;
+	// WindowSize is in physical client pixels: dr_os_open fills it that way and
+	// WM_PAINT consumes it that way, both as the blit destination and to derive
+	// the framebuffer height. w and h arrive here in logical pixels, so they have
+	// to be scaled back up. Storing them unscaled only matches at 100% scaling;
+	// above it every repaint after a resize paints into a too small rectangle and
+	// overwrites biHeight with a framebuffer height that is too small.
+	WindowSize.right           = (w * x_scale) / 32;
+	WindowSize.bottom          = (h * y_scale) / 32;
 
 #ifdef MULTI_THREAD
 	LeaveCriticalSection( &redraw_underway );
@@ -487,6 +501,17 @@ static inline unsigned int ModifierKeys()
 }
 
 
+// The client size is state, not history. sys_event holds a single pending
+// event and one message retrieval can dispatch several messages (the sent
+// ones, WM_SIZE among them, before the posted one is returned), so a resize
+// written into the slot is lost when a later message of the same retrieval
+// overwrites it. Keep only the newest client size here and let GetEvents()
+// hand it to the slot as soon as the slot is free.
+static bool   resize_pending = false;
+static uint16 resize_pending_w = 0;
+static uint16 resize_pending_h = 0;
+
+
 /* Windows eventhandler: does most of the work */
 LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -613,18 +638,20 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 
 		case WM_SIZE: // resize client area
 			if(lParam!=0) {
-				sys_event.type = SIM_SYSTEM;
-				sys_event.code = SYSTEM_RESIZE;
-
-				sys_event.new_window_size_w = (LOWORD(lParam)*32)/x_scale;
-				if (sys_event.new_window_size_w <= 0) {
-					sys_event.new_window_size_w = 4;
+				// only the newest size matters; GetEvents() delivers it
+				int w = (LOWORD(lParam)*32)/x_scale;
+				if (w <= 0) {
+					w = 4;
 				}
 
-				sys_event.new_window_size_h = (HIWORD(lParam)*32)/y_scale;
-				if (sys_event.new_window_size_h <= 1) {
-					sys_event.new_window_size_h = 64;
+				int h = (HIWORD(lParam)*32)/y_scale;
+				if (h <= 1) {
+					h = 64;
 				}
+
+				resize_pending_w = (uint16)w;
+				resize_pending_h = (uint16)h;
+				resize_pending   = true;
 			}
 			break;
 
@@ -714,10 +741,13 @@ LRESULT WINAPI WindowProc(HWND this_hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 		}
 
 		case WM_IME_SETCONTEXT:
-			// attempt to avoid crash at windows 1809> just not call DefWinodwsProc seems to work for SDL2 ...
-//			DefWindowProc( this_hwnd, msg, wParam, lParam&~ISC_SHOWUICOMPOSITIONWINDOW );
-			lParam = 0;
-			return 0;
+			// Simutrans draws the composition string itself, so hide the system
+			// composition window (this mask was also the workaround for the IME
+			// crash on Windows 10 1809). The message must still reach
+			// DefWindowProcW: otherwise the IME never shows the conversion
+			// candidate window at all.
+			lParam &= ~ISC_SHOWUICOMPOSITIONWINDOW;
+			return DefWindowProcW( this_hwnd, msg, wParam, lParam );
 
 		case WM_IME_STARTCOMPOSITION:
 			break;
@@ -929,9 +959,9 @@ static void internal_GetEvents(bool const wait)
 {
 	do {
 		// wait for keybord/mouse event
-		GetMessage(&msg, NULL, 0, 0);
+		GetMessageW(&msg, NULL, 0, 0);
 		TranslateMessage(&msg);
-		DispatchMessage(&msg);
+		DispatchMessageW(&msg);
 	} while(wait && sys_event.type == SIM_NOEVENT);
 
 }
@@ -939,7 +969,16 @@ static void internal_GetEvents(bool const wait)
 
 void GetEvents()
 {
-	if (sys_event.type==SIM_NOEVENT  &&  PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+	if (sys_event.type==SIM_NOEVENT  &&  resize_pending) {
+		// the newest client size goes out before anything else is fetched
+		sys_event.type = SIM_SYSTEM;
+		sys_event.code = SYSTEM_RESIZE;
+		sys_event.new_window_size_w = resize_pending_w;
+		sys_event.new_window_size_h = resize_pending_h;
+		resize_pending = false;
+		return;
+	}
+	if (sys_event.type==SIM_NOEVENT  &&  PeekMessageW(&msg, NULL, 0, 0, PM_NOREMOVE)) {
 		internal_GetEvents(false);
 	}
 }

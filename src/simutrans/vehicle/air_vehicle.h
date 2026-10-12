@@ -32,11 +32,13 @@ private:
 	// only used for is_target() (do not need saving)
 	ribi_t::ribi approach_dir;
 
+	bool has_reserved_runway;
+
 	// only used for route search and approach vectors of get_ribi() (do not need saving)
 	koord3d search_start;
 	koord3d search_end;
 
-	flight_state state; // functions needed for the search without destination from find_route
+	flight_state state = flight_state::taxiing; // functions needed for the search without destination from find_route
 
 	sint16 flying_height;
 	sint16 target_height;
@@ -51,6 +53,8 @@ protected:
 	void enter_tile(grund_t*) OVERRIDE;
 
 	void leave_tile() OVERRIDE;
+
+	virtual void initialise_journey(route_t::index_t start_route_index, bool recalc) OVERRIDE;
 
 	bool block_reserver( uint32 start, uint32 end, bool reserve ) const;
 
@@ -85,6 +89,8 @@ public:
 
 	bool calc_route(koord3d start, koord3d ziel, sint32 max_speed, route_t* route) OVERRIDE;
 
+	bool clear_route_to_runway(bool reserve);
+
 	typ get_typ() const OVERRIDE { return air_vehicle; }
 
 	schedule_t *generate_new_schedule() const OVERRIDE;
@@ -112,21 +118,23 @@ public:
 #ifdef MULTI_THREAD
 	// this draws the "real" aircrafts (when flying)
 	void display_after(int xpos, int ypos, const sint8 clip_num) const OVERRIDE;
-
-	// this routine will display a tooltip for lost, on depot order, and stuck vehicles
-	void display_overlay(int xpos, int ypos) const OVERRIDE;
 #else
 	// this draws the "real" aircrafts (when flying)
 	void display_after(int xpos, int ypos, bool dirty) const OVERRIDE;
 #endif
 
-	void calc_friction(const grund_t*) OVERRIDE {}
+	// this routine will display a tooltip for lost, on depot order, and stuck vehicles
+	void display_overlay(int xpos, int ypos) const OVERRIDE;
 
-	bool is_on_ground() const { return flying_height==0  &&  !(state==circling  ||  state==flying); }
+	void calc_friction(const grund_t*) OVERRIDE {}
 
 	const char *get_removal_error(const player_t *player) OVERRIDE;
 
-	bool is_flying() const OVERRIDE { return !is_on_ground(); }
+	bool is_flying() const { return state==flying  ||  state==circling  ||  (state==landing  &&  flying_height>0); }
+
+	bool is_on_ground() const { return !is_flying(); }
+
+	bool is_taxiing_to_stop() const { return state == taxiing && target_halt.is_bound(); }
 };
 
 #endif

@@ -9,7 +9,9 @@
 #include "../simdebug.h"
 #include "../world/simworld.h"
 #include "simwin.h"
+#include "../display/simimg.h"
 #include "../simmesg.h"
+#include "../simskin.h"
 #include "../simversion.h"
 
 #include "../builder/hausbauer.h"
@@ -32,25 +34,65 @@
 #include "../player/simplay.h"
 #include "../simconvoi.h"
 
+#include "../simcolor.h"
+
 #include "../display/simgraph.h"
 
 #include "../sys/simsys.h"
 
 #include "../tool/simmenu.h"
 
+#include "../utils/simstring.h"
 #include "../utils/simrandom.h"
 
 #include "components/gui_divider.h"
 
 
 #include "banner.h"
+#include "sprachen.h"
 #include "climates.h"
 #include "settings_frame.h"
 #include "load_relief_frame.h"
+#include "messagebox.h"
 
 
-// Local adjustment
-#define L_PREVIEW_SIZE_MIN (16)
+// the new-world sides are at least this long, as the square map was
+#define L_SIZE_MIN (8)
+
+// W' = W + D - 1 and H' = H + D - 1 are sint16 extents
+#define L_EXTENT_MAX (32766)
+
+
+/// The scale of the city, factory, attraction and river densities: the side of the square map with the tiles of the hexagon.
+static double map_side(const settings_t *sets)
+{
+	return sets->get_map_shape().get_side_equivalent();
+}
+
+
+static sint32 size_step(sint32 v)
+{
+	return v >= 64 ? (v >= 512 ? 128 : 64) : 8;
+}
+
+
+/**
+ * Fills the preview from the relief image frame of documentation/map-shape.md:
+ * preview pixel (x, y) shows the image pixel (X, Y) at the centre of its cell,
+ * which is the tile (X, shape.get_tile_row(X, Y)).  Pixels outside the
+ * hexagon are blank.  @p colour_of(X, Y, r) gives the colour of an on-map pixel.
+ */
+template<class F>
+static void fill_preview(array2d_tpl<PIXVAL> &map, const scr_size &map_size, const map_shape_t &shape, F colour_of)
+{
+	const PIXVAL blank = gfx->palette_lookup(COL_BLACK);
+	for(  int y=0;  y<map_size.h;  y++  ) {
+		for(  int x=0;  x<map_size.w;  x++  ) {
+			const koord tile = gui_map_preview_t::get_preview_tile(shape, map_size, x, y);
+			map.at(x,y) = shape.contains(tile) ? colour_of(tile.x, shape.get_image_row(tile.x, tile.y), tile.y) : blank;
+		}
+	}
+}
 
 
 welt_gui_t::welt_gui_t() :
@@ -82,10 +124,10 @@ welt_gui_t::welt_gui_t() :
 	}
 	sets->beginner_mode = env_t::default_settings.get_beginner_mode();
 
-	city_density       = ( sets->get_city_count()      ) ? sqrt((double)sets->get_size_x()*sets->get_size_y()) / sets->get_city_count()      : 0.0;
-	industry_density   = ( sets->get_factory_count()       ) ? sqrt((double)sets->get_size_x()*sets->get_size_y()) / sets->get_factory_count()       : 0.0;
-	attraction_density = ( sets->get_tourist_attractions() ) ? sqrt((double)sets->get_size_x()*sets->get_size_y()) / sets->get_tourist_attractions() : 0.0;
-	river_density      = ( sets->get_river_number()        ) ? sqrt((double)sets->get_size_x()*sets->get_size_y()) / sets->get_river_number()        : 0.0;
+	city_density       = ( sets->get_city_count()      ) ? map_side(sets) / sets->get_city_count()      : 0.0;
+	industry_density   = ( sets->get_factory_count()       ) ? map_side(sets) / sets->get_factory_count()       : 0.0;
+	attraction_density = ( sets->get_tourist_attractions() ) ? map_side(sets) / sets->get_tourist_attractions() : 0.0;
+	river_density      = ( sets->get_river_number()        ) ? map_side(sets) / sets->get_river_number()        : 0.0;
 
 	// playable era: roads bound the range, townhalls intersect it when present
 	uint16 game_start = (way_builder_t::get_earliest_way(road_wt)->get_intro_year_month()+11)/12;
@@ -110,6 +152,7 @@ welt_gui_t::welt_gui_t() :
 	}
 
 	loaded_heightfield = load_heightfield = false;
+	relief_w = relief_h = 0;
 	sets->heightfield = "";
 
 	//******************************************************************
@@ -133,21 +176,34 @@ welt_gui_t::welt_gui_t() :
 			size_label.set_min_width(size_label.get_min_size().w); // Make sure to not make the component size too small when the window is opened with a small map size that is increased afterwards
 			add_component( &size_label );
 
-			add_table(3,0);
+			add_table(5,0);
 			{
-				// Map X size edit
-				inp_x_size.init( sets->get_size_x(), 8, 32766, sets->get_size_x()>=512 ? 128 : 64, false );
+				// the sides W, H and D of the hexagon, see documentation/map-shape.md
+				inp_x_size.init( sets->get_size_x(), L_SIZE_MIN, L_EXTENT_MAX, size_step(sets->get_size_x()), false );
 				inp_x_size.add_listener(this);
 				add_component( &inp_x_size );
 
 				new_component<gui_label_t>("x");
 
-				// Map size Y edit
-				inp_y_size.init( sets->get_size_y(), 8, 32766, sets->get_size_y()>=512 ? 128 : 64, false );
+				inp_y_size.init( sets->get_size_y(), L_SIZE_MIN, L_EXTENT_MAX, size_step(sets->get_size_y()), false );
 				inp_y_size.add_listener(this);
 				add_component( &inp_y_size );
+
+				new_component<gui_label_t>("x");
+
+				inp_d_size.init( sets->get_size_d(), 1, L_EXTENT_MAX, size_step(sets->get_size_d()), false );
+				inp_d_size.add_listener(this);
+				add_component( &inp_d_size );
 			}
 			end_table();
+
+			// while ticked, editing a side sets all three: a regular hexagon
+			new_component<gui_empty_t>();
+			equal_sides.init(button_t::square_state, "Equal sides");
+			equal_sides.set_tooltip("All three sides the same: a regular hexagon");
+			equal_sides.pressed = sets->get_size_x()==sets->get_size_y()  &&  sets->get_size_y()==sets->get_size_d();
+			equal_sides.add_listener( this );
+			add_component( &equal_sides );
 		}
 		end_table();
 
@@ -281,6 +337,7 @@ welt_gui_t::welt_gui_t() :
 	}
 	end_table();
 
+	update_size_limits();
 	update_preview();
 	update_memory(&size_label, sets);
 
@@ -306,22 +363,34 @@ bool welt_gui_t::update_from_heightfield(const char *filename)
 	sint8 *h_field=NULL;
 
 	if(hml.get_height_data_from_file(filename, (sint8)sets->get_groundwater(), h_field, w, h, false )) {
-		sets->set_size_x(w);
-		sets->set_size_y(h);
+		// the image fixes the sides: its columns give W' = W+D-1, its rows H
+		sint32 d = sets->get_size_d();
+		map_shape_t shape = map_shape_t::from_image_size(w, h, d);
+		if(  shape.h < 1  ) {
+			// too flat for its width: no D helps
+			free(h_field);
+			create_win( new news_img("\nThe relief is too wide for its height.\n"), w_info, magic_none );
+			return false;
+		}
+		if(  shape.w < 1  ) {
+			// this D does not fit the relief: take the regular hexagon's
+			d = (w+1)/2;
+			shape = map_shape_t::from_image_size(w, h, d);
+		}
+		loaded_heightfield = true;
+		relief_w = w;
+		relief_h = h;
+		sets->set_size(shape.w, shape.h);
+		sets->set_size_d(d);
 		update_densities();
-
-		inp_x_size.set_value(sets->get_size_x());
-		inp_y_size.set_value(sets->get_size_y());
+		update_size_limits();
+		update_size_fields();
 
 		resize_preview();
 
-		const int mx = sets->get_size_x()/map_size.w;
-		const int my = sets->get_size_y()/map_size.h;
-		for(  int y=0;  y<map_size.h;  y++  ) {
-			for(  int x=0;  x<map_size.w;  x++  ) {
-				map.at(x,y) = minimap_t::calc_height_color( h_field[x*mx+y*my*w], sets->get_groundwater()-1 );
-			}
-		}
+		fill_preview( map, map_size, shape, [&](sint32 x, sint32 y, sint32) {
+			return minimap_t::calc_height_color( h_field[x+y*w], sets->get_groundwater()-1 );
+		} );
 		map_preview.set_map_data(&map);
 		free(h_field);
 		return true;
@@ -334,31 +403,113 @@ bool welt_gui_t::update_from_heightfield(const char *filename)
 // sets the new values for the number input filed for the densities
 void welt_gui_t::update_densities()
 {
+	const double side = map_side(sets);
 	if(  city_density!=0.0  ) {
-		inp_number_of_towns.set_value( max( 1, (sint32)(0.5+sqrt((double)sets->get_size_x()*sets->get_size_y())/city_density) ) );
+		inp_number_of_towns.set_value( max( 1, (sint32)(0.5+side/city_density) ) );
 		sets->set_city_count( inp_number_of_towns.get_value() );
 	}
 	if(  industry_density!=0.0  ) {
-		inp_other_industries.set_value( max( 1, (sint32)(0.5+sqrt((double)sets->get_size_x()*sets->get_size_y())/industry_density) ) );
+		inp_other_industries.set_value( max( 1, (sint32)(0.5+side/industry_density) ) );
 		sets->set_factory_count( inp_other_industries.get_value() );
 	}
 	if(  attraction_density!=0.0  ) {
-		inp_tourist_attractions.set_value( max( 1, (sint32)(0.5+sqrt((double)sets->get_size_x()*sets->get_size_y())/attraction_density) ) );
+		inp_tourist_attractions.set_value( max( 1, (sint32)(0.5+side/attraction_density) ) );
 		sets->set_tourist_attractions( inp_tourist_attractions.get_value() );
 	}
 	if(  river_density!=0.0  ) {
-		sets->river_number = max( 1, (sint32)(0.5+sqrt((double)sets->get_size_x()*sets->get_size_y())/river_density) );
+		sets->river_number = max( 1, (sint32)(0.5+side/river_density) );
 		if(  climate_gui_t *climate_gui = (climate_gui_t *)win_get_magic( magic_climate )  ) {
 			climate_gui->update_river_number( sets->get_river_number() );
 		}
 	}
 }
 
+
+void welt_gui_t::update_size_limits()
+{
+	const sint32 w = sets->get_size_x();
+	const sint32 h = sets->get_size_y();
+	const sint32 d = sets->get_size_d();
+
+	if(  loaded_heightfield  ) {
+		// the relief fixes W and H, D may rise to the one that leaves W = 1
+		inp_x_size.set_limits( w, w );
+		inp_y_size.set_limits( h, h );
+		inp_d_size.set_limits( 1, relief_w );
+	}
+	else if(  equal_sides.pressed  ) {
+		// the regular hexagon has the extent 2n-1
+		inp_x_size.set_limits( L_SIZE_MIN, (L_EXTENT_MAX+1)/2 );
+		inp_y_size.set_limits( L_SIZE_MIN, (L_EXTENT_MAX+1)/2 );
+		inp_d_size.set_limits( L_SIZE_MIN, (L_EXTENT_MAX+1)/2 );
+	}
+	else {
+		inp_x_size.set_limits( L_SIZE_MIN, L_EXTENT_MAX+1-d );
+		inp_y_size.set_limits( L_SIZE_MIN, L_EXTENT_MAX+1-d );
+		inp_d_size.set_limits( 1, L_EXTENT_MAX+1-max(w,h) );
+	}
+	// a relief is no regular hexagon
+	equal_sides.enable( !loaded_heightfield );
+
+	inp_x_size.set_increment_mode( size_step(w) );
+	inp_y_size.set_increment_mode( size_step(h) );
+	inp_d_size.set_increment_mode( size_step(d) );
+}
+
+
+void welt_gui_t::update_size_fields()
+{
+	inp_x_size.set_value( sets->get_size_x() );
+	inp_y_size.set_value( sets->get_size_y() );
+	inp_d_size.set_value( sets->get_size_d() );
+	// the limits may have moved a side
+	sets->set_size( inp_x_size.get_value(), inp_y_size.get_value() );
+	sets->set_size_d( inp_d_size.get_value() );
+}
+
+
+void welt_gui_t::change_size(gui_numberinput_t *changed)
+{
+	// within the limits of the field
+	const sint32 value = changed->get_value();
+
+	if(  loaded_heightfield  ) {
+		// W and H follow from the relief; D may change as long as W stays at least 1
+		if(  changed == &inp_d_size  &&  map_shape_t::from_image_size(relief_w, relief_h, value).is_valid()  ) {
+			sets->set_size_d( value );
+			update_from_heightfield( sets->heightfield.c_str() );
+		}
+		// shows the sides again, also those of a refused edit
+		update_size_fields();
+		return;
+	}
+
+	if(  equal_sides.pressed  ) {
+		sets->set_size( value, value );
+		sets->set_size_d( value );
+	}
+	else if(  changed == &inp_x_size  ) {
+		sets->set_size_x( value );
+	}
+	else if(  changed == &inp_y_size  ) {
+		sets->set_size_y( value );
+	}
+	else {
+		sets->set_size_d( value );
+	}
+	update_size_limits();
+	update_size_fields();
+	update_densities();
+}
+
+
 void welt_gui_t::update_memory(gui_label_buf_t *label, const settings_t* sets)
 {
-	// Calculate map memory
-	const uint sx = sets->get_size_x();
-	const uint sy = sets->get_size_y();
+	// Calculate map memory: the planquadrat of each cell of the bounding rhombus,
+	// the ground and trees of each tile of the hexagon
+	const map_shape_t shape = sets->get_map_shape();
+	const uint sx = shape.get_size_q();
+	const uint sy = shape.get_size_r();
 	const uint64 memory = (
 		(uint64)sizeof(karte_t) +
 		sizeof(player_t) * 8 +
@@ -366,11 +517,13 @@ void welt_gui_t::update_memory(gui_label_buf_t *label, const settings_t* sets)
 		(sizeof(schiene_t) + sizeof(vehicle_t)) * 10 * (sx + sy) +
 		sizeof(stadt_t) * sets->get_city_count() +
 		(
-			sizeof(grund_t) +
 			sizeof(planquadrat_t) +
-			sizeof(baum_t)*(sets->get_tree_distribution()!=settings_t::TREE_DIST_NONE) + /* only one since a lot will be water */
 			sizeof(void*)*2
-		) * (uint64)sx * (uint64)sy
+		) * (uint64)sx * (uint64)sy +
+		(
+			sizeof(grund_t) +
+			sizeof(baum_t)*(sets->get_tree_distribution()!=settings_t::TREE_DIST_NONE) /* only one since a lot will be water */
+		) * (uint64)shape.get_tile_count()
 	) / (1024ll * 1024ll);
 
 	label->buf().printf(translator::translate("Size (%d MB):"), memory);
@@ -385,38 +538,35 @@ void welt_gui_t::update_preview(bool load_heightfield)
 {
 	if(  loaded_heightfield  ||  load_heightfield) {
 		loaded_heightfield = true;
-		update_from_heightfield(sets->heightfield.c_str());
-	}
-	else {
-		resize_preview();
-
-		setsimrand( 0xFFFFFFFF, sets->get_map_number() );
-
-		const int mx = sets->get_size_x()/map_size.w;
-		const int my = sets->get_size_y()/map_size.h;
-		for(  int y=0;  y<map_size.h;  y++  ) {
-			for(  int x=0;  x<map_size.w;  x++  ) {
-				map.at(x,y) = minimap_t::calc_height_color(karte_t::perlin_hoehe( sets, koord(x*mx,y*my), hex_corner_t::E, koord::invalid ), sets->get_groundwater());
-			}
+		if(  update_from_heightfield(sets->heightfield.c_str())  ) {
+			map_preview.set_map_data(&map);
+			return;
 		}
+		// not a usable relief: back to the generated map
+		loaded_heightfield = false;
 		sets->heightfield = "";
+		update_size_limits();
+		update_size_fields();
 	}
+
+	resize_preview();
+
+	setsimrand( 0xFFFFFFFF, sets->get_map_number() );
+
+	// the size perlin_hoehe_loop passes, so a new world turned by 180°
+	// (settings from a loaded turned game) previews what it generates
+	fill_preview( map, map_size, sets->get_map_shape(), [&](sint32 x, sint32, sint32 r) {
+		return minimap_t::calc_height_color(karte_t::perlin_hoehe( sets, koord(x,r), hex_corner_t::E, koord(0,0) ), sets->get_groundwater());
+	} );
+	sets->heightfield = "";
 	map_preview.set_map_data(&map);
 }
 
 
 void welt_gui_t::resize_preview()
 {
-	const float world_aspect = (float)sets->get_size_x() / (float)sets->get_size_y();
-
-	if(  world_aspect > 1.0  ) {
-		map_size.w = MAP_PREVIEW_SIZE_X-2;
-		map_size.h = (sint16) max( (int)((float)map_size.w / world_aspect), L_PREVIEW_SIZE_MIN-2);
-	}
-	else {
-		map_size.h = MAP_PREVIEW_SIZE_Y-2;
-		map_size.w = (sint16) max( (int)((float)map_size.h * world_aspect), L_PREVIEW_SIZE_MIN-2);
-	}
+	// the preview is the relief image of the hexagon
+	map_size = gui_map_preview_t::get_preview_size( sets->get_map_shape() );
 	map.resize( map_size.w, map_size.h );
 }
 
@@ -438,31 +588,23 @@ bool welt_gui_t::action_triggered( gui_action_creator_t *comp,value_t v)
 		sets->heightfield = "";
 		loaded_heightfield = false;
 	}
-	else if(comp==&inp_x_size) {
-		if(  !loaded_heightfield  ) {
-			sets->set_size_x( v.i );
-			inp_x_size.set_increment_mode( v.i>=64 ? (v.i>=512 ? 128 : 64) : 8 );
-			inp_y_size.set_limits( 8, 32766 );
-			update_densities();
-		}
-		else {
-			inp_x_size.set_value(sets->get_size_x()); // can't change size with heightfield loaded
-		}
+	else if(comp==&inp_x_size  ||  comp==&inp_y_size  ||  comp==&inp_d_size) {
+		// with a relief loaded only D can change
+		change_size( static_cast<gui_numberinput_t *>(comp) );
 	}
-	else if(comp==&inp_y_size) {
+	else if(comp==&equal_sides) {
 		if(  !loaded_heightfield  ) {
-			sets->set_size_y( v.i );
-			inp_y_size.set_increment_mode( v.i>=64 ? (v.i>=512 ? 128 : 64) : 8 );
-			inp_x_size.set_limits( 8, 32766 );
-			update_densities();
-		}
-		else {
-			inp_y_size.set_value(sets->get_size_y()); // can't change size with heightfield loaded
+			equal_sides.pressed = !equal_sides.pressed;
+			update_size_limits();
+			if(  equal_sides.pressed  ) {
+				// all three sides become W
+				change_size( &inp_x_size );
+			}
 		}
 	}
 	else if (comp == &inp_number_of_towns) {
 		sets->set_city_count(v.i);
-		city_density = sets->get_city_count() ? sqrt((double)sets->get_size_x() * sets->get_size_y()) / sets->get_city_count() : 0.0;
+		city_density = sets->get_city_count() ? map_side(sets) / sets->get_city_count() : 0.0;
 	}
 	else if (comp == &inp_town_size) {
 		sets->set_mean_citizen_count(v.i);
@@ -473,11 +615,11 @@ bool welt_gui_t::action_triggered( gui_action_creator_t *comp,value_t v)
 	}
 	else if (comp == &inp_other_industries) {
 		sets->set_factory_count(v.i);
-		industry_density = sets->get_factory_count() ? sqrt((double)sets->get_size_x() * sets->get_size_y()) / sets->get_factory_count() : 0.0;
+		industry_density = sets->get_factory_count() ? map_side(sets) / sets->get_factory_count() : 0.0;
 	}
 	else if (comp == &inp_tourist_attractions) {
 		sets->set_tourist_attractions(v.i);
-		attraction_density = sets->get_tourist_attractions() ? sqrt((double)sets->get_size_x() * sets->get_size_y()) / sets->get_tourist_attractions() : 0.0;
+		attraction_density = sets->get_tourist_attractions() ? map_side(sets) / sets->get_tourist_attractions() : 0.0;
 	}
 	else if (comp == &inp_intro_date) {
 		sets->set_starting_year((sint16)(v.i));
@@ -567,6 +709,12 @@ bool welt_gui_t::action_triggered( gui_action_creator_t *comp,value_t v)
 		banner_t::show_banner();
 	}
 
+	if(  sets  &&  (comp==&inp_map_number  ||  comp==&random_map  ||  comp==&load_map)  ) {
+		// these dropped a loaded relief, and with it the fixed W and H
+		update_size_limits();
+		update_size_fields();
+	}
+
 	if(knr>=0  &&  sets) {
 		sets->map_number = knr;
 		if(!loaded_heightfield) {
@@ -590,6 +738,8 @@ void welt_gui_t::draw(scr_coord pos, scr_size size)
 		else {
 			loaded_heightfield = false;
 			sets->heightfield = "";
+			update_size_limits();
+			update_size_fields();
 		}
 	}
 
@@ -600,9 +750,9 @@ void welt_gui_t::draw(scr_coord pos, scr_size size)
 	if(  win_get_magic( magic_climate )  ) {
 		open_climate_gui.pressed = true;
 		// check if number was directly changed
-		sint16 new_river_number = max( 1, (sint32)(0.5+sqrt((double)sets->get_size_x()*sets->get_size_y())/river_density) );
+		sint16 new_river_number = max( 1, (sint32)(0.5+map_side(sets)/river_density) );
 		if(  sets->get_river_number() != new_river_number  ) {
-			river_density = sets->get_river_number() ? sqrt((double)sets->get_size_x()*sets->get_size_y()) / sets->get_river_number() : 0.0;
+			river_density = sets->get_river_number() ? map_side(sets) / sets->get_river_number() : 0.0;
 		}
 	}
 

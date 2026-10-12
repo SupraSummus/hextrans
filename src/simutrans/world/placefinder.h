@@ -8,59 +8,8 @@
 
 
 #include "../dataobj/koord.h"
+#include "pos_list.h"
 class karte_t;
-
-/**
- * pos_list_t:
- *
- * Provides a list of all coordinates from (0, 0) sorted by distance in increasing
- * order with x and y in range [-max_xy; max_xy] except for (0, 0) itself.
- * (0, 0) is used as the end marker.
- */
-class pos_list_t {
-	sint16 max_radius;
-	sint16 *columns;
-	sint16 radius;
-	sint16 row;
-	sint16 quadrant;
-
-	sint16 find_best_row();
-
-public:
-	/**
-	* @param max_xy (Maximum value for x and y position)
-	*/
-	pos_list_t(sint16 max_xy);
-	virtual ~pos_list_t();
-
-	void restart();
-	bool get_pos(koord &k);
-	virtual bool get_next_pos(koord &k);
-};
-
-
-/**
- * pos_list_wh_t:
- *
- * Extended version of pos_list_t. Provides surrounding positions
- * for a range of size h by w.
- * (0, 0) is used as the end marker again.
- */
-class pos_list_wh_t : public pos_list_t {
-	sint16 w;
-	sint16 h;
-
-	sint16 dx;
-	sint16 dy;
-public:
-	pos_list_wh_t(sint16 max_radius, sint16 w, sint16 h);
-
-	void restart(sint16 w, sint16 h);
-	void restart() { pos_list_t::restart(); }
-
-	bool get_next_pos(koord &k) OVERRIDE;
-};
-
 
 class placefinder_t {
 protected:

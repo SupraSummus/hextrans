@@ -19,8 +19,10 @@
 
 class building_desc_t;
 class karte_ptr_t;
+struct map_shape_t;
 class player_t;
 class rule_t;
+class way_desc_t;
 
 
 #define MAX_CITY_HISTORY_YEARS  (12) // number of years to keep history
@@ -89,7 +91,7 @@ static const uint8 pax_dest_status_colors[4] = {
 	0,
 	COL_YELLOW,      // OK/reachable
 	COL_ORANGE,      // route overcrowded
-	COL_DARK_ORANGE, // no route
+	COL_MAGENTA,     // no route
 };
 
 
@@ -133,6 +135,9 @@ public:
 	 * only written for networkgames
 	 */
 	static void cityrules_rdwr(loadsave_t *file);
+
+	//  current city road; can change monthly
+	static const way_desc_t* city_road;
 
 	static uint32 get_industry_increase();
 	static void set_industry_increase(uint32 ind_increase);
@@ -370,14 +375,14 @@ private:
 	void merke_passagier_ziel(koord ziel, pax_dest_status_t status);
 
 	/**
-	 * baut Spezialgebaeude, z.B Stadion
+	 * builds tourist attractions
 	 */
 	void check_bau_spezial(bool);
 
 	/**
-	 * baut ein angemessenes Rathaus
+	 * Builds or renovates townhall
 	 */
-	void check_bau_townhall(bool new_town, const building_desc_t* th, sint16 rotation);
+	void check_bau_townhall(const building_desc_t* th, sint16 rotation);
 
 	/**
 	 * constructs a new consumer
@@ -493,6 +498,10 @@ public:
 	uint32 get_buildings()  const { return buildings.get_count(); }
 	sint32 get_unemployed() const { return bev - arb; }
 	sint32 get_homeless()   const { return bev - won; }
+	/// total housing provided by the residential buildings of the city (10 citizens per building level and tile)
+	sint32 get_housing()    const { return won; }
+	/// total jobs provided by the commercial and industrial buildings of the city (20 jobs per building level and tile)
+	sint32 get_jobs()       const { return arb; }
 
 	const char *get_name() const { return name; }
 	void set_name( const char *name );
@@ -550,7 +559,7 @@ public:
 	 */
 	void finish_rd();
 
-	void rotate90( const sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	/* change size of city */
 	void change_size( sint64 delta_citizens, bool new_town = false );
@@ -614,14 +623,13 @@ public:
 
 	/**
 	 * Generates an array of random coordinates suitable for creating cities.
-	 * Do not consider coordinates in (0,0) - (old_x, old_y)
-	 * (leave @p old_x and @p old_y 0 to generate cities on the whole map).
+	 * Do not consider the tiles of @p old_shape, the hexagon an enlarged map
+	 * grew from (map_shape_t::none() to generate cities on the whole map).
 	 *
 	 * @param count how many cities to generate
-	 * @param old_x
-	 * @param old_y
+	 * @param old_shape
 	 */
-	static vector_tpl<koord> *random_place(sint32 count, sint16 old_x, sint16 old_y);
+	static vector_tpl<koord> *random_place(sint32 count, const map_shape_t &old_shape);
 
 	void open_info_window();
 };

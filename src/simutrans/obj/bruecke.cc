@@ -42,20 +42,6 @@ bruecke_t::bruecke_t(koord3d pos, player_t *player, const bridge_desc_t *desc, b
 	player_t::book_construction_costs( get_owner(), -desc->get_price(), get_pos().get_2d(), desc->get_waytype());
 }
 
-
-// Single-height fallback for any img_t.  The enum lays out the
-// 18 single-height variants first and the 18 `*_2` variants
-// immediately after, so subtracting `NS_Segment2` from a double
-// index gives the matching single-height entry; ids already in
-// the single block pass through unchanged.  Used by `calc_image`
-// / `get_front_image` when a desc lacks the double-height set.
-static bridge_desc_t::img_t single_height_of(bridge_desc_t::img_t img)
-{
-	return img < bridge_desc_t::NS_Segment2
-	    ? img
-	    : (bridge_desc_t::img_t)(img - bridge_desc_t::NS_Segment2);
-}
-
 void bruecke_t::calc_image()
 {
 	grund_t *gr=welt->lookup(get_pos());
@@ -72,7 +58,7 @@ void bruecke_t::calc_image()
 			// handle cases where old bridges don't have correct images
 			image_id display_image=desc->get_background( img, is_snow );
 			if(  display_image==IMG_EMPTY && desc->get_foreground( img, is_snow )==IMG_EMPTY  ) {
-				display_image=desc->get_background( single_height_of(img), is_snow );
+				display_image=desc->get_background( bridge_desc_t::single_height_of(img), is_snow );
 			}
 			weg0->set_image( display_image );
 
@@ -112,7 +98,7 @@ image_id bruecke_t::get_front_image() const
 	// handle cases where old bridges don't have correct images
 	image_id display_image=desc->get_foreground( img, is_snow );
 	if(  display_image==IMG_EMPTY && desc->get_background( img, is_snow )==IMG_EMPTY  ) {
-		display_image=desc->get_foreground( single_height_of(img), is_snow );
+		display_image=desc->get_foreground( bridge_desc_t::single_height_of(img), is_snow );
 	}
 	return display_image;
 }
@@ -134,7 +120,7 @@ void bruecke_t::rdwr(loadsave_t *file)
 
 	if(file->is_loading()) {
 		if (!s) {
-			dbg->fatal("bruecke_t::rdwr", "No bridge name for bridge at (%s)", get_pos().get_str());
+			dbg->fatal("bruecke_t::rdwr", "No bridge name for bridge");
 		}
 
 		desc = bridge_builder_t::get_desc(s);
@@ -142,8 +128,7 @@ void bruecke_t::rdwr(loadsave_t *file)
 			desc = bridge_builder_t::get_desc(translator::compatibility_name(s));
 		}
 		if(desc==NULL) {
-			dbg->warning( "bruecke_t::rdwr", "Unknown bridge \"%s\" at (%s) will be replaced with best match!", s, get_pos().get_str() );
-			pakset_manager_t::add_missing_paks( s, MISSING_BRIDGE );
+			pakset_manager_t::add_missing_paks(s, MISSING_BRIDGE);
 		}
 		free(const_cast<char *>(s));
 
@@ -167,7 +152,7 @@ void bruecke_t::rdwr(loadsave_t *file)
 
 
 // correct speed and maintenance
-void bruecke_t::finish_rd()
+bool bruecke_t::finish_rd()
 {
 	grund_t *gr = welt->lookup(get_pos());
 	if(desc==NULL) {
@@ -178,6 +163,7 @@ void bruecke_t::finish_rd()
 			}
 			if(desc==NULL) {
 				dbg->fatal("bruecke_t::finish_rd()", "Unknown bridge for type %x at (%s)", weg->get_waytype(), get_pos().get_str() );
+				return true;
 			}
 		}
 		else {
@@ -188,6 +174,7 @@ void bruecke_t::finish_rd()
 			}
 			if(desc==NULL) {
 				dbg->fatal("bruecke_t::finish_rd()", "No powerline bridge to build bridge type at (%s)", get_pos().get_str() );
+				return true;
 			}
 		}
 	}
@@ -215,6 +202,7 @@ void bruecke_t::finish_rd()
 			img = desc->get_start( gr->get_grund_hang() );
 		}
 	}
+	return false;
 }
 
 
@@ -245,13 +233,7 @@ void bruecke_t::rotate90()
 {
 	set_yoff(0);
 	obj_t::rotate90();
-	// 90° is not a hex symmetry — a hex map rotation step is 60° and
-	// `karte_t::rotate90` itself is gated unreachable (see TODO.md
-	// "Rotation cascade").  Leave `img` unchanged: it stays a valid
-	// img_t value, and any in-tree caller that reaches here lands a
-	// `dbg->fatal` further up the cascade before the wrong image
-	// renders.  Replace with a real 60° img-rotation table when the
-	// viewport / rotation port lands.
+	img = bridge_desc_t::rotate60( img );
 }
 
 

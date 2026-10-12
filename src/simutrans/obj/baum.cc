@@ -5,13 +5,17 @@
 
 #include "baum.h"
 
+#include "groundobj.h"
+
 #include "../ground/grund.h"
 #include "../dataobj/environment.h"
+#include "../dataobj/freelist.h"
 #include "../dataobj/loadsave.h"
 #include "../dataobj/translator.h"
 #include "../descriptor/tree_desc.h"
 #include "../display/simimg.h"
 #include "../player/simplay.h"
+#include "../simdebug.h"
 #include "../simtypes.h"
 #include "../world/simworld.h"
 #include "../utils/cbuffer.h"
@@ -19,6 +23,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <string>
 
 
 FLAGGED_PIXVAL baum_t::outline_color = 0;
@@ -122,11 +127,12 @@ void baum_t::rdwr(loadsave_t *file)
 }
 
 
-void baum_t::finish_rd()
+bool baum_t::finish_rd()
 {
 	if(get_xoff()==-128) {
 		calc_off(welt->lookup( get_pos())->get_grund_hang());
 	}
+	return false;
 }
 
 
@@ -228,16 +234,10 @@ bool baum_t::check_season(const bool)
 
 void baum_t::rotate90()
 {
-	// cant use obj_t::rotate90 to rotate offsets as it rotates them only if xoff!=0
-	sint8 old_yoff = get_yoff() + zoff;
-	sint8 old_xoff = get_xoff();
-
-	// rotate position
+	// the offsets turn about the tile centre, without the slope part zoff
+	set_yoff( get_yoff() + zoff );
 	obj_t::rotate90();
-
-	// .. and the offsets
-	set_xoff( -2 * old_yoff );
-	set_yoff( old_xoff/2 - zoff);
+	set_yoff( get_yoff() - zoff );
 }
 
 

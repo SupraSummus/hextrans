@@ -359,6 +359,9 @@ public:
 	/* true, if electrification needed for this convoi */
 	bool needs_electrification() const { return needs_electric; }
 
+	/* set it here and on every vehicle, since check_next_tile() reads it there */
+	void set_needs_electrification(bool janein);
+
 	/* true, if electrification needed for this convoi */
 	bool can_use_electrification() const { return sum_gear_and_power_electric!=0; }
 
@@ -456,7 +459,7 @@ public:
 
 	void finish_rd();
 
-	void rotate90( const sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	/**
 	* Called if a vehicle enters a depot
@@ -635,6 +638,14 @@ public:
 	* @see simwin
 	*/
 	void open_schedule_window( bool show );
+
+	/**
+	 * Closes an open schedule editing session of this convoy, if any.
+	 * The schedule editor is the schedule tab of the convoy info window;
+	 * closing that window applies the pending entries, like every other
+	 * way of leaving the editor. No-op when nobody is editing.
+	 */
+	void close_schedule_editor();
 
 	/**
 	* pruefe ob Beschraenkungen fuer alle Fahrzeuge erfuellt sind

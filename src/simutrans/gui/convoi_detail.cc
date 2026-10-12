@@ -3,7 +3,10 @@
  * (see LICENSE.txt)
  */
 
+#include <stdio.h>
+
 #include "convoi_detail.h"
+#include "components/gui_divider.h"
 #include "components/gui_image.h"
 #include "components/gui_textarea.h"
 
@@ -42,7 +45,7 @@ public:
 
 		const int month_now = world()->get_timeline_year_month();
 		// image
-		new_component<gui_image_t>(v->get_loaded_image(), v->get_owner_nr())->enable_offset_removal(true);
+		new_component<gui_image_t>(v->get_loaded_image(), v->get_owner_nr(), ALIGN_NONE, true)->enable_offset_removal(true);
 		add_table(1,0);
 		{
 			// name

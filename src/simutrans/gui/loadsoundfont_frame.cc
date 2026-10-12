@@ -3,9 +3,13 @@
  * (see LICENSE.txt)
  */
 
+#include "../simdebug.h"
+
 #include <string.h>
 
 #include "loadsoundfont_frame.h"
+
+#include "../pathes.h"
 
 #include "../dataobj/loadsave.h"
 #include "../dataobj/translator.h"
@@ -13,6 +17,8 @@
 
 #include "../music/music.h"
 #include "../simsound.h"
+
+#include "gui_theme.h"
 
 #include "../utils/simstring.h"
 

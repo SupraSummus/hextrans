@@ -1,3 +1,4 @@
+
 /* This file is part of the Simutrans project under the Artistic License.
  * (see LICENSE.txt)
  */
@@ -8,6 +9,7 @@
 #endif
 
 #include <stdio.h>
+#include <math.h>
 #include <string>
 #include <new>
 
@@ -17,10 +19,13 @@
 #include "world/simworld.h"
 #include "simware.h"
 #include "display/simview.h"
+#include "display/viewport.h"
 #include "gui/simwin.h"
 #include "gui/gui_theme.h"
 #include "gui/messagebox.h"
 #include "simhalt.h"
+#include "simconvoi.h"
+#include "simfab.h"
 #include "display/simimg.h"
 #include "simcolor.h"
 #include "simskin.h"
@@ -29,6 +34,7 @@
 #include "ground/wasser.h"
 #include "world/simcity.h"
 #include "player/simplay.h"
+#include "player/ai_scripted.h"
 #include "simsound.h"
 #include "simintr.h"
 #include "simloadingscreen.h"
@@ -56,12 +62,14 @@
 #include "gui/loadsave_frame.h"
 #include "gui/loadfont_frame.h"
 #include "gui/load_relief_frame.h"
+#include "gui/scenario_frame.h"
 
 #include "obj/baum.h"
 #include "obj/wolke.h"
 
 #include "utils/simstring.h"
 #include "utils/searchfolder.h"
+#include "io/rdwr/compare_file_rd_stream.h"
 
 #include "network/network.h" // must be before any "windows.h" is included via bzlib2.h ...
 #include "dataobj/loadsave.h"
@@ -71,6 +79,7 @@
 #include "dataobj/scenario.h"
 #include "dataobj/settings.h"
 #include "dataobj/translator.h"
+#include "network/pakset_info.h"
 
 #include "descriptor/reader/obj_reader.h"
 #include "descriptor/sound_desc.h"
@@ -84,13 +93,16 @@
 #include "utils/unicode.h"
 
 #include "builder/vehikelbauer.h"
+#include "script/script.h"
 #include "script/script_tool_manager.h"
 
 #include "vehicle/vehicle.h"
 #include "vehicle/simroadtraffic.h"
 
+#include "simsocial.h"
+
 #ifdef STEAM_BUILT
-#include "../steam/steam.h"
+#include "../steam/steam_iface.h"
 #endif
 
 using std::string;
@@ -546,11 +558,249 @@ bool set_pakdir( const char *chkdir )
 
 
 
+// -ai_soak runs unattended, so a fatal error has to end the process.
+// With a display, log_t::custom_fatal would wait for a key on its dialog.
+// SIGABRT gives a non-zero exit status and a backtrace under gdb,
+// as a failed assert does.
+static void ai_soak_fatal(const char *message)
+{
+	fputs( message, stderr );
+	fflush( stderr );
+	abort();
+}
+
+
+// -ai_soak: one line per game month, so a log shows how far a run got.
+// It goes to stderr whatever -debug says (dbg->message needs -debug 3).
+// rng is the state of the game's random number generator: two runs with the
+// same SIZE and SEED must print the same value on every line.
+static void ai_soak_status(const karte_t *welt)
+{
+	int ais = 0; // computer players still alive; slots 0 and 1 are not AIs
+	for(  int i = 2;  i < PLAYER_UNOWNED;  i++  ) {
+		ais += welt->get_player(i) != NULL;
+	}
+	const uint32 month = welt->get_current_month();
+	fprintf( stderr, "ai_soak: %04u.%02u convoys=%u halts=%u cities=%u ais=%d rng=%08x\n",
+		month / 12, month % 12 + 1, welt->convoys().get_count(),
+		haltestelle_t::get_alle_haltestellen().get_count(), welt->get_cities().get_count(),
+		ais, get_random_seed() );
+}
+
+
+// -ai_soak: one line per AI with what it owns and its cash, to tell a script
+// that builds from one that stalls.  The AIs are the players in slots 2 up.
+static void ai_soak_players(const karte_t *welt)
+{
+	for(  int i = 2;  i < PLAYER_UNOWNED;  i++  ) {
+		player_t *player = welt->get_player(i);
+		if(  player == NULL  ) {
+			continue;
+		}
+		uint32 halts = 0;
+		for(  const halthandle_t &h : haltestelle_t::get_alle_haltestellen()  ) {
+			halts += h->is_owner(player);
+		}
+		uint32 convoys = 0;
+		for(  const convoihandle_t &cnv : welt->convoys()  ) {
+			convoys += cnv->get_owner() == player;
+		}
+		const uint32 month = welt->get_current_month();
+		fprintf( stderr, "ai_soak: %04u.%02u player %d (type %d) halts=%u convoys=%u cash=%.0f\n",
+			month / 12, month % 12 + 1, i, player->get_ai_id(), halts, convoys,
+			player->get_account_balance_as_double() );
+	}
+}
+
+
+// -ai_snapshot: screenshot the view centred on the newest halt of any AI
+// (or leave the view where it is if there is none yet).  The files are
+// screenshot/aisoak-YYYY.MM-map.png under the user directory.  If a window is
+// open (a script error opens one) it is shot as it stands first, as
+// ...-windows.png, then every window is closed and the map shot again.
+static void ai_soak_screenshot(const karte_t *welt, const char *what, const char *where)
+{
+	const uint32 month = welt->get_current_month();
+	char name[64];
+	sprintf( name, SCREENSHOT_PATH_X "aisoak-%04u.%02u-%s.png", month / 12, month % 12 + 1, what );
+	const bool ok = gfx->take_screenshot( scr_rect( scr_coord(0, 0), gfx->get_screen_size() ), name );
+	fprintf( stderr, "ai_soak: %04u.%02u snapshot %s %s at %s\n", month / 12, month % 12 + 1,
+		ok ? "saved" : "FAILED", name, where );
+}
+
+
+// -ai_snapshot: the info windows that embed a small world view (halt, convoy,
+// factory), each shot on its own as screenshot/aisoak-YYYY.MM-view-NAME.png,
+// to see how world_view_t lays out the tiles around its target.
+static void ai_soak_view_window(const karte_t *welt, const char *name, const char *where)
+{
+	gui_frame_t *const win = win_get_top();
+	if(  win  ) {
+		win_set_pos( win, scr_coord( 8, 40 ) );
+		intr_refresh_display( true );
+		const uint32 month = welt->get_current_month();
+		char file[64];
+		sprintf( file, SCREENSHOT_PATH_X "aisoak-%04u.%02u-view-%s.png", month / 12, month % 12 + 1, name );
+		const bool ok = gfx->take_screenshot( scr_rect( scr_coord( 8, 40 ), win->get_windowsize() ), file );
+		fprintf( stderr, "ai_soak: %04u.%02u snapshot %s %s at %s\n", month / 12, month % 12 + 1,
+			ok ? "saved" : "FAILED", file, where );
+	}
+	destroy_all_win( true );
+}
+
+
+// -ai_snapshot: the main view's picture of the same area as the small view of
+// a static target, shot as ...-view-NAME-main.png, to compare the two.  The
+// target tile goes where world_view_t puts it, so the area is the one the
+// small view shows.
+static void ai_soak_view_main(karte_t *welt, const koord3d &pos, const char *name)
+{
+	const sint16 raster = gfx->get_base_tile_raster_width();
+	// the view is drawn inside a one pixel frame
+	const scr_size size( max( 64, raster ) - 2, max( 56, raster * 7 / 8 ) - 2 );
+	welt->get_viewport()->change_world_position( pos );
+	// the main view only repaints what a tile covers, so the pixels between
+	// the diamonds of a pakset without hex tiles are those of the last frame;
+	// the small view paints the background there
+	gfx->draw_rect( 0, 0, gfx->get_screen_size().w, gfx->get_screen_size().h, env_t::background_color, true );
+	intr_refresh_display( true );
+	const scr_coord canvas = welt->get_viewport()->get_screen_coord( pos, koord( 0, 0 ) );
+	const uint32 month = welt->get_current_month();
+	char file[64];
+	sprintf( file, SCREENSHOT_PATH_X "aisoak-%04u.%02u-view-%s-main.png", month / 12, month % 12 + 1, name );
+	const bool ok = gfx->take_screenshot( scr_rect( canvas + scr_coord( -(size.w - raster) / 2, raster - size.h ), size ), file );
+	fprintf( stderr, "ai_soak: %04u.%02u snapshot %s %s at %s\n", month / 12, month % 12 + 1,
+		ok ? "saved" : "FAILED", file, pos.get_str() );
+}
+
+
+static void ai_soak_view_snapshots(karte_t *welt, const halthandle_t *newest)
+{
+	if(  newest  ) {
+		ai_soak_view_main( welt, (*newest)->get_basis_pos3d(), "halt" );
+		(*newest)->open_info_window();
+		ai_soak_view_window( welt, "halt", (*newest)->get_basis_pos3d().get_str() );
+	}
+	for(  const convoihandle_t &cnv : welt->convoys()  ) {
+		if(  cnv->get_owner()->get_player_nr() < 2  ||  cnv->in_depot()  ) {
+			continue;
+		}
+		cnv->open_info_window();
+		ai_soak_view_window( welt, "convoy", cnv->front()->get_pos().get_str() );
+		break;
+	}
+	if(  !welt->get_fab_list().empty()  ) {
+		fabrik_t *const fab = welt->get_fab_list()[0];
+		ai_soak_view_main( welt, fab->get_pos(), "factory" );
+		fab->open_info_window();
+		ai_soak_view_window( welt, "factory", fab->get_pos().get_str() );
+	}
+}
+
+
+static void ai_soak_snapshot(karte_t *welt)
+{
+	const halthandle_t *newest = NULL;
+	for(  const halthandle_t &h : haltestelle_t::get_alle_haltestellen()  ) {
+		if(  h->get_owners() & ~3  ) { // an AI owns it
+			newest = &h;
+		}
+	}
+	if(  newest  ) {
+		welt->get_viewport()->change_world_position( (*newest)->get_basis_pos3d() );
+	}
+	const char *where = newest ? (*newest)->get_basis_pos3d().get_str() : "(no AI halt)";
+	intr_refresh_display( true );
+	if(  win_get_open_count() > 0  ) {
+		ai_soak_screenshot( welt, "windows", where );
+		destroy_all_win( true );
+		intr_refresh_display( true );
+	}
+	ai_soak_screenshot( welt, "map", where );
+	ai_soak_view_snapshots( welt, newest );
+}
+
+
+// -ai_soak: run the world one game month at a time, with a status line after
+// each.  interactive() sets quit_simutrans whenever it reaches the month it
+// was given, so that flag only stands once the last one is done.
+static void ai_soak_run(karte_t *welt, uint32 quit_month, bool snapshots)
+{
+	if(  snapshots  ) {
+		// no night in the pictures
+		env_t::night_shift = false;
+		env_t::daynight_level = 0;
+	}
+	ai_soak_status( welt );
+	while(  !env_t::quit_simutrans  &&  welt->get_current_month() < quit_month  ) {
+		if(  welt->interactive( welt->get_current_month() + 1 )  ) {
+			break; // stopped from outside, e.g. by SIGTERM
+		}
+		ai_soak_status( welt );
+		const uint32 month = welt->get_current_month();
+		const bool last = month >= quit_month;
+		if(  month % 12 == 0  ||  last  ) {
+			ai_soak_players( welt );
+			if(  snapshots  ) {
+				ai_soak_snapshot( welt );
+			}
+		}
+		env_t::quit_simutrans = false;
+	}
+	env_t::quit_simutrans = true;
+}
+
+
+// -heightfield: the base height of every tile, "W" for a water tile, "-"
+// off the map, one "heightfield: ROW z,z,..." line per row, for
+// tools/heightfield_import_test.py.
+static void heightfield_dump(const karte_t *welt)
+{
+	for(  sint16 y = 0;  y < welt->get_size().y;  y++  ) {
+		std::string row;
+		for(  sint16 x = 0;  x < welt->get_size().x;  x++  ) {
+			const grund_t *gr = welt->lookup_kartenboden( x, y );
+			row += x > 0 ? "," : "";
+			row += !gr ? std::string( "-" ) : gr->is_water() ? std::string( "W" ) : std::to_string( (int)gr->get_hoehe() );
+		}
+		fprintf( stderr, "heightfield: %d %s\n", (int)y, row.c_str() );
+	}
+}
+
+
+// -mapstats: how many tiles of each climate the generated map has, one
+// "mapstats: climate NAME COUNT" line per climate, for tools/mapgen_metrics.py.
+static void mapstats_dump(const karte_t *welt)
+{
+	static const char *const names[MAX_CLIMATES] = {
+		"water", "desert", "tropic", "mediterran", "temperate", "tundra", "rocky", "arctic"
+	};
+	uint32 count[MAX_CLIMATES] = { 0 };
+	for(  sint16 y = 0;  y < welt->get_size().y;  y++  ) {
+		for(  sint16 x = 0;  x < welt->get_size().x;  x++  ) {
+			if(  welt->is_within_limits( x, y )  ) {
+				count[welt->get_climate( koord( x, y ) )]++;
+			}
+		}
+	}
+	fprintf( stderr, "mapstats: size %d %d\n", (int)welt->get_size().x, (int)welt->get_size().y );
+	for(  int cl = 0;  cl < MAX_CLIMATES;  cl++  ) {
+		fprintf( stderr, "mapstats: climate %s %u\n", names[cl], (unsigned)count[cl] );
+	}
+}
+
+
 int simu_main(int argc, char** argv)
 {
 	std::set_new_handler(sim_new_handler);
 
 	args_t args(argc, argv);
+
+	const bool ai_soak = args.has_arg("-ai_soak");
+	if(  ai_soak  ) {
+		log_t::set_fatal_hook( ai_soak_fatal );
+		script_vm_t::ignore_pause_on_error = true;
+	}
 #ifdef DEBUG
 	if (args.has_arg("-debug")) {
 		// debug init messages
@@ -570,7 +820,6 @@ int simu_main(int argc, char** argv)
 	}
 
 	// only the specified pak conf should override this!
-	uint16 pak_diagonal_multiplier = env_t::default_settings.get_pak_diagonal_multiplier();
 	sint8 pak_tile_height = TILE_HEIGHT_STEP;
 	sint8 pak_height_conversion_factor = env_t::pak_height_conversion_factor;
 
@@ -667,6 +916,7 @@ int simu_main(int argc, char** argv)
 			// we do not allow to change the global font name
 			std::string old_fontname = env_t::fontname;
 			std::string old_soundfont_filename = env_t::soundfont_filename;
+			std::string old_music_folder = env_t::music_folder;
 
 			dbg->message("simu_main()", "Parsing %s%s", env_t::base_dir, path_to_simuconf);
 			env_t::default_settings.parse_simuconf( simuconf, disp_width, disp_height, fullscreen, true );
@@ -675,6 +925,10 @@ int simu_main(int argc, char** argv)
 			if(  (old_soundfont_filename.length() > 0)  &&  (strcmp( old_soundfont_filename.c_str(), "Error" ) != 0)  ) {
 				// We had a valid soundfont saved by the user, let's restore it
 				env_t::soundfont_filename = old_soundfont_filename;
+			}
+			if(  !old_music_folder.empty()  ) {
+				// same for the music folder chosen by the user
+				env_t::music_folder = old_music_folder;
 			}
 			env_t::fontname = old_fontname;
 		}
@@ -700,7 +954,7 @@ int simu_main(int argc, char** argv)
 	// always save and reload on Android
 	env_t::reload_and_save_on_quit = true;
 #elif defined(STEAM_BUILT) && STEAM_BUILT != 0
-	steam_t::get_instance()->install_workshop_items();
+	steam_install_workshop_items();
 #endif
 
 	// now set the desired objectfilename (override all previous settings)
@@ -1078,7 +1332,6 @@ int simu_main(int argc, char** argv)
 		}
 		env_t::show_month = show_month;
 
-		pak_diagonal_multiplier = env_t::default_settings.get_pak_diagonal_multiplier();
 		pak_height_conversion_factor = env_t::pak_height_conversion_factor;
 		pak_tile_height = TILE_HEIGHT_STEP;
 
@@ -1132,8 +1385,6 @@ int simu_main(int argc, char** argv)
 	}
 
 	// now (re)set the correct length and other pak set only settings
-	env_t::default_settings.set_pak_diagonal_multiplier( pak_diagonal_multiplier );
-	vehicle_base_t::set_diagonal_multiplier( pak_diagonal_multiplier, pak_diagonal_multiplier );
 	env_t::pak_height_conversion_factor = pak_height_conversion_factor;
 	TILE_HEIGHT_STEP = pak_tile_height;
 
@@ -1210,11 +1461,11 @@ int simu_main(int argc, char** argv)
 
 	// loading all objects in the pak
 	skinverwaltung_t::restore_all_skins(); // restore empty skins to have the pakset default
-#if DEBUG
+#ifdef DEBUG
 	uint32 pakload_time = dr_time();
 #endif
 	pakset_manager_t::load_pakset(env_t::default_settings.get_with_private_paks());
-#if DEBUG
+#ifdef DEBUG
 	pakload_time = dr_time() - pakload_time;
 	DBG_DEBUG("simmain", "Loading paksets took %u ms", pakload_time);
 #endif
@@ -1422,7 +1673,7 @@ int simu_main(int argc, char** argv)
 	// init midi before loading sounds
 	if(  dr_init_midi()  ) {
 		dbg->message("simu_main()","Reading midi data ...");
-		if(  !midi_init( env_t::pak_dir.c_str() )  &&  !midi_init( env_t::user_dir )  &&  !midi_init( env_t::base_dir )  ) {
+		if(  !midi_load_list()  ) {
 			midi_set_mute(true);
 			dbg->message("simu_main()","Midi disabled ...");
 		}
@@ -1555,13 +1806,17 @@ int simu_main(int argc, char** argv)
 		sets.set_default_climates();
 		sets.set_use_timeline( 1 );
 		sets.set_size(64,64);
+		sets.set_size_d(1);
 		sets.set_city_count(1);
 		sets.set_factory_count(3);
 		sets.set_tourist_attractions(1);
 		sets.set_traffic_level(7);
+		sets.set_river_number(1);
 		// Test hook: -flatmap N generates an empty, perfectly flat NxN
 		// map (no mountains, rivers, cities or industry) for measurement
-		// harnesses such as tools/city_anisotropy.py.  An empty flat map
+		// harnesses such as tools/city_anisotropy.py; -flatmap W,H,D
+		// generates the flat W x H x D hexagon of documentation/map-shape.md
+		// (the test fixture tests/empty-hex-9x7x5.sve).  An empty flat map
 		// needs no simulation, so we save it directly below and quit
 		// rather than running the interactive loop to -until: that crawls
 		// through the quit month in NORMAL mode (set_fast_forward does not
@@ -1570,16 +1825,121 @@ int simu_main(int argc, char** argv)
 		bool is_flatmap = false;
 		if(  const char *fm = args.gimme_arg("-flatmap", 1)  ) {
 			is_flatmap = true;
-			sint32 n = atoi(fm);
-			if(  n < 8  ) { n = 64; }
-			sets.set_size(n, n);
+			int w = 0, h = 0, d = 1;
+			if(  sscanf(fm, "%d,%d,%d", &w, &h, &d) != 3  ) {
+				w = h = atoi(fm);
+				d = 1;
+				if(  w < 8  ) { w = h = 64; }
+			}
+			if(  w < 1  ||  h < 1  ||  d < 1  ) {
+				dbg->fatal("simu_main()", "-flatmap W,H,D needs W, H, D >= 1 (got %s)", fm);
+			}
+			sets.set_size(w, h);
+			sets.set_size_d(d);
 			sets.set_city_count(0);
 			sets.set_factory_count(0);
 			sets.set_tourist_attractions(0);
 			sets.set_max_mountain_height(0.0);
 			sets.set_river_number(0);
 		}
-		welt->init(&sets,0);
+		// Test hook: -heightfield FILE [D] builds the map from the relief
+		// image FILE (bmp or ppm), as the new-world dialog's "Load
+		// relief" does, without cities, industry, rivers or lakes.  The
+		// image is in the frame of documentation/map-shape.md: its
+		// columns and rows give W and H for the depth D (default 1).  It
+		// prints the tile heights (heightfield_dump) and saves and quits
+		// like -flatmap.
+		const char *heightfield = args.gimme_arg("-heightfield", 1);
+		if(  heightfield  ) {
+			is_flatmap = true;
+			sets.heightfield = heightfield;
+			// the image fixes W and H; D is the optional argument
+			const char *depth = args.gimme_arg("-heightfield", 2);
+			sets.set_size_d( depth  &&  *depth >= '0'  &&  *depth <= '9' ? atoi(depth) : 1 );
+			sets.set_city_count(0);
+			sets.set_factory_count(0);
+			sets.set_tourist_attractions(0);
+			sets.set_river_number(0);
+			sets.set_lakeheight(sets.get_groundwater());
+		}
+		// Test hook: -ai_soak SIZE [SEED] runs the computer players
+		// unattended.  It generates a SIZE x SIZE map, or with SIZE
+		// = W,H,D the W x H x D hexagon of documentation/map-shape.md,
+		// with cities and industry from SEED (default: the map number
+		// of settings_t),
+		// adds one goods and one passenger AI (or, with -ai_script NAME,
+		// the scripted AI ai/NAME instead), and runs flat out to
+		// -until without the start-up banner (its modal loop runs the
+		// world at normal speed).  A fatal error aborts instead of
+		// waiting for a key, and every game month logs a status line
+		// to stderr.  Every January each AI logs what it owns, and
+		// -ai_snapshot also takes a screenshot.
+		if(  ai_soak  ) {
+			const char *size = args.gimme_arg("-ai_soak", 1);
+			int w = 0, h = 0, d = 1;
+			if(  !size  ||  sscanf(size, "%d,%d,%d", &w, &h, &d) != 3  ) {
+				w = h = size ? atoi(size) : 0;
+				d = 1;
+				if(  w < 16  ) { w = h = 128; }
+			}
+			if(  w < 1  ||  h < 1  ||  d < 1  ) {
+				dbg->fatal("simu_main()", "-ai_soak W,H,D needs W, H, D >= 1 (got %s)", size);
+			}
+			sets.set_size(w, h);
+			sets.set_size_d(d);
+			// the densities of an n x n map, n = sqrt(tiles)
+			const sint32 n = (sint32)sets.get_map_shape().get_side_equivalent();
+			sets.set_city_count(n/16);
+			sets.set_factory_count(n/8);
+			sets.set_tourist_attractions(n/32);
+			const char *seed = args.gimme_arg("-ai_soak", 2);
+			if(  seed  &&  *seed >= '0'  &&  *seed <= '9'  ) {
+				sets.set_map_number(atoi(seed));
+			}
+			// the map number seeds the terrain noise only; the generator
+			// behind city and industry placement and the game itself is
+			// seeded from the clock above, so pin it too
+			setsimrand(sets.get_map_number(), sets.get_map_number());
+		}
+		// Test hook: -mapstats SIZE [SEED [GEN]] generates a SIZE x SIZE
+		// map with the normal terrain, lakes and rivers but no cities,
+		// industry or attractions, from SEED (default: the map number of
+		// settings_t) and with the climate generator GEN ("height", the
+		// default, or "humidity").  It prints the climate shares
+		// (mapstats_dump) and saves and quits like -flatmap.
+		const bool is_mapstats = args.has_arg("-mapstats");
+		if(  is_mapstats  ) {
+			is_flatmap = true;
+			const char *size = args.gimme_arg("-mapstats", 1);
+			sint32 n = size ? atoi(size) : 0;
+			if(  n < 16  ) { n = 128; }
+			sets.set_size(n, n);
+			sets.set_size_d(1);
+			sets.set_city_count(0);
+			sets.set_factory_count(0);
+			sets.set_tourist_attractions(0);
+			const char *seed = args.gimme_arg("-mapstats", 2);
+			if(  seed  &&  *seed >= '0'  &&  *seed <= '9'  ) {
+				sets.set_map_number(atoi(seed));
+			}
+			const char *gen = args.gimme_arg("-mapstats", 3);
+			if(  gen  &&  strcmp(gen, "humidity") == 0  ) {
+				sets.set_climate_generator(settings_t::HUMIDITY_BASED);
+			}
+			// the map number seeds the terrain noise only; pin the
+			// generator behind rivers, climates and trees too
+			setsimrand(sets.get_map_number(), sets.get_map_number());
+		}
+		if(  heightfield  ) {
+			welt->load_heightfield(&sets);
+			heightfield_dump( welt );
+		}
+		else {
+			welt->init(&sets,0);
+			if(  is_mapstats  ) {
+				mapstats_dump( welt );
+			}
+		}
 
 		//  start in June ...
 		intr_set_view(view);
@@ -1592,6 +1952,25 @@ int simu_main(int argc, char** argv)
 		welt->step_month(5);
 		welt->step();
 		welt->step();
+
+		if(  ai_soak  ) {
+			if(  const char *script = args.gimme_arg("-ai_script", 1)  ) {
+				// one scripted AI in place of the C++ ones; NAME is a
+				// directory under ai/ in the base directory
+				welt->change_player_tool(karte_t::new_player, 2, player_t::AI_SCRIPTED, true, true);
+				cbuffer_t ai_base;
+				ai_base.printf("%sai/", env_t::base_dir);
+				ai_scripted_t *ai = dynamic_cast<ai_scripted_t*>(welt->get_player(2));
+				const char *err = ai ? ai->init(ai_base, script) : "no scripted AI";
+				if(  err  ) {
+					dbg->fatal("ai_soak", "cannot start script AI %s: %s", script, err);
+				}
+			}
+			else {
+				welt->change_player_tool(karte_t::new_player, 2, player_t::AI_GOODS, true, true);
+				welt->change_player_tool(karte_t::new_player, 3, player_t::AI_PASSENGER, true, true);
+			}
+		}
 
 		env_t::autosave = old_autosave;
 
@@ -1684,7 +2063,7 @@ int simu_main(int argc, char** argv)
 	// give user a mouse to work with
 	if (skinverwaltung_t::mouse_cursor != NULL) {
 		// we must use our softpointer (only Allegro!)
-		display_set_pointer(skinverwaltung_t::mouse_cursor->get_image_id(0));
+		gfx->set_default_cursor(skinverwaltung_t::mouse_cursor->get_image_id(0));
 	}
 #endif
 	gfx->set_cursor_visible(true);
@@ -1718,7 +2097,7 @@ int simu_main(int argc, char** argv)
 		check_midi();
 
 #if COLOUR_DEPTH != 0
-		if(  new_world  ) {
+		if(  new_world  &&  !ai_soak  ) {
 			dbg->message("simu_main()", "Show banner ... " );
 			ticker::add_msg("Welcome to Simutrans", koord3d::invalid, PLAYER_FLAG | 1);
 			modal_dialogue( new banner_t(), magic_none, welt, never_quit, true );
@@ -1740,8 +2119,9 @@ int simu_main(int argc, char** argv)
 
 			// -fast: run flat out. set_fast_forward still throttles toward
 			// max_acceleration, so uncap it too; then idle_time falls to 0
-			// and steps run back-to-back. The test harness passes this.
-			if(  args.has_arg("-fast")  ) {
+			// and steps run back-to-back. The test harness passes this,
+			// and -ai_soak implies it.
+			if(  args.has_arg("-fast")  ||  ai_soak  ) {
 				env_t::max_acceleration = 0x7FFF;
 				welt->set_fast_forward( true );
 			}
@@ -1751,7 +2131,12 @@ int simu_main(int argc, char** argv)
 		loadgame = ""; // only first time
 
 		// run the loop
-		welt->interactive(quit_month);
+		if(  ai_soak  ) {
+			ai_soak_run(welt, quit_month, args.has_arg("-ai_snapshot"));
+		}
+		else {
+			welt->interactive(quit_month);
+		}
 
 		new_world = true;
 		welt->get_message()->get_message_flags(&env_t::message_flags[0], &env_t::message_flags[1], &env_t::message_flags[2], &env_t::message_flags[3]);
@@ -1808,9 +2193,7 @@ int simu_main(int argc, char** argv)
 	freelist_t::free_all_nodes();
 #endif
 
-#ifdef STEAM_BUILT
-	steam_t::get_instance()->shutdown();
-#endif
+	social_shutdown();
 
 	return EXIT_SUCCESS;
 }

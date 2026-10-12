@@ -1,0 +1,108 @@
+# Test-only city buildings for the automated test scenario.
+# Baked into test-pak.pak by tools/test.py::ensure_test_pak.  The
+# headless test run renders nothing, so the buildings carry no images.
+#
+# TEST_RES_2x2 is the only multi-tile city building that city growth
+# builds.  City renovation can therefore only ever replace it by
+# a *smaller* (1x1) building, which exercises the leftover-tile
+# conversion path of stadt_t::build_city_house and its population
+# bookkeeping (test_city_population_ledger).  The high chance makes
+# city growth pick it often.
+
+obj=building
+name=TEST_RES_2x2
+type=res
+level=1
+chance=255
+dims=2,2,1
+backimage[0][0][0][0][0][0]=-
+backimage[0][0][1][0][0][0]=-
+backimage[0][1][0][0][0][0]=-
+backimage[0][1][1][0][0][0]=-
+
+---
+
+# TEST_RES_1x1_8L, TEST_RES_1x1_4L and TEST_RES_1x1_2L are 1x1
+# residential buildings with eight, four and two layouts, to read back
+# the layout that stadt_t::orient_city_building picks for a road on
+# each of the six hex sides (test_city_building_faces_road).  Layouts
+# 0..5 face S, SE, N, NW, NE and SW; building_desc_t::adjust_layout
+# folds NE onto N (2) and SW onto S (0) where the building has only
+# four, and N onto S and NW onto SE where it has only two.  chance=0
+# keeps city growth from building them, so only the tests place them.
+obj=building
+name=TEST_RES_1x1_8L
+type=res
+level=1
+chance=0
+dims=1,1,8
+backimage[0][0][0][0][0][0]=-
+backimage[1][0][0][0][0][0]=-
+backimage[2][0][0][0][0][0]=-
+backimage[3][0][0][0][0][0]=-
+backimage[4][0][0][0][0][0]=-
+backimage[5][0][0][0][0][0]=-
+backimage[6][0][0][0][0][0]=-
+backimage[7][0][0][0][0][0]=-
+
+---
+
+obj=building
+name=TEST_RES_1x1_4L
+type=res
+level=1
+chance=0
+dims=1,1,4
+backimage[0][0][0][0][0][0]=-
+backimage[1][0][0][0][0][0]=-
+backimage[2][0][0][0][0][0]=-
+backimage[3][0][0][0][0][0]=-
+
+---
+
+obj=building
+name=TEST_RES_1x1_2L
+type=res
+level=1
+chance=0
+dims=1,1,2
+backimage[0][0][0][0][0][0]=-
+backimage[1][0][0][0][0][0]=-
+
+---
+
+# TEST_RES_3x2 is a 3x2 residential building with four layouts, to read
+# back the layout that stadt_t::orient_city_building picks for a road
+# beside a multi-tile footprint (test_city_building_3x2_faces_road).
+# Layouts 0 and 2 cover 3x2 tiles, 1 and 3 cover 2x3.  chance=0 keeps
+# city growth from building it, so only the tests place it.
+obj=building
+name=TEST_RES_3x2
+type=res
+level=1
+chance=0
+dims=3,2,4
+backimage[0][0][0][0][0][0]=-
+backimage[0][0][1][0][0][0]=-
+backimage[0][0][2][0][0][0]=-
+backimage[0][1][0][0][0][0]=-
+backimage[0][1][1][0][0][0]=-
+backimage[0][1][2][0][0][0]=-
+backimage[1][0][0][0][0][0]=-
+backimage[1][0][1][0][0][0]=-
+backimage[1][1][0][0][0][0]=-
+backimage[1][1][1][0][0][0]=-
+backimage[1][2][0][0][0][0]=-
+backimage[1][2][1][0][0][0]=-
+backimage[2][0][0][0][0][0]=-
+backimage[2][0][1][0][0][0]=-
+backimage[2][0][2][0][0][0]=-
+backimage[2][1][0][0][0][0]=-
+backimage[2][1][1][0][0][0]=-
+backimage[2][1][2][0][0][0]=-
+backimage[3][0][0][0][0][0]=-
+backimage[3][0][1][0][0][0]=-
+backimage[3][1][0][0][0][0]=-
+backimage[3][1][1][0][0][0]=-
+backimage[3][2][0][0][0][0]=-
+backimage[3][2][1][0][0][0]=-

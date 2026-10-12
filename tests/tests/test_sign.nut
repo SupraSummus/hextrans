@@ -411,18 +411,88 @@ function test_sign_remove_trafficlight()
 	ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(2, 2, 0), trafficlight), null)
 	ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(5, 5, 0), trafficlight), null)
 
-	// Note that both traffic lights must have the same direction for the test to work
-	// So the second traffic light must not change direction between the two wayremover calls
+	// a light does not survive its junction, whichever axis stays: see also
+	// test_sign_trafficlight_removal_follows_junction
 	{
 		ASSERT_EQUAL(wayremover.work(pl, coord3d(2, 1, 0), coord3d(2, 3, 0), "" + wt_road), null)
 		ASSERT_EQUAL(wayremover.work(pl, coord3d(4, 5, 0), coord3d(6, 5, 0), "" + wt_road), null)
 
-		ASSERT_EQUAL(tile_x(2, 2, 0).find_object(mo_signal), null)
-		ASSERT_EQUAL(tile_x(5, 5, 0).find_object(mo_signal), null)
+		ASSERT_EQUAL(tile_x(2, 2, 0).find_object(mo_roadsign), null)
+		ASSERT_EQUAL(tile_x(5, 5, 0).find_object(mo_roadsign), null)
 	}
 
 	ASSERT_EQUAL(wayremover.work(pl, coord3d(1, 2, 0), coord3d(3, 2, 0), "" + wt_road), null)
 	ASSERT_EQUAL(wayremover.work(pl, coord3d(5, 4, 0), coord3d(5, 6, 0), "" + wt_road), null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// A traffic light shows the axis that is green at the moment as its direction,
+// and a yellow light shows none. Advances the simulation until the light is in
+// state `state` of its cycle (green of axis 0..2, yellow 3..5), or gives up.
+// A new light stands in state 0 with every direction of its tile until the
+// first state change, so state 0 only counts once its direction is the axis.
+function wait_for_trafficlight_state(light, state)
+{
+	local axes = [dir.northsouth, dir.northwest_southeast, dir.northeast_southwest]
+	local want = state < 3 ? axes[state] : dir.none
+
+	for (local step = 0; step < 3000  &&  !(light.get_state() == state  &&  light.get_dirs() == want); step++) {
+		sleep()
+	}
+	ASSERT_EQUAL(light.get_state(), state)
+	ASSERT_EQUAL(light.get_dirs(), want)
+}
+
+
+function test_sign_trafficlight_removal_follows_junction()
+{
+	// Taking legs off the junction of a traffic light deletes the light unless
+	// a 3-way remains, whichever axis is green when it happens. N|S column
+	// (constant x, +y) crossed by the NW|SE road (+x) at (2,3), as in
+	// test_sign_build_trafficlight. The cycle of the 4-way is state 0 (N|S
+	// green), 3 (yellow), 1 (NW|SE green), 4 (yellow).
+	local pl = player_x(0)
+	local wayremover = command_x(tool_remove_way)
+	local remover = command_x(tool_remover)
+	local road = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local trafficlight = sign_desc_x.get_available_signs(wt_road).filter(@(idx, sign) sign.is_traffic_light())[0]
+
+	local column = [coord3d(2, 1, 0), coord3d(2, 4, 0)]
+	local cross  = [coord3d(1, 3, 0), coord3d(3, 3, 0)]
+	// what is taken off, whether the light stays, and what is left of the roads
+	local cases = [
+		{ remove = cross,                            kept = false, left = [column] }, // N|S remains
+		{ remove = column,                           kept = false, left = [cross] },  // NW|SE remains
+		{ remove = [coord3d(1, 3, 0), coord3d(2, 3, 0)], kept = true,  left = [column, [coord3d(2, 3, 0), coord3d(3, 3, 0)]] }, // N|S|SE remains
+	]
+
+	foreach (state in [0, 3, 1, 4]) {
+		foreach (c in cases) {
+			ASSERT_EQUAL(command_x.build_way(pl, column[0], column[1], road, true), null)
+			ASSERT_EQUAL(command_x.build_way(pl, cross[0], cross[1], road, true), null)
+			ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(2, 3, 0), trafficlight), null)
+
+			wait_for_trafficlight_state(tile_x(2, 3, 0).find_object(mo_roadsign), state)
+
+			ASSERT_EQUAL(wayremover.work(pl, c.remove[0], c.remove[1], "" + wt_road), null)
+
+			local tl = tile_x(2, 3, 0).find_object(mo_roadsign)
+			if (c.kept) {
+				ASSERT_TRUE(tl != null)
+				ASSERT_TRUE(tl.get_desc().is_traffic_light())
+				ASSERT_EQUAL(remover.work(pl, coord3d(2, 3, 0)), null)
+			}
+			else {
+				ASSERT_EQUAL(tl, null)
+			}
+
+			foreach (r in c.left) {
+				ASSERT_EQUAL(wayremover.work(pl, r[0], r[1], "" + wt_road), null)
+			}
+		}
+	}
 
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -1001,6 +1071,83 @@ function test_sign_build_signal_multiple()
 }
 
 
+// Where the signal tool puts signals when it is dragged along a route: the
+// route indices of the tiles that got one, as "0,5,11". The tool is called
+// with Ctrl held, so that the first click only sets the start; without it the
+// first click would place a signal there and the drag would never begin.
+function dragged_signal_indices(pl, signal, route)
+{
+	local tool = command_x(tool_build_roadsign)
+	tool.set_flags(2)
+	ASSERT_EQUAL(tool.work(pl, route[0], route[route.len() - 1], signal.get_name()), null)
+
+	local placed = ""
+	for (local i = 0; i < route.len(); ++i) {
+		if (tile_x(route[i].x, route[i].y, route[i].z).find_object(mo_signal) != null) {
+			placed += (placed == "" ? "" : ",") + i
+		}
+	}
+	return placed
+}
+
+
+// Signals are spaced by the length of track between them, counted in half
+// tiles: a tile counts as the chord the route cuts through it, rounded to a
+// half tile. That is 2 for straight on and for a 60 degree turn (1 and 0.87
+// tiles) and 1 for a 120 degree turn (0.5 tiles). The default spacing is 5
+// tiles, 10 half tiles, and the first signal goes on the first tile.
+function test_sign_build_signal_spacing_turns()
+{
+	local pl = player_x(0)
+	local rail = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local signal = sign_desc_x.get_available_signs(wt_rail).filter(@(idx, sign) sign.is_signal())[0]
+
+	// the route runs SE along y=2 from (1,2) to the corner at (9,2), and
+	// on for eight tiles. The rail goes on a tile beyond both ends, which
+	// the first click needs: a signal cannot stand on a way end.
+	local arm = []
+	for (local x = 1; x <= 9; ++x) {
+		arm.append(coord3d(x, 2, 0))
+	}
+
+	// 120 degree turn: SE, then SW. The corner is index 8, half a tile
+	// long, so the second signal comes one tile later than on a straight
+	{
+		local route = clone arm
+		for (local j = 1; j <= 8; ++j) {
+			route.append(coord3d(9 - j, 2 + j, 0))
+		}
+
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 2, 0), coord3d(9, 2, 0), rail, true), null)
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(9, 2, 0), coord3d(0, 11, 0), rail, true), null)
+
+		ASSERT_EQUAL(dragged_signal_indices(pl, signal, route), "0,5,11,16")
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(0, 2, 0), coord3d(9, 2, 0), "" + wt_rail), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(9, 2, 0), coord3d(0, 11, 0), "" + wt_rail), null)
+	}
+
+	// 60 degree turn: SE, then S. A tile still counts 2, so the signals
+	// stand every five tiles round the corner
+	{
+		local route = clone arm
+		for (local j = 1; j <= 8; ++j) {
+			route.append(coord3d(9, 2 + j, 0))
+		}
+
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 2, 0), coord3d(9, 2, 0), rail, true), null)
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(9, 2, 0), coord3d(9, 11, 0), rail, true), null)
+
+		ASSERT_EQUAL(dragged_signal_indices(pl, signal, route), "0,5,10,15")
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(0, 2, 0), coord3d(9, 2, 0), "" + wt_rail), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(9, 2, 0), coord3d(9, 11, 0), "" + wt_rail), null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_sign_replace_signal()
 {
 	local pl = player_x(0)
@@ -1098,6 +1245,95 @@ function test_sign_signal_when_player_removed()
 
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(5, 3, 0)), null)
 	ASSERT_TRUE(tile_x(5, 3, 0).find_object(mo_signal) == null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+function test_sign_signals_removed_with_bankrupt_company()
+{
+	local public_pl = player_x(1)
+	local rail   = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local road   = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local signal = sign_desc_x.get_available_signs(wt_rail).filter(@(idx, s) s.is_signal())[0]
+	local eoc    = sign_desc_x.get_available_signs(wt_rail).filter(@(idx, s) s.is_end_choose_signal())[0]
+	local oneway = sign_desc_x.get_available_signs(wt_road).filter(@(idx, s) s.is_one_way())[0]
+
+	// preconditions
+	ASSERT_TRUE(rail != null)
+	ASSERT_TRUE(road != null)
+	ASSERT_TRUE(signal != null)
+	ASSERT_TRUE(eoc != null)
+	ASSERT_TRUE(oneway != null)
+
+	ASSERT_TRUE(world.create_player(2, 1))
+	local victim = player_x(2)
+	ASSERT_TRUE(victim.is_valid())
+
+	// (5,3) rail + a signal proper, which is a signal_t
+	ASSERT_EQUAL(command_x.build_way(victim, coord3d(4, 3, 0), coord3d(6, 3, 0), rail, true), null)
+	ASSERT_EQUAL(command_x(tool_build_roadsign).work(victim, coord3d(5, 3, 0), signal.get_name()), null)
+
+	// (5,5) rail + an end-of-choose sign, which is a plain roadsign_t on rail
+	ASSERT_EQUAL(command_x.build_way(victim, coord3d(4, 5, 0), coord3d(6, 5, 0), rail, true), null)
+	ASSERT_EQUAL(command_x(tool_build_roadsign).work(victim, coord3d(5, 5, 0), eoc.get_name()), null)
+
+	// (5,7) road + a road sign: the road survives, so the sign has to survive too
+	ASSERT_EQUAL(command_x.build_way(victim, coord3d(4, 7, 0), coord3d(6, 7, 0), road, true), null)
+	ASSERT_EQUAL(command_x(tool_build_roadsign).work(victim, coord3d(5, 7, 0), oneway.get_name()), null)
+
+	// (5,9) the victim's rail, but the sign belongs to the public player
+	ASSERT_EQUAL(command_x.build_way(victim, coord3d(4, 9, 0), coord3d(6, 9, 0), rail, true), null)
+	ASSERT_EQUAL(command_x(tool_build_roadsign).work(public_pl, coord3d(5, 9, 0), eoc.get_name()), null)
+
+	// before the bankruptcy
+	{
+		ASSERT_TRUE(tile_x(5, 3, 0).find_object(mo_way) != null)
+		ASSERT_TRUE(tile_x(5, 3, 0).find_object(mo_signal) != null)
+		ASSERT_EQUAL(tile_x(5, 3, 0).find_object(mo_signal).get_owner().get_name(), victim.get_name())
+
+		ASSERT_TRUE(tile_x(5, 5, 0).find_object(mo_way) != null)
+		ASSERT_EQUAL(tile_x(5, 5, 0).find_object(mo_signal), null) // not a signal_t
+		ASSERT_TRUE(tile_x(5, 5, 0).find_object(mo_roadsign) != null)
+		ASSERT_EQUAL(tile_x(5, 5, 0).find_object(mo_roadsign).get_owner().get_name(), victim.get_name())
+
+		ASSERT_TRUE(tile_x(5, 7, 0).find_object(mo_way) != null)
+		ASSERT_TRUE(tile_x(5, 7, 0).find_object(mo_roadsign) != null)
+
+		ASSERT_TRUE(tile_x(5, 9, 0).find_object(mo_way) != null)
+		ASSERT_TRUE(tile_x(5, 9, 0).find_object(mo_roadsign) != null)
+		ASSERT_EQUAL(tile_x(5, 9, 0).find_object(mo_roadsign).get_owner().get_name(), public_pl.get_name())
+	}
+
+	world.remove_player(victim)
+
+	// after the bankruptcy
+	{
+		// the rail is gone, and so is everything the company had bound to it
+		ASSERT_EQUAL(tile_x(5, 3, 0).find_object(mo_way), null)
+		ASSERT_EQUAL(tile_x(5, 3, 0).find_object(mo_signal), null)
+		ASSERT_EQUAL(tile_x(5, 3, 0).get_objects().get_count(), 0)
+
+		ASSERT_EQUAL(tile_x(5, 5, 0).find_object(mo_way), null)
+		ASSERT_EQUAL(tile_x(5, 5, 0).find_object(mo_roadsign), null) // no orphan left standing
+		ASSERT_EQUAL(tile_x(5, 5, 0).get_objects().get_count(), 0)
+
+		// the road is handed to the public player, and keeps its sign
+		ASSERT_TRUE(tile_x(5, 7, 0).find_object(mo_way) != null)
+		ASSERT_EQUAL(tile_x(5, 7, 0).find_object(mo_way).get_owner().get_name(), public_pl.get_name())
+		ASSERT_TRUE(tile_x(5, 7, 0).find_object(mo_roadsign) != null)
+		ASSERT_EQUAL(tile_x(5, 7, 0).find_object(mo_roadsign).get_owner().get_name(), public_pl.get_name())
+
+		// somebody else's sign is never touched
+		ASSERT_EQUAL(tile_x(5, 9, 0).find_object(mo_way), null)
+		ASSERT_TRUE(tile_x(5, 9, 0).find_object(mo_roadsign) != null)
+		ASSERT_EQUAL(tile_x(5, 9, 0).find_object(mo_roadsign).get_owner().get_name(), public_pl.get_name())
+	}
+
+	// clean up
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(5, 9, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(5, 7, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remove_way).work(public_pl, coord3d(4, 7, 0), coord3d(6, 7, 0), "" + wt_road), null)
 
 	RESET_ALL_PLAYER_FUNDS()
 }

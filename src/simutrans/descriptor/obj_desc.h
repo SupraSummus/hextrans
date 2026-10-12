@@ -35,8 +35,6 @@ class obj_desc_t
 	friend class pakset_manager_t;
 
 public:
-	obj_desc_t() : children(), nchildren() {}
-
 #ifdef TRACK_DESCRIPTORS
 	virtual
 #endif
@@ -77,8 +75,12 @@ protected:
 	}
 
 private:
-	obj_desc_t** children;
-	uint16 nchildren;
+	/*
+	 * Internal Node information - the derived class knows,
+	 * how many node child nodes really exist.
+	 */
+	obj_desc_t** children = NULL;
+	uint16 nchildren = 0;
 
 	friend class factory_field_group_reader_t;
 	friend class obj_reader_t;

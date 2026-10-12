@@ -58,6 +58,7 @@
 karte_ptr_t player_t::welt;
 
 #ifdef MULTI_THREAD
+#include "../utils/simthread.h"
 static pthread_mutex_t load_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
@@ -487,32 +488,18 @@ void player_t::ai_bankrupt()
 	// remove headquarters pos
 	headquarter_pos = koord::invalid;
 
-	// remove all stops
-	// first generate list of our stops
-	slist_tpl<halthandle_t> halt_list;
-	for(halthandle_t const halt : haltestelle_t::get_alle_haltestellen()) {
-		if(  halt->get_owner()==this  ) {
-			halt_list.append(halt);
-		}
-	}
-	// ... and destroy them
-	while (!halt_list.empty()) {
-		halthandle_t h = halt_list.remove_first();
-		haltestelle_t::destroy( h );
-	}
-
-	// transfer all ways in public stops belonging to me to no one
-	for(halthandle_t const halt : haltestelle_t::get_alle_haltestellen()) {
-		if(  halt->get_owner()==welt->get_public_player()  ) {
+	// transfer all ways in stops with my permission
+	for (halthandle_t const halt : haltestelle_t::get_alle_haltestellen()) {
+		if (halt->can_use_halt(this)) {
 			// only concerns public stops tiles
-			for(haltestelle_t::tile_t const& i : halt->get_tiles()) {
+			for (haltestelle_t::tile_t const& i : halt->get_tiles()) {
 				grund_t const* const gr = i.grund;
-				for(  uint8 wnr=0;  wnr<2;  wnr++  ) {
-					weg_t *w = gr->get_weg_nr(wnr);
+				for (uint8 wnr = 0; wnr < 2; wnr++) {
+					weg_t* w = gr->get_weg_nr(wnr);
 					// make public
-					if(  w  &&  w->get_owner()==this  ) {
+					if (w && w->get_owner() == this) {
 						// tunnels and bridges are handled later? (logic needs to be checked for correct maintenance costs)
-						if (!gr->ist_bruecke()  &&  !gr->ist_tunnel()) {
+						if (!gr->ist_bruecke() && !gr->ist_tunnel()) {
 							sint32 const costs = w->get_desc()->get_maintenance();
 							waytype_t const wt = w->get_desc()->get_finance_waytype();
 							player_t::add_maintenance(this, -costs, wt);
@@ -525,13 +512,26 @@ void player_t::ai_bankrupt()
 		}
 	}
 
+	// remove me from all
+	slist_tpl<halthandle_t> halt_list;
+	for(halthandle_t const halt : haltestelle_t::get_alle_haltestellen()) {
+		if(  halt->get_owners() & (1<<player_nr)  ) {
+			halt_list.append(halt);
+		}
+	}
+	// ... and destroy them
+	while (!halt_list.empty()) {
+		halthandle_t h = halt_list.remove_first();
+		haltestelle_t::destroy( h, this );
+	}
+
 	// deactivate active tool (remove dummy grounds)
 	welt->set_tool(tool_t::general_tool[TOOL_QUERY], this);
 
 	// next remove all ways, depot etc, that are not road or channels
 	for( int y=0;  y<welt->get_size().y;  y++  ) {
-		for( int x=0;  x<welt->get_size().x;  x++  ) {
-			planquadrat_t *plan = welt->access(x,y);
+		for( int x=welt->get_row_begin(y);  x<welt->get_row_end(y);  x++  ) {
+			planquadrat_t *plan = welt->access_nocheck(x,y);
 			for (size_t b = plan->get_boden_count(); b-- != 0;) {
 				grund_t *gr = plan->get_boden_bei(b);
 				// remove tunnel and bridges first
@@ -637,6 +637,14 @@ void player_t::ai_bankrupt()
 								// take care of normal rail signals on tram track
 								if (wt == track_wt && gr->get_weg(tram_wt)) {
 									wt = tram_wt;
+								}
+
+								if (wt != road_wt && wt != water_wt) {
+									// Only road/water signals remain!
+									// The rest is destroyed with the way
+									obj->cleanup(this);
+									delete obj;
+									break;
 								}
 
 								this->add_maintenance(-costs, wt);
@@ -804,10 +812,10 @@ void player_t::finish_rd()
 }
 
 
-void player_t::rotate90( const sint16 y_size )
+void player_t::rotate90( const map_shape_t &from )
 {
-	simlinemgmt.rotate90( y_size );
-	headquarter_pos.rotate90( y_size );
+	simlinemgmt.rotate90( from );
+	headquarter_pos.rotate90( from );
 }
 
 

@@ -22,6 +22,9 @@
 #include "../../builder/goods_manager.h"
 #include "../../simhalt.h"
 #include "../../simfab.h"
+#include "../../tool/simtool.h"
+#include "../../utils/cbuffer.h"
+#include "../../utils/plainstring.h"
 
 
 using namespace script_api;
@@ -65,6 +68,37 @@ bool world_remove_player(karte_t *welt, player_t *player)
 	// now call - will not have immediate effect in network games
 	welt->call_change_player_tool(karte_t::delete_player, player->get_player_nr(), 0, true /*scripted*/);
 	return true;
+}
+
+
+bool world_create_player(karte_t* welt, uint8 nr, uint8 type)
+{
+	if (welt->get_player(nr) != NULL) {
+		return false;
+	}
+	// first test
+	bool ok = welt->change_player_tool(karte_t::new_player, nr, type, true /*unlocked*/, false /*exec*/);
+	if (!ok) {
+		return false;
+	}
+	// now call - will not have immediate effect in network games
+	welt->call_change_player_tool(karte_t::new_player, nr, type, true /*scripted*/);
+	if (type == 1) {
+		// human needs actiivation
+		welt->call_change_player_tool(karte_t::toggle_player_active, nr, 1, true /*scripted*/);
+	}
+	return true;
+}
+
+
+plainstring world_generate_build_script(karte_t*, player_t* pl, koord3d start, koord3d end)
+{
+	cbuffer_t script;
+	koord area;
+	if (pl == NULL || tool_generate_script_t::build_script(pl, start, end, script, area) != NULL || script.len() == 0) {
+		return plainstring();
+	}
+	return plainstring(script.get_str());
 }
 
 
@@ -213,13 +247,9 @@ SQInteger world_get_convoy_list(HSQUIRRELVM vm)
 
 SQInteger world_get_size(HSQUIRRELVM vm)
 {
-	koord k = welt->get_size();
-	if (coordinate_transform_t::get_rotation() & 1) {
-		return push_instance(vm, "coord", k.y, k.x);
-	}
-	else {
-		return push_instance(vm, "coord", k.x, k.y);
-	}
+	// the bounding rhombus of the map as the script sees it, at its rotation 0
+	const map_shape_t s = welt->get_map_shape().rotated(-(int)coordinate_transform_t::get_rotation());
+	return push_instance(vm, "coord", s.get_size_q(), s.get_size_r());
 }
 
 const char* get_pakset_name()
@@ -275,6 +305,18 @@ void export_world(HSQUIRRELVM vm, bool scenario)
 		STATIC register_method(vm, &world_remove_player, "remove_player", true);
 
 		/**
+		* create a new player company if the slot nr is free
+		*
+		* In network games, there will be a delay between the call to this function and creation of a new company.
+		*
+		* @param nr of new player to be created
+		* @param type of new player to be created; only 1 (huma) or 2 (ai) will work
+		* @ingroup scen_only
+		* @returns whether operation was successful
+		*/
+		STATIC register_method(vm, &world_create_player, "create_player", true);
+
+		/**
 		 * Generates goods (passengers, mail or freight) that want to travel from @p from to @p to.
 		 * Updates halt statistics (happy, unhappy, no route) for passengers if possible.
 		 *
@@ -289,6 +331,22 @@ void export_world(HSQUIRRELVM vm, bool scenario)
 		 * @ingroup scen_only
 		 */
 		STATIC register_method(vm, &world_generate_goods, "generate_goods", true);
+
+		/**
+		 * Generates the script that the "generate script" tool saves for the area spanned by
+		 * @p start and @p end.
+		 * It rebuilds the ground, ways, way objects, bridges, stations, depots, signs and houses
+		 * of the area for the build toolkit (script/hm_toolkit_v3.nut).
+		 * The positions in the script are relative to the corner of the area with the smallest
+		 * x and y, at the height of the ground at @p start.
+		 *
+		 * @param pl player whose buildings are exported
+		 * @param start first corner of the area
+		 * @param end opposite corner of the area
+		 * @returns text of the script, or null if there is nothing to export or the area is off the map
+		 * @ingroup scen_only
+		 */
+		STATIC register_method(vm, &world_generate_build_script, "generate_build_script", true);
 	}
 
 	/**
@@ -483,6 +541,7 @@ void export_world(HSQUIRRELVM vm, bool scenario)
 	register_function(vm, world_attraction_list_next,  "_nexti",  2, ". o|i");
 	/**
 	 * Meta-method to be used in foreach loops to loop over all attractions on the map. Do not call it directly.
+	 * @param index of the attraction in the list
 	 */
 	register_method(vm,   world_attraction_list_get,   "_get", true);
 	/**
@@ -512,6 +571,7 @@ void export_world(HSQUIRRELVM vm, bool scenario)
 	register_function(vm, world_label_list_next,  "_nexti",  2, ". o|i");
 	/**
 	 * Meta-method to be used in foreach loops to loop over all labels on the map. Do not call it directly.
+	 * @param index of the label in the list
 	 */
 	register_method(vm, world_label_list_get,   "_get", true);
 	/**

@@ -124,6 +124,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_map_preview.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_numberinput.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_obj_view.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_owner.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_schedule.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_scrollbar.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_scrolled_list.cc" />
@@ -182,6 +183,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\message_stats.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\minimap.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\money_frame.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\music_folder_frame.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\obj_info.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\optionen.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\pakinstaller.cc" />
@@ -209,6 +211,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\tool_selector.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\trafficlight_info.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\vehiclelist_frame.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\way_builder_frame.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\welt.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\io\classify_file.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\io\raw_image_bmp.cc" />
@@ -283,6 +286,9 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_player.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_scenario.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_schedule.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_ai_test.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_city_test.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_schedule_route_test.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_settings.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_simple.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_tiles.cc" />
@@ -313,6 +319,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simmem.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simmesg.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simskin.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simsocial.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simsound.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simticker.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simware.cc" />
@@ -502,6 +509,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_map_preview.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_numberinput.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_obj_view.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_owner.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_schedule.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_scrollbar.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_scrolled_list.h" />
@@ -560,6 +568,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\message_stats.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\minimap.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\money_frame.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\music_folder_frame.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\obj_info.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\optionen.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\pakinstaller.h" />
@@ -586,6 +595,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\tool_selector.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\trafficlight_info.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\vehiclelist_frame.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\way_builder_frame.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\welt.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\io\classify_file.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\io\raw_image.h" />
@@ -678,6 +688,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simmem.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simmesg.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simskin.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simsocial.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simsound.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simticker.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simtypes.h" />

@@ -1,7 +1,49 @@
+	ADD: more zoom in levels + zoom shown in display settings
+
+
+Release of 125.0.1 (r12334 on 5-Oct-2026):
+	FIX: crash when dragging way from single to double slope
+	FIX: building tunnels (or bridges) even of only one of them is selected
+	FIX: could not input text commands with SDL2
+	CHG: Underground building without portal using sliced underground mode
+	ADD: midi music folder selection
+
+
+Release of 125.0 (r12321 on 1-Oct-2026):
 	FIX: If factory status label were always on, then factories with stops (like oil rigg and fish swarm) the halt status clashed with factory status. Moreover, the factory name could differ from stop name, so both needs to be show then
 	CHG: using memcpy for image loading (when possible) reduces loading time of paks again
 	ADD: merge stop tool allows to merge with the stop of another player that has set sharing permissions without giving up building and way ownership
 	ADD: Indicate multiple stop ownership by colour bands of station name
+	FIX: again tunnel building in full underground mode
+	FIX: citybuildings of level 1 were actually level zero due to makeobj substracting 1 on loading.
+	FIX: correct citysize again after renovation.
+	CHG: reserved tile for way choose of non-trains (road and air) will now be shown in green when reservation display is on
+	CHG: very much overhauled airplane state machine: Should give much fewer deadlocks (no landing and blockign runway with not free stop, not leaving bay when plane coming in my direction for take off)
+	CHG: direction switches will first display the undefined graphic (if there)
+	ADD: close diagonal became possible including trains passing in different directions.
+	ADD: Including handling of wayobj (as with ways, define diagonal[close1] for close diagonal image)
+	FIX: (Nazalassa) only send chat when hitting RETURN
+	ADD: Filter halt list also for permissions and shared ownership
+	ADD: shared ownership can be indicated by either horizontal or vertical color bars
+	CHG: no_route color for passenger overlay now magenta
+	CHG: box around factoryies not either black or white depending on contrast and draw fields in factory color
+	FIX: fields were not show not removed from minimap
+	ADD: (victor_18993) power tab for electricity producers
+	CHG: TOOL_SHOW_UNDERGROUND new default parameter 'T' for toggling between modes, 'U' for full underground only to properly delect the underground modes
+	FIX: Only make owner pieces of a halt public and give an error message, if nothing was converted
+	ADD: (victor_18993) quicker iterating through freelists in sync_step
+	FIX: minimap destination overlay for cities was broken
+	CHG: (poppo) elevated ways also allowed on top of bridges
+	CHG: (victor_18993) Prevent too high buildings to appear under bridges and elevated ways
+	     + new building parameter in dat file "height_clearance" The allowed spacing to grounds above it
+		 (If not set recalculated from the images)
+	FIX: Crash when using makeobj 'merge' or 'extract' commands
+	ADD: (victor_18993) schedule editor shows the route of the schedule on the map
+	FIX: Crash on Windows when receiving gameinfo for server with motd with >= 260 chars
+	CHG: Now using iso codes for CS, DA and EL (was CZ, DK and GR)
+	ADD: alpha version of a way builder tool DIALOG_TOOL[38] (that show how bad automatic bridge building is right now)
+	FIX: way builder now builds agian automatic bridges from slopes and tries tunnel and bridges even to span normal otherwise terrain with ways
+	FIX: waybuilder should avoid double slopes if the way does not have them, (was broken)
 
 
 Release of 124.5 (r11993 on 31-May-2026):

@@ -4,6 +4,7 @@
  */
 
 #include "display_settings.h"
+#include "../simdebug.h"
 #include "../world/simworld.h"
 #include "../display/simimg.h"
 #include "../simintr.h"
@@ -47,6 +48,7 @@ enum {
 	IDBTN_CHANGE_FONT,
 	IDBTN_INFINITE_SCROLL,
 	IDBTN_LEFTDRAG_MINIMAP,
+	IDBTN_SHARED_HORIZONTAL,
 	COLORS_MAX_BUTTONS
 };
 
@@ -154,6 +156,10 @@ gui_settings_t::gui_settings_t()
 	reselect_closes_tool.pressed = env_t::reselect_closes_tool;
 	add_component( &reselect_closes_tool, 3 );
 
+	show_construction_info.init( button_t::square_state, "show_construction_info" );
+	show_construction_info.pressed = env_t::show_construction_info;
+	add_component( &show_construction_info, 3 );
+
 	fullscreen.init( button_t::square_state, "Fullscreen (changed after restart)" );
 	fullscreen.pressed = ( dr_get_fullscreen() == FULLSCREEN );
 	fullscreen.enable(dr_has_fullscreen());
@@ -202,13 +208,15 @@ void gui_settings_t::draw(scr_coord offset)
 		color = gfx->palette_lookup(( loops <= target_fps*16/2 ) ? COL_RED : COL_YELLOW);
 	}
 	fps_value_label.set_color(color);
-	fps_value_label.buf().printf(" %d fps", loops/16 );
+	uint32 zoom = gfx->get_zoom_factor();
+	fps_value_label.buf().printf(" %d fps at zoom %d %%", loops/16, (100*gfx->zoom_num[zoom])/gfx->zoom_den[zoom]);
 #if MSG_LEVEL >= 3
 	if(  env_t::simple_drawing  ) {
 		fps_value_label.buf().append( "*" );
 	}
 #endif
 	fps_value_label.update();
+	fps_value_label.set_size(scr_size(get_size().w - D_MARGINS_X, fps_value_label.get_size().h));
 
 	//simloops_label
 	loops = world()->get_simloops();
@@ -492,6 +500,11 @@ station_settings_t::station_settings_t()
 	buttons[ IDBTN_SHOW_WAITING_BARS ].init( button_t::square_state, "show waiting bars" );
 	buttons[ IDBTN_SHOW_WAITING_BARS ].pressed = env_t::show_names & 2;
 	add_component( buttons + IDBTN_SHOW_WAITING_BARS, 2 );
+
+	// Show waiting bars checkbox
+	buttons[IDBTN_SHARED_HORIZONTAL].init(button_t::square_state, "Horizontal stripe ownership");
+	buttons[IDBTN_SHARED_HORIZONTAL].pressed = env_t::horizontal_stripe_owner;
+	add_component(buttons + IDBTN_SHARED_HORIZONTAL, 2);
 }
 
 traffic_settings_t::traffic_settings_t()
@@ -613,6 +626,7 @@ color_gui_t::color_gui_t() :
 	gui_settings.single_toolbar.add_listener(this);
 	gui_settings.stack_toolbars.add_listener(this);
 	gui_settings.reselect_closes_tool.add_listener(this);
+	gui_settings.show_construction_info.add_listener(this);
 	gui_settings.fullscreen.add_listener( this );
 	gui_settings.borderless.add_listener( this );
 
@@ -673,6 +687,12 @@ bool color_gui_t::action_triggered( gui_action_creator_t *comp, value_t)
 	if(  comp == &gui_settings.stack_toolbars  ) {
 		env_t::stack_toolbars = !env_t::stack_toolbars;
 		gui_settings.stack_toolbars.pressed = env_t::stack_toolbars;
+		return true;
+	}
+
+	if(  comp == &gui_settings.show_construction_info  ) {
+		env_t::show_construction_info = !env_t::show_construction_info;
+		gui_settings.show_construction_info.pressed = env_t::show_construction_info;
 		return true;
 	}
 
@@ -738,6 +758,9 @@ bool color_gui_t::action_triggered( gui_action_creator_t *comp, value_t)
 	case IDBTN_SHOW_WAITING_BARS:
 		env_t::show_names ^= 2;
 		break;
+	case IDBTN_SHARED_HORIZONTAL:
+		env_t::horizontal_stripe_owner ^= 1;
+		break;
 	case IDBTN_HIDE_LABELS:
 		env_t::show_names ^= 1;
 		break;
@@ -790,7 +813,8 @@ void color_gui_t::draw(scr_coord pos, scr_size size)
 	buttons[IDBTN_SHOW_STATION_COVERAGE].pressed = env_t::station_coverage_show;
 	buttons[IDBTN_UNDERGROUND_VIEW].pressed = grund_t::underground_mode == grund_t::ugm_all;
 	buttons[IDBTN_SHOW_GRID].pressed = grund_t::show_grid;
-	buttons[IDBTN_SHOW_WAITING_BARS].pressed = (env_t::show_names&2)!=0;
+	buttons[IDBTN_SHOW_WAITING_BARS].pressed = (env_t::show_names & 2) != 0;
+	buttons[IDBTN_SHARED_HORIZONTAL].pressed = env_t::horizontal_stripe_owner;
 	buttons[IDBTN_HIDE_LABELS].pressed = (env_t::show_names & 1) == 0;
 	buttons[IDBTN_SHOW_SLICE_MAP_VIEW].pressed = grund_t::underground_mode == grund_t::ugm_level;
 	buttons[IDBTN_SHOW_SCHEDULES_STOP].pressed = env_t::visualize_schedule;

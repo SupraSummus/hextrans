@@ -176,6 +176,7 @@ void export_tiles(HSQUIRRELVM vm)
 	/**
 	 * Search for a given object type on the tile.
 	 * @return some instance or null if not found
+	 * @param type of the map object
 	 */
 	register_method(vm, &grund_t::suche_obj, "find_object");
 	/**
@@ -245,6 +246,17 @@ void export_tiles(HSQUIRRELVM vm)
 	 *          For per-object sprites (ways, buildings, ...) use map_object_x::get_image.
 	 */
 	register_method(vm, &ground_get_image, "get_image", true);
+
+	/**
+	 * @returns the back-wall state the engine last computed for this tile,
+	 *          which does not need a pakset with images.
+	 *          The walls to the NW, N and NE neighbours are the digits 0, 1
+	 *          and 2 in base 11, each nonzero where a wall shows;
+	 *          a plain fence is encoded above 1331, and the value is negative
+	 *          for walls of foundations and artificial slopes.
+	 *          Use for asserting that a change on a neighbour redrew this tile.
+	 */
+	register_method(vm, &grund_t::get_back_imageid, "get_back_walls");
 
 	/**
 	 * Returns text of a sign on this tile (station sign, city name, label).
@@ -420,7 +432,7 @@ void export_tiles(HSQUIRRELVM vm)
 
 	/**
 	 * Returns list of stations that cover this tile.
-	 * @typemask array<halt_x>
+	 * @typemask array<halt_x>()
 	 */
 	register_method(vm, &square_get_halt_list, "get_halt_list", true);
 

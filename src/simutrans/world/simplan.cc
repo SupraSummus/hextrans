@@ -88,6 +88,20 @@ grund_t *planquadrat_t::get_boden_von_obj(obj_t *obj) const
 }
 
 
+sint16 planquadrat_t::get_overhead_clearance() const
+{
+	sint16 clearance = 127;
+	const sint8 base_h = get_kartenboden()->get_hoehe();
+	for(  unsigned b = 1;  b < get_boden_count();  b++  ) {
+		const sint8 diff_h = get_boden_bei(b)->get_hoehe() - base_h;
+		if(  diff_h > 0  &&  diff_h < clearance  ) {
+			clearance = diff_h;
+		}
+	}
+	return clearance;
+}
+
+
 void planquadrat_t::boden_hinzufuegen(grund_t *bd)
 {
 	assert(!bd->ist_karten_boden());
@@ -347,6 +361,9 @@ void planquadrat_t::check_season_snowline(const bool season_change, const bool s
 void planquadrat_t::correct_water()
 {
 	grund_t *gr = get_kartenboden();
+	if(  !gr  ) {
+		return; // off-map cell of the W x H x D hexagon
+	}
 	slope_t::type slope = gr->get_grund_hang();
 	sint8 max_height = gr->get_hoehe() + slope_t::max_diff( slope );
 	koord k = gr->get_pos().get_2d();
@@ -367,11 +384,7 @@ void planquadrat_t::correct_water()
 	gr = get_kartenboden();
 	if(  gr  &&  gr->get_typ() != grund_t::wasser  &&  gr->get_disp_height() < water_hgt  &&  welt->max_hgt(k) > water_hgt  ) {
 		sint8 disp_hneu = water_hgt;
-		sint8 disp_hn_sw = max( gr->get_hoehe() + corner_sw(slope), water_hgt );
-		sint8 disp_hn_se = max( gr->get_hoehe() + corner_se(slope), water_hgt );
-		sint8 disp_hn_ne = max( gr->get_hoehe() + corner_ne(slope), water_hgt );
-		sint8 disp_hn_nw = max( gr->get_hoehe() + corner_nw(slope), water_hgt );
-		const slope_t::type sneu = encode_corners(disp_hn_sw - disp_hneu, disp_hn_se - disp_hneu, disp_hn_ne - disp_hneu, disp_hn_nw - disp_hneu);
+		const slope_t::type sneu = slope_t::raise_base( slope, disp_hneu - gr->get_hoehe() );
 		gr->set_hoehe( disp_hneu );
 		gr->set_grund_hang( (slope_t::type)sneu );
 	}
@@ -492,17 +505,44 @@ void planquadrat_t::display_obj(const sint16 xpos, const sint16 ypos, const sint
 		// clip everything at the next tile above
 		if(  i < ground_size  ) {
 			// there are grounds above => check height of height object below
+			// How far the objects on this tile rise above its ground, in HEIGHT
+			// LEVELS - which is the unit (htop - hmin) is measured in below.
 			sint16 max_height = 0;
-			sint16 rw = gfx->get_base_tile_raster_width();
-			const sint16 clip_h = rw / 2 + (env_t::pak_height_conversion_factor * rw / 8);
+			// get_image_offset() returns the zoomed offsets, so take the raster
+			// width zoomed too; the quotient is the same count either way.
+			const sint16 rw = gfx->get_tile_raster_width();
+			const sint16 level_h = max((sint16)1, (sint16)tile_raster_scale_y(TILE_HEIGHT_STEP, rw));
 
 			for (uint8 i = 0; i < gr0->obj_count(); i++) {
 				obj_t* o = gr0->obj_bei(i);
-				if (o->get_typ() == obj_t::baum   ||  dynamic_cast<gebaeude_t *>(o)) {
+				// This is a hot loop - the draw path runs it for every tile.
+				// get_typ() + static_cast, never dynamic_cast, and a single
+				// cached height off the desc, never a per-tile computation:
+				// almost every tile is a cache miss).
+				if (o->get_typ() == obj_t::gebaeude) {
+					const gebaeude_t *gb = static_cast<const gebaeude_t *>(o);
+					// the building's get_image() is its ground row alone, so
+					// measuring that image would call a tower one storey tall;
+					// the height was computed once at load.
+					max_height = max(max_height, (sint16)gb->get_tile()->get_desc()->get_height_clearance());
+				}
+				else if (o->get_typ() == obj_t::baum) {
 					image_id img = o->get_image();
 					if (img != IMG_EMPTY) {
 						const scr_rect area = gfx->get_image_offset(img);
-						max_height = max(max_height, (area.h - area.y) / clip_h);
+						// The ground line is at half the cell and image
+						// coordinates run from the top left, so the artwork
+						// reaches (rw/2 - y) above it. What stood here,
+						// (area.h - area.y), subtracted an offset from a size:
+						// negative for 144 of pak128's 550 tree images.
+						// A tree also carries a per-instance offset (baum_t::
+						// calc_off): a negative yoff lifts it toward the top
+						// corner, so its real screen-top rises higher than the
+						// sprite box alone. Fold in the same scaled yoff the draw
+						// path applies (simobj.cc: ypos += scale(get_yoff())), or
+						// a top-corner tree slips through the gate below
+						const sint16 yoff = tile_raster_scale_y(o->get_yoff(), rw);
+						max_height = max(max_height, max((sint16)0, (sint16)(rw / 2 - area.y - yoff)) / level_h);
 					}
 				}
 			}
@@ -660,7 +700,7 @@ void planquadrat_t::display_overlay(const sint16 xpos, const sint16 ypos) const
 			image_id img = overlay_img(gr);
 
 			for(int halt_count = 0; halt_count < halt_list_count; halt_count++) {
-				const FLAGGED_PIXVAL transparent = PLAYER_FLAG | OUTLINE_FLAG | gfx->palette_lookup(halt_list[halt_count]->get_owner()->get_player_color1() + 4);
+				const FLAGGED_PIXVAL transparent = PLAYER_FLAG | OUTLINE_FLAG | gfx->palette_lookup(halt_list[halt_count]->get_player_color() + 4);
 				gfx->draw_img_blend( img, xpos, ypos, transparent | TRANSPARENT25_FLAG, 0, 0);
 			}
 /*
@@ -688,7 +728,8 @@ void planquadrat_t::display_overlay(const sint16 xpos, const sint16 ypos) const
 			const sint16 off = (raster_tile_width>>5);
 			// suitable start search
 			for (size_t h = halt_list_count; h-- != 0;) {
-				gfx->draw_rect_clipped(x - h * off, y + h * off, r, r, PLAYER_FLAG | gfx->palette_lookup(halt_list[h]->get_owner()->get_player_color1() + 4), kartenboden_dirty CLIP_NUM_DEFAULT);
+				// ### MULTI COLOR BOX ###
+				gfx->draw_rect_clipped(x - h * off, y + h * off, r, r, PLAYER_FLAG | gfx->palette_lookup(halt_list[h]->get_player_color() + 4), kartenboden_dirty CLIP_NUM_DEFAULT);
 			}
 		}
 	}
@@ -714,7 +755,7 @@ halthandle_t planquadrat_t::get_halt(player_t *player) const
 {
 	for(  uint8 i=0;  i < get_boden_count();  i++  ) {
 		halthandle_t my_halt = get_boden_bei(i)->get_halt();
-		if(  my_halt.is_bound()  &&  (player == NULL  ||  player == my_halt->get_owner())  ) {
+		if(  my_halt.is_bound()  &&  (player == NULL  ||  my_halt->can_use_halt(player))  ) {
 			return my_halt;
 		}
 	}
@@ -885,6 +926,9 @@ bool planquadrat_t::is_connected(halthandle_t halt) const
 
 void planquadrat_t::update_underground() const
 {
+	if(  ground_size == 0  ) {
+		return; // off-map cell of the W x H x D hexagon
+	}
 	get_kartenboden()->check_update_underground();
 	// update tunnel tiles
 	for(unsigned int i=1; i<get_boden_count(); i++) {

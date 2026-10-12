@@ -54,6 +54,13 @@ uint8 tree_builder_t::plant_tree_on_coordinate(koord pos, const uint8 maximum_co
 {
 	grund_t *gr = welt->lookup_kartenboden(pos);
 	if(  gr  ) {
+		// not under an elevated way or bridge deck: a tree carries no height and
+		// the draw clip cannot hide one poking above a low deck (thread 23992),
+		// so it is not planted there in the first place. gr is on the map, so the
+		// plan exists.
+		if(  welt->access(pos)->get_overhead_clearance() < 127  ) {
+			return 0;
+		}
 		if(  has_trees_for_climate( welt->get_climate(pos) )  &&  gr->ist_natur()  &&  gr->obj_count() < maximum_count  ) {
 			obj_t *obj = gr->obj_bei(0);
 			if(obj) {
@@ -99,6 +106,10 @@ bool tree_builder_t::plant_tree_on_coordinate(koord pos, const tree_desc_t *desc
 
 	grund_t *gr = welt->lookup_kartenboden(pos);
 	if(  gr  ) {
+		// not under an elevated way or bridge deck (see the other overload).
+		if(  welt->access(pos)->get_overhead_clearance() < 127  ) {
+			return false;
+		}
 		if(  gr->ist_natur()  &&  gr->obj_count() < welt->get_settings().get_max_no_of_trees_on_square()  &&  (!check_climate  ||  desc->is_allowed_climate( welt->get_climate(pos) ))  ) {
 			if(  gr->obj_count() > 0  ) {
 				switch(gr->obj_bei(0)->get_typ()) {
@@ -136,7 +147,7 @@ bool tree_builder_t::plant_tree_on_coordinate(koord pos, const tree_desc_t *desc
 }
 
 
-uint32 tree_builder_t::create_forest(koord new_center, koord wh, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom)
+uint32 tree_builder_t::create_forest(koord new_center, koord wh, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip)
 {
 	// none there
 	if(  desc_table.empty()  ) {
@@ -159,8 +170,15 @@ uint32 tree_builder_t::create_forest(koord new_center, koord wh, sint16 xtop, si
 			if( ytop > (ypos_f + y_tree_pos)  ||  (ypos_f + y_tree_pos) >= ybottom ) {
 				continue;
 			}
+			if( skip  &&  skip->contains(xpos_f + x_tree_pos, ypos_f + y_tree_pos) ) {
+				continue;
+			}
 
-			const uint64 distance = 1 + sqrt_i64( ((uint64)x_tree_pos*x_tree_pos*(wh.y*wh.y) + (uint64)y_tree_pos*y_tree_pos*(wh.x*wh.x)));
+			// distance from the middle in the map plane, which is not x^2 + y^2 in axial
+			// coordinates but physical_distance_sq(); scaled so that wh is the ellipse's extent
+			const sint64 u = (sint64)x_tree_pos*wh.y;
+			const sint64 v = (sint64)y_tree_pos*wh.x;
+			const uint64 distance = 1 + sqrt_i64( (uint64)(u*u + u*v + v*v) );
 			const uint32 tree_probability = (uint32)( ( 8 * (uint32)((wh.x*wh.x)+(wh.y*wh.y)) ) / distance );
 
 			if (tree_probability < 38) {
@@ -188,7 +206,7 @@ uint32 tree_builder_t::create_forest(koord new_center, koord wh, sint16 xtop, si
 }
 
 
-void tree_builder_t::fill_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom )
+void tree_builder_t::fill_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip )
 {
 	// none there
 	if(  desc_table.empty()  ) {
@@ -201,7 +219,7 @@ void tree_builder_t::fill_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbo
 	for(  pos.y=ytop;  pos.y<ybottom;  pos.y++  ) {
 		for(  pos.x=xtop;  pos.x<xbottom;  pos.x++  ) {
 			grund_t *gr = welt->lookup_kartenboden(pos);
-			if(gr->obj_count() == 0  &&  gr->get_typ() == grund_t::boden)  {
+			if(gr  &&  gr->obj_count() == 0  &&  gr->get_typ() == grund_t::boden  &&  !(skip  &&  skip->contains(pos)))  {
 				// plant spare trees, (those with low preffered density) or in an entirely tree climate
 				const uint16 cl = 1 << welt->get_climate(pos);
 				const settings_t &s = welt->get_settings();
@@ -294,7 +312,7 @@ bool tree_builder_t::register_desc(const tree_desc_t *desc)
 }
 
 
-void tree_builder_t::distribute_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom)
+void tree_builder_t::distribute_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip)
 {
 	// now we can proceed to tree planting routine itself
 	// best forests results are produced if forest size is tied to map size -
@@ -309,13 +327,13 @@ void tree_builder_t::distribute_trees(int dichte, sint16 xtop, sint16 ytop, sint
 
 	for (uint32 c1 = 0; c1 < c_forest_count ; c1++) {
 		// to have same execution order for simrand
-		koord const start = koord::koord_random(x, y);
+		koord const start = welt->get_random_tile();
 		koord const size  = koord(t_forest_size,t_forest_size) + koord::koord_random(t_forest_size, t_forest_size);
 
-		create_forest( start, size, xtop, ytop, xbottom, ybottom );
+		create_forest( start, size, xtop, ytop, xbottom, ybottom, skip );
 	}
 
-	fill_trees( dichte, xtop, ytop, xbottom, ybottom );
+	fill_trees( dichte, xtop, ytop, xbottom, ybottom, skip );
 }
 
 
@@ -337,9 +355,8 @@ uint16 tree_builder_t::random_tree_id_for_climate(climate cl)
 bool tree_builder_t::spawn_tree_near(const baum_t *tree, int radius)
 {
 	// to have same execution order for simrand
-	const sint16 sx = simrand(2*radius + 1)-radius;
-	const sint16 sy = simrand(2*radius + 1)-radius;
-	const koord k = tree->get_pos().get_2d() + koord(sx,sy);
+	const hex_disc disc(radius);
+	const koord k = tree->get_pos().get_2d() + disc.at(simrand(disc.size()));
 
 	return plant_tree_on_coordinate(k, tree->get_desc(), true, false);
 }

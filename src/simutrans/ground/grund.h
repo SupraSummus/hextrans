@@ -330,6 +330,15 @@ public:
 	void calc_image();
 
 	/**
+	 * Recalculates the images of the tiles whose back walls read the tile
+	 * at @p k, after its height, slope or building changed: its SE, S and
+	 * SW neighbours, which have it as their NW, N and NE neighbour in
+	 * `calc_back_image`.  The tile at @p k itself is not touched.  Tiles
+	 * off the map and in the cut corners of the hexagon are skipped.
+	 */
+	static void recalc_back_wall_dependants(koord k);
+
+	/**
 	* Return the number of images the ground has.
 	* @return The number of images.
 	*/
@@ -345,6 +354,11 @@ public:
 	// encodes a fence (range above BIID_ENCODE_FENCE_OFFSET).
 	image_id get_back_image(uint8 wall) const;
 	virtual void clear_back_image() {back_imageid=0;}
+
+	// The raw encoded back-wall state `calc_back_image` last stored, for
+	// the script API: unlike `get_back_image` it does not need a pakset
+	// with images, so headless tests can see a stale tile.
+	sint16 get_back_imageid() const { return back_imageid; }
 
 	/**
 	* if ground is deleted mark the old spot as dirty
@@ -536,7 +550,7 @@ public:
 			switch(underground_mode) {
 				case ugm_none: return ist_karten_boden();
 				case ugm_all:  return true;
-				case ugm_level:return  pos.z == underground_level  ||  pos.z+max(max(corner_sw(slope),corner_se(slope)),max(corner_ne(slope),corner_nw(slope))) == underground_level  ||  (ist_karten_boden()  &&  pos.z <= underground_level);
+				case ugm_level:return  pos.z == underground_level  ||  pos.z+slope_t::max_diff(slope) == underground_level  ||  (ist_karten_boden()  &&  pos.z <= underground_level);
 			}
 		}
 		else {
@@ -892,6 +906,19 @@ public:
 		}
 
 		return h;
+	}
+
+	/**
+	 * On a bridge ramp built on already-sloped terrain, the whole ramp is lifted an extra
+	 * 1 or 2 tile heights above the corner offsets that get_weg_hang() alone accounts for
+	 * (mirrors the bridgehead case in get_vmove()). Used when placing something (e.g. an
+	 * elevated way) a fixed clearance above this ground's own way surface.
+	 */
+	inline sint8 get_bridge_slope_extra_height() const {
+		if(  ist_bruecke()  &&  slope  &&  get_weg_hang() != slope  ) {
+			return is_one_high(slope) ? 1 : 2;
+		}
+		return 0;
 	}
 
 	/** removes everything from a tile, including a halt but i.e. leave a

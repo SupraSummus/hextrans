@@ -20,11 +20,14 @@
 #include "../ground/tunnelboden.h"
 
 #include "../dataobj/scenario.h"
+#include "../dataobj/environment.h"
 #include "../dataobj/marker.h"
 
 #include "../obj/tunnel.h"
 #include "../obj/leitung2.h"
+#include "../obj/signal.h"
 
+#include "../gui/messagebox.h"
 #include "../gui/tool_selector.h"
 
 #include "wegbauer.h"
@@ -250,7 +253,7 @@ koord3d tunnel_builder_t::find_end_pos(player_t *player, koord3d pos, koord zv, 
 				}
 				// fake tunnel tile
 				tunnelboden_t from(pos - zv, slope_t::flat);
-				if (bauigel.is_allowed_step(&from, gr, &dummy)) {
+				if (bauigel.is_allowed_step(&from, gr, &dummy, 0)) {
 					return gr->get_pos();
 				}
 				else {
@@ -664,7 +667,7 @@ void tunnel_builder_t::build_tunnel_portal(player_t *player, koord3d end, koord 
 			way_builder_t bauigel(player);
 			bauigel.init_builder( (way_builder_t::bautyp_t)desc->get_waytype(), way_outside->get_desc());
 			sint32 dummy;
-			if(bauigel.is_allowed_step(tunnel, ground_outside, &dummy)) {
+			if(bauigel.is_allowed_step(tunnel, ground_outside, &dummy, 0)) {
 				tunnel->weg_erweitern(desc->get_waytype(), ribi_type(-zv));
 				ground_outside->weg_erweitern(desc->get_waytype(), ribi_type(zv));
 			}

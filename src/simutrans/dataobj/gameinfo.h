@@ -23,7 +23,8 @@ class loadsave_t;
 class gameinfo_t
 {
 private:
-	sint32 size_x, size_y;
+	// sides of the W x H x D hexagon (documentation/map-shape.md)
+	sint32 size_x, size_y, size_d;
 	/**
 	 * Two pixel arrays: one with indexed colors (sent by servers),
 	 * one with rgb colors (will be displayed)
@@ -73,6 +74,7 @@ public:
 
 	sint32 get_size_x() const {return size_x;}
 	sint32 get_size_y() const {return size_y;}
+	sint32 get_size_d() const {return size_d;}
 	const array2d_tpl<PIXVAL> *get_map() const { return &map_pixval; }
 
 	sint32 get_industries() const {return industries;}

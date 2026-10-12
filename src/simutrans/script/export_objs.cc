@@ -5,7 +5,10 @@
 
 #include "export_objs.h"
 
+#include <string.h>
+
 #include "api_function.h"
+#include "api_class.h"
 
 #include "api/api.h"
 
@@ -36,6 +39,11 @@ void register_export_function(HSQUIRRELVM vm, bool scenario)
 	export_tiles(vm);
 	export_world(vm, scenario);
 	export_pathfinding(vm);
+	export_ai_test(vm, scenario);       // TEST SUPPORT ONLY
+	if (scenario) {
+		export_schedule_route_test(vm); // TEST SUPPORT ONLY
+		export_city_test(vm);           // TEST SUPPORT ONLY
+	}
 
 	export_commands(vm);
 

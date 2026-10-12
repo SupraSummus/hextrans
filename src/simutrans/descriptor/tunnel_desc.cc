@@ -3,6 +3,8 @@
  * (see LICENSE.txt)
  */
 
+#include <stdio.h>
+
 #include "../dataobj/ribi.h"
 #include "tunnel_desc.h"
 
@@ -15,19 +17,22 @@
 // the key was named for the high edge / portal-facing direction),
 // so pre-port pak64 tunnel images load at slots with N↔S and E↔W
 // permuted; new hex art needs to follow the low-edge convention.
-// Narrow and wide variants of the same axis edge share the portal
-// slot — the portal hugs the same low edge regardless of whether the
-// off-axis side corners are also raised.  Double-height slopes are
-// no longer way-buildable so they're gone from this table.
+// Narrow, wide and double variants of the same axis edge share the
+// portal slot — the portal hugs the same low edge regardless of the
+// off-axis side corners or the climb height.  Upstream keys single
+// and double slopes onto one slot the same way.  The tunnel builder
+// cuts its mouths into the planar `*_double` slope at the default
+// `way_height_clearance` 2, so a table without the doubles leaves
+// every portal without an image.
 int tunnel_desc_t::slope_index(slope_t::type slope)
 {
 	switch (slope) {
-		case slope_t::north_narrow:     case slope_t::north_wide:     return 0; // n
-		case slope_t::south_narrow:     case slope_t::south_wide:     return 1; // s
-		case slope_t::northeast_narrow: case slope_t::northeast_wide: return 2; // ne
-		case slope_t::southeast_narrow: case slope_t::southeast_wide: return 3; // se
-		case slope_t::southwest_narrow: case slope_t::southwest_wide: return 4; // sw
-		case slope_t::northwest_narrow: case slope_t::northwest_wide: return 5; // nw
+		case slope_t::north_narrow:     case slope_t::north_wide:     case slope_t::north_double:     return 0; // n
+		case slope_t::south_narrow:     case slope_t::south_wide:     case slope_t::south_double:     return 1; // s
+		case slope_t::northeast_narrow: case slope_t::northeast_wide: case slope_t::northeast_double: return 2; // ne
+		case slope_t::southeast_narrow: case slope_t::southeast_wide: case slope_t::southeast_double: return 3; // se
+		case slope_t::southwest_narrow: case slope_t::southwest_wide: case slope_t::southwest_double: return 4; // sw
+		case slope_t::northwest_narrow: case slope_t::northwest_wide: case slope_t::northwest_double: return 5; // nw
 		default: return -1;
 	}
 }

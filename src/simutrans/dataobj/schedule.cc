@@ -10,9 +10,11 @@
 #include "../simtypes.h"
 #include "../world/simworld.h"
 #include "../simhalt.h"
+#include "../display/simimg.h"
 
 #include "../utils/cbuffer.h"
 #include "../utils/simrandom.h"
+#include "../gui/messagebox.h"
 #include "../descriptor/building_desc.h"
 #include "../ground/grund.h"
 #include "../obj/gebaeude.h"
@@ -22,6 +24,8 @@
 #include "translator.h"
 
 #include "schedule.h"
+
+#include "../tpl/slist_tpl.h"
 
 
 schedule_entry_t schedule_t::dummy_entry(koord3d::invalid, 0, 0);
@@ -351,11 +355,11 @@ void schedule_t::rdwr(loadsave_t *file)
 }
 
 
-void schedule_t::rotate90( sint16 y_size )
+void schedule_t::rotate90( const map_shape_t &from )
 {
 	// now we have to rotate all entries ...
 	for(schedule_entry_t & i : entries) {
-		i.pos.rotate90(y_size);
+		i.pos.rotate90( from );
 	}
 }
 

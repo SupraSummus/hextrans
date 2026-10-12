@@ -11,6 +11,7 @@
 
 #include "../dataobj/koord.h"
 #include "../dataobj/koord3d.h"
+#include "../dataobj/map_shape.h"
 #include "../tpl/array2d_tpl.h"
 
 
@@ -43,6 +44,21 @@ protected:
 	/// @brief The maximum of cached_size.x and cached_size.y.
 	/// Maximum size for waiting bars etc.
 	sint16 cached_size_max;
+
+	/**
+	 * The two cut lines of the W x H x D hexagon (map_shape_t):
+	 * on-map tiles have cached_cut_lo <= x + y <= cached_cut_hi.
+	 * With D = 1 they cut nothing.  See documentation/map-shape.md.
+	 */
+	sint32 cached_cut_lo = 0;
+	sint32 cached_cut_hi = 0;
+
+	/// The shape the cached values come from.
+	map_shape_t cached_shape = map_shape_t(1, 1, 1);
+
+	/// Sets cached_grid_size (the bounding rhombus) and the other
+	/// cached extents and cut lines from @p shape.
+	void set_cached_shape(const map_shape_t &shape);
 
 	/// the maximum allowed world height. No tile/grid point can be higher than this limit.
 	sint8 max_allowed_height;
@@ -142,6 +158,11 @@ public:
 	/// @note Valid tile coords are within (0..x-1, 0..y-1)
 	inline koord get_size() const { return cached_grid_size; }
 
+	/// The W x H x D hexagon of the map; get_size() is its bounding rhombus.
+	/// While karte_t::rotate90 moves the tiles it is still the shape before
+	/// the step, the one koord::rotate90 rotates from.
+	inline const map_shape_t &get_map_shape() const { return cached_shape; }
+
 	/// Maximum size for waiting bars etc.
 	inline sint16 get_size_max() const { return cached_size_max; }
 
@@ -153,8 +174,9 @@ public:
 	inline bool is_within_limits(sint16 x, sint16 y) const {
 		// since negative values will make the whole result negative, we can use bitwise or
 		// This is faster, since pentiums and other long pipeline processors do not like jumps
-		// return x>=0 &&  y>=0  &&  cached_size.x>=x  &&  cached_size.y>=y;
-		return (x|y|(cached_size.x-x)|(cached_size.y-y))>=0;
+		// return x>=0 &&  y>=0  &&  cached_size.x>=x  &&  cached_size.y>=y
+		//    &&  x+y>=cached_cut_lo  &&  x+y<=cached_cut_hi;
+		return map_shape_t::contains_cached(x, y, cached_size.x, cached_size.y, cached_cut_lo, cached_cut_hi);
 	}
 
 	/**
@@ -163,6 +185,59 @@ public:
 	 * @note Inline because called very frequently!
 	 */
 	inline bool is_within_limits(koord k) const { return is_within_limits(k.x, k.y); }
+
+	/// On-map tiles of row @p y (0 <= y < get_size().y) are
+	/// get_row_begin(y) <= x < get_row_end(y): map_shape_t::get_q_begin/end.
+	inline sint16 get_row_begin(sint16 y) const { return (sint16)max(0, cached_cut_lo - y); }
+	inline sint16 get_row_end(sint16 y) const { return (sint16)min(cached_grid_size.x, cached_cut_hi - y + 1); }
+
+	/// Hex steps from @p k to the map's edge, negative off the map:
+	/// map_shape_t::edge_distance.
+	inline sint32 get_edge_distance(koord k) const {
+		return map_shape_t::edge_distance_cached(k.x, k.y, cached_size.x, cached_size.y, cached_cut_lo, cached_cut_hi);
+	}
+
+	/**
+	 * True for an on-map tile whose SE, S or SW neighbour is off the map:
+	 * the screen-facing map edge (the far rhombus sides, the far cut and
+	 * the q = 0 side), where grund_t::display_border draws the wall of
+	 * the missing neighbour.
+	 */
+	inline bool is_front_edge(koord k) const {
+		return is_within_limits(k)  &&  (!is_within_limits(k + koord::neighbours[0])
+			||  !is_within_limits(k + koord::neighbours[1])  ||  !is_within_limits(k + koord::neighbours[2]));
+	}
+
+	/// Edge distance of the footprint @p pos .. @p pos + @p size - (1,1):
+	/// each half-plane is monotone in q and r, so the two extreme
+	/// corners decide.
+	inline sint32 get_edge_distance(koord pos, koord size) const {
+		return min(get_edge_distance(pos), get_edge_distance(pos + size - koord(1, 1)));
+	}
+
+	/**
+	 * Calls @p f(koord) for each on-map tile in rows y_min <= y < y_max
+	 * and columns x_min <= x < x_max, row by row; the bounds are clipped
+	 * to the map.  The whole-map loop of the W x H x D hexagon: the
+	 * bounding rhombus minus the cut corners, whose cells have no ground.
+	 */
+	template<class F> void for_each_tile(sint16 x_min, sint16 x_max, sint16 y_min, sint16 y_max, F f) const
+	{
+		y_min = (sint16)max(y_min, 0);
+		y_max = (sint16)min(y_max, cached_grid_size.y);
+		for(  sint16 y = y_min;  y < y_max;  y++  ) {
+			const sint16 x_end = (sint16)min(x_max, get_row_end(y));
+			for(  sint16 x = (sint16)max(x_min, get_row_begin(y));  x < x_end;  x++  ) {
+				f(koord(x, y));
+			}
+		}
+	}
+
+	/// for_each_tile over the whole map.
+	template<class F> void for_each_tile(F f) const
+	{
+		for_each_tile(0, cached_grid_size.x, 0, cached_grid_size.y, f);
+	}
 
 	/**
 	 * @return True if the specified coordinate is inside the world height grid limits, false otherwise.
@@ -195,6 +270,10 @@ public:
 
 	/// @returns the closest coordinate to @p outside_pos that is within the world
 	koord get_closest_coordinate(koord outside_pos) const;
+
+	/// A uniformly random on-map tile: koord_random over the bounding
+	/// rhombus, drawn again while it lands in a cut corner.
+	koord get_random_tile() const;
 
 	/**
 	 * Absolute height of the world vertex @p v from each owning tile's
@@ -271,12 +350,12 @@ public:
 		}
 
 		if ( ( pos.x == cached_grid_size.x )  &&  ( pos.y == cached_grid_size.y ) ) {
-			return access(koord(pos.x-1, pos.y-1))->get_kartenboden();
+			return lookup_kartenboden(koord(pos.x-1, pos.y-1));
 		}
 		else if ( pos.x == cached_grid_size.x ) {
-			return access(koord(pos.x-1, pos.y))->get_kartenboden();
+			return lookup_kartenboden(koord(pos.x-1, pos.y));
 		}
-		return access(koord(pos.x, pos.y-1))->get_kartenboden();
+		return lookup_kartenboden(koord(pos.x, pos.y-1));
 	}
 
 public:
@@ -438,6 +517,15 @@ public:
 
 	/// @return true, if square in place (i,j) with size w, h is constructible.
 	bool square_is_free(koord k, sint16 w, sint16 h, int *last_y, climate_bits cl) const;
+
+	/// @return true, if all tiles within @p radius hex steps of @p centre are
+	/// constructible, as square_is_free tests them with @p centre as its first tile.
+	bool disc_is_free(koord centre, sint16 radius, climate_bits cl) const;
+
+private:
+	/// @return true, if the tile at @p k can be built on as part of a site whose
+	/// first tile has base height @p platz_base_h and maximum height @p platz_max_h.
+	bool tile_is_free(koord k, sint16 platz_base_h, sint16 platz_max_h, climate_bits cl) const;
 
 public:
 	/// @returns Minimum height of the planquadrat (tile) at @p k.

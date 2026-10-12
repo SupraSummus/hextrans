@@ -513,6 +513,9 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\money_frame.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\music_folder_frame.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\obj_info.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -813,6 +816,15 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_schedule.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_ai_test.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_city_test.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_schedule_route_test.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\script\api\api_settings.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -901,6 +913,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simskin.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simsocial.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\simsound.cc">
@@ -1075,6 +1090,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\display\simgraph.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_owner.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\gui\way_builder_frame.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -1649,6 +1670,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\money_frame.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\music_folder_frame.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\obj_info.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -2000,6 +2024,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simskin.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simsocial.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\simsound.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -2250,6 +2277,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\script_generator_frame.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\components\gui_owner.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\gui\way_builder_frame.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

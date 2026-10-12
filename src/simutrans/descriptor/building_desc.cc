@@ -11,7 +11,85 @@
 #include "building_desc.h"
 #include "intro_dates.h"
 #include "../network/checksum.h"
+#include "../display/simgraph.h"
+#include "../dataobj/environment.h"
+#include "../simconst.h"
 
+
+
+/**
+ * How far this tile's artwork rises above its ground line, in height levels.
+ *
+ * The ground line is at half the cell and image coordinates run from the top
+ * left, so one row of artwork reaches (cell/2 - y) above it. Each further image
+ * row is drawn a whole tile higher again (gebaeude_t::display).
+ *
+ * Read from the base images and returned as a count of levels, so the value does
+ * not change with the zoom. Computed, not stored: it is only wanted once, to seed
+ * the building's single height_clearance.
+ */
+uint8 building_tile_desc_t::get_drawn_height() const
+{
+	uint8 height_levels = 0;
+
+	const sint16 cell = gfx->get_base_tile_raster_width();
+	// image pixels per height level. Not the raw tile_height from simuconf.tab:
+	// pak128 says 8 and pak128.german says 16, and both are 128 wide.
+	const sint16 level_h = max((sint16)1, (sint16)tile_raster_scale_y(TILE_HEIGHT_STEP, cell));
+
+	for(  uint8 season = 0;  season < seasons;  season++  ) {
+		image_array_t const* const imglist = get_child<image_array_t>(0 + 2 * season);
+		if(  imglist == NULL  ) {
+			continue;
+		}
+
+		// topmost row holding an image, and how far the ground row reaches up
+		sint16 rows  = 0;
+		sint16 above = 0;
+		for(  uint16 h = 0;  h < imglist->get_count();  h++  ) {
+			if(  image_t const* const image = imglist->get_image(h, 0)  ) {
+				rows = h + 1;
+				if(  h == 0  ) {
+					above = cell / 2 - image->y;
+				}
+			}
+		}
+		if(  rows == 0  ) {
+			continue;
+		}
+
+		// artwork that stays below the ground line does not rise above it at all
+		const sint16 levels = ((rows - 1) * cell + max((sint16)0, above)) / level_h;
+
+		if(  levels > height_levels  ) {
+			height_levels = (uint8)min(levels, (sint16)255);
+		}
+	}
+
+	return height_levels;
+}
+
+
+void building_desc_t::calc_height_clearance()
+{
+	// One height for the whole building, the tallest of its tiles. The draw path
+	// reads this single value for every tile: a per-tile lookup so less cache miss per tile.
+
+	if (height_clearance != 255) {
+		// this building has its height clearance set in its dat file => do not touch it
+		return;
+	}
+
+	// now recaulculate
+	height_clearance = 0;
+
+	for(  uint16 i = 0;  i < (uint16)(layouts * size.x * size.y);  i++  ) {
+		const uint8 h = get_tile(i)->get_drawn_height();
+		if(  h > height_clearance  ) {
+			height_clearance = h;
+		}
+	}
+}
 
 
 /**
@@ -105,13 +183,23 @@ const building_tile_desc_t *building_desc_t::get_tile(uint8 layout, sint16 x, si
 
 
 
+uint8 building_desc_t::fold_ne_sw_layout(uint8 layout)
+{
+	switch(layout) {
+		case 4:  return 2; // NE onto N
+		case 5:  return 0; // SW onto S
+		default: return layout;
+	}
+}
+
+
 /**
  * Layout normalisation. Returns number of different layouts
  */
 uint8 building_desc_t::adjust_layout(uint8 layout) const
 {
 	if(layout >= 4 && layouts <= 4) {
-		layout -= 4;
+		layout = layout <= 5 ? fold_ne_sw_layout(layout) : layout - 4;
 	}
 	if(layout >= 2 && layouts <= 2) {
 		// if layouts C and D are not defined, we use A and B as substitutes
@@ -124,6 +212,35 @@ uint8 building_desc_t::adjust_layout(uint8 layout) const
 		}
 	}
 	return layout;
+}
+
+
+// upstream's 90° layout step, see get_half_turn_layout()
+static uint8 quarter_turn_layout(const building_desc_t *desc, uint8 layout)
+{
+	const uint8 layouts = desc->get_all_layouts();
+	if(  desc->get_type() == building_desc_t::unknown  ||  layouts <= 4  ) {
+		return ((layout+3) % layouts) & 3;
+	}
+	if(  layouts == 8  &&  desc->get_type() >= building_desc_t::city_res  ) {
+		// eight layout city building
+		return (layout & 4) + ((layout+3) & 3);
+	}
+	// 8 & 16 tile layout for stations
+	static const uint8 layout_rotate[16] = { 1, 8, 5, 10, 3, 12, 7, 14, 9, 0, 13, 2, 11, 4, 15, 6 };
+	return layout_rotate[layout & 15] % layouts;
+}
+
+
+uint8 building_desc_t::get_half_turn_layout(uint8 layout) const
+{
+	if(  layouts == 6  ||  (layouts == 8  &&  type >= city_res)  ) {
+		// layouts 0..5 face S, SE, N, NW, NE, SW (ribi_t::layout_to_ribi);
+		// eight-layout city buildings use those six, see orient_city_building()
+		static const uint8 opposite[8] = { 2, 3, 0, 1, 5, 4, 7, 6 };
+		return opposite[layout % layouts];
+	}
+	return quarter_turn_layout( this, quarter_turn_layout( this, layout ) );
 }
 
 

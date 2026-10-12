@@ -48,8 +48,9 @@ public:
 	 * (N, S, NE, SE, SW, NW) for starts and ramps.  Each tile has a
 	 * single-height (`...`) and a double-height (`...2`) variant; the
 	 * latter is optional.  Order inside each height block matches the
-	 * order of `bridge_writer.cc::names[]` so the writer can iterate the
-	 * keys and the engine reads them at the same enum positions.
+	 * key table in `write_bridge_images` (`hex_keys::axis_names` /
+	 * `edge_names`) so the writer can iterate the keys and the engine
+	 * reads them at the same enum positions.
 	 */
 	enum img_t {
 		NS_Segment, NE_SW_Segment, NW_SE_Segment,
@@ -64,6 +65,45 @@ public:
 
 		img_t_count
 	};
+
+	/*
+	 * The image after one 60° map rotation step, which takes N to NE
+	 * and S to SW: segments and pillars change axis, starts and ramps
+	 * their direction, the height set stays.
+	 */
+	static img_t rotate60(img_t img)
+	{
+		const int base = img < NS_Segment2 ? 0 : NS_Segment2;
+		const int i = img - base;
+		// axes NS, NE_SW, NW_SE; directions N, S, NE, SE, SW, NW
+		static const uint8 axis_next[3] = { 1, 2, 0 };
+		static const uint8 dir_next[6]  = { 2, 4, 3, 1, 5, 0 };
+		int r;
+		if(  i < N_Start  ) {
+			r = axis_next[i];
+		}
+		else if(  i < N_Ramp  ) {
+			r = N_Start + dir_next[i - N_Start];
+		}
+		else if(  i < NS_Pillar  ) {
+			r = N_Ramp + dir_next[i - N_Ramp];
+		}
+		else {
+			r = NS_Pillar + axis_next[i - NS_Pillar];
+		}
+		return (img_t)(base + r);
+	}
+
+	/*
+	 * Single-height fallback for any img_t, for descs that lack the
+	 * double-height set.  The 18 `*2` entries follow the 18 single
+	 * ones, so subtracting `NS_Segment2` maps a double index onto its
+	 * single-height twin; single ids pass through unchanged.
+	 */
+	static img_t single_height_of(img_t img)
+	{
+		return img < NS_Segment2 ? img : (img_t)(img - NS_Segment2);
+	}
 
 	/*
 	 * Name and Copyright used to be saved only with the Cursor

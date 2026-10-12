@@ -18,6 +18,8 @@ INPUT                  = api_factory.cc \
 			 api_base.h \
 			 api_doc.h \
 			 changelog.h \
+			 squirrel_32_en.h \
+			 squirrel_32_es.h \
 			 api_skeleton.h \
 			 api_skeleton.cc \
 			 api_city.cc \
@@ -41,7 +43,7 @@ INPUT                  = api_factory.cc \
 			 api_tiles.cc
 
 INPUT_FILTER           = ./filter_cpp.sh
-FILTER_PATTERNS        = *.cc
+FILTER_PATTERNS        = *.cc=./filter_cpp.sh
  
 #FILTER_SOURCE_FILES    = YES
 #FILTER_SOURCE_PATTERNS = ./filter_sq.sh

@@ -54,6 +54,7 @@ class records_t;
 class loadingscreen_t;
 class terraformer_t;
 class building_desc_t;
+class schedule_t;
 
 /**
  * Threaded function caller.
@@ -94,6 +95,9 @@ public:
 	 * rotation is not meaningful.
 	 */
 	void set_vertex_heights_from_perlin(koord tile, koord rot_size);
+
+	/// The same for the one canonical vertex (@p tile, @p c), which is E or SE.
+	void set_vertex_height_from_perlin(koord tile, hex_corner_t::type c, koord rot_size);
 
 	/**
 	 * Fills canonical vertex heights for the map interior, one
@@ -281,9 +285,11 @@ private:
 private:
 	/**
 	 * The fractal generation of the map is not perfect.
-	 * cleanup_karte() eliminates errors.
+	 * cleanup_karte() eliminates errors, and creates the ground of the
+	 * tiles that the map has beyond @p old_shape, the hexagon it grew from
+	 * (map_shape_t::none() for a new world).
 	 */
-	void cleanup_karte( int xoff, int yoff );
+	void cleanup_karte( const map_shape_t &old_shape );
 
 	/**
 	 * @name Player management
@@ -444,11 +450,6 @@ private:
 	bool finish_loop;
 
 	/**
-	 * May change due to timeline.
-	 */
-	const way_desc_t *city_road;
-
-	/**
 	 * What game objectives.
 	 */
 	scenario_t *scenario;
@@ -528,18 +529,19 @@ private:
 	void create_lakes( int xoff, int yoff, sint8 height );
 
 	/**
-	 * Will create beaches.
+	 * Will create beaches, on the tiles of the map within 19 tiles of the
+	 * edge it grew from: the band of @p old_shape along its far sides.
 	 */
-	void create_beaches( int xoff, int yoff );
+	void create_beaches( const map_shape_t &old_shape );
 
 	/**
 	 * Distribute groundobjs and cities on the map but not
-	 * in the rectangle from (0,0) till (old_x, old_y).
+	 * on the tiles of @p old_shape, the hexagon it grew from.
 	 * It's now an extra function so we don't need the code twice.
 	 */
-	void distribute_cities(int new_cities, sint32 new_mean_citizen_count, sint16 old_x, sint16 old_y );
-	void distribute_groundobjs(sint16 old_x, sint16 old_y);
-	void distribute_movingobjs(sint16 old_x, sint16 old_y);
+	void distribute_cities(int new_cities, sint32 new_mean_citizen_count, const map_shape_t &old_shape );
+	void distribute_groundobjs(const map_shape_t &old_shape);
+	void distribute_movingobjs(const map_shape_t &old_shape);
 
 	/**
 	 * The last time when a server announce was performed (in ms).
@@ -922,12 +924,6 @@ public:
 	uint32 get_current_month() const { return current_month; }
 
 	/**
-	 * current city road.
-	 * @note May change due to timeline.
-	 */
-	const way_desc_t* get_city_road() const { return city_road; }
-
-	/**
 	 * Number of steps elapsed since the map was generated.
 	 */
 	sint32 get_steps() const { return steps; }
@@ -977,6 +973,19 @@ public:
 	 * we defer it to outside sync_step
 	 */
 	void set_deferred_move_to(koord3d pos, uint8 flags);
+
+	/* Route of the schedule that is currently shown by a schedule editor.
+	 * Display only, never saved. Like the deferred move above the route search
+	 * must not run from the GUI, so the editor only asks for it here and it is
+	 * calculated in interactive(). @p owner identifies the asking component, so
+	 * that closing an old window cannot drop the route of a newer one.
+	 */
+	void request_schedule_route(schedule_t *schedule, player_t *pl, uint32 owner, uint16 speed_kmh, bool needs_electrification);
+	void clear_schedule_route(uint32 owner); ///< owner 0 clears unconditionally
+	void step_schedule_route();
+	const vector_tpl<koord3d> &get_schedule_route() const;
+	uint32 get_schedule_route_owner() const;
+	uint8 get_schedule_route_player_nr() const;
 
 	/**
 	 * Calls the work method of the tool.
@@ -1054,11 +1063,30 @@ public:
 	void set_nosave() { nosave = true; nosave_warning = true; }
 	void set_nosave_warning() { nosave_warning = true; }
 
-	/// rotate plans by 90 degrees
-	void rotate90_plans(sint16 x_min, sint16 x_max, sint16 y_min, sint16 y_max);
+private:
+	/// One 60° step of the tiles, heights and everything that holds a
+	/// position or a direction; see rotate90().
+	void rotate90_step();
 
-	/// rotate map view by 90 degrees
-	void rotate90();
+public:
+	/**
+	 * Rotates the world by @p steps 60° steps, clockwise on screen.
+	 * Each step runs the whole cascade (every obj_t::rotate90 and the
+	 * rotate90 of cities, factories, halts, convoys, ...) once.
+	 * Only can_rotate90() rotations are representable: anything else
+	 * is fatal.
+	 */
+	void rotate90(uint8 steps = 1);
+
+	/**
+	 * Whether rotate90(@p steps) leaves a world karte_t can hold:
+	 * whole half turns (steps a multiple of 3) from a world at 0° or
+	 * 180°.  A single 60° step maps the W x H x 1 rhombus to a hexagon
+	 * with D > 1 and rectangular building footprints to parallelograms,
+	 * which need the populated W x H x D map and the 6-orientation
+	 * footprint (see TODO.md, "Rotation cascade").
+	 */
+	bool can_rotate90(uint8 steps) const;
 
 	template <class T>
 	class sync_list_t
@@ -1148,9 +1176,11 @@ public:
 
 public:
 	/**
-	* Calculates appropriate climate for a region using elliptic areas for each
+	* Calculates appropriate climate for a region using elliptic areas for each.
+	* @param skip tiles of this shape keep their climate: the region is the
+	*        rectangle without them, which are all unassigned in it
 	*/
-	void calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom );
+	void calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip = NULL );
 
 	/**
 	* Calculates appropriate climate for a region using elliptic areas for each
@@ -1160,12 +1190,13 @@ public:
 	/**
 	 * assign climated from the climate map to a region
 	 */
-	void assign_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom );
+	void assign_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip = NULL );
 
 	/**
-	 * Since the trees follow humidity, we have to redistribute them only in the new region
+	 * Since the trees follow humidity, we have to redistribute them only in the new region:
+	 * the rectangle without the tiles of @p skip
 	 */
-	void distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom );
+	void distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip = NULL );
 
 	/**
 	 * Loop recalculating transitions - suitable for multithreading
@@ -1178,10 +1209,12 @@ public:
 	void cleanup_grounds_loop(sint16, sint16, sint16, sint16);
 
 	/**
-	 * @return A list of all buildable squares with size w, h.
+	 * @return A list of the centres of all buildable hex discs of the given radius,
+	 * that is all tiles within @p radius steps of the centre, on the tiles
+	 * that the map has beyond @p old_shape (map_shape_t::none() for all).
 	 * @note Only used for town creation at the moment.
 	 */
-	slist_tpl<koord> * find_squares(sint16 w, sint16 h, climate_bits cl, sint16 old_x, sint16 old_y) const;
+	slist_tpl<koord> * find_free_discs(sint16 radius, climate_bits cl, const map_shape_t &old_shape) const;
 
 	/**
 	 * Plays the sound when the position is inside the visible region.

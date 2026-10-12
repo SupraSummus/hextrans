@@ -1,0 +1,73 @@
+# Tests that `tools/test.py --rotate` leaves out: they fail on a map
+# turned by 180 degrees although they pass on the unturned one.
+# One name per line, `#` starts a comment.  The classes and their next
+# moves are in TODO.md, "Rotated suite".
+
+# A multi-tile footprint is anchored at its world NW corner, which the
+# script sees as the far corner after the half turn.
+test_city_building_3x2_faces_road
+test_building_build_house_valid_desc
+test_building_build_house_auto_rotation_attraction
+test_building_buy_house_attraction
+test_building_rotate_house
+test_building_rotate_factory
+test_factory_build_pp
+test_factory_build_climate
+test_factory_link
+test_halt_build_harbour_all_directions
+test_halt_build_flat_dock_near_water_fixed_rotation_valid
+test_halt_build_flat_dock_all_directions
+test_halt_build_separate
+test_halt_build_near_factory
+test_halt_build_near_factories
+test_powerline_build_transformer
+test_powerline_build_underground_transformer_on_powerline
+test_powerline_build_over_transformer
+test_powerline_build_transformer_multiple
+test_way_elevated_over_building_footprint
+
+# Tools pick a default direction by ribi bit order in the world frame.
+test_sign_build_oneway
+test_sign_build_oneway_at_crossing
+test_sign_build_signal
+test_sign_replace_signal
+test_sign_signal_ne_sw
+test_sign_oneway_ne_sw
+test_sign_oneway_ne_sw_art
+
+# The test reads world-frame output: image slots, image ids, the
+# generated script, the back-wall state of tile_x::get_back_walls.
+test_back_wall_house_on_slope
+test_back_wall_city_house_on_slope
+test_back_wall_set_slope
+test_back_wall_road_terraform
+test_sign_signal_tunnel_mouth_ne_sw
+test_way_road_build_bend_on_3corner_ramp
+test_way_road_image_slot_dispatch
+test_way_road_flat_chord_render_yoff
+test_script_generator_northeast_southwest_road
+test_script_generator_oneway_sign_direction
+test_script_generator_signal_direction
+# run out of opcodes in include() when the generator tests above, which
+# sleep, do not run before them
+test_toolkit_slope_constants
+test_toolkit_slope_commands
+
+# Passes, but leaves the turned map different from the unturned one:
+# the terraforming under it is not mirror symmetric.
+test_way_bridge_over_building
+test_city_road_fills_valley_tile
+
+# Square-era geometry left in the engine.
+test_air_takeoff_and_landing_all_runway_axes
+test_trees_plant_forest
+test_way_tunnel_planner_no_exit
+
+# The test-only AI probes in script/api/api_ai_test.cc take and return
+# world coordinates, without the script transform.
+test_ai_site_station_reaches_factory
+test_ai_site_harbour_all_faces
+test_ai_site_harbour_search_window_is_a_disc
+test_ai_site_harbour_run_length_after_ne_sw_shore
+test_ai_site_harbour_second_direction
+test_ai_site_extends_own_station_on_all_sides

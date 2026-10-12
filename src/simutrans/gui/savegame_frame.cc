@@ -10,6 +10,7 @@
 #include "savegame_frame.h"
 #include "../pathes.h"
 #include "../sys/simsys.h"
+#include "../simdebug.h"
 #include "simwin.h"
 #include "../utils/simstring.h"
 #include "../utils/searchfolder.h"
@@ -168,15 +169,16 @@ void savegame_frame_t::add_section(std::string &name){
 	}
 	else {
 		// user_dir path
-		size_t name_len = strlen(name.c_str());
-		size_t user_dir_len = strlen(env_t::user_dir);
+		const size_t name_len     = name.length();
+		const size_t user_dir_len = strlen(env_t::user_dir);
 
 		if ( name_len+user_dir_len > FILENAME_MAX-1 ) {
 			// shouldn't happen, but I'll control anyway
 			strcpy(path_expanded,"** ERROR ** Path too long");
 		}
 		else {
-			sprintf(path_expanded,"%s%s", env_t::user_dir, name.c_str());
+			snprintf(path_expanded, FILENAME_MAX, "%s%s", env_t::user_dir, name.c_str());
+			path_expanded[FILENAME_MAX-1] = 0;
 		}
 	}
 

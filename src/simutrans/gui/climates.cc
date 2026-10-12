@@ -4,21 +4,26 @@
  */
 
 #include "climates.h"
+#include "minimap.h"
 #include "welt.h"
 
 #include "../descriptor/ground_desc.h"
 
+#include "../simdebug.h"
 #include "simwin.h"
 
 #include "../dataobj/settings.h"
+#include "../dataobj/environment.h"
 #include "../dataobj/translator.h"
+
+#include "../display/simgraph.h"
 
 // HEX-PORT: label order matches ribi_t::nesw[0..5] bit positions =
 // SE, S, SW, NW, N, NE.  Old square had only 4 labels (N/E/S/W); the
 // 6-entry list maps directly to the 6 hex edges used by the wind
 // system.  Strings are translation keys — add hex-edge entries to
 // the pakset translations.
-static const char *wind_dir_text[6] = { "Southeast", "South", "Southwest", "Northwest", "North", "Northeast" };
+const char *const wind_dir_text[6] = { "Southeast", "South", "Southwest", "Northwest", "North", "Northeast" };
 
 /**
  * set the climate borders
@@ -49,7 +54,7 @@ climate_gui_t::climate_gui_t(settings_t* const sets_par) :
 
 		// Mountain roughness
 		new_component<gui_label_t>("Map roughness");
-		mountain_roughness.init( mountain_roughness_start, 0, min(10, 11-((mountain_height_start+99)/100)), gui_numberinput_t::AUTOLINEAR, false );
+		mountain_roughness.init( mountain_roughness_start, 0, 2+min(7, 11-((mountain_height_start+99)/100)), gui_numberinput_t::AUTOLINEAR, false );
 		mountain_roughness.add_listener( this );
 		add_component( &mountain_roughness );
 

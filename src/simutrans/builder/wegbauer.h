@@ -50,7 +50,7 @@ public:
 
 	static bool waytype_available( const waytype_t wtyp, uint16 time );
 
-	static const vector_tpl<const way_desc_t *>&  get_way_list(waytype_t, systemtype_t system_type);
+	static const vector_tpl<const way_desc_t *>&  get_way_list(waytype_t, systemtype_t);
 
 	/**
 	 * Fill menu with icons of given waytype
@@ -83,7 +83,8 @@ private:
 		build_straight      = 1 << 0, ///< next step has to be straight
 		terraform           = 1 << 1, ///< terraform this tile
 		build_tunnel_bridge = 1 << 2, ///< bridge/tunnel ends here
-		is_upperlayer       = 1 << 3  ///< only used when elevated  true:upperlayer
+		is_upperlayer       = 1 << 3, ///< only used when elevated  true:upperlayer
+		must_build_bridge   = 1 << 4  ///< this slope is not usuable but for start of bridge
 	};
 
 	struct next_gr_t
@@ -140,8 +141,24 @@ public:
 	 * it will check
 	 * A) allowed step
 	 * B) if allowed, calculate the cost for the step from @p from to @p to
+	 * if terraform is 2, needs to cehck again
 	 */
-	bool is_allowed_step(const grund_t *from, const grund_t *to, sint32 *costs, bool is_upperlayer = false );
+	bool is_allowed_step(const grund_t *from, const grund_t *to, sint32 *costs, int terraform, bool is_upperlayer = false );
+
+	/**
+	 * Height in tiles between a base ground and the elevated way surface built above it:
+	 * the configured way_height_clearance/height_offset plus, on a bridge ramp connection
+	 * built on sloped terrain, the extra height reported by base->get_bridge_slope_extra_height().
+	 * Common conversion used to keep route search, cost estimation and elevated-way
+	 * construction consistent with each other. 'base' may be NULL (assumes no extra height).
+	 */
+	sint8 get_way_height_offset(const grund_t *base) const;
+
+	/**
+	 * Inverse of get_way_height_offset(): given the position of an already-built elevated
+	 * way tile, finds the base ground it was built above (or NULL if none is found).
+	 */
+	grund_t *find_base_for_elevated(const koord3d &upper_pos) const;
 
 private:
 	// Post-pathfinding pass that rejects routes whose final per-tile
@@ -153,7 +170,7 @@ private:
 
 	// checks, if we can build a bridge here ...
 	// may modify next_gr array!
-	void check_for_bridge(const grund_t* parent_from, const grund_t* from, const vector_tpl<koord3d> &ziel);
+	bool check_for_bridge(const grund_t* from, const koord zv, const vector_tpl<koord3d>& ziel, const uint32 max_length);
 
 	sint32 intern_calc_route(const vector_tpl<koord3d> &start, const vector_tpl<koord3d> &ziel);
 	void intern_calc_straight_route(const koord3d start, const koord3d ziel);
@@ -179,7 +196,7 @@ private:
 
 	/**
 	 * This function calculates the distance of pos to the cuboid
-	 * spanned up by mini and maxi.
+	 * spanned up by mini and maxi, counting hex steps in the plane.
 	 * The result is already weighted according to
 	 * welt->get_settings().get_way_count_{straight,slope}().
 	 */
@@ -215,6 +232,8 @@ public:
 
 	void init_builder(bautyp_t wt, const way_desc_t * desc, const tunnel_desc_t *tunnel_desc=NULL, const bridge_desc_t *bridge_desc=NULL);
 
+	bautyp_t get_bautyp() const { return bautyp; }
+
 	void set_maximum(uint32 n) { maximum = n; }
 
 	way_builder_t(player_t *player);
@@ -233,9 +252,13 @@ public:
 	// checks whether buildings on the tile allow to leave in direction dir
 	bool check_building( const grund_t *to, const koord dir ) const;
 	// allowed slope?
-	bool check_slope( const grund_t *from, const grund_t *to );
+	bool check_slope(const grund_t* from, const grund_t* to);
+	bool check_slope_double(const grund_t* from, const grund_t* to);
 
 	bool check_terraforming( const grund_t *from, const grund_t *to, slope_t::type* new_from_slope=NULL, slope_t::type* new_to_slope=NULL) const;
+	bool check_terraforming( const grund_t *from, const grund_t *to, slope_t::type from_slope, sint8 from_hgt, slope_t::type to_slope, sint8 to_hgt, slope_t::type* new_from_slope, slope_t::type* new_to_slope) const;
+	/// Replays the whole terraform sequence without touching the world.
+	bool terraforming_leaves_way_slopes() const;
 	void do_terraforming();
 
 	void build();

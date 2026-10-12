@@ -17,6 +17,7 @@
 #include "../dataobj/scenario.h"
 
 #include "../obj/leitung2.h"
+#include "../obj/tunnel.h"
 #include "../obj/zeiger.h"
 
 #include "../gui/minimap.h"
@@ -140,6 +141,11 @@ bool hausbauer_t::successfully_loaded()
 {
 	for(auto const& i : desc_table) {
 		building_desc_t const* const desc = i.value;
+
+		// How tall this building is drawn. Only now: it needs the base tile
+		// raster width, which is set when the "Outside" ground is registered,
+		// and nothing guarantees that happened before this building was read.
+		const_cast<building_desc_t *>(desc)->calc_height_clearance();
 
 		if (desc->is_city_building()) {
 			// find city build sizes
@@ -452,12 +458,7 @@ void hausbauer_t::remove( player_t *player, gebaeude_t *gb )
 		}
 
 		// there might be walls from foundations left => thus some tiles may need to be redrawn
-		if (grund_t* gr = welt->lookup_kartenboden(newk + koord::step(ribi_t::southeast))) {
-			gr->calc_image();
-		}
-		if (grund_t* gr = welt->lookup_kartenboden(newk + koord::step(ribi_t::south))) {
-			gr->calc_image();
-		}
+		grund_t::recalc_back_wall_dependants(newk);
 		welt->set_grid_hgt_nocheck(newk, hex_corner_t::NW, new_hgt + corner_nw(new_slope));
 	}
 
@@ -471,7 +472,9 @@ gebaeude_t* hausbauer_t::build(player_t* player, koord pos, int org_layout, cons
 	koord dim;
 
 	uint8 layout = desc->adjust_layout(org_layout);
-	dim = desc->get_size(org_layout);
+	// the footprint of the folded layout: SW (odd) folds onto S (even), which
+	// the old fold did not, and a non-square building must fit the tiles it gets
+	dim = desc->get_size(layout);
 	bool needs_ground_recalc = false;
 
 	if (desc->is_city_building()) {
@@ -596,10 +599,8 @@ gebaeude_t* hausbauer_t::build(player_t* player, koord pos, int org_layout, cons
 					gr->obj_add(keptobjs[i]);
 				}
 
-				if(needs_ground_recalc  &&  welt->is_within_limits(pos+k+koord(1,1))  &&  (k.y+1==dim.y  ||  k.x+1==dim.x)) {
-					welt->lookup_kartenboden(pos+k+koord(1,0))->calc_image();
-					welt->lookup_kartenboden(pos+k+koord(0,1))->calc_image();
-					welt->lookup_kartenboden(pos+k+koord(1,1))->calc_image();
+				if(needs_ground_recalc) {
+					grund_t::recalc_back_wall_dependants(pos+k);
 				}
 			}
 			gb->set_pos( gr->get_pos() );
@@ -631,6 +632,27 @@ gebaeude_t* hausbauer_t::build(player_t* player, koord pos, int org_layout, cons
 }
 
 
+ribi_t::ribi hausbauer_t::get_facing_ribi(const grund_t* gr, const building_tile_desc_t* tile)
+{
+	const bool terminal = tile->get_desc()->get_all_layouts() == 4;
+
+	// read the ways the way tool_station_aux reads them to choose the layout
+	ribi_t::ribi ribi = ribi_t::none;
+	if (const weg_t* w = gr->get_weg_nr(0)) {
+		ribi = w->get_ribi_unmasked();
+		if (!terminal  &&  gr->has_two_ways()) {
+			ribi |= gr->get_weg_nr(1)->get_ribi_unmasked();
+		}
+	}
+
+	if (terminal) {
+		return ribi_t::is_single(ribi) ? ribi : ribi_t::layout_to_ribi[tile->get_layout()];
+	}
+	const ribi_t::ribi axis = ribi_t::doubles(ribi);
+	return axis != ribi_t::none ? axis : ribi_t::doubles(ribi_t::layout_to_ribi[tile->get_layout() & 1]);
+}
+
+
 gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d pos, int built_layout, const building_desc_t *desc, void *param)
 {
 	uint8 corner_layout = 6; // assume single building (for more than 4 layouts)
@@ -638,21 +660,25 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 	// adjust layout of neighbouring building
 	if(desc->is_transport_building()  &&  desc->get_all_layouts()>1) {
 
-		int layout = built_layout & 9;
+		// the platform runs along the axis of the way; the stored layout
+		// only has two of the three hex axes
+		const ribi_t::ribi axis = ribi_t::doubles(get_facing_ribi(welt->lookup(pos), desc->get_tile(desc->adjust_layout(built_layout) % desc->get_all_layouts(), 0, 0)));
+		const koord far_step  = koord::step(axis & ribi_t::lower_half); // S, SE or SW
+		const koord near_step = koord::step(axis & ribi_t::upper_half); // N, NW or NE
 
 		// detect if we are connected at far (north/west) end
 		sint8 offset = welt->lookup( pos )->get_weg_yoff()/TILE_HEIGHT_STEP;
-		koord3d checkpos = pos+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)), offset);
+		koord3d checkpos = pos+koord3d( far_step, offset);
 		grund_t * gr = welt->lookup( checkpos );
 
 		if(!gr) {
 			// check whether bridge end tile
-			grund_t * gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)),offset - 1) );
+			grund_t * gr_tmp = welt->lookup( pos+koord3d( far_step,offset - 1) );
 			if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 				gr = gr_tmp;
 			}
 			else {
-				gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)),offset - 2) );
+				gr_tmp = welt->lookup( pos+koord3d( far_step,offset - 2) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 2) {
 					gr = gr_tmp;
 				}
@@ -680,7 +706,7 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
 
-					if((layoutbase & 1) == (layout & 1)) {
+					if(ribi_t::doubles(get_facing_ribi(gr, gb->get_tile())) == axis) {
 						layoutbase &= 0xb; // clear near bit on neighbour
 						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
 					}
@@ -689,15 +715,15 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 		}
 
 		// detect if near (south/east) end
-		gr = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)), offset) );
+		gr = welt->lookup( pos+koord3d( near_step, offset) );
 		if(!gr) {
 			// check whether bridge end tile
-			grund_t * gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)),offset - 1) );
+			grund_t * gr_tmp = welt->lookup( pos+koord3d( near_step,offset - 1) );
 			if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 				gr = gr_tmp;
 			}
 			else {
-				gr_tmp = welt->lookup( pos+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)),offset - 2) );
+				gr_tmp = welt->lookup( pos+koord3d( near_step,offset - 2) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 2) {
 					gr = gr_tmp;
 				}
@@ -711,7 +737,7 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 				if(gb->get_tile()->get_desc()->get_all_layouts()>4) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
-					if((layoutbase & 1) == (layout & 1)) {
+					if(ribi_t::doubles(get_facing_ribi(gr, gb->get_tile())) == axis) {
 						layoutbase &= 0xd; // clear far bit on neighbour
 						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
 					}
@@ -826,7 +852,7 @@ const building_desc_t* hausbauer_t::get_desc(const char *name)
 }
 
 
-const building_desc_t* hausbauer_t::get_random_station(const building_desc_t::btype type, const waytype_t wt, const uint16 time, const uint8 enables)
+const building_desc_t* hausbauer_t::get_random_station(const building_desc_t::btype type, const waytype_t wt, const uint16 time, const uint8 enables, const sint16 max_length)
 {
 	weighted_vector_tpl<const building_desc_t*> stops;
 
@@ -840,6 +866,9 @@ const building_desc_t* hausbauer_t::get_random_station(const building_desc_t::bt
 			if(  !desc->can_be_built_aboveground()  ) {
 				continue;
 			}
+			if(  max_length != 0  &&  desc->get_y() > max_length  ) {
+				continue;
+			}
 			// ok, now check timeline
 			if(  desc->is_available(time)  ) {
 				stops.append(desc,max(1,16-desc->get_level()*desc->get_x()*desc->get_y()));
@@ -847,6 +876,20 @@ const building_desc_t* hausbauer_t::get_random_station(const building_desc_t::bt
 		}
 	}
 	return stops.empty() ? 0 : pick_any_weighted(stops);
+}
+
+
+sint16 hausbauer_t::get_earliest_townhall_year()
+{
+	uint16 earliest = 0xFFFF;
+	for(building_desc_t const* const desc : townhalls) {
+		earliest = min( earliest, desc->get_intro_year_month() );
+	}
+	if(  earliest == 0xFFFF  ) {
+		return 0;
+	}
+	// a town hall introduced during a year is of no use to a game starting in January
+	return (earliest + 11) / 12;
 }
 
 
@@ -893,7 +936,7 @@ const building_desc_t* hausbauer_t::get_special(uint32 bev, building_desc_t::bty
  * @param start_level the minimum level of the house/station
  * @param cl allowed climates
  */
-static const building_desc_t* get_city_building_from_list(const vector_tpl<const building_desc_t*>& list, int start_level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude )
+static const building_desc_t* get_city_building_from_list(const vector_tpl<const building_desc_t*>& list, int start_level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude, sint16 max_clearance )
 {
 	weighted_vector_tpl<const building_desc_t *> selections(16);
 	int level = start_level;
@@ -917,7 +960,12 @@ static const building_desc_t* get_city_building_from_list(const vector_tpl<const
 		     desc->is_available(time)  &&
 		     // size check
 			(desc->get_area()>=minsize  &&  desc->get_area() <= maxsize)  &&
-			(!exclude  ||  !exclude->is_contained(desc))
+			(!exclude  ||  !exclude->is_contained(desc))  &&
+			// a way or bridge deck overhead limits the height: the replacement
+			// must fit under the clearance measured from the planquadrat, so a
+			// building the player could not have built the way over cannot grow
+			// here either. 127 (nothing overhead) admits everything.
+			(desc->get_height_clearance() <= max_clearance)
 		) {
 			desc_at_least = desc;
 			if( thislevel == level ) {
@@ -953,21 +1001,21 @@ static const building_desc_t* get_city_building_from_list(const vector_tpl<const
 }
 
 
-const building_desc_t* hausbauer_t::get_commercial(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude)
+const building_desc_t* hausbauer_t::get_commercial(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude, sint16 max_clearance)
 {
-	return get_city_building_from_list(city_commercial, level, time, cl, clusters, minsize, maxsize, exclude );
+	return get_city_building_from_list(city_commercial, level, time, cl, clusters, minsize, maxsize, exclude, max_clearance );
 }
 
 
-const building_desc_t* hausbauer_t::get_industrial(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude)
+const building_desc_t* hausbauer_t::get_industrial(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*>* exclude, sint16 max_clearance)
 {
-	return get_city_building_from_list(city_industry, level, time, cl, clusters, minsize, maxsize, exclude );
+	return get_city_building_from_list(city_industry, level, time, cl, clusters, minsize, maxsize, exclude, max_clearance );
 }
 
 
-const building_desc_t* hausbauer_t::get_residential(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*> *exclude)
+const building_desc_t* hausbauer_t::get_residential(int level, uint16 time, climate cl, uint32 clusters, sint16 minsize, sint16 maxsize, vector_tpl<const building_desc_t*> *exclude, sint16 max_clearance)
 {
-	return get_city_building_from_list(city_residential, level, time, cl, clusters, minsize, maxsize, exclude );
+	return get_city_building_from_list(city_residential, level, time, cl, clusters, minsize, maxsize, exclude, max_clearance );
 }
 
 

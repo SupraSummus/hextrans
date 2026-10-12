@@ -7,9 +7,9 @@
 #define OBJ_WAYOBJ_H
 
 
-#include "../simtypes.h"
-#include "../display/simimg.h"
+//#include "../simtypes.h"
 #include "simobj.h"
+#include "../display/simimg.h"
 #include "../dataobj/ribi.h"
 #include "../descriptor/way_obj_desc.h"
 #include "../tpl/stringhashtable_tpl.h"
@@ -26,11 +26,18 @@ class wayobj_t : public obj_no_info_t
 private:
 	const way_obj_desc_t *desc;
 
+	// upstream square diagonal and close-diagonal state; always 0
+	// under hex (the descriptor flags they depend on stay false)
+	uint8 close_diagonal:2;
+	uint8 diagonal:1;
 	slope_t::type hang;
 
 	// direction of this wayobj
 	uint8 nw:1;
 	uint8 dir:7;
+
+	image_id img;
+	image_id after_img;
 
 	static const uint8 dir_unknown = 127;
 
@@ -49,18 +56,12 @@ public:
 	/**
 	* the back image, drawn before vehicles
 	*/
-	image_id get_image() const OVERRIDE {
-		return hang!=slope_t::flat ? desc->get_back_slope_image_id(hang) :
-			(dir>16 ? desc->get_crossing_image_id(dir,nw,false) : desc->get_back_image_id(dir));
-	}
+	image_id get_image() const OVERRIDE { return img; }
 
 	/**
 	 * the front image, drawn after everything else
 	 */
-	image_id get_front_image() const OVERRIDE {
-		return hang!=slope_t::flat ? desc->get_front_slope_image_id(hang) :
-			(dir>16 ? desc->get_crossing_image_id(dir,nw,true) : desc->get_front_image_id(dir));
-	}
+	image_id get_front_image() const OVERRIDE {	return after_img; }
 
 	typ get_typ() const OVERRIDE { return wayobj; }
 
@@ -71,17 +72,28 @@ public:
 
 	void calc_image() OVERRIDE;
 
+	void calc_cached_image();
+
 	void rdwr(loadsave_t *file) OVERRIDE;
 
 	void cleanup(player_t *player) OVERRIDE;
 
 	const char *get_removal_error(const player_t *player) OVERRIDE;
 
-	void finish_rd() OVERRIDE;
+	bool finish_rd() OVERRIDE;
 
 	// specific for wayobj
-	void set_dir(ribi_t::ribi d) { dir = d; calc_image(); }
-	ribi_t::ribi get_dir() const { return dir; }
+	void set_dir(ribi_t::ribi d) { dir = d; }
+	ribi_t::ribi get_dir() const { return close_diagonal ? (ribi_t::ribi)ribi_t::all : dir; }
+	uint8 get_close_diagonal() const { return close_diagonal; }
+
+	virtual void display(int xpos, int ypos  CLIP_NUM_DEF) const OVERRIDE;
+
+#ifdef MULTI_THREAD
+	virtual void display_after(int xpos, int ypos, const sint8 clip_num) const OVERRIDE;
+#else
+	virtual void display_after(int xpos, int ypos, bool is_global) const OVERRIDE;
+#endif
 
 	/* the static routines */
 private:

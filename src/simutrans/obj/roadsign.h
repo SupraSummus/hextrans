@@ -36,10 +36,30 @@ protected:
 	// HEX-PORT: was :2 bitfield; traffic lights now use 0..5 (3 axes
 	// × {green, yellow}).  Signals still use 0..2.
 	uint8 state;
+	enum { NUM_TRAFFIC_LIGHT_STATES = 6 };
 	uint8 dir:6; // 6-bit hex ribi mask (was :4 under square grid)
 
 	uint8 automatic:1;
 	uint8 preview:1;
+
+	// diagonal image of each direction, ordered as the image list has them: north, south,
+	// west, east. base is where the row of this state and electrification starts.
+	// The NE and SW entries stay roadsign_desc_t::NO_DIAGONAL
+	static void calc_diagonal_index(uint16 idx[6], ribi_t::ribi way_ribi, uint16 base);
+
+	/**
+	 * Places the images of the directions @p dirs of a sign or signal in the two
+	 * layers, behind the vehicles (@p back_image, with the offsets @p xoff and
+	 * @p yoff) and before them (foreground_image, with after_xoffset and
+	 * after_yoffset), which the caller has cleared. @p base is where the group of
+	 * four starts in the normal image list, @p diag the diagonal image per slot.
+	 * Every direction stands on the side of the way its vehicles keep to: on the
+	 * left, when @p left_offsets, the layers swap and the signs move over.
+	 */
+	void calc_dir_images(ribi_t::ribi dirs, uint16 base, const uint16 diag[6], bool left_offsets, bool left_variant, image_id &back_image, sint8 &xoff, sint8 &yoff);
+
+	/// the gate image of a private way sign, as the active player sees it
+	image_id get_private_image() const;
 
 	/*
 	 * Many things go in these...
@@ -207,7 +227,7 @@ public:
 	// subtracts cost
 	void cleanup(player_t *player) OVERRIDE;
 
-	void finish_rd() OVERRIDE;
+	bool finish_rd() OVERRIDE;
 
 	// static routines from here
 private:

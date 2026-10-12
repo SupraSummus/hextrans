@@ -443,14 +443,7 @@ int terraformer_t::raise_to(const node_t &node)
 	}
 
 	welt->lookup_kartenboden_nocheck(node.x,node.y)->calc_image();
-
-	if ( (node.x+2) < welt->get_size().x ) {
-		welt->lookup_kartenboden_nocheck(node.x+1,node.y)->calc_image();
-	}
-
-	if ( (node.y+2) < welt->get_size().y ) {
-		welt->lookup_kartenboden_nocheck(node.x,node.y+1)->calc_image();
-	}
+	grund_t::recalc_back_wall_dependants(k);
 
 	return n;
 }
@@ -589,12 +582,11 @@ int terraformer_t::lower_to(const node_t &node)
 		}
 	}
 
-	// recalc landscape images - need to extend 2 in each direction
-	for(  sint16 j = node.y - 2;  j <= node.y + 2;  j++  ) {
-		for(  sint16 i = node.x - 2;  i <= node.x + 2;  i++  ) {
-			if(  welt->is_within_limits( i, j )  ) {
-				welt->recalc_transitions( koord (i, j ) );
-			}
+	// recalc landscape images - the climate and water changes above reach
+	// the neighbours, and their transitions look at their neighbours in turn
+	for(  koord d : hex_disc( 2 )  ) {
+		if(  welt->is_within_limits( k + d )  ) {
+			welt->recalc_transitions( k + d );
 		}
 	}
 
@@ -603,13 +595,7 @@ int terraformer_t::lower_to(const node_t &node)
 	}
 
 	welt->lookup_kartenboden_nocheck(node.x,node.y)->calc_image();
-	if( (node.x+2) < welt->get_size().x ) {
-		welt->lookup_kartenboden_nocheck(node.x+1,node.y)->calc_image();
-	}
-
-	if( (node.y+2) < welt->get_size().y ) {
-		welt->lookup_kartenboden_nocheck(node.x,node.y+1)->calc_image();
-	}
+	grund_t::recalc_back_wall_dependants(k);
 
 	return n;
 }

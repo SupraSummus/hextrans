@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "simdebug.h"
+#include "display/simimg.h"
 #include "simcolor.h"
 #include "ground/grund.h"
 #include "ground/boden.h"
@@ -32,9 +33,11 @@
 #include "obj/leitung2.h"
 
 #include "dataobj/settings.h"
+#include "dataobj/environment.h"
 #include "dataobj/translator.h"
 #include "dataobj/loadsave.h"
 #include "dataobj/pakset_manager.h"
+#include "dataobj/powernet.h"
 
 #include "descriptor/factory_desc.h"
 #include "builder/hausbauer.h"
@@ -42,6 +45,7 @@
 #include "builder/fabrikbauer.h"
 
 #include "gui/fabrik_info.h"
+#include "gui/minimap.h"
 
 #include "utils/simrandom.h"
 #include "utils/cbuffer.h"
@@ -1037,12 +1041,20 @@ bool fabrik_t::add_random_field(uint16 probability)
 
 	// we start closest to the factory, and check for valid tiles as we move out
 	uint8 radius = 1;
+	// the footprint of the layout it was built in
+	const koord size = get_desc()->get_building()->get_size(rotate);
 
 	// pick a coordinate to use - create a list of valid locations and choose a random one
 	vector_tpl<grund_t *> build_locations;
 	do {
-		for(sint32 xoff = -radius; xoff < radius + get_desc()->get_building()->get_size().x ; xoff++) {
-			for(sint32 yoff =-radius ; yoff < radius + get_desc()->get_building()->get_size().y; yoff++) {
+		for(sint32 xoff = -radius; xoff < radius + size.x ; xoff++) {
+			for(sint32 yoff =-radius ; yoff < radius + size.y; yoff++) {
+				// only the shell this many steps out (nearer tiles were checked earlier);
+				// the corners of the rectangle are further out
+				if(  koord_distance_to_rect(koord(xoff, yoff), koord(0, 0), size) != radius  ) {
+					continue;
+				}
+
 				// if we can build on this tile then add it to the list
 				const planquadrat_t *plan = welt->access(pos.get_2d() + koord(xoff, yoff));
 				grund_t *kb = NULL;
@@ -1051,11 +1063,6 @@ bool fabrik_t::add_random_field(uint16 probability)
 					// only on same height => climate will match!
 					build_locations.append(kb);
 					assert(kb->find<field_t>() == NULL);
-				}
-
-				// skip inside of rectangle (already checked earlier)
-				if(radius > 1 && yoff == -radius && (xoff > -radius && xoff < radius + get_desc()->get_building()->get_size().x - 1)) {
-					yoff = radius + get_desc()->get_building()->get_size().y - 2;
 				}
 			}
 		}
@@ -1105,6 +1112,7 @@ void fabrik_t::remove_field_at(koord pos)
 	field = fields[ fields.index_of(field) ];
 	const field_class_desc_t *const field_class = desc->get_field_group()->get_field_class( field.field_class_index );
 	fields.remove(field);
+	minimap_t::get_instance()->set_dirty();
 	// revert the field's effect on production base and storage capacities
 	set_base_production( prodbase - field_class->get_field_production() );
 }
@@ -1155,14 +1163,12 @@ void fabrik_t::rdwr(loadsave_t *file)
 	else {
 		char s[256];
 		file->rdwr_str(s, lengthof(s));
-DBG_DEBUG("fabrik_t::rdwr()","loading factory '%s'",s);
 		desc = factory_builder_t::get_desc(s);
 		if(  desc==NULL  ) {
 			//  maybe it was only renamed?
 			desc = factory_builder_t::get_desc(translator::compatibility_name(s));
 		}
 		if(  desc==NULL  ) {
-			dbg->warning( "fabrik_t::rdwr()", "Pak-file for factory '%s' missing!", s );
 			// we continue loading even if desc==NULL
 			pakset_manager_t::add_missing_paks( s, MISSING_FACTORY );
 		}
@@ -1656,11 +1662,7 @@ sint32 fabrik_t::get_power_consumption() const
 	if( transformers.empty() ) {
 		return 0;
 	}
-	pumpe_t *const trans = dynamic_cast<pumpe_t *>(transformers.front());
-	if(  trans == NULL  ) {
-		return 0;
-	}
-	return trans->get_power_consumption();
+	return transformers.front()->get_net()->get_normal_demand();
 }
 
 void fabrik_t::set_power_demand(uint32 demand)
@@ -1692,11 +1694,7 @@ sint32 fabrik_t::get_power_satisfaction() const
 	if( transformers.empty() ) {
 		return 0;
 	}
-	senke_t *const trans = dynamic_cast<senke_t *>(transformers.front());
-	if(  trans == NULL  ) {
-		return 0;
-	}
-	return trans->get_power_satisfaction();
+	return transformers.front()->get_net()->get_normal_demand();
 }
 
 sint64 fabrik_t::get_power() const
@@ -3044,6 +3042,36 @@ void fabrik_t::info_prod(cbuffer_t& buf) const
 }
 
 
+void fabrik_t::info_power(cbuffer_t& buf) const
+{
+	buf.clear();
+
+	// capacity offered to the net now, already scaled by production level and boost
+	sint64 generation = get_power_supply();
+	buf.printf(translator::translate("Generation: %.0f MW"), (double)convert_power(generation));
+	buf.append("\n");
+
+	if(!transformers.empty()) {
+		// The supply is fed into the net by this factory's own transformer (a pumpe_t);
+		// this part is what the net actually draws from this plant:
+		// supply * normalised demand,
+		// the same figure the "Power (MW)" curve records every month
+		powernet_t* const net = transformers.front()->get_net();
+		buf.printf(translator::translate("Net ID: %p"), net);
+		buf.append("\n");
+		sint64 used_power = get_power();
+		double usage = 100.0 * (double)used_power / (double)generation;
+		buf.printf(translator::translate("Usage: %.0f %%"), usage);
+		buf.printf(" (%.0f MW)", (double)convert_power(used_power));
+	}
+	else {
+		// Without transformer, the plant feeds nothing to a net at all,
+		// and get_power_supply() is 0, so only the net lines have to be left out.
+		buf.append(translator::translate("No transformer connected."));
+	}
+}
+
+
 void fabrik_t::info_conn(cbuffer_t& buf) const
 {
 	buf.clear();
@@ -3140,21 +3168,26 @@ void fabrik_t::finish_rd()
 }
 
 
-void fabrik_t::rotate90( const sint16 y_size )
+void fabrik_t::rotate90( const map_shape_t &from )
 {
-	rotate = (rotate+3)%desc->get_building()->get_all_layouts();
-	pos_origin.rotate90( y_size );
-	pos_origin.x -= desc->get_building()->get_x(rotate)-1;
-	pos.rotate90( y_size );
+	pos_origin.rotate90( from );
+	pos.rotate90( from );
+	if(  welt->get_settings().is_half_turn_rotation()  ) {
+		// The footprint has no 60° turn yet (see gebaeude_t::rotate90):
+		// on the half turn the old origin corner is the far corner.
+		const building_desc_t *bdesc = desc->get_building();
+		rotate = bdesc->get_half_turn_layout( rotate );
+		pos_origin -= koord( bdesc->get_x(rotate)-1, bdesc->get_y(rotate)-1 );
+	}
 
 	for(koord & i : consumer) {
-		i.rotate90(y_size);
+		i.rotate90( from );
 	}
 	for(koord & i : suppliers) {
-		i.rotate90(y_size);
+		i.rotate90( from );
 	}
 	for(field_data_t & i : fields) {
-		i.location.rotate90(y_size);
+		i.location.rotate90( from );
 	}
 }
 

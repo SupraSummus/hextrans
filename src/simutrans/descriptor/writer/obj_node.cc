@@ -6,6 +6,7 @@
 #include "obj_pak_exception.h"
 #include "obj_writer.h"
 #include "obj_node.h"
+#include "../obj_desc.h"
 
 #include <cassert>
 

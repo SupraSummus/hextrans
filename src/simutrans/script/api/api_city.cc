@@ -98,6 +98,7 @@ void export_city(HSQUIRRELVM vm)
 	register_function(vm, world_get_next_city,     "_nexti",  2, "x o|i");
 	/**
 	 * Meta-method to be used in foreach loops. Do not call them directly.
+	 * @param index of the city in the list
 	 */
 	register_method(vm, &world_get_city_by_index, "_get", true);
 	end_class(vm);
@@ -128,8 +129,31 @@ void export_city(HSQUIRRELVM vm)
 	/**
 	 * Change city name.
 	 * @ingroup rename_func
+	 * @param name the new name
 	 */
 	register_method(vm, &city_set_name, "set_name", true);
+	/**
+	 * Total housing provided by the residential buildings of the city
+	 * (10 citizens per building level and tile).
+	 * @returns housing provided
+	 */
+	register_method(vm, &stadt_t::get_housing, "get_housing");
+	/**
+	 * Total jobs provided by the commercial and industrial buildings of
+	 * the city (20 jobs per building level and tile).
+	 * @returns jobs provided
+	 */
+	register_method(vm, &stadt_t::get_jobs, "get_jobs");
+	/**
+	 * Citizens without housing.
+	 * @returns number of citizens not yet accounted for by residential buildings
+	 */
+	register_method(vm, &stadt_t::get_homeless, "get_homeless");
+	/**
+	 * Citizens without work.
+	 * @returns number of citizens not yet accounted for by commercial and industrial buildings
+	 */
+	register_method(vm, &stadt_t::get_unemployed, "get_unemployed");
 	/**
 	 * Get monthly statistics of number of citizens.
 	 * @returns array, index [0] corresponds to current month
@@ -253,6 +277,7 @@ void export_city(HSQUIRRELVM vm)
 	/**
 	 * Enable or disable city growth.
 	 * @ingroup game_cmd
+	 * @param allow true to enable city growth
 	 */
 	register_method(vm, &set_citygrowth, "set_citygrowth_enabled", true);
 

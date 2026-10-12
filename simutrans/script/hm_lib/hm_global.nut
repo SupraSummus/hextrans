@@ -1,20 +1,23 @@
 this.hm_commands <- [] // array to store the commands
 this.player <- null
 
+// Slope constants of the toolkit.  They are taken from the engine's `slope`
+// table (script_base.nut, which mirrors slope_t in dataobj/ribi.h) instead of
+// being spelled out, so they cannot drift from the slope encoding again.
+// The hex grid has no due-east / due-west edge: E* and W* are the legacy
+// square diagonals (`slope.east` / `slope.west`) and their doubled heights.
 class hm_slope {
-  FL = 0
-  N1 = 4
-  N2 = 8
-  S1 = 36
-  S2 = 72
-  E1 = 28
-  E2 = 56
-  W1 = 12
-  W2 = 24
-  UP = 82
-  //UP2 = 92
-  DOWN = 83
-  //DN2 = 93
+  FL = slope.flat
+  N1 = slope.north_narrow
+  N2 = slope.north_double
+  S1 = slope.south_narrow
+  S2 = slope.south_double
+  E1 = slope.east
+  E2 = slope.east * 2
+  W1 = slope.west
+  W2 = slope.west * 2
+  UP = slope.all_up_slope
+  DOWN = slope.all_down_slope
 }
 
 class hm_base_tl {

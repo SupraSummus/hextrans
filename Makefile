@@ -23,16 +23,24 @@ HOSTCXX ?=$(CXX)
 
 SDL2_CONFIG      ?= pkg-config sdl2
 #SDL2_CONFIG     ?= sdl2-config
+SDL3_CONFIG      ?= pkg-config sdl3
+SDL3_MIXER_CONFIG ?= pkg-config sdl3-mixer
 FREETYPE_CONFIG  ?= pkg-config freetype2
 # FREETYPE_CONFIG ?= freetype-config
 FONTCONFIG_CONFIG  ?= pkg-config fontconfig
 
-BACKENDS  := gdi sdl2 mixer_sdl2 posix
+BACKENDS  := gdi sdl2 sdl3 mixer_sdl2 posix
 OSTYPES   := amiga freebsd haiku linux mac mingw openbsd
 
 
 ifeq ($(findstring $(BACKEND), $(BACKENDS)),)
   $(error Unkown BACKEND "$(BACKEND)", must be one of "$(BACKENDS)")
+endif
+
+ifeq ($(USE_SDL3_MIXER),1)
+  ifneq ($(BACKEND),sdl3)
+    $(error USE_SDL3_MIXER needs BACKEND sdl3, not "$(BACKEND)")
+  endif
 endif
 
 ifeq ($(findstring $(OSTYPE), $(OSTYPES)),)
@@ -60,6 +68,9 @@ ifdef MULTI_THREAD
   else
     ifneq ($(OSTYPE),mingw)
       ifeq ($(BACKEND),sdl2)
+        LDFLAGS += -lpthread
+      endif
+      ifeq ($(BACKEND),sdl3)
         LDFLAGS += -lpthread
       endif
       ifeq ($(BACKEND),mixer_sdl2)
@@ -91,7 +102,7 @@ else ifeq ($(OSTYPE),mingw)
     LDFLAGS   += -Wl,--large-address-aware
   endif
   LDFLAGS   += -pthread
-  CFLAGS    += -Wno-deprecated-copy -DNOMINMAX -DWIN32_LEAN_AND_MEAN -DWINVER=0x0501 -D_WIN32_IE=0x0500
+  CFLAGS    += -Wno-deprecated-copy -DNOMINMAX -DWIN32_LEAN_AND_MEAN -DWINVER=0x0600 -D_WIN32_IE=0x0500
   LIBS      += -lmingw32 -lgdi32 -lwinmm -lws2_32 -limm32
 
   # Disable the console on Windows unless WIN32_CONSOLE is set or graphics are disabled
@@ -116,6 +127,8 @@ endif
 
 ifeq ($(BACKEND),sdl2)
   SOURCES += src/simutrans/sys/clipboard_s2.cc
+else ifeq ($(BACKEND),sdl3)
+  SOURCES += src/simutrans/sys/clipboard_s3.cc
 else ifeq ($(OSTYPE),mingw)
   SOURCES += src/simutrans/sys/clipboard_w32.cc
 else
@@ -401,6 +414,7 @@ SOURCES += src/simutrans/gui/components/gui_label.cc
 SOURCES += src/simutrans/gui/components/gui_map_preview.cc
 SOURCES += src/simutrans/gui/components/gui_numberinput.cc
 SOURCES += src/simutrans/gui/components/gui_obj_view.cc
+SOURCES += src/simutrans/gui/components/gui_owner.cc
 SOURCES += src/simutrans/gui/components/gui_schedule.cc
 SOURCES += src/simutrans/gui/components/gui_scrollbar.cc
 SOURCES += src/simutrans/gui/components/gui_scrolled_list.cc
@@ -470,6 +484,7 @@ SOURCES += src/simutrans/gui/message_stats.cc
 SOURCES += src/simutrans/gui/messagebox.cc
 SOURCES += src/simutrans/gui/minimap.cc
 SOURCES += src/simutrans/gui/money_frame.cc
+SOURCES += src/simutrans/gui/music_folder_frame.cc
 SOURCES += src/simutrans/gui/obj_info.cc
 SOURCES += src/simutrans/gui/optionen.cc
 SOURCES += src/simutrans/gui/pakinstaller.cc
@@ -497,6 +512,7 @@ SOURCES += src/simutrans/gui/themeselector.cc
 SOURCES += src/simutrans/gui/tool_selector.cc
 SOURCES += src/simutrans/gui/trafficlight_info.cc
 SOURCES += src/simutrans/gui/vehiclelist_frame.cc
+SOURCES += src/simutrans/gui/way_builder_frame.cc
 SOURCES += src/simutrans/gui/welt.cc
 SOURCES += src/simutrans/io/classify_file.cc
 SOURCES += src/simutrans/io/raw_image.cc
@@ -571,6 +587,9 @@ SOURCES += src/simutrans/script/api/api_pathfinding.cc
 SOURCES += src/simutrans/script/api/api_player.cc
 SOURCES += src/simutrans/script/api/api_scenario.cc
 SOURCES += src/simutrans/script/api/api_schedule.cc
+SOURCES += src/simutrans/script/api/api_ai_test.cc
+SOURCES += src/simutrans/script/api/api_city_test.cc
+SOURCES += src/simutrans/script/api/api_schedule_route_test.cc
 SOURCES += src/simutrans/script/api/api_settings.cc
 SOURCES += src/simutrans/script/api/api_simple.cc
 SOURCES += src/simutrans/script/api/api_tiles.cc
@@ -601,6 +620,7 @@ SOURCES += src/simutrans/simmain.cc
 SOURCES += src/simutrans/simmem.cc
 SOURCES += src/simutrans/simmesg.cc
 SOURCES += src/simutrans/simskin.cc
+SOURCES += src/simutrans/simsocial.cc
 SOURCES += src/simutrans/simsound.cc
 SOURCES += src/simutrans/simticker.cc
 SOURCES += src/simutrans/simware.cc
@@ -711,6 +731,69 @@ ifeq ($(BACKEND),sdl2)
       ifeq ($(OSTYPE),mingw)
         SDL_LDFLAGS = $(shell $(SDL2_CONFIG) --static --libs)
       endif
+    endif
+  endif
+  CFLAGS += $(SDL_CFLAGS)
+  LIBS   += $(SDL_LDFLAGS)
+endif
+
+ifeq ($(BACKEND),sdl3)
+  SOURCES += src/simutrans/sys/simsys_s3.cc
+  # Sound is the SDL3 counterpart of the sdl2_sound.cc the sdl2 backend uses.
+  # Music is not an SDL concern for either backend, so the per-platform
+  # routine is picked exactly as it is picked there, unless USE_SDL3_MIXER.
+  SOURCES += src/simutrans/sound/sdl3_sound.cc
+  ifeq ($(USE_SDL3_MIXER),1)
+    # Optional: music of any format SDL3_mixer decodes, mixed into the same
+    # stream as the sound effects instead of the per-platform routine.
+    ifeq ($(shell expr $(USE_FLUIDSYNTH_MIDI) \>= 1), 1)
+      $(error USE_SDL3_MIXER and USE_FLUIDSYNTH_MIDI both provide the music routine, choose one)
+    endif
+    SOURCES += src/simutrans/music/sdl3_music.cc
+  else ifneq ($(shell expr $(USE_FLUIDSYNTH_MIDI) \>= 1), 1)
+    ifneq ($(OSTYPE),mingw)
+      SOURCES += src/simutrans/music/no_midi.cc
+    else
+      SOURCES += src/simutrans/music/w32_midi.cc
+    endif
+  endif
+
+  ifeq ($(SDL3_CONFIG),)
+    ifeq ($(OSTYPE),mac)
+      SDL_CFLAGS  := -F /Library/Frameworks -I/Library/Frameworks/SDL3.framework/Headers
+      SDL_LDFLAGS := -framework SDL3 -F /Library/Frameworks
+    else
+      # No -Dmain=SDL_main and no -lSDL3main: unlike SDL2, SDL3 does not
+      # redefine main unless SDL_main.h is included, and simsys_s3.cc does not.
+      SDL_CFLAGS  := -I$(MINGDIR)/include
+      SDL_LDFLAGS := -lSDL3
+    endif
+  else
+    SDL_CFLAGS    := $(shell $(SDL3_CONFIG) --cflags)
+    SDL_LDFLAGS   := $(DYNAMICSTART) $(shell $(SDL3_CONFIG) --libs) $(DYNAMICEND)
+    ifeq ($(shell expr $(STATIC) \>= 1), 1)
+      ifeq ($(OSTYPE),mingw)
+        SDL_LDFLAGS = $(shell $(SDL3_CONFIG) --static --libs)
+      endif
+    endif
+  endif
+  ifeq ($(USE_SDL3_MIXER),1)
+    ifeq ($(SDL3_CONFIG),)
+      ifeq ($(OSTYPE),mac)
+        SDL_LDFLAGS := -framework SDL3_mixer $(SDL_LDFLAGS)
+      else
+        SDL_LDFLAGS := -lSDL3_mixer $(SDL_LDFLAGS)
+      endif
+    else
+      # linked the way SDL3 itself is linked just above
+      SDL_CFLAGS  += $(shell $(SDL3_MIXER_CONFIG) --cflags)
+      MIXER_LDFLAGS := $(DYNAMICSTART) $(shell $(SDL3_MIXER_CONFIG) --libs) $(DYNAMICEND)
+      ifeq ($(shell expr $(STATIC) \>= 1), 1)
+        ifeq ($(OSTYPE),mingw)
+          MIXER_LDFLAGS := $(shell $(SDL3_MIXER_CONFIG) --static --libs)
+        endif
+      endif
+      SDL_LDFLAGS := $(MIXER_LDFLAGS) $(SDL_LDFLAGS)
     endif
   endif
   CFLAGS += $(SDL_CFLAGS)

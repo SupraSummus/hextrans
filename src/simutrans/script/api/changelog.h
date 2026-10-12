@@ -7,15 +7,38 @@
 
 /** @page changelog Changelog
  *
+ * - Updated the embedded Squirrel runtime to upstream v3.2, see @ref squirrel32_en. The
+ *   documented Script API is unchanged. Squirrel tables gained @c map, functions accept
+ *   an inline environment binding, and the iteration order of tables must not be relied
+ *   upon unless it is explicitly documented.
+ * - Added @ref halt_x::get_owners
+ * - Added @ref halt_x::get_permissions
+ * - Added @ref halt_x::set_permissions
+ * - Added @ref halt_x::can_use_halt
+ * - Added @ref world::create_player
+ * - Added @ref convoy_x::has_no_route, @ref convoy_x::is_stuck
+ * - Changed @ref convoy_x::is_schedule_editor_open which reports the schedule dialog of a convoy inside a depot now
+ *
  * @section api-trunk Current trunk
  *
+ * - Added @ref sign_x::get_dirs, @ref sign_x::get_state
+ * - Changed @ref way_planner_x::set_build_types which accepts an optional parameter now, to plan steps that change slopes
+ * - Changed @ref command_x::build_way and @ref command_x::build_road which accept an optional parameter now, to change slopes while building
+ * - Changed @ref command_x::build_bridge_at which accepts an optional parameter now, to search for longer bridges
+ * - Added @ref tunnel_planner_x::find_end to plan the far portal of a tunnel
+ * - Added @ref way_planner_x::get_step_cost
+ * - Changed @ref bridge_planner_x::find_end which accepts two optional parameters now, to search for longer bridges and for ends on flat ground
+ * - Added @ref city_x::get_housing, @ref city_x::get_jobs, @ref city_x::get_homeless, @ref city_x::get_unemployed
+ * - Added @ref building_desc_x::get_level
  * - Added @ref tile_x::get_image, @ref map_object_x::get_image, @ref map_object_x::get_front_image to inspect picked sprites (returns -1 for IMG_EMPTY)
+ * - Added @ref tile_x::get_back_walls to inspect the computed back walls without a pakset
  * - Added @ref way_x::get_image_slot_id returning the engine's image-table slot label (e.g. "image[s]", "imageup[s_double]") -- canonical .dat key, shared with the makeobj writer's vocabulary
  * - Added @ref way_x::get_render_yoff returning the vertical sprite offset used to draw a way
  * - Added @ref command_x::grid_lower, @ref command_x::grid_raise
  * - Added @ref settings::has_double_slopes, @ref settings::get_way_height_clearance
  * - Added @ref tile_x::is_crossing
- * - Added @ref world_x::generate_goods to generate passengers, mail or freight (scenario only)
+ * - Added @ref world::generate_goods to generate passengers, mail or freight (scenario only)
+ * - Added @ref world::generate_build_script to export an area as a script for the build toolkit (scenario only)
  * - Added @ref change_climate_at
  * - Added @ref convoy_x::change_schedule
  * - Added tool_ids::tool_build_groundobj

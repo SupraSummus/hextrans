@@ -9,6 +9,7 @@
 #include "settings.h"
 #include "translator.h"
 #include "environment.h"
+#include "../simdebug.h"
 #include "../world/simworld.h"
 #include "../world/simcity.h"
 #include "../simhalt.h"
@@ -19,6 +20,7 @@
 #include "../utils/simstring.h"
 #include "loadsave.h"
 #include "../network/pakset_info.h"
+#include "../simversion.h"
 
 
 #define MINIMAP_SIZE (64)
@@ -30,8 +32,9 @@ gameinfo_t::gameinfo_t(karte_t *welt) :
 	file_name(""),
 	pak_name("")
 {
-	size_x = welt->get_size().x;
-	size_y = welt->get_size().y;
+	size_x = welt->get_settings().get_size_x();
+	size_y = welt->get_settings().get_size_y();
+	size_d = welt->get_settings().get_size_d();
 
 	industries = welt->get_fab_list().get_count();
 	tourist_attractions = welt->get_attractions().get_count();
@@ -48,7 +51,8 @@ gameinfo_t::gameinfo_t(karte_t *welt) :
 		for( uint16 j = 0; j < MINIMAP_SIZE; j++ ) {
 			const koord pos(i * gr_x / MINIMAP_SIZE, j * gr_y / MINIMAP_SIZE);
 			const grund_t* gr = welt->lookup_kartenboden(pos);
-			map_pixval.at(i,j) = minimap_t::calc_ground_color(gr);
+			// off-map cells of the W x H x D hexagon draw black
+			map_pixval.at(i,j) = gr ? minimap_t::calc_ground_color(gr) : gfx->palette_lookup(COL_BLACK);
 		}
 	}
 
@@ -79,7 +83,7 @@ gameinfo_t::gameinfo_t(karte_t *welt) :
 	bits_per_month = s.get_bits_per_month();
 
 	// names of the stations ...
-	tstrncpy(language_code_names, translator::get_langs()[s.get_name_language_id()].iso, lengthof(language_code_names));
+	tstrncpy(language_code_names, translator::get_langs()[s.get_name_language_id()].iso_base, lengthof(language_code_names));
 
 	// will contain server-IP/name for network games
 	file_name = s.get_filename();
@@ -124,9 +128,18 @@ void gameinfo_t::rdwr(loadsave_t *file)
 
 	file->rdwr_long( size_x );
 	file->rdwr_long( size_y );
+	if(  file->is_version_atleast(SAVE_VERSION_HEX_MAP_SHAPE_MAJOR, SAVE_VERSION_HEX_MAP_SHAPE_MINOR)  ) {
+		file->rdwr_long( size_d );
+	}
+	else {
+		size_d = 1;
+	}
 	for( int y=0;  y<MINIMAP_SIZE;  y++  ) {
 		for( int x=0;  x<MINIMAP_SIZE;  x++  ) {
-			file->rdwr_short( map_pixval.at(x,y) );
+			// one 16 bit word per pixel is the protocol, whatever a screen pixel is
+			NETWORK_PIXVAL c = (NETWORK_PIXVAL)map_pixval.at(x,y);
+			file->rdwr_short( c );
+			map_pixval.at(x,y) = (PIXVAL)c;
 		}
 	}
 
@@ -170,11 +183,13 @@ void gameinfo_t::rdwr(loadsave_t *file)
 		pak_name = temp;
 	}
 	if (file->is_version_atleast(124, 4)) {
-		// get motd from server (to keep paket small, max message is truncated to 1024 bytes)
-		tstrncpy(temp, motd.c_str(), lengthof(temp));
-		file->rdwr_str(temp, lengthof(temp)); // motd for server
+		// cannot use the temp buffer above because PATH_MAX is 260 on Windows
+		// which is too small (need at least MAX_MOTD_LEN+1
+		char motd_buf[MAX_MOTD_LEN+1];
+		tstrncpy(motd_buf, motd.c_str(), lengthof(motd_buf));
+		file->rdwr_str(motd_buf, lengthof(motd_buf)); // motd for server
 		if (file->is_loading()) {
-			motd = temp;
+			motd = motd_buf;
 		}
 	}
 	file->rdwr_long(game_engine_revision);

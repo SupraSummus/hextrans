@@ -194,6 +194,51 @@ function test_depot_build_road()
 }
 
 
+// pak64's depots have 4 layouts, so building_desc_t::adjust_layout stores
+// a NE depot as layout 2 (N) and a SW depot as layout 0 (S).  The road
+// builder has to read the depot's direction off its way: the road along the
+// depot's own axis stays buildable, a road from any other side is refused.
+function test_depot_third_axis()
+{
+	local pl = player_x(0)
+	local roads = get_slow_and_fast_road()
+	local road_depot = get_depot_by_wt(wt_road)
+	local site = coord3d(8, 8, 0)
+
+	ASSERT_TRUE(road_depot != null)
+
+	foreach (face in [dir.northeast, dir.southwest]) {
+		// dead end whose only exit is `face`
+		local out = site + dir.to_coord(face)
+		ASSERT_EQUAL(command_x.build_way(pl, site, out, roads[0], true), null)
+		ASSERT_EQUAL(command_x.build_depot(pl, site, road_depot), null)
+		ASSERT_TRUE(depot_x(site.x, site.y, site.z).is_valid())
+		ASSERT_EQUAL(way_dirs_at(site, wt_road), face)
+
+		// upgrade the road into the depot along its axis
+		ASSERT_EQUAL(command_x.build_way(pl, site, out, roads[1], true), null)
+		ASSERT_EQUAL(tile_x(site.x, site.y, site.z).get_way(wt_road).get_desc().get_name(), roads[1].get_name())
+		ASSERT_EQUAL(way_dirs_at(site, wt_road), face)
+		ASSERT_EQUAL(way_dirs_at(out, wt_road), dir.backward(face))
+
+		// no road from the other five sides, the depot stays a dead end
+		foreach (d in dir.nsew) {
+			if (d == face) continue
+			local side = site + dir.to_coord(d)
+			ASSERT_EQUAL(command_x.build_way(pl, side, site, roads[0], true), "A building blocks the construction")
+			ASSERT_EQUAL(way_dirs_at(site, wt_road), face)
+			ASSERT_EQUAL(way_dirs_at(side, wt_road), 0)
+		}
+
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, site), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, site, out, "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_depot_build_road_on_tram_crossing()
 {
 	local pl = player_x(0)

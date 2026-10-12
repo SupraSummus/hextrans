@@ -8,21 +8,26 @@
 #include "../simskin.h"
 #include "../simcolor.h"
 #include "../tool/simtool.h"
+#include "../display/simgraph.h"
 #include "../display/viewport.h"
 #include "../player/simplay.h"
 #include "../world/simworld.h"
+#include "../display/simimg.h"
 
 #include "../dataobj/translator.h"
 
 #include "../descriptor/skin_desc.h"
 
 #include "../utils/cbuffer.h"
+#include "../utils/simstring.h"
 
 #include "gui_frame.h"
 #include "halt_info.h" // gui_halt_type_images_t
 
 
 static karte_ptr_t welt;
+
+
 /**
  * Events are notified to GUI components via this method
  */
@@ -59,13 +64,15 @@ halt_list_stats_t::halt_list_stats_t(halthandle_t h)
 	gotopos.set_targetpos3d(halt->get_basis_pos3d());
 	add_component(&gotopos);
 
-	add_table(2,1);
+	add_table(3,1);
 	{
 		add_component(&label_name);
 		label_name.buf().append(halt->get_name());
 		label_name.update();
 
 		img_types = new_component<gui_halt_type_images_t>(halt);
+
+		add_component(&owners);
 	}
 	end_table();
 
@@ -117,6 +124,9 @@ void halt_list_stats_t::draw(scr_coord offset)
 	halt->get_short_freight_info( label_cargo.buf() );
 	label_cargo.update();
 
+	owners.set_owners(halt->get_owners());
+
 	set_size(get_size());
+
 	gui_aligned_container_t::draw(offset);
 }

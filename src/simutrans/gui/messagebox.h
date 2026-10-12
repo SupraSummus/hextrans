@@ -66,7 +66,7 @@ class news_loc : public news_window
 public:
 	news_loc(const char* text, koord3d k, FLAGGED_PIXVAL color = env_t::default_window_title_color);
 
-	void map_rotate90( sint16 new_ysize ) OVERRIDE;
+	void map_rotate90( const map_shape_t &from ) OVERRIDE;
 
 	koord3d get_weltpos(bool) OVERRIDE;
 

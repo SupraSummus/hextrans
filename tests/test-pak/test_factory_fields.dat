@@ -1,0 +1,41 @@
+# Test-only factory with fields and a footprint that is not square, for the
+# automated test scenario.  Baked into test-pak.pak by
+# tools/test.py::ensure_test_pak.
+#
+# No pakset has a factory with fields that is bigger than one tile, so the
+# tests would never place fields around a footprint that turns with the
+# layout: layout 0 is 3x1 and layout 1 is 1x3.  The tiles carry the one image
+# of this directory, because a factory tile with no image is not built.
+#
+# distributionweight=0 keeps the factory out of the random pick of a factory,
+# and electricity_producer=1 out of the random pick of a consumer; only tests
+# ask for it by name.  min_fields=10 is as many as touch the footprint, so a
+# field that lands farther out is a field laid around the wrong footprint.
+
+obj=field
+name=TEST_FIELD
+copyright=hextrans test
+image[0]=-
+
+---
+obj=factory
+name=TEST_FIELD_FACTORY
+copyright=hextrans test
+location=Land
+distributionweight=0
+productivity=100
+range=10
+mapcolor=1
+electricity_producer=1
+fields=TEST_FIELD
+has_snow=0
+min_fields=10
+start_fields=11
+max_fields=12
+dims=3,1,2
+backimage[0][0][0][0][0][0]=icon.0.0
+backimage[0][0][1][0][0][0]=icon.0.0
+backimage[0][0][2][0][0][0]=icon.0.0
+backimage[1][0][0][0][0][0]=icon.0.0
+backimage[1][1][0][0][0][0]=icon.0.0
+backimage[1][2][0][0][0][0]=icon.0.0

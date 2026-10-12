@@ -215,6 +215,17 @@ public:
 		            min( corner_nw(high) - corner_nw(low), corner_ne(high) - corner_ne(low) ) );
 	}
 
+	/// Slope of the same ground once its base height goes up by @p by
+	/// levels and everything below the new base is clamped to it, as
+	/// water at that level does: each of the 6 corner heights drops by
+	/// @p by, to at least 0.  All 6 corners, E and W included.
+	static type raise_base(type x, sint8 by) {
+		return (type)encode_corners_hex(
+			max(corner_e(x)  - by, 0), max(corner_se(x) - by, 0),
+			max(corner_sw(x) - by, 0), max(corner_w(x)  - by, 0),
+			max(corner_nw(x) - by, 0), max(corner_ne(x) - by, 0));
+	}
+
 	/// Project a 6-corner hex slope onto a 4-corner subset by absorbing
 	/// the 2 hex-only corners (E, W) into their adjacent square corners
 	/// (E → max with SE and NE, W → max with SW and NW), dropping E
@@ -321,6 +332,9 @@ public:
 		    || is_way_axis(x, corner_ne(x), corner_e(x),  corner_sw(x), corner_w(x))
 		    || is_way_axis(x, corner_w(x),  corner_nw(x), corner_e(x),  corner_se(x));
 	}
+
+	/// Returns if way can be build on this slope. If allow_double is true, double slopes are allowed
+	static bool is_way_double(type x, bool allow_double) { return is_way(x)  &&  (allow_double  ||  !has_double_corner(x)); }
 
 	static bool is_planar_double_edge(type x) {
 		switch (x) {
@@ -462,12 +476,11 @@ public:
 	typedef uint8 ribi;
 
 	/**
-	 * Direction image index for vehicles / signs.  Still a 4-direction
-	 * enum for sprite-raster reasons; porting this is tied to the
-	 * viewport projection (see TODO.md) and a real hex sprite set.
-	 * For now the enum keeps its 8 values but callers that consume
-	 * `get_dir()` on a hex ribi land on whichever 4 of 6 edges the
-	 * dirs[] table chooses to project onto the square dir enum.
+	 * Direction image index for vehicles / signs.  Still the square-era
+	 * 8-value enum for sprite-raster reasons; porting this is tied to
+	 * the viewport projection (see TODO.md) and a real hex sprite set.
+	 * For now `get_dir()` maps each single hex edge onto the slot of
+	 * the same name.
 	 */
 	enum _dir {
 		dir_invalid   = 0,
@@ -507,6 +520,11 @@ public:
 	/// (NE / SW) fold onto available images in
 	/// building_desc_t::adjust_layout.
 	static uint8 ribi_to_layout(ribi single);
+	/// Layout of a through building on the axis of the straight @p x:
+	/// its S, SE or SW end, i.e. layout 0, 1 or 5.  The NE-SW axis
+	/// lands on layout 5, which adjust_layout folds onto an available
+	/// image like a NE / SW terminal.
+	static uint8 axis_to_layout(ribi x);
 
 	static bool is_perpendicular(ribi x, ribi y);
 
@@ -592,10 +610,10 @@ public:
 		return a == none ? (ribi)0 : (ribi)(a | backward(a));
 	}
 
-	/// Convert ribi to dir (sprite-raster index).  Still projects onto
-	/// the 8-value square dir enum until the viewport/sprite port
-	/// lands.  Multi-bit inputs and NE/SE/etc. that don't have a
-	/// square-era dir slot return dir_invalid.
+	/// Convert ribi to dir (sprite-raster index).  Each single hex
+	/// edge maps to the same-named slot of the 8-value square dir
+	/// enum until the viewport/sprite port lands.  `none` and
+	/// multi-bit inputs return dir_invalid.
 	static dir get_dir(ribi x);
 
 	/// Alias for `backward`.  Under the old 4-bit layout this was a

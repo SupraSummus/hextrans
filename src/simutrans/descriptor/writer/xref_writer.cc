@@ -4,6 +4,7 @@
  */
 
 #include <string.h>
+#include "../text_desc.h"
 #include "obj_node.h"
 #include "xref_writer.h"
 

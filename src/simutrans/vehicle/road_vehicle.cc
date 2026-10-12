@@ -92,9 +92,7 @@ bool road_vehicle_t::calc_route(koord3d start, koord3d ziel, sint32 max_speed, r
 	// free target reservation
 	if(leading   &&  previous_direction!=ribi_t::none  &&  cnv  &&  target_halt.is_bound() ) {
 		// now reserve our choice (beware: might be longer than one tile!)
-		for(  uint32 length=0;  length<cnv->get_tile_length()  &&  length+1<cnv->get_route()->get_count();  length++  ) {
-			target_halt->unreserve_position( welt->lookup( cnv->get_route()->at( cnv->get_route()->get_count()-length-1) ), cnv->self );
-		}
+		target_halt->unreserve_position( NULL, cnv->self );
 	}
 	target_halt = halthandle_t(); // no block reserved
 	route_t::route_result_t r = route->calc_route(welt, start, ziel, this, max_speed, cnv->get_tile_length() );
@@ -113,8 +111,7 @@ bool road_vehicle_t::check_next_tile(const grund_t *bd) const
 	if(str==NULL  ||  str->get_max_speed()==0) {
 		return false;
 	}
-	bool electric = cnv!=NULL  &&  cnv->needs_electrification();
-	if(electric  &&  !str->is_electrified()) {
+	if(needs_electrification()  &&  !str->is_electrified()) {
 		return false;
 	}
 	// check for signs
@@ -207,7 +204,7 @@ void road_vehicle_t::get_screen_offset( int &xoff, int &yoff, const sint16 raste
 	vehicle_base_t::get_screen_offset( xoff, yoff, raster_width );
 
 	if(  welt->get_settings().is_drive_left()  ) {
-		const int drive_left_dir = ribi_t::get_dir(get_direction());
+		const int drive_left_dir = get_lane_offset_row();
 		xoff += tile_raster_scale_x( driveleft_base_offsets[drive_left_dir][0], raster_width );
 		yoff += tile_raster_scale_y( driveleft_base_offsets[drive_left_dir][1], raster_width );
 	}
@@ -215,12 +212,12 @@ void road_vehicle_t::get_screen_offset( int &xoff, int &yoff, const sint16 raste
 	// eventually shift position to take care of overtaking
 	if(cnv) {
 		if(  cnv->is_overtaking()  ) {
-			xoff += tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][0], raster_width);
-			yoff += tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][1], raster_width);
+			xoff += tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][0], raster_width);
+			yoff += tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][1], raster_width);
 		}
 		else if(  cnv->is_overtaken()  ) {
-			xoff -= tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][0], raster_width)/5;
-			yoff -= tile_raster_scale_x(overtaking_base_offsets[ribi_t::get_dir(get_direction())][1], raster_width)/5;
+			xoff -= tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][0], raster_width)/5;
+			yoff -= tile_raster_scale_x(overtaking_base_offsets[get_lane_offset_row()][1], raster_width)/5;
 		}
 	}
 }
@@ -232,6 +229,18 @@ bool road_vehicle_t::choose_route(sint32 &restart_speed, ribi_t::ribi start_dire
 	if(  cnv->get_schedule_target()!=koord3d::invalid  ) {
 		// destination is a waypoint!
 		return true;
+	}
+
+	// find if there is an end_of?choose on the route and continue if yes
+	for (uint32 ri = route_index + 1; ri < cnv->get_route()->get_count(); ri++) {
+		if (grund_t* gr = welt->lookup(cnv->get_route()->at(ri))) {
+			if (roadsign_t* rs = gr->find<roadsign_t>()) {
+				if (rs->get_desc()->is_end_choose_signal()) {
+					// ignore choose_sign if end_of_choose sign is on the route 
+					return true;
+				}
+			}
+		}
 	}
 
 	// are we heading to a target?

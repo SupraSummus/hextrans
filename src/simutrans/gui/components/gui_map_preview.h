@@ -9,6 +9,7 @@
 
 #include "gui_component.h"
 #include "../../simcolor.h"
+#include "../../dataobj/map_shape.h"
 #include "../../display/simgraph.h"
 #include "../../tpl/array2d_tpl.h"
 
@@ -31,6 +32,22 @@ class gui_map_preview_t : public gui_component_t
 		void set_map_data(array2d_tpl<PIXVAL> *map_data_par) {
 			map_data = map_data_par;
 		}
+
+		/**
+		 * The previews of the new-world and the enlarge-map dialog show the
+		 * relief image frame of the map shape, the physical plane in offset
+		 * coordinates (documentation/map-shape.md): the size of the preview
+		 * of a map of shape @p shape has the aspect of its image.
+		 */
+		static scr_size get_preview_size(const map_shape_t &shape);
+
+		/**
+		 * The tile that pixel (@p x, @p y) of a preview of size @p size shows
+		 * of a map of shape @p shape: the image pixel at the centre of the
+		 * pixel's cell is the tile (X, shape.get_tile_row(X, Y)).  The pixel
+		 * is outside the hexagon unless shape.contains() holds for the tile.
+		 */
+		static koord get_preview_tile(const map_shape_t &shape, const scr_size &size, int x, int y);
 
 		/**
 		 * Draws the component.

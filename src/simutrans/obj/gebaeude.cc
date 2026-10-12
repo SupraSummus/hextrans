@@ -21,6 +21,7 @@ static pthread_mutex_t add_to_city_mutex = PTHREAD_MUTEX_INITIALIZER;
 #include "../gui/headquarter_info.h"
 #include "../world/simworld.h"
 #include "simobj.h"
+#include "way/schiene.h"
 #include "../simconst.h"
 #include "../simfab.h"
 #include "../display/simimg.h"
@@ -147,39 +148,23 @@ void gebaeude_t::rotate90()
 {
 	obj_t::rotate90();
 
+	// A layout and a rectangular footprint have no 60° turn yet (that needs
+	// the 6-orientation footprint, see AGENTS.md): both turn by 180° on the
+	// step that completes a half turn and stay put on the two before it.
+	if(  !welt->get_settings().is_half_turn_rotation()  ) {
+		return;
+	}
+
 	// must or can rotate?
 	const building_desc_t* const building_desc = tile->get_desc();
 	if (building_desc->get_all_layouts() > 1  ||  building_desc->get_x() * building_desc->get_y() > 1) {
-		uint8 layout = tile->get_layout();
-		koord new_offset = tile->get_offset();
-
-		if(building_desc->get_type() == building_desc_t::unknown  ||  building_desc->get_all_layouts()<=4) {
-			layout = ((layout+3) % building_desc->get_all_layouts() & 3);
-		}
-		else if(  building_desc->get_all_layouts()==8  &&  building_desc->get_type() >= building_desc_t::city_res  ) {
-			// eight layout city building
-			layout = (layout & 4) + ((layout+3) & 3);
-		}
-		else {
-			// 8 & 16 tile lyoutout for stations
-			static uint8 layout_rotate[16] = { 1, 8, 5, 10, 3, 12, 7, 14, 9, 0, 13, 2, 11, 4, 15, 6 };
-			layout = layout_rotate[layout] % building_desc->get_all_layouts();
-		}
-		// have to rotate the tiles :(
-		if(  !building_desc->can_rotate()  &&  building_desc->get_all_layouts() == 1  ) {
-			if ((welt->get_settings().get_rotation() & 1) == 0) {
-				// rotate 180 degree
-				new_offset = koord(building_desc->get_x() - 1 - new_offset.x, building_desc->get_y() - 1 - new_offset.y);
-			}
-			// do nothing here, since we cannot fix it properly
-		}
-		else {
-			// rotate on ...
-			new_offset = koord(building_desc->get_y(tile->get_layout()) - 1 - new_offset.y, new_offset.x);
-		}
+		const uint8 layout = building_desc->get_half_turn_layout( tile->get_layout() );
+		const koord offset = tile->get_offset();
+		// the footprint is the same rectangle, entered from the far corner
+		const koord new_offset( building_desc->get_x(layout) - 1 - offset.x, building_desc->get_y(layout) - 1 - offset.y );
 
 		// such a tile exist?
-		if(  building_desc->get_x(layout) > new_offset.x  &&  building_desc->get_y(layout) > new_offset.y  ) {
+		if(  new_offset.x >= 0  &&  new_offset.y >= 0  &&  building_desc->get_x(layout) > new_offset.x  &&  building_desc->get_y(layout) > new_offset.y  ) {
 			const building_tile_desc_t* const new_tile = building_desc->get_tile(layout, new_offset.x, new_offset.y);
 			// add new tile: but make them old (no construction)
 			uint32 old_insta_zeit = insta_zeit;
@@ -461,6 +446,14 @@ void gebaeude_t::display(int xpos, int ypos  CLIP_NUM_DEF) const
 					gfx->draw_blend(ground, xpos, ypos, owner_n, gfx->palette_lookup(welt->get_player(owner_n)->get_player_color1() + 2) | OUTLINE_FLAG | TRANSPARENT75_FLAG, 0, is_dirty  CLIP_NUM_PAR);
 				}
 				else {
+					if (schiene_t::show_reservations && tile->get_desc()->is_transport_building()) {
+						if (grund_t* gr = welt->lookup(get_pos())) {
+							if (gr->is_halt() && gr->get_halt()->get_reserved(gr).is_bound()) {
+								gfx->draw_blend(ground, xpos, ypos, owner_n, gfx->palette_lookup(COL_GREEN) | OUTLINE_FLAG | TRANSPARENT75_FLAG, 0, true  CLIP_NUM_PAR);
+								return;
+							}
+						}
+					}
 					gfx->draw_color(ground, xpos, ypos, owner_n, true, is_dirty  CLIP_NUM_PAR);
 				}
 			}
@@ -977,7 +970,6 @@ void gebaeude_t::rdwr(loadsave_t *file)
 						break;
 
 					default:
-						dbg->warning("gebaeude_t::rwdr", "description %s for building at %d,%d not found (will be removed)!", buf, get_pos().x, get_pos().y);
 						pakset_manager_t::add_missing_paks( buf, MISSING_BUILDING );
 				}
 			}
@@ -1032,7 +1024,7 @@ void gebaeude_t::rdwr(loadsave_t *file)
 }
 
 
-void gebaeude_t::finish_rd()
+bool gebaeude_t::finish_rd()
 {
 	player_t::add_maintenance(get_owner(), tile->get_desc()->get_maintenance(welt), tile->get_desc()->get_finance_waytype());
 
@@ -1078,6 +1070,7 @@ void gebaeude_t::finish_rd()
 		}
 #endif
 	}
+	return false;
 }
 
 
@@ -1102,16 +1095,21 @@ void gebaeude_t::cleanup(player_t *player)
 	if(tile->get_desc()->get_all_layouts()>1  &&  tile->get_desc()->is_transport_building()) {
 
 		// realign surrounding buildings...
-		uint32 layout = tile->get_layout();
 
 		// detect if we are connected at far (north/west) end
 		grund_t * gr = welt->lookup( get_pos() );
 		if(gr) {
+			// the platform runs along the axis of the way; the stored layout
+			// only has two of the three hex axes
+			const ribi_t::ribi axis = ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, tile));
+			const koord far_step  = koord::step(axis & ribi_t::lower_half); // S, SE or SW
+			const koord near_step = koord::step(axis & ribi_t::upper_half); // N, NW or NE
+
 			sint8 offset = gr->get_weg_yoff()/TILE_HEIGHT_STEP;
-			gr = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)), offset) );
+			gr = welt->lookup( get_pos()+koord3d( far_step, offset) );
 			if(!gr) {
 				// check whether bridge end tile
-				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::southeast) : koord::step(ribi_t::south)),offset - 1) );
+				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( far_step,offset - 1) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 					gr = gr_tmp;
 				}
@@ -1121,7 +1119,7 @@ void gebaeude_t::cleanup(player_t *player)
 				if(gb  &&  gb->get_tile()->get_desc()->get_all_layouts()>4u) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
-					if((layoutbase & 1u) == (layout & 1u)) {
+					if(ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, gb->get_tile())) == axis) {
 						layoutbase |= 4u; // set far bit on neighbour
 						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
 					}
@@ -1129,10 +1127,10 @@ void gebaeude_t::cleanup(player_t *player)
 			}
 
 			// detect if near (south/east) end
-			gr = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)), offset) );
+			gr = welt->lookup( get_pos()+koord3d( near_step, offset) );
 			if(!gr) {
 				// check whether bridge end tile
-				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( (layout & 1 ? koord::step(ribi_t::northwest) : koord::step(ribi_t::north)),offset - 1) );
+				grund_t * gr_tmp = welt->lookup( get_pos()+koord3d( near_step,offset - 1) );
 				if(gr_tmp && gr_tmp->get_weg_yoff()/TILE_HEIGHT_STEP == 1) {
 					gr = gr_tmp;
 				}
@@ -1142,7 +1140,7 @@ void gebaeude_t::cleanup(player_t *player)
 				if(gb  &&  gb->get_tile()->get_desc()->get_all_layouts()>4) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
-					if((layoutbase & 1u) == (layout & 1u)) {
+					if(ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, gb->get_tile())) == axis) {
 						layoutbase |= 2u; // set near bit on neighbour
 						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
 					}

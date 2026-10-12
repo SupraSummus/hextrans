@@ -13,6 +13,7 @@
 #include "../../display/simgraph.h"
 #include "../../display/viewport.h"
 
+#include "../../utils/simstring.h"
 #include "../../utils/cbuffer.h"
 
 #include "../../ground/grund.h"
@@ -29,6 +30,7 @@
 #include "../../tpl/vector_tpl.h"
 
 #include "gui_button.h"
+#include "gui_image.h"
 #include "gui_textarea.h"
 #include "gui_timeinput.h"
 #include "gui_component.h"
@@ -84,7 +86,10 @@ public:
 		add_component(&down);
 
 		del.init( button_t::imagebox, NULL );
-		del.set_image( skinverwaltung_t::gadget->get_image_id(SKIN_GADGET_CLOSE) );
+		if(  skinverwaltung_t::gadget  ) {
+			// no theme is loaded when there is no display, then the button stays blank
+			del.set_image( skinverwaltung_t::gadget->get_image_id(SKIN_GADGET_CLOSE) );
+		}
 		del.set_size( gui_theme_t::gui_arrow_left_size );
 		del.add_listener( this );
 		del.set_tooltip( "Delete the current stop" );
@@ -201,15 +206,28 @@ class schedule_gui_stats_t :
 	zeiger_t *current_stop_mark; ///< mark current stop on map
 
 	bool invalid_entries;
+
+	uint32 route_overlay_id;  ///< identifies our route overlay in the world
+	bool route_needs_update;  ///< schedule changed since we asked for the route
+	bool route_shown;         ///< we asked for a route and did not drop it yet
 public:
 	schedule_t *schedule;      ///< schedule under editing
 	player_t*  player;
+	uint16 route_speed_kmh;    ///< speed of the convoi driving this schedule (0: none)
+	bool route_electric;       ///< that convoi may only drive on electrified ways
 
 	schedule_gui_stats_t()
 	{
 		set_table_layout(1,0);
 		last_schedule = schedule = NULL;
 		invalid_entries = false;
+
+		static uint32 next_route_overlay_id = 0;
+		route_overlay_id = ++next_route_overlay_id; // 0 means "nobody"
+		route_needs_update = false;
+		route_shown = false;
+		route_speed_kmh = 0;
+		route_electric = false;
 
 		current_stop_mark = new zeiger_t(koord3d::invalid, NULL );
 		current_stop_mark->set_image( tool_t::general_tool[TOOL_SCHEDULE_ADD]->cursor );
@@ -268,6 +286,19 @@ public:
 			}
 		}
 		current_stop_mark->clear_flag( obj_t::highlight );
+
+		// the route between the stops rides on its own channel: the world holds the
+		// tiles and draws them, we only ask for them and drop them again
+		if(  marking  ) {
+			if(  route_needs_update  ||  !route_shown  ||  welt->get_schedule_route_owner() == 0  ) {
+				welt->request_schedule_route( schedule, player, route_overlay_id, route_speed_kmh, route_electric );
+				route_needs_update = false;
+			}
+		}
+		else if(  route_shown  ) {
+			welt->clear_schedule_route( route_overlay_id );
+		}
+		route_shown = marking;
 	}
 
 	void update_schedule(bool highlight)
@@ -285,6 +316,8 @@ public:
 			}
 		}
 		else {
+			// the stops changed, so the route between them changed too
+			route_needs_update = true;
 			remove_all();
 			entries.clear();
 			invalid_entries = false;
@@ -502,6 +535,21 @@ void gui_schedule_t::init(schedule_t* schedule_, player_t* player, convoihandle_
 
 		stats->player = player;
 		stats->schedule = schedule;
+		// the route is calculated with a temporary vehicle: give it the speed and the
+		// catenary requirement of the convoi driving this schedule, so that an electric
+		// one is not shown a route it could not take. A line without convois gets a
+		// generic vehicle, which is not bound to catenary.
+		sint32 top_speed = 0;
+		stats->route_electric = false;
+		if(  convoi_mode.is_bound()  ) {
+			top_speed = convoi_mode->get_min_top_speed();
+			stats->route_electric = convoi_mode->needs_electrification();
+		}
+		else if(  line_mode.is_bound()  &&  line_mode->count_convoys() > 0  ) {
+			top_speed = line_mode->get_convoy(0)->get_min_top_speed();
+			stats->route_electric = line_mode->get_convoy(0)->needs_electrification();
+		}
+		stats->route_speed_kmh = top_speed > 0 ? (uint16)min( speed_to_kmh(top_speed), 1000 ) : 500;
 		stats->update_schedule(false);
 
 		numimp_load.set_value( schedule->get_current_entry().minimum_loading );
@@ -685,9 +733,14 @@ void gui_schedule_t::draw(scr_coord pos)
 	if( schedule ) {
 		// check if we missed a map rotation
 		const uint8 world_rotation = world()->get_settings().get_rotation();
-		while(  current_schedule_rotation != world_rotation  ) {
-			current_schedule_rotation = (current_schedule_rotation + 1) % 4;
-			schedule->rotate90( (4+current_schedule_rotation - world_rotation) & 1 ? world()->get_size().y-1 : world()->get_size().x-1 );
+		if(  current_schedule_rotation != world_rotation  ) {
+			const int missed = (6 + world_rotation - current_schedule_rotation) % 6;
+			map_shape_t shape = world()->get_map_shape().rotated( -missed );
+			for(  int i = 0;  i < missed;  i++  ) {
+				schedule->rotate90( shape );
+				shape = shape.rotated();
+			}
+			current_schedule_rotation = world_rotation;
 		}
 
 		schedule_t *scd = get_old_schedule();

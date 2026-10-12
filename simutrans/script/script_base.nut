@@ -571,7 +571,8 @@ class slope {
 	static southwest_double = 2 + 4 + 256 + 2048               ///< encode_corners_hex(2, 1, 0, 0, 1, 2) = 2310
 	static northwest_double = 2 + 8 + 16 + 1024                ///< encode_corners_hex(2, 2, 1, 0, 0, 1) = 1050
 
-	// Legacy square diagonals (no longer way-buildable, kept for save compat).
+	// Legacy square diagonals (way-buildable only as side chords,
+	// kept for save compat).
 	static east = 256 + 16    ///< 2 west corners raised = 272
 	static west = 1024 + 4    ///< 2 east corners raised = 1028
 

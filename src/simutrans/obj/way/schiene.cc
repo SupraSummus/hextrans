@@ -7,6 +7,7 @@
 
 #include "../../simconvoi.h"
 #include "../../world/simworld.h"
+#include "../../vehicle/vehicle.h"
 
 #include "../../dataobj/environment.h"
 #include "../../dataobj/loadsave.h"
@@ -16,6 +17,7 @@
 
 #include "../../descriptor/way_desc.h"
 #include "../../builder/wegbauer.h"
+#include "../../player/simplay.h"
 
 #include "schiene.h"
 
@@ -25,7 +27,8 @@ bool schiene_t::show_reservations = false;
 
 schiene_t::schiene_t() : weg_t()
 {
-	reserved = convoihandle_t();
+	reserved2 = reserved = convoihandle_t();
+	enter = enter2 = 0;
 
 	if (schiene_t::default_schiene) {
 		set_desc(schiene_t::default_schiene);
@@ -38,7 +41,9 @@ schiene_t::schiene_t() : weg_t()
 
 schiene_t::schiene_t(loadsave_t *file) : weg_t()
 {
-	reserved = convoihandle_t();
+	reserved2 = reserved = convoihandle_t();
+	enter = enter2 = 0;
+
 	rdwr(file);
 }
 
@@ -46,9 +51,12 @@ schiene_t::schiene_t(loadsave_t *file) : weg_t()
 void schiene_t::cleanup(player_t *)
 {
 	// removes reservation
-	if(reserved.is_bound()) {
-		set_ribi(ribi_t::none);
+	set_ribi(ribi_t::none);
+	if (reserved.is_bound()) {
 		reserved->suche_neue_route();
+	}
+	if (reserved2.is_bound()) {
+		reserved2->suche_neue_route();
 	}
 }
 
@@ -76,17 +84,63 @@ void schiene_t::info(cbuffer_t & buf) const
 /**
  * true, if this rail can be reserved
  */
-bool schiene_t::reserve(convoihandle_t c)
+bool schiene_t::reserve(convoihandle_t c, uint32 index )
 {
-	if(can_reserve(c)) {
+	if (is_close_diagonal()) {
+		// Get the entry direction. After loading, a convoy's route can be shorter
+		// than the route index its vehicles carry - finish_rd() repairs that only
+		// afterwards - so look only at route positions that actually exist.
+		const route_t &rt = *c->get_route();
+		ribi_t::ribi from = ribi_t::none;
+		if(  index > 0  &&  index < rt.get_count()  ) {
+			from = ribi_type(rt.at(index - 1), get_pos());
+		}
+		else if(  rt.get_count() > 1  ) {
+			// no usable previous tile, so guess from the next one
+			from = ribi_type(get_pos(), rt.at(1));
+		}
+		bool use2 = (is_close_diagonal() == 2 && (from & ribi_t::northeast)) || (is_close_diagonal() == 1 && (from & ribi_t::southeast));
+		convoihandle_t& r = use2 ? reserved2 : reserved;
+		convoihandle_t& r_other = use2 ? reserved : reserved2;
+		if (r_other == c) {
+			// may happen during rotations that we are rereved on the other track ...
+			r_other = convoihandle_t();
+			(use2 ? enter : enter2) = 0;
+		}
+		if (r.is_bound() && r != c) {
+			return false;
+		}
+		r = c;
+		(use2 ? enter2 : enter) = from;
+		if (schiene_t::show_reservations) {
+			set_flag(obj_t::dirty);
+		}
+		return true;
+	}
+	else if(can_reserve(c)) {
 		reserved = c;
 		if(schiene_t::show_reservations) {
 			set_flag( obj_t::dirty );
 		}
 		return true;
+		
 	}
 	// reserve anyway ...
 	return false;
+}
+
+
+/**
+ * releases previous reservation: On normal tiles => release all
+ */
+bool schiene_t::unreserve(vehicle_t *v)
+{
+	if (is_close_diagonal()) {
+		if (v && v->get_convoi()) {
+			return unreserve(v->get_convoi()->self);
+		}
+	}
+	return unreserve(reserved);
 }
 
 
@@ -97,10 +151,19 @@ bool schiene_t::reserve(convoihandle_t c)
 bool schiene_t::unreserve(convoihandle_t c)
 {
 	// is this tile reserved by us?
-	if(reserved.is_bound()  &&  reserved==c) {
+	if(reserved==c) {
 		reserved = convoihandle_t();
+		enter = 0;
 		if(schiene_t::show_reservations) {
 			set_flag( obj_t::dirty );
+		}
+		return true;
+	}
+	if (reserved2 == c) {
+		reserved2 = convoihandle_t();
+		enter2 = 0;
+		if (schiene_t::show_reservations) {
+			set_flag(obj_t::dirty);
 		}
 		return true;
 	}
@@ -138,8 +201,8 @@ void schiene_t::rdwr(loadsave_t *file)
 		const way_desc_t *desc = way_builder_t::get_desc(bname);
 
 		if(desc==NULL) {
-			int old_max_speed=get_max_speed();
 			desc = way_builder_t::get_desc(translator::compatibility_name(bname));
+
 			if(desc==NULL) {
 				desc = default_schiene;
 				if (!desc) {
@@ -147,7 +210,6 @@ void schiene_t::rdwr(loadsave_t *file)
 				}
 				pakset_manager_t::add_missing_paks( bname, MISSING_WAY );
 			}
-			dbg->warning("schiene_t::rdwr()", "Unknown rail '%s' replaced by '%s' (old_max_speed %i)", bname, desc->get_name(), old_max_speed );
 		}
 
 		set_desc(desc);
@@ -162,11 +224,39 @@ void schiene_t::rdwr(loadsave_t *file)
 FLAGGED_PIXVAL schiene_t::get_outline_colour() const
 {
 	if (env_t::show_single_ways  &&  ribi_t::is_single(get_ribi_unmasked())) {
-		return TRANSPARENT75_FLAG | OUTLINE_FLAG | gfx->palette_lookup(COL_RED);
+		return TRANSPARENT75_FLAG | OUTLINE_FLAG | gfx->palette_lookup(COL_YELLOW);
 	}
 	if (show_reservations  &&  reserved.is_bound()) {
 		return TRANSPARENT75_FLAG | OUTLINE_FLAG | gfx->palette_lookup(COL_RED);
 	}
-
+	if (show_reservations  &&  is_close_diagonal()  &&  get_desc()->has_close_diagonal_image() && reserved2.is_bound()) {
+		return TRANSPARENT75_FLAG | OUTLINE_FLAG | gfx->palette_lookup(COL_RED);
+	}
 	return 0;
+}
+
+
+void schiene_t::display(int xpos, int ypos CLIP_NUM_DEF) const
+{
+	if (is_close_diagonal() && !get_desc()->has_close_diagonal_image()) {
+		image_id image = get_desc()->get_diagonal_image_id(is_close_diagonal() == 1 ? ribi_t::northwest : ribi_t::southwest, is_snow());
+		if (get_owner_nr() != PLAYER_UNOWNED) {
+			if (obj_t::show_owner) {
+				gfx->draw_blend(image, xpos, ypos, get_owner_nr(), gfx->palette_lookup(get_owner()->get_player_color1() + 2) | OUTLINE_FLAG | TRANSPARENT75_FLAG, 0, get_flag(dirty)  CLIP_NUM_PAR);
+			}
+			else {
+				gfx->draw_color(image, xpos, ypos, get_owner_nr(), true, get_flag(dirty)  CLIP_NUM_PAR);
+			}
+		}
+		else {
+			gfx->draw_normal(image, xpos, ypos, 0, true, get_flag(dirty)  CLIP_NUM_PAR);
+		}
+
+		if (show_reservations  &&  reserved2.is_bound()) {
+			// transparent outline for second way
+			gfx->draw_blend(image, xpos, ypos, get_owner_nr(), TRANSPARENT75_FLAG | OUTLINE_FLAG | gfx->palette_lookup(COL_RED), 0, get_flag(dirty)  CLIP_NUM_PAR);
+		}
+	}
+
+	obj_t::display(xpos, ypos CLIP_NUM_PAR);
 }

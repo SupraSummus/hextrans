@@ -8,22 +8,23 @@
 
 
 #include "gui_action_creator.h"
+#include "action_listener.h"
 #include "gui_component.h"
+#include "gui_scrolled_list.h"
 #include "../../simcolor.h"
 #include "../../display/simgraph.h"
 #include "../../utils/cbuffer.h"
-
 
 /**
  * A simple text input field. It has no Text Buffer,
  * only a pointer to a buffer created by someone else.
  */
 class gui_textinput_t :
+	public action_listener_t,
 	public gui_action_creator_t,
 	public gui_component_t
 {
 protected:
-
 	/**
 	 * The string buffer
 	 */
@@ -91,6 +92,17 @@ protected:
 	 */
 	uint32 cursor_reference_time;
 
+	gui_scrolled_list_t edit_menu;
+
+	/// the long press that opened the menu has not been lifted yet
+	bool edit_menu_opening_gesture;
+
+	/// the label of a command, translated
+	static const char *get_command_text( int cmd );
+
+	/// which entry lies under a point, -1 for none
+	int edit_menu_index_at( const scr_coord &point ) const;
+
 	/**
 	 * determine new cursor position from event coordinates
 	 */
@@ -107,6 +119,8 @@ public:
 	enum { INPUT_UNTOP = 0, INPUT_FINISHED, INPUT_CHANGED };
 
 	gui_textinput_t();
+
+	~gui_textinput_t();
 
 	// update changes with delay (in ms), 0=immeadiately 0xFFFF=never
 	void set_notify_all_changes_delay(uint16 _n) { notify_all_changes_delay = _n; }
@@ -137,7 +151,7 @@ public:
 	// x position of the current cursor (for IME purposes)
 	scr_coord_val get_current_cursor_x() { return calc_cursor_pos(head_cursor_pos); }
 
-	// set currsen selection (not checks!)
+	// set current selection (not checks!)
 	void set_cursor(sint32 h, sint32 t) {
 		head_cursor_pos = h;
 		tail_cursor_pos = t;
@@ -163,11 +177,19 @@ public:
 	scr_size get_min_size() const OVERRIDE;
 
 	void set_enabled(bool e) { enabled = e; }
+
+	/// true when the content must never leave the field (a password)
+	virtual bool is_secret() const { return false; }
+
+	bool action_triggered(gui_action_creator_t* comp, value_t extra) OVERRIDE;
 };
 
 
 class gui_hidden_textinput_t : public gui_textinput_t
 {
+public:
+	gui_hidden_textinput_t();
+
 	// and set the cursor right when clicking with the mouse
 	bool infowin_event(event_t const*) OVERRIDE;
 

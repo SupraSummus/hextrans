@@ -171,7 +171,7 @@ public:
 
 	void rdwr(loadsave_t *file);
 
-	void rotate90( sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	/**
 	 * if the passed in schedule matches "this", then return true

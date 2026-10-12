@@ -1,3 +1,4 @@
+
 /*
  * This file is part of the Simutrans project under the Artistic License.
  * (see LICENSE.txt)
@@ -176,7 +177,16 @@ void weg_t::init()
 	desc = 0;
 	init_statistics();
 	alle_wege.insert(this);
-	flags = 0;
+	close_diagonal_state = 0;
+	diagonal_flag = 0;
+	switch_state = 0;
+	show_flag = 0;
+	sidewalk_flag = 0;
+	electrified_flag = 0;
+	sign_flag = 0;
+	signal_flag = 0;
+	wayobj_flag = 0;
+	crossing_flag = 0;
 	image = IMG_EMPTY;
 	foreground_image = IMG_EMPTY;
 }
@@ -259,11 +269,11 @@ void weg_t::rdwr(loadsave_t *file)
 	max_speed=dummy16;
 
 	if(  file->is_version_atleast(89, 0)  ) {
-		dummy8 = flags;
+		dummy8 = sidewalk_flag;
 		file->rdwr_byte(dummy8);
 		if(  file->is_loading()  ) {
 			// all other flags are restored afterwards
-			flags = dummy8 & HAS_SIDEWALK;
+			sidewalk_flag = dummy8 & 1;
 		}
 	}
 
@@ -323,8 +333,6 @@ void weg_t::info(cbuffer_t & buf) const
 void weg_t::rotate90()
 {
 	obj_t::rotate90();
-	// HEX-PORT: rotate90 → rotate_for_map_rotate90 helper,
-	// tied to the karte_t::rotate90 refusal in TODO.md.
 	ribi = ribi_t::rotate_for_map_rotate90(ribi );
 	ribi_maske = ribi_t::rotate_for_map_rotate90(ribi_maske );
 }
@@ -337,14 +345,14 @@ void weg_t::rotate90()
 void weg_t::count_sign()
 {
 	// Either only sign or signal please ...
-	flags &= ~(HAS_SIGN|HAS_SIGNAL|HAS_CROSSING);
+	sign_flag = signal_flag = crossing_flag = 0;
 	const grund_t *gr=welt->lookup(get_pos());
 	if(gr) {
 		uint8 i = 1;
 		// if there is a crossing, the start index is at least three ...
 		if(const crossing_t* cr = gr->get_crossing()) {
 			max_speed = desc->get_topspeed(); // reset max_speed
-			flags |= HAS_CROSSING;
+			crossing_flag = 1;
 			i = 3;
 			const sint32 top_speed = cr->get_desc()->get_maxspeed( cr->get_desc()->get_waytype(0)==get_waytype() ? 0 : 1);
 			max_speed = min(max_speed, top_speed);
@@ -356,14 +364,14 @@ void weg_t::count_sign()
 			if(  roadsign_t const* const sign = obj_cast<roadsign_t>(obj)  ) {
 				if(  sign->get_desc()->get_wtyp() == get_desc()->get_wtyp()  ) {
 					// here is a sign ...
-					flags |= HAS_SIGN;
+					sign_flag = 1;
 					return;
 				}
 			}
 			if(  signal_t const* const signal = obj_cast<signal_t>(obj)  ) {
 				if(  signal->get_desc()->get_wtyp() == get_desc()->get_wtyp()  ) {
 					// here is a signal ...
-					flags |= HAS_SIGNAL;
+					signal_flag = 1;
 					return;
 				}
 			}
@@ -389,12 +397,12 @@ void weg_t::apply_image_slot(const way_image_slot_t& slot)
 
 
 // Replicates `calc_image()`'s dispatch without the snow-flag refresh,
-// foreground suppression or dirty marking.  Reads the cached IS_SNOW
+// foreground suppression or dirty marking.  Reads the cached is_snow()
 // flag, the ground's slope, and `ribi`.  River fallback (rivers with
 // no slope sprite render as flat) is folded in here so the returned
 // slot is the one whose image is actually visible.
 //
-// Caller must have updated the IS_SNOW flag for the new tile state
+// Caller must have updated the is_snow() flag for the new tile state
 // before calling -- `calc_image()` and `check_season()` both do so
 // inline.
 way_image_slot_t weg_t::pick_image_slot() const
@@ -530,17 +538,12 @@ bool weg_t::check_season(const bool calc_only_season_change)
 
 	// use snow image if above snowline and above ground
 	bool snow = (gr->ist_karten_boden()  ||  !gr->ist_tunnel())  &&  (get_pos().z  + gr->get_weg_yoff()/TILE_HEIGHT_STEP >= welt->get_snowline()  ||  welt->get_climate( get_pos().get_2d() ) == arctic_climate);
-	bool old_snow = (flags&IS_SNOW) != 0;
-	if(  !(snow ^ old_snow)  ) {
+	if(  !(snow ^ show_flag)  ) {
 		// season is not changing ...
 		return true;
 	}
-
-	// set snow flake
-	flags &= ~IS_SNOW;
-	if(  snow  ) {
-		flags |= IS_SNOW;
-	}
+	// set new snow state
+	show_flag = snow;
 
 	const way_image_slot_t slot = pick_image_slot();
 	apply_image_slot(slot);
@@ -591,13 +594,12 @@ void weg_t::calc_image()
 		}
 	}
 	else {
-		// Refresh the IS_SNOW flag from snowline / climate so
+		// Refresh the is_snow() flag from snowline / climate so
 		// `pick_image_slot()` reads consistent state.
 		const bool snow = (from->ist_karten_boden() || !from->ist_tunnel())
 			&& (get_pos().z + from->get_weg_yoff()/TILE_HEIGHT_STEP >= welt->get_snowline()
 			    || welt->get_climate(get_pos().get_2d()) == arctic_climate);
-		flags &= ~IS_SNOW;
-		if (snow) flags |= IS_SNOW;
+		show_flag = snow;
 
 		// Single dispatch through the slot.  `pick_image_slot` returns
 		// `none` for tunnel mouths and bridge first-way; for those
@@ -633,12 +635,13 @@ void weg_t::new_month()
 
 
 // correct speed and maintenance
-void weg_t::finish_rd()
+bool weg_t::finish_rd()
 {
 	player_t *player = get_owner();
 	if(  player  &&  desc  ) {
 		player_t::add_maintenance( player,  desc->get_maintenance(), desc->get_finance_waytype() );
 	}
+	return desc==NULL;
 }
 
 
@@ -660,4 +663,32 @@ FLAGGED_PIXVAL weg_t::get_outline_colour() const
 	}
 
 	return 0;
+}
+
+void weg_t::display(int xpos, int ypos CLIP_NUM_DEF) const
+{
+	if (is_close_diagonal() && !desc->has_close_diagonal_image()) {
+		image_id image = get_desc()->get_diagonal_image_id(is_close_diagonal() == 1 ? ribi_t::northwest : ribi_t::southwest, is_snow());
+		if (get_owner_nr() != PLAYER_UNOWNED) {
+			if (obj_t::show_owner) {
+				gfx->draw_blend(image, xpos, ypos, get_owner_nr(), gfx->palette_lookup(get_owner()->get_player_color1() + 2) | OUTLINE_FLAG | TRANSPARENT75_FLAG, 0, get_flag(dirty)  CLIP_NUM_PAR);
+			}
+			else {
+				gfx->draw_color(image, xpos, ypos, get_owner_nr(), true, get_flag(dirty)  CLIP_NUM_PAR);
+			}
+		}
+		else {
+			gfx->draw_normal(image, xpos, ypos, 0, true, get_flag(dirty)  CLIP_NUM_PAR);
+		}
+
+		const FLAGGED_PIXVAL transparent = get_outline_colour();
+		if (transparent) {
+			// transparency?
+			if (TRANSPARENT_FLAGS & transparent) {
+				// only transparent outline
+				gfx->draw_blend(image, xpos, ypos, get_owner_nr(), transparent, 0, get_flag(dirty)  CLIP_NUM_PAR);
+			}
+		}
+	}
+	obj_t::display(xpos, ypos CLIP_NUM_PAR);
 }

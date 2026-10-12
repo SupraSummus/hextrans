@@ -186,6 +186,11 @@ void building_reader_t::register_obj(obj_desc_t *&data)
 		l >>= 1;
 	}
 
+	if (desc->is_city_building()) {
+		// since makeobj substracted one
+		desc->level++;
+	}
+
 	if(  desc->allow_underground == 255  ) {
 		// only old stops were allowed underground
 		desc->allow_underground = desc->type==building_desc_t::generic_stop ? 2 : 0;
@@ -225,7 +230,30 @@ obj_desc_t *building_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 	old_btyp::typ btyp;
 	building_desc_t *desc = new building_desc_t();
 
-	if (version == 11) {
+	if (version == 12) {
+		// height_clearance
+		btyp                          = (old_btyp::typ)0;
+		desc->type                    = (building_desc_t::btype)decode_uint8(p);
+		desc->level                   = decode_uint16(p);
+		desc->extra_data              = decode_uint32(p);
+		desc->size.x                  = decode_uint16(p);
+		desc->size.y                  = decode_uint16(p);
+		desc->layouts                 = decode_uint8(p);
+		desc->allowed_climates        = (climate_bits)(decode_uint16(p) & ALL_CLIMATES);
+		desc->enables                 = decode_uint8(p);
+		desc->flags                   = (building_desc_t::flag_t)decode_uint8(p);
+		desc->distribution_weight     = decode_uint8(p);
+		desc->intro_date              = decode_uint16(p);
+		desc->retire_date             = decode_uint16(p);
+		desc->animation_time          = decode_uint16(p);
+		desc->capacity                = decode_uint16(p);
+		desc->maintenance             = decode_sint64(p);
+		desc->price                   = decode_sint64(p);
+		desc->allow_underground       = decode_uint8(p);
+		desc->preservation_year_month = decode_uint16(p);
+		desc->height_clearance        = decode_uint8(p);
+	}
+	else if (version == 11) {
 		// cost/maintenance as sint64
 		btyp                          = (old_btyp::typ)decode_uint8(p);
 		desc->type                    = (building_desc_t::btype)decode_uint8(p);
@@ -249,7 +277,7 @@ obj_desc_t *building_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 	}
 	else if (version == 10) {
 		// preservation date added
-		btyp = (old_btyp::typ)decode_uint8(p);
+		btyp                          = (old_btyp::typ)decode_uint8(p);
 		desc->type                    = (building_desc_t::btype)decode_uint8(p);
 		desc->level                   = decode_uint16(p);
 		desc->extra_data              = decode_uint32(p);
@@ -460,6 +488,10 @@ obj_desc_t *building_reader_t::read_node(FILE *fp, obj_node_info_t &node)
 	if( version < 10 ) {
 		// can always replace
 		desc->preservation_year_month = DEFAULT_RETIRE_YEAR*12;
+	}
+
+	if (version < 12) {
+		desc->height_clearance = 255; // default for not set
 	}
 
 	PAKSET_INFO("building_reader_t::read_node()",

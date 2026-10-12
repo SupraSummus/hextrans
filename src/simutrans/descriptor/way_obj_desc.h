@@ -12,6 +12,7 @@
 #include "skin_desc.h"
 #include "../dataobj/ribi.h"
 #include "../network/checksum.h"
+#include "../simdebug.h"
 
 
 class tool_t;
@@ -38,6 +39,9 @@ private:
 	 */
 	uint8 own_wtyp;
 
+	bool diagonals : 1;
+	bool close_diagonals : 1;
+
 public:
 
 	bool is_overhead_line() const { return (waytype_t)own_wtyp == overheadlines_wt; }
@@ -45,6 +49,7 @@ public:
 	// way objects can have a front and a backimage, unlike ways ...
 	image_id get_front_image_id(ribi_t::ribi ribi) const { return get_child<image_list_t>(2)->get_image_id(ribi); }
 
+	/* not used!!!*/
 	image_id get_crossing_image_id(ribi_t::ribi ribi, bool nw, bool front = false) const
 	{
 		if(  front  &&  !get_child<image_list_t>(2)->get_count()  ) {
@@ -144,6 +149,17 @@ public:
 		}
 		return slope_img;
 	}
+
+	// Upstream's square diagonal and close-diagonal sprites.  Hex has
+	// neither, the reader leaves both flags false, and the getters
+	// are tripwires.
+	image_id get_front_diagonal_image_id(ribi_t::ribi) const { dbg->fatal("way_obj_desc_t::get_front_diagonal_image_id", "no diagonal sprites under hex"); }
+	image_id get_back_diagonal_image_id(ribi_t::ribi) const { dbg->fatal("way_obj_desc_t::get_back_diagonal_image_id", "no diagonal sprites under hex"); }
+	image_id get_front_close_diagonal_image_id(uint8) const { dbg->fatal("way_obj_desc_t::get_front_close_diagonal_image_id", "no close diagonals under hex"); }
+	image_id get_back_close_diagonal_image_id(uint8) const { dbg->fatal("way_obj_desc_t::get_back_close_diagonal_image_id", "no close diagonals under hex"); }
+
+	bool has_diagonal_image() const { return diagonals; }
+	bool has_close_diagonal_image() const { return close_diagonals; }
 
 	/**
 	* Skin: cursor (index 0) and icon (index 1)

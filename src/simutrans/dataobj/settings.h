@@ -13,6 +13,7 @@
 #include "../simconst.h"
 
 #include "ribi.h"
+#include "map_shape.h"
 
 class player_t;
 class loadsave_t;
@@ -55,8 +56,13 @@ public:
 	} climate_generate_t;
 
 private:
-	sint32 size_x     = 256;
-	sint32 size_y     = 256;
+	// The map is the W x H x D hexagon of documentation/map-shape.md:
+	// size_x = W, size_y = H, size_d = D.  D = 1 is the plain W x H rhombus.
+	// New worlds are the regular 150 x 150 x 150 hexagon, 67051 tiles,
+	// about the 256 x 256 of upstream.
+	sint32 size_x     = 150;
+	sint32 size_y     = 150;
+	sint32 size_d     = 150;
 	sint32 map_number =  33;
 
 	sint32 tourist_attractions =  16;
@@ -193,7 +199,7 @@ private:
 	 */
 	uint8 just_in_time = 1; // Overwritten by the value from env_t
 
-	// default 0, will be incremented after each 90 degree rotation until 4
+	// 60° steps clockwise since creation, 0..5; see rotate90()
 	uint8 rotation = 0;
 
 	sint16 origin_x = 0, origin_y = 0;
@@ -252,12 +258,6 @@ private:
 
 	/* maximum number of steps for breath search */
 	sint32 max_transfers = 9;
-
-	/* multiplier for steps on diagonal:
-	 * 1024: TT-like, factor 2, vehicle will be too long and too fast
-	 * 724: correct one, factor sqrt(2)
-	 */
-	uint16 pak_diagonal_multiplier = 724;
 
 	// names of the stations ...
 	char language_code_names[4];
@@ -361,7 +361,8 @@ public:
 	sint32 way_count_double_curve    =   10;
 	sint32 way_count_90_curve        =   30;
 	sint32 way_count_slope           =   20;
-	sint32 way_count_tunnel          =   16;
+	sint32 way_count_tunnel          =   12;
+	uint32 way_count_bridge          =    6;
 	sint32 way_count_no_way          =    3; // slightly prefer existing ways
 	sint32 way_count_avoid_crossings =    8; // prefer less system crossings
 	sint32 way_count_leaving_way     =   50;
@@ -413,7 +414,11 @@ public:
 	void set_size(sint32 x, sint32 y) {size_x = x; size_y=y;}
 	sint32 get_size_x() const {return size_x;}
 	sint32 get_size_y() const {return size_y;}
+	void set_size_d(sint32 d) {size_d=d;}
+	sint32 get_size_d() const {return size_d;}
+	map_shape_t get_map_shape() const { return map_shape_t(size_x, size_y, size_d); }
 
+	void set_map_number(sint32 n) {map_number=n;}
 	sint32 get_map_number() const {return map_number;}
 
 	void set_factory_count(sint32 d) { factory_count=d; }
@@ -442,6 +447,7 @@ public:
 	void set_max_mountain_height(double d) { max_mountain_height = d; }
 
 	double get_map_roughness() const {return map_roughness;}
+	void set_map_roughness(double d) { map_roughness = d; }
 
 	uint16 get_station_coverage() const {return station_coverage_size;}
 
@@ -472,12 +478,30 @@ public:
 	void set_just_in_time(uint8 b) { just_in_time = b; }
 	uint8 get_just_in_time() const {return just_in_time;}
 
+	/// One 60° step: the sides permute as map_shape_t::rotated().
 	void rotate90() {
-		rotation = (rotation+1)&3;
-		set_size( size_y, size_x );
+		rotation = (rotation+1)%6;
+		const map_shape_t s = get_map_shape().rotated();
+		set_size( s.w, s.h );
+		size_d = s.d;
 		wind_direction = ribi_t::rotate_for_map_rotate90(wind_direction);
 	}
+	/// 60° steps clockwise since the map was created, 0..5.
 	uint8 get_rotation() const { return rotation; }
+
+	/**
+	 * True at 0° and 180°, the orientations a W x H map and the
+	 * rectangle footprints of buildings map onto themselves in.
+	 * Within karte_t::rotate90 the rotation is already the new one, so
+	 * true there means this step completes a half turn: state with no
+	 * 60° form yet (layouts, footprints, pixel offsets, rectangles)
+	 * turns by 180° on that step and stays put on the two before it.
+	 */
+	bool is_half_turn_rotation() const { return rotation % 3 == 0; }
+
+	/// The upstream four-image compass index nearest to the rotation,
+	/// exact at 0° and 180° (0 and 2).
+	uint8 get_compass_rotation() const { return (uint8)((rotation * 2 + 1) / 3 % 4); }
 
 	void set_origin_x(sint16 x) { origin_x = x; }
 	void set_origin_y(sint16 y) { origin_y = y; }
@@ -512,9 +536,6 @@ public:
 	const way_desc_t *get_intercity_road_type( uint16 year );
 	uint16 get_city_road_speed_limit(uint16 year);
 
-	void set_pak_diagonal_multiplier(uint16 n) { pak_diagonal_multiplier = n; }
-	uint16 get_pak_diagonal_multiplier() const { return pak_diagonal_multiplier; }
-
 	int get_name_language_id() const;
 	void set_name_language_iso( const char *iso ) {
 		if (!iso) {
@@ -548,7 +569,7 @@ public:
 	bool is_no_routing_over_overcrowding() const { return no_routing_over_overcrowding; }
 
 	sint16 get_river_number() const { return river_number; }
-	void set_river_number(sint16 n) { river_number = n; }
+	void set_river_number(sint16 r) { river_number = r; }
 	sint16 get_min_river_length() const { return min_river_length; }
 	sint16 get_max_river_length() const { return max_river_length; }
 
@@ -627,7 +648,9 @@ public:
 
 	/// Wind is coming from this direction
 	ribi_t::ribi get_wind_dir() const { return wind_direction;  }
-	ribi_t::ribi get_approach_dir() const { return wind_direction | ribi_t::rotate60(wind_direction);  } // HEX-PORT: rotate90 → rotate60 (hex 60° step)
+	/// Ribis of the runway ends planes take off from: the 3 edges within 60° of the wind,
+	/// i.e. exactly one end of each of the 3 hex axes.  Planes land at the opposite ends.
+	ribi_t::ribi get_approach_dir() const { return wind_direction | ribi_t::rotate60(wind_direction) | ribi_t::rotate60l(wind_direction);  }
 
 	sint8 get_patch_size_percentage() const { return patch_size_percentage; }
 

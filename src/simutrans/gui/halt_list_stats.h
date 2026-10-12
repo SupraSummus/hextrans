@@ -10,6 +10,7 @@
 #include "components/gui_component.h"
 
 #include "components/gui_aligned_container.h"
+#include "components/gui_owner.h"
 #include "components/gui_colorbox.h"
 #include "components/gui_button.h"
 #include "components/gui_image.h"
@@ -28,6 +29,7 @@ private:
 public:
 	gui_label_buf_t label_name, label_cargo;
 	gui_image_t img_enabled[3];
+	gui_owners_t  owners;
 	gui_halt_type_images_t *img_types;
 	gui_colorbox_t indicator;
 	button_t gotopos;

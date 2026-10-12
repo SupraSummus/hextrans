@@ -5,10 +5,21 @@ Usage:
     tools/test.py                # run every test in tests/all_tests.nut
     tools/test.py halt           # run tests whose name contains "halt"
     tools/test.py halt terraform # OR-match: name contains "halt" OR "terraform"
+    tools/test.py =test_dir_x    # exactly the test named test_dir_x
+    tools/test.py --map          # the test_map_shape tests on the W x H x D
+                                 # hexagon fixture tests/empty-hex-9x7x5.sve
+    tools/test.py --map FILE pat # tests matching pat on tests/FILE
+    tools/test.py --rotate       # the suite on the map turned by 180 degrees
+                                 # first, without tests/rotate-pending.txt;
+                                 # combines with --map and patterns
 
 First run downloads pak64 (~30 MB) into simutrans/pak/; subsequent runs
 reuse it. Other setup (sim symlink, simuconf, scenario symlink) is also
 idempotent — anything already in place is left alone.
+
+The engine's user dir ($XDG_DATA_HOME/simutrans) points into build/, so
+the scenario and test-pak links belong to this checkout and runs in
+parallel worktrees don't repoint each other's.
 
 Requires the cmake build dir at build/ (the session-start hook configures it).
 """
@@ -20,7 +31,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-HOME = Path.home()
+USER_DATA = ROOT / "build" / "test-data"
 FILTER = ROOT / "tests" / "filter.nut"
 
 
@@ -33,7 +44,7 @@ def ensure_pak():
 
 
 def ensure_simuconf():
-    cfg = HOME / "simutrans" / "simuconf.tab"
+    cfg = USER_DATA / "simutrans" / "simuconf.tab"
     if cfg.exists():
         return
     cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -41,7 +52,7 @@ def ensure_simuconf():
 
 
 def ensure_scenario_link():
-    link = HOME / "simutrans" / "addons" / "pak" / "scenario" / "automated-tests"
+    link = USER_DATA / "simutrans" / "addons" / "pak" / "scenario" / "automated-tests"
     target = ROOT / "tests"
     link.parent.mkdir(parents=True, exist_ok=True)
     if link.is_symlink() and Path(os.readlink(link)) == target:
@@ -83,7 +94,7 @@ def ensure_test_pak():
         [str(ROOT / "build" / "src" / "makeobj" / "makeobj"),
          "QUIET", "PAK", str(pak_out), str(pak_out.parent) + "/"],
     )
-    addons_link = HOME / "simutrans" / "addons" / "pak" / "test-pak.pak"
+    addons_link = USER_DATA / "simutrans" / "addons" / "pak" / "test-pak.pak"
     addons_link.parent.mkdir(parents=True, exist_ok=True)
     if (addons_link.is_symlink()
             and Path(os.readlink(addons_link)) == pak_out):
@@ -100,26 +111,63 @@ def active_test_names():
     return re.findall(r"^\s*([A-Za-z_]\w*)\s*,", body, re.MULTILINE)
 
 
-def write_filter(patterns):
+HEX_MAP = "empty-hex-9x7x5.sve"
+
+
+def write_filter(patterns, map_file=None, rotate=False):
     body = "test_filter_patterns <- [" + ", ".join(json.dumps(p) for p in patterns) + "]\n"
+    body += "test_map_file <- " + (json.dumps(map_file) if map_file else "null") + "\n"
+    body += "test_rotate_map <- " + ("true" if rotate else "false") + "\n"
     FILTER.write_text(body)
 
 
 def main(argv):
     patterns = argv[1:]
+    map_file = None
+    # The scripts see the world as before the turn (script_api's
+    # coordinate_transform_t), so every test doubles as a rotation test.
+    rotate = "--rotate" in patterns
+    # --filter-only writes tests/filter.nut and stops, for CI, which runs
+    # tools/run-automated-tests.sh on its own build
+    filter_only = "--filter-only" in patterns
+    patterns = [p for p in patterns if p not in ("--rotate", "--filter-only")]
+    if patterns and patterns[0] == "--map":
+        # The suite's coordinates assume the 16x16 fixture; on another map
+        # only the tests that read the shape from the settings make sense.
+        patterns = patterns[1:]
+        map_file = HEX_MAP
+        if patterns and patterns[0].endswith(".sve"):
+            map_file = patterns.pop(0)
+        if not (ROOT / "tests" / map_file).exists():
+            sys.exit(f"no fixture tests/{map_file}")
+        if not patterns:
+            patterns = ["test_map_shape"]
+    if rotate and not patterns:
+        # the whole suite but the tests that cannot pass turned yet
+        pending = set()
+        for line in (ROOT / "tests" / "rotate-pending.txt").read_text().splitlines():
+            name = line.split("#", 1)[0].strip()
+            if name:
+                pending.add(name)
+        patterns = ["=" + n for n in active_test_names() if n not in pending]
     if patterns:
-        matches = [n for n in active_test_names() if any(p in n for p in patterns)]
+        matches = [n for n in active_test_names()
+                   if any(p == "=" + n or (not p.startswith("=") and p in n) for p in patterns)]
         if not matches:
             sys.exit(f"no active tests match {patterns}")
         print(f"{len(matches)} test(s) match: {', '.join(matches)}")
+    if filter_only:
+        write_filter(patterns, map_file, rotate)
+        return
     ensure_pak()
     ensure_simuconf()
     ensure_scenario_link()
     ensure_sim_symlink()
     build()
     ensure_test_pak()
-    write_filter(patterns)
+    write_filter(patterns, map_file, rotate)
     env = os.environ.copy()
+    env["XDG_DATA_HOME"] = str(USER_DATA)
     env.setdefault("SDL_VIDEODRIVER", "dummy")
     env.setdefault("ASAN_OPTIONS", "print_stacktrace=1 abort_on_error=1 detect_leaks=0")
     env.setdefault("UBSAN_OPTIONS", "print_stacktrace=1 abort_on_error=1")

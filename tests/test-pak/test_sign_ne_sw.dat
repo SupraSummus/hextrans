@@ -1,0 +1,77 @@
+# Signs with art for the NE and SW directions, which no real pakset has yet.
+# The art is told apart by being there or not, because a build without
+# graphics gives every image that has data the same id: an image is `-`
+# (empty) or `icon.0.0`.
+# The signs have a cursor and no icon.  The toolbar entry is made from the
+# icon, and sign_desc_x.get_available_signs lists the signs that have one, so
+# the tests that take the first sign of a kind never meet these; tests ask
+# for them by name.  A sign with neither has no cursor node, which the loader
+# does not take.
+
+# A rail signal that draws nothing in the four old directions.  The NE and SW
+# lists (image_ne_sw) hold the NE image and then the SW image for every
+# state: red, green and yellow.  Only the NE image of the red state is there.
+obj=roadsign
+name=test_signal_ne_sw
+copyright=hextrans test
+cursor=icon.0.0
+waytype=track
+is_signal=1
+image[0]=-
+image[1]=-
+image[2]=-
+image[3]=-
+image[4]=-
+image[5]=-
+image[6]=-
+image[7]=-
+image[8]=-
+image[9]=-
+image[10]=-
+image[11]=-
+image_ne_sw[0]=icon.0.0
+image_ne_sw[1]=-
+image_ne_sw[2]=-
+image_ne_sw[3]=-
+image_ne_sw[4]=-
+image_ne_sw[5]=-
+---
+# A private road sign.  The gate is shown open to the player who owns the
+# sign, so only the open gates are there: for the NW-SE axis and for the NE-SW
+# axis (image_ne_sw holds the closed gate, then the open one), not for the N-S
+# axis.  The closed gates are the other way around.
+obj=roadsign
+name=test_private_ne_sw
+copyright=hextrans test
+cursor=icon.0.0
+waytype=road
+is_private=1
+image[ns][0]=icon.0.0
+image[ew][0]=-
+image[ns][1]=-
+image[ew][1]=icon.0.0
+image_ne_sw[0]=-
+image_ne_sw[1]=icon.0.0
+---
+# A one-way road sign with front images, drawn by NE and SW in the same way
+# (image_ne_sw and frontimage_ne_sw hold the NE image, then the SW image).
+# A sign facing one direction shows its back image and its front image: NE
+# has only the back image and SW only the front image.
+obj=roadsign
+name=test_oneway_ne_sw
+copyright=hextrans test
+cursor=icon.0.0
+waytype=road
+single_way=1
+image[0]=-
+image[1]=-
+image[2]=-
+image[3]=-
+frontimage[0]=-
+frontimage[1]=-
+frontimage[2]=-
+frontimage[3]=-
+image_ne_sw[0]=icon.0.0
+image_ne_sw[1]=-
+frontimage_ne_sw[0]=-
+frontimage_ne_sw[1]=icon.0.0

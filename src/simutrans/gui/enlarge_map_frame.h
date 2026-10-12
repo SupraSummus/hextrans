@@ -43,6 +43,7 @@ private:
 	 * Label to display current map seed number.
 	 */
 	gui_label_buf_t map_number_label;
+	gui_label_buf_t depth_label;
 
 	button_t
 		start_button;

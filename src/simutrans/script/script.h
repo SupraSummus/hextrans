@@ -70,6 +70,12 @@ public:
 	static bool is_call_suspended(const char* err);
 
 	/**
+	 * @param err error string returned by call_script
+	 * @return whether the script does not define the called function
+	 */
+	static bool is_function_missing(const char* err);
+
+	/**
 	 * calls scripted function
 	 * @param function function name of squirrel function
 	 * @returns error msg (or NULL if succeeded)
@@ -171,6 +177,10 @@ private:
 
 public:
 	bool pause_on_error;
+
+	/// Test hook (-ai_soak): script errors are logged but never pause the
+	/// game, even for a script that asked for it with set_pause_on_error.
+	static bool ignore_pause_on_error;
 
 private:
 	/// @{

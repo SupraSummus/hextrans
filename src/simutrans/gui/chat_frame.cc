@@ -365,7 +365,7 @@ chat_frame_t::chat_frame_t() :
 	set_resizemode(diagonal_resize);
 	reactivate_input = true;
 
-	last_count = 0;
+	last_count = 0x7FFFFFFF;
 	reset_min_windowsize();
 }
 
@@ -480,6 +480,10 @@ void chat_frame_t::fill_list()
 		prev_poster = i->sender;
 		prev_company = i->player_nr;
 	}
+	if(cont_chat_log[chat_mode].get_count()==0) {
+		// empty dummy item
+		cont_chat_log[chat_mode].new_component <gui_scrolled_list_t::const_text_scrollitem_t>("",COL_BROWN);
+	}
 
 	cont_chat_log[chat_mode].show_bottom();
 	cont_chat_log[chat_mode].set_maximize(true);
@@ -491,6 +495,11 @@ void chat_frame_t::fill_list()
 bool chat_frame_t::action_triggered(gui_action_creator_t* comp, value_t v)
 {
 	if (comp == &input && ibuf[0] != 0) {
+		// Only send messages when the user actually presses <RETURN>!
+		// The textinput may tell us of other events, so we ignore them.
+		if (v.i != gui_textinput_t::INPUT_FINISHED) {
+			return false;
+		}
 		const sint8 channel = tabs.get_active_tab_index() == CH_COMPANY ? (sint8)world()->get_active_player_nr() : -1;
 		const sint8 sender_company_nr = welt->get_active_player()->is_locked() ? -1 : welt->get_active_player()->get_player_nr();
 		const char *dest = cb_direct_chat_targets.get_selection() > 0 ? cb_direct_chat_targets.get_selected_item()->get_text() : "";

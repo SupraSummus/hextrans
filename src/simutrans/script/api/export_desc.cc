@@ -5,6 +5,7 @@
 
 #include "export_desc.h"
 
+#include "../script.h"
 #include "../api_class.h"
 #include "../api_function.h"
 #include "../../tpl/vector_tpl.h"

@@ -6,6 +6,8 @@
 #include <string>
 #include "../../dataobj/tabfile.h"
 #include "obj_node.h"
+#include "obj_pak_exception.h"
+#include "../way_obj_desc.h"
 #include "text_writer.h"
 #include "imagelist_writer.h"
 #include "skin_writer.h"
@@ -25,7 +27,6 @@ void way_obj_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& 
 		"nse1", "new1", "nsw1", "sew1", "nsew1", // different crossings: northwest/southeast is oneway
 		"nse2", "new2", "nsw2", "sew2", "nsew2",
 	};
-	int slope;
 
 	const sint64 price       = obj.get_int64("cost",        100);
 	const sint64 maintenance = obj.get_int64("maintenance", 100);
@@ -71,7 +72,7 @@ void way_obj_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& 
 	front_list.clear();
 	back_list.clear();
 
-	for(  slope = 3;  slope <= 12;  slope += 3  ) {
+	for(  int slope = 3;  slope <= 12;  slope += 3  ) {
 		char buf[40];
 		sprintf( buf, "frontimageup[%d]", slope );
 		string str = obj.get(buf);
@@ -80,7 +81,7 @@ void way_obj_writer_t::write_obj(FILE* outfp, obj_node_t& parent, tabfileobj_t& 
 		string str2 = obj.get(buf);
 		back_list.append(str2);
 	}
-	for(  slope = 3;  slope <= 12;  slope += 3  ) {
+	for(  int slope = 3;  slope <= 12;  slope += 3  ) {
 		char buf[40];
 		sprintf( buf, "frontimageup2[%d]", slope );
 		string str = obj.get(buf);

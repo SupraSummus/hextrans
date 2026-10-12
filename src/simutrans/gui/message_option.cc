@@ -9,6 +9,7 @@
 
 #include "../descriptor/skin_desc.h"
 #include "../dataobj/translator.h"
+#include "../dataobj/environment.h"
 #include "message_option.h"
 #include "components/gui_image.h"
 

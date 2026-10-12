@@ -1,3 +1,4 @@
+
 /*
  * This file is part of the Simutrans project under the Artistic License.
  * (see LICENSE.txt)
@@ -28,9 +29,12 @@
 
 #include "../obj/way/schiene.h"
 #include "../obj/leitung2.h"
+#include "../obj/field.h"
+#include "../utils/cbuffer.h"
 #include "../display/scr_coord.h"
 #include "../display/simgraph.h"
 #include "../display/viewport.h"
+#include "../display/hex_proj.h"
 #include "../utils/simrandom.h"
 #include "../player/simplay.h"
 
@@ -701,41 +705,32 @@ PIXVAL minimap_t::calc_ground_color(const grund_t *gr)
 				color = COL_MONORAIL;
 				break;
 			case grund_t::fundament:
-				{
-					// object at zero is either factory or house (or attraction ... )
-					gebaeude_t *gb = gr->find<gebaeude_t>();
-					fabrik_t *fab = gb ? gb->get_fabrik() : NULL;
-					if(fab==NULL) {
-						color = gfx->palette_lookup(COL_GREY3);
-					}
-					else {
+				if (gebaeude_t* gb = gr->find<gebaeude_t>()) {
+					if (fabrik_t* fab = gb->get_fabrik()) {
 						color = fab->get_color();
+						break;
 					}
 				}
+				else if (field_t* field = gr->find<field_t>()) {
+					color = field->get_factory()->get_color();
+					break;
+				}
+				color = gfx->palette_lookup(COL_GREY3);
 				break;
 			case grund_t::wasser:
 				{
-					// object at zero is either factory or boat
-					gebaeude_t *gb = gr->find<gebaeude_t>();
-					fabrik_t *fab = gb ? gb->get_fabrik() : NULL;
-					if(fab==NULL) {
-						sint16 height = corner_sw(gr->get_grund_hang());
-						if( mode&MAP_HIDE_CONTOUR ) {
-							color = gfx->palette_lookup(map_type_color[1]); // second deep water color
-						}
-						else {
-							// HEX-PORT: get_hoehe() is the tile's base z, height is
-							// the SW corner's relative rise — sum is the SW corner's
-							// absolute world height, which is what the colour picker
-							// wants.  Replaces the old shim's "tile reference via
-							// grid-point" read; under hex the grid point's name
-							// didn't survive the storage rewrite.
-							color = calc_height_color( gr->get_hoehe() + height, world->get_water_hgt( gr->get_pos().get_2d() ) );
-						}
-						//color = gfx->palette_lookup(COL_BLUE); // water with boat?
+					sint16 height = corner_sw(gr->get_grund_hang());
+					if( mode&MAP_HIDE_CONTOUR ) {
+						color = gfx->palette_lookup(map_type_color[1]); // second deep water color
 					}
 					else {
-						color = fab->get_color();
+						// HEX-PORT: get_hoehe() is the tile's base z, height is
+						// the SW corner's relative rise — sum is the SW corner's
+						// absolute world height, which is what the colour picker
+						// wants.  Replaces the old shim's "tile reference via
+						// grid-point" read; under hex the grid point's name
+						// didn't survive the storage rewrite.
+						color = calc_height_color( gr->get_hoehe() + height, world->get_water_hgt( gr->get_pos().get_2d() ) );
 					}
 				}
 				break;
@@ -909,7 +904,8 @@ bool minimap_t::calc_map_pixel(const grund_t *gr)
 	case MAP_OWNER:
 		// show ownership
 		if (gr->is_halt()) {
-			set_map_color(k, gfx->palette_lookup(gr->get_halt()->get_owner()->get_player_color1() + 3));
+			// needs fixing!!!
+			set_map_color(k, gfx->palette_lookup(gr->get_halt()->get_player_color() + 3));
 			return true;
 		}
 		else if (weg_t* weg = gr->get_weg_nr(0)) {
@@ -973,7 +969,8 @@ void minimap_t::calc_map_pixel(const koord k)
 			for (int i = 0; i < plan->get_haltlist_count(); i++) {
 				halthandle_t halt = plan->get_haltlist()[i];
 				if (halt->get_pax_enabled() && !halt->get_pax_connections().empty()) {
-					set_map_color(k, gfx->palette_lookup(halt->get_owner()->get_player_color1() + 3));
+					// need fixing!!!
+					set_map_color(k, gfx->palette_lookup(halt->get_player_color() + 3));
 					return;
 				}
 			}
@@ -985,7 +982,8 @@ void minimap_t::calc_map_pixel(const koord k)
 			for (int i = 0; i < plan->get_haltlist_count(); i++) {
 				halthandle_t halt = plan->get_haltlist()[i];
 				if (halt->get_mail_enabled() && !halt->get_mail_connections().empty()) {
-					set_map_color(k, gfx->palette_lookup(halt->get_owner()->get_player_color1() + 3));
+					// need fixing!!!
+					set_map_color(k, gfx->palette_lookup(halt->get_player_color() + 3));
 					return;
 				}
 			}
@@ -1080,8 +1078,10 @@ void minimap_t::calc_map()
 	needs_redraw = false;
 	is_visible = true;
 
-	// redraw the map
+	// redraw the map; calc_map_pixel skips the cut corners of the
+	// hexagon (and the isometric margins), which stay black
 	if(  !isometric  ) {
+		map_data->init( gfx->palette_lookup(COL_BLACK) );
 		koord k;
 		koord start_off = koord( (cur_off.x*zoom_out)/zoom_in, (cur_off.y*zoom_out)/zoom_in );
 		koord end_off = start_off+koord( ( map_data->get_width()*zoom_out)/zoom_in+1, ( map_data->get_height()*zoom_out)/zoom_in+1 );
@@ -1093,15 +1093,10 @@ void minimap_t::calc_map()
 	}
 	else {
 		// always the whole map ...
-		if(isometric) {
-			map_data->init( gfx->palette_lookup(COL_BLACK) );
-		}
-		koord k;
-		for(  k.y=0;  k.y < world->get_size().y;  k.y++  ) {
-			for(  k.x=0;  k.x < world->get_size().x;  k.x++  ) {
-				calc_map_pixel(k);
-			}
-		}
+		map_data->init( gfx->palette_lookup(COL_BLACK) );
+		world->for_each_tile( [&](koord k) {
+			calc_map_pixel(k);
+		} );
 	}
 }
 
@@ -1155,12 +1150,6 @@ void minimap_t::init()
 void minimap_t::set_display_mode(MAP_DISPLAY_MODE new_mode)
 {
 	mode = new_mode;
-	needs_redraw = true;
-}
-
-
-void minimap_t::new_month()
-{
 	needs_redraw = true;
 }
 
@@ -1302,13 +1291,13 @@ void minimap_t::draw(scr_coord pos)
 		return;
 	}
 
-	if(  mode & MAP_PAX_DEST  &&  selected_city!=NULL  ) {
-		const uint32 current_pax_destinations = selected_city->get_pax_destinations_new_change();
-		if(  pax_destinations_last_change > current_pax_destinations  ) {
-			// new month started.
+	if(  mode & MAP_PAX_DEST) {
+		if(  selected_city==NULL ||  pax_destinations_last_change > selected_city->get_pax_destinations_new_change()) {
+			// new month started or deselect.
 			calc_map();
+			pax_destinations_last_change = 0;
 		}
-		else if(  pax_destinations_last_change < current_pax_destinations  ) {
+		else if(  pax_destinations_last_change < selected_city->get_pax_destinations_new_change()) {
 			// new pax_dest in city.
 			const sparse_tpl<pax_dest_status_t> &pax_dests = selected_city->get_pax_destinations_new();
 			koord pos, min, max;
@@ -1321,16 +1310,20 @@ void minimap_t::draw(scr_coord pos)
 				max = koord(((pos.x+1)*world->get_size().x)/PAX_DESTINATIONS_SIZE,
 				            ((pos.y+1)*world->get_size().y)/PAX_DESTINATIONS_SIZE);
 				pos = min;
+				PIXVAL sc = gfx->palette_lookup(pax_dest_status_colors[dst_status]);
 				do {
 					do {
-						set_map_color(pos, pax_dest_status_colors[dst_status]);
+						set_map_color(pos, sc);
 						pos.y++;
 					} while(pos.y < max.y);
 					pos.x++;
+					pos.y = min.y;
 				} while (pos.x < max.x);
 			}
 		}
-		pax_destinations_last_change = selected_city->get_pax_destinations_new_change();
+		if (selected_city) {
+			pax_destinations_last_change = selected_city->get_pax_destinations_new_change();
+		}
 	}
 
 	if(  (uint16)cur_size.w > map_data->get_width()  ) {
@@ -1590,7 +1583,8 @@ void minimap_t::draw(scr_coord pos)
 		}
 		else {
 			const int stype = station->get_station_type();
-			color = gfx->palette_lookup(station->get_owner()->get_player_color1()+3);
+			// needs fixing
+			color = gfx->palette_lookup(station->get_first_owner()->get_player_color1()+3);
 
 			// invalid=0, loadingbay=1, railstation = 2, dock = 4, busstop = 8, airstop = 16, monorailstop = 32, tramstop = 64, maglevstop=128, narrowgaugestop=256
 			if(  stype > 0  ) {
@@ -1617,7 +1611,8 @@ void minimap_t::draw(scr_coord pos)
 					if(  (stype>>type)&1  ) {
 						image_id img = skinverwaltung_t::station_type->get_image_id(type);
 						if(  img!=IMG_EMPTY  ) {
-							gfx->draw_color_img( img, temp_stop.x+diagonal_dist+4+(icon/2)*12, temp_stop.y+diagonal_dist+4+(icon&1)*12, station->get_owner()->get_player_nr(), false, false CLIP_NUM_DEFAULT);
+							// needs fixing!!!
+							gfx->draw_color_img( img, temp_stop.x+diagonal_dist+4+(icon/2)*12, temp_stop.y+diagonal_dist+4+(icon&1)*12, station->get_first_owner()->get_player_nr(), false, false CLIP_NUM_DEFAULT);
 							icon++;
 						}
 					}
@@ -1740,7 +1735,11 @@ void minimap_t::draw(scr_coord pos)
 			koord size = f->get_desc()->get_building()->get_size(f->get_rotate());
 			sint16 x_size = max( 5, size.x*zoom_in );
 			sint16 y_size = max( 5, size.y*zoom_in );
-			gfx->draw_rect_clipped( fab_pos.x-1, fab_pos.y-1, x_size+2, y_size+2, gfx->palette_lookup(COL_BLACK), false CLIP_NUM_DEFAULT);
+			sint16 border = max(1, (zoom_in*2)/3);
+			rgb888_t frgb = gfx->get_pixval_rgb(f->get_color());
+			// make a dark or bright border depending of the colors used
+			PIXVAL box_color = gfx->palette_lookup((frgb.r | frgb.b | frgb.g) > 128 ? COL_BLACK : COL_WHITE);
+			gfx->draw_rect_clipped( fab_pos.x-border, fab_pos.y-border, x_size+2*border, y_size+2*border, box_color, false CLIP_NUM_DEFAULT);
 			gfx->draw_rect_clipped( fab_pos.x, fab_pos.y, x_size, y_size, f->get_color(), false CLIP_NUM_DEFAULT);
 		}
 	}
@@ -1761,33 +1760,38 @@ void minimap_t::draw(scr_coord pos)
 	if(  display_station.is_bound()  ) {
 		scr_coord temp_stop = map_to_screen_coord( display_station->get_basis_pos() );
 		temp_stop = temp_stop + pos;
-		gfx->draw_textbox3d_clipped( temp_stop.x + 10, temp_stop.y + 7, gfx->palette_lookup(display_station->get_owner()->get_player_color1()+3), gfx->palette_lookup(COL_WHITE), display_station->get_name(), false CLIP_NUM_DEFAULT);
+		grund_t::display_text_label(temp_stop.x + 10, temp_stop.y + 7, display_station->get_name(), display_station->get_owners(), true);
+//		gfx->draw_textbox3d_clipped( temp_stop.x + 10, temp_stop.y + 7, gfx->palette_lookup(display_station->get_owner()->get_player_color1()+3), gfx->palette_lookup(COL_WHITE), display_station->get_name(), false CLIP_NUM_DEFAULT);
 	}
 
 	// zoom/resize "selection box" in map
-	// this must be rotated by 45 degree (sin45=cos45=0,5*sqrt(2)=0.707...)
+	// the screen is a parallelogram in the axial map coordinates
 	const sint16 raster = gfx->get_tile_raster_width();
 
 	const scr_size screen = gfx->get_screen_size();
 
-	// calculate and draw the rotated coordinates
-	koord ij = world->get_viewport()->get_world_position();
-	const koord diff = koord( screen.w/(2*raster), screen.h/raster );
+	// calculate and draw the transformed coordinates
+	const viewport_t *const viewport = world->get_viewport();
+	koord ij = viewport->get_world_position();
 
 	koord view[4];
 	scr_coord test[4];
-	// default coordinates - may be off if screen shows high mountains
-	view[0] = ij + koord( -diff.y+diff.x, -diff.y-diff.x );
-	view[1] = ij + koord( -diff.y-diff.x, -diff.y+diff.x );
-	view[2] = ij + koord( diff.y-diff.x, diff.y+diff.x );
-	view[3] = ij + koord( diff.y+diff.x, diff.y-diff.x );
-
-	// try to find tile under the four corners of the screen
+	// the four corners of the screen
 	test[0] = scr_coord(screen.w,0);
 	test[1] = scr_coord(0,0);
 	test[2] = scr_coord(0,screen.h);
 	test[3] = scr_coord(screen.w, screen.h);
 
+	// default coordinates: the hex tile at height 0 under each corner,
+	// which may be off if screen shows high mountains
+	const scr_coord centre = viewport->get_screen_coord( koord3d( ij, 0 ) ) + scr_coord( raster/2, hex_visible_centre_y(raster) );
+	for(int i=0; i<4; i++) {
+		double q_f, r_f;
+		hex_screen_to_fractional( test[i].x - centre.x, test[i].y - centre.y, raster, q_f, r_f );
+		view[i] = ij + hex_round_to_axial( q_f, r_f );
+	}
+
+	// try to find tile under the four corners of the screen
 	for(int i=0; i<4; i++) {
 		sint32 dummy1, dummy2;
 		if (grund_t *gr = world->get_viewport()->get_ground_on_screen_coordinate( test[i], dummy1, dummy2 ) ) {
@@ -1844,13 +1848,11 @@ void minimap_t::draw(scr_coord pos)
 }
 
 
-void minimap_t::set_selected_city( const stadt_t* _city )
+void minimap_t::set_selected_city(const stadt_t* _city)
 {
-	if(  selected_city != _city  ) {
+	if (selected_city != _city) {
 		selected_city = _city;
-		if(  _city  ) {
-			pax_destinations_last_change = _city->get_pax_destinations_new_change();
-		}
+		pax_destinations_last_change = 0;
 		calc_map();
 	}
 }

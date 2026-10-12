@@ -8,6 +8,7 @@
 #include "../simdebug.h"
 #include "../vehicle/vehicle_base.h"
 #include "../world/simworld.h"
+#include "../simsound.h"
 
 #include "translator.h"
 

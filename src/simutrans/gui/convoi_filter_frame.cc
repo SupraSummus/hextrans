@@ -5,6 +5,7 @@
 
 #include "convoi_filter_frame.h"
 #include "convoi_frame.h"
+#include "components/gui_convoiinfo.h"
 #include "../simcolor.h"
 
 #include "../descriptor/goods_desc.h"

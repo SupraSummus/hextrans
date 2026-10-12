@@ -6,6 +6,7 @@
 #include <string>
 #include "environment.h"
 #include "loadsave.h"
+#include "../pathes.h"
 #include "../simversion.h"
 #include "../simconst.h"
 #include "../simtypes.h"
@@ -27,12 +28,14 @@ bool env_t::single_toolbar_mode = false;
 bool env_t::stack_toolbars = true;
 sint16 env_t::dpi_scale = 100;
 bool env_t::single_info = 1;
+bool env_t::show_construction_info = true;
 #else
 sint16 env_t::menupos = MENU_BOTTOM;
 bool env_t::single_toolbar_mode = true;
 bool env_t::stack_toolbars = false;
 sint16 env_t::dpi_scale = -1;
 bool env_t::single_info = 0;
+bool env_t::show_construction_info = false;
 #endif
 sint16 env_t::fullscreen = WINDOWED;
 sint16 env_t::display_scale_percent = 100;
@@ -110,6 +113,7 @@ sint16 env_t::midi_volume = 127;
 uint16 env_t::specific_volume[MAX_SOUND_TYPES];
 
 std::string env_t::soundfont_filename = "";
+std::string env_t::music_folder = "";
 std::string env_t::pakset_tutorial_dir = "tutorial";
 bool env_t::global_mute_sound = false;
 bool env_t::mute_midi = false;
@@ -143,6 +147,7 @@ bool env_t::show_single_ways;
 bool env_t::use_transparency_station_coverage;
 uint8 env_t::station_coverage_show;
 sint32 env_t::show_names;
+bool env_t::horizontal_stripe_owner;
 sint32 env_t::message_flags[4];
 uint32 env_t::water_animation;
 uint32 env_t::ground_object_probability;
@@ -250,6 +255,7 @@ void env_t::init()
 	station_coverage_show = 0;
 
 	show_names = 3;
+	horizontal_stripe_owner = true;
 	player_finance_display_account = true;
 
 	water_animation = 250; // 250ms per wave stage
@@ -309,6 +315,7 @@ void env_t::init()
 
 	sound_distance_scaling = 10;
 
+	show_construction_info = true;
 	show_tooltips = true;
 	tooltip_color_rgb     = { 0x39, 0x64, 0xD0 }; // COL_SOFT_BLUE
 	tooltip_textcolor_rgb = { 0x00, 0x00, 0x00 }; // COL_BLACK
@@ -675,6 +682,19 @@ void env_t::rdwr(loadsave_t *file)
 	if (file->is_version_atleast(124, 4)) {
 		file->rdwr_bool(show_single_ways);
 		file->rdwr_bool(stack_toolbars);
+	}
+
+	if (file->is_version_atleast(124, 6)) {
+		file->rdwr_bool(horizontal_stripe_owner);
+		file->rdwr_bool(show_construction_info);
+	}
+
+	if (file->is_version_atleast(125, 6)) {
+		plainstring str = music_folder.c_str();
+		file->rdwr_str(str);
+		if (file->is_loading()) {
+			music_folder = str ? str.c_str() : "";
+		}
 	}
 
 	// server settings are not saved, since they are server specific

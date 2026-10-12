@@ -7,6 +7,7 @@
 
 #include "../world/simworld.h"
 #include "simobj.h"
+#include "../simmem.h"
 #include "../display/simimg.h"
 
 #include "../builder/brueckenbauer.h"
@@ -128,11 +129,9 @@ void pillar_t::rdwr(loadsave_t *file)
 		if(desc==0) {
 			if(strstr(s,"ail")) {
 				desc = bridge_builder_t::get_desc("ClassicRail");
-				dbg->warning("pillar_t::rdwr()","Unknown bridge %s replaced by ClassicRail",s);
 			}
 			else if(strstr(s,"oad")) {
 				desc = bridge_builder_t::get_desc("ClassicRoad");
-				dbg->warning("pillar_t::rdwr()","Unknown bridge %s replaced by ClassicRoad",s);
 			}
 		}
 		asymmetric = desc && desc->has_pillar_asymmetric();
@@ -162,7 +161,5 @@ void pillar_t::rotate90()
 	// we cannot decide this here, since welt->lookup(get_pos())->get_grund_hang() cannot be called
 	// since we are in the middle of the rotation process
 
-	// 90° is not a hex symmetry (see bruecke_t::rotate90); leave
-	// `dir` unchanged.  Replace with a real 60° axis rotation when
-	// the viewport / rotation port lands.
+	dir = (uint8)bridge_desc_t::rotate60( (bridge_desc_t::img_t)dir );
 }

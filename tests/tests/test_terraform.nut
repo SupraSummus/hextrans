@@ -31,6 +31,24 @@ function test_terraform_raise_lower_land()
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(player_x(0), coord3d(2, 1, 0), hex_corner.SE), null)
 	ASSERT_EQUAL(command_x.grid_lower_at_corner(player_x(0), coord3d(3, 1, 0), hex_corner.SE), null)
 
+	// whole tile tile up/down
+	{
+		local pl = player_x(0)
+		local setslope = command_x.set_slope
+		ASSERT_TRUE(square_x(4,2).get_tile_at_height(1)==null)
+		ASSERT_FALSE(square_x(4,2).get_tile_at_height(0)==null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 0),   slope.all_up_slope), null)
+		ASSERT_TRUE(square_x(4,2).get_tile_at_height(0)==null)
+		ASSERT_FALSE(square_x(4,2).get_tile_at_height(1)==null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 1),   slope.all_up_slope), null)
+		ASSERT_TRUE(square_x(4,2).get_tile_at_height(1)==null)
+		ASSERT_FALSE(square_x(4,2).get_tile_at_height(2)==null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 2),   slope.all_down_slope), null)
+		ASSERT_EQUAL(setslope(pl, coord3d(4, 2, 1),   slope.all_down_slope), null)
+		ASSERT_TRUE(square_x(4,2).get_tile_at_height(1)==null)
+		ASSERT_FALSE(square_x(4,2).get_tile_at_height(0)==null)
+	}
+
 	RESET_ALL_PLAYER_FUNDS()
 }
 
@@ -146,6 +164,11 @@ function check_water_block_raise(cases)
 				}
 			}
 		}
+
+		// set_slope(flat) below only overlays the visible grid; undo the
+		// raise itself so the natural height a later building removal
+		// restores is flat as well
+		ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, c.tile, c.corner), null)
 	}
 
 	// Restore flat mediterran for the next test: drop any leftover
@@ -341,6 +364,46 @@ function assert_water_init_fails(pl, param, no_param = false)
 	}
 	ASSERT_TRUE(caught)
 }
+
+// Raising water on dry ground sets the surface to the tile's highest
+// corner.  E and W exist only on a hex tile, so a pit floor whose single
+// raised corner is one of them must still set the level: 0, the rim
+// height.  The tool then floods the floor and its 6 rim tiles (ctrl
+// keeps it off the level ground around them); with the E / W corner
+// ignored it picks -1 and floods nothing.  Flooding also lifts the dug
+// floor to the surface, so draining leaves flat land again.
+function test_terraform_raise_water_at_e_w_corner()
+{
+	local pl = player_x(0)
+	local pit = [[6, 6], [6, 5], [7, 5], [5, 6], [7, 6], [5, 7], [6, 7]]
+
+	foreach (c in [[hex_corner.E, slope.raised_E], [hex_corner.W, slope.raised_W]]) {
+		local corner = c[0]
+		local raised = c[1]
+		lower_hex_tile(pl, 6, 6, -1)
+		ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(6, 6, -1), corner), null)
+		ASSERT_EQUAL(tile_x(6, 6, -1).get_slope(), raised)
+
+		local chg_water = command_x(tool_change_water_height)
+		chg_water.set_flags(2) // ctrl
+		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "1"), null)
+		assert_water_exactly(4, 4, 8, 8, pit)
+		ASSERT_EQUAL(square_x(6, 6).get_ground_tile().z, 0)
+
+		chg_water.set_flags(0)
+		ASSERT_EQUAL(chg_water.work(pl, coord3d(6, 6, 0), "0"), null)
+		assert_water_exactly(4, 4, 8, 8, [])
+		for (local r = 4; r <= 8; r++) {
+			for (local q = 4; q <= 8; q++) {
+				ASSERT_EQUAL(tile_x(q, r, 0).get_slope(), slope.flat)
+				ASSERT_EQUAL(square_x(q, r).get_ground_tile().z, 0)
+			}
+		}
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
 
 function test_terraform_raise_lower_water_level()
 {
