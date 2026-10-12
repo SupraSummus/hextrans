@@ -1444,6 +1444,19 @@ use-after-free at exit.  Next move: build `-DSIMUTRANS_TRACK_DESCRIPTORS=ON`
 with ASAN, run a headless load-then-quit, and resolve any post-free
 deref by reordering the call or clearing the offending holder before it.
 
+`fuzz_pak` given a complete pak64 file
+(`bridge.ClassicRoad.pak`, `ground_obj.flowers.pak`)
+hits a heap-use-after-free when libFuzzer runs the input a second time:
+`free_all_descriptors()` frees the descriptors,
+but the per-type tables they were registered into
+(`bridge_builder_t::desc_table`, the ground-object list, …)
+keep their name pointers,
+and the next `register_desc` calls `remove(name)` on them.
+The committed corpus holds no complete descriptor, so CI does not see it.
+Next move: clear those tables in `free_all_descriptors()`
+(one `clear` per `register_desc` owner),
+then commit a minimized real-pak seed under `src/fuzz/corpus/pak/`.
+
 The production payoff that motivated the engine-side option is freeing
 on *pakset reload* (GUI pakset switch, server map reload), where the
 loading registries are overwritten without freeing the previous
