@@ -422,3 +422,98 @@ function test_city_building_faces_road()
 
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+// The tiles [x, y] with a road in the 3x3 axial ring around (q, r).
+function city_ring_roads(q, r)
+{
+	local roads = []
+	for (local x = q - 1; x <= q + 1; x++) {
+		for (local y = r - 1; y <= r + 1; y++) {
+			if (square_x(x, y).get_ground_tile().get_way(wt_road) != null) {
+				roads.append([x, y])
+			}
+		}
+	}
+	return roads
+}
+
+
+// Remove the townhall at (q, r) and the roads on the ring around it.
+function clear_city_on_raised_ground(pl, q, r)
+{
+	local th = square_x(q, r).get_ground_tile()
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(q, r, th.z)), null)
+	foreach (c in city_ring_roads(q, r)) {
+		local p = coord3d(c[0], c[1], square_x(c[0], c[1]).get_ground_tile().z)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, p, p, "" + wt_road), null)
+	}
+}
+
+
+// stadt_t::build_road joins a new city road to a road at another height.
+// Where the ground cannot be levelled it bends the tile instead, and a
+// tile with all its corners but one at the road's height is raised whole
+// rather than turned into a ramp.  The tile K = (8, 8) lies between the
+// townhall T = (7, 9) on its SW side, a hill one level up, and a road on
+// two tiles to the north, one level up as well.  Its SE corner is up too,
+// so the E corner is the only low one, and the old check, which counted
+// the NE, SE, NW and SW corners, saw four of five.  A label on the SE
+// neighbour of K, which shares the E corner, keeps the ground from being
+// levelled.
+//
+// A townhall founds its road on one of its six sides: a strip of three
+// tiles on the sides but NE and SW, which have a single tile and go
+// through build_road.  The strips would terrace the ground around K, so
+// water at (6, 8) and (8, 10) stops all four.  Of the six random starting
+// sides all but SW then end on K.
+function test_city_road_fills_valley_tile()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local water = [coord3d(6, 8, 0), coord3d(8, 10, 0)]
+
+	raise_hex_tile(pl, 7, 9, 0)
+	raise_hex_tile_pair_S(pl, 8, 6, 0)
+	ASSERT_EQUAL(command_x.grid_raise_at_corner(pl, coord3d(8, 8, 0), 1), null)
+	ASSERT_EQUAL(tile_x(8, 8, 0).get_slope(), HEX_SLOPE(0, 1, 1, 1, 1, 1))
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 6, 1), coord3d(8, 7, 1), road, true), null)
+	ASSERT_EQUAL(label_x.create(coord3d(9, 8, 0), pl, "unlevelled"), null)
+	foreach (c in water) {
+		ASSERT_EQUAL(command_x(tool_set_climate).work(pl, c, c, "" + cl_water), null)
+	}
+
+	local seeded = false
+	for (local i = 0; i < 20 && !seeded; i++) {
+		ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(7, 9, 1), "0"), null)
+		local roads = city_ring_roads(7, 9)
+		seeded = roads.len() == 1 && roads[0][0] == 8 && roads[0][1] == 8
+		if (!seeded) {
+			clear_city_on_raised_ground(public_pl, 7, 9)
+		}
+	}
+	ASSERT_TRUE(seeded)
+
+	// the tile is level with the townhall and the road, and joins the road
+	local ground = square_x(8, 8).get_ground_tile()
+	ASSERT_EQUAL("tile height " + ground.z, "tile height 1")
+	ASSERT_EQUAL(ground.get_slope(), slope.flat)
+	ASSERT_EQUAL(way_dirs_at(coord3d(8, 8, 1), wt_road), dir.north)
+
+	// clean up
+	clear_city_on_raised_ground(public_pl, 7, 9)
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(9, 8, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(8, 6, 1), coord3d(8, 7, 1), "" + wt_road), null)
+	foreach (c in water) {
+		ASSERT_EQUAL(command_x(tool_set_climate).work(pl, c, c, "" + cl_mediterran), null)
+	}
+	// raising K to the road left its slope at odds with the corners
+	ASSERT_EQUAL(command_x(tool_restoreslope).work(pl, coord3d(8, 8, 1)), null)
+	ASSERT_EQUAL(command_x.grid_lower_at_corner(pl, coord3d(8, 8, 0), 1), null)
+	lower_hex_tile_pair_S(pl, 8, 6, 0)
+	lower_hex_tile(pl, 7, 9, 0)
+	ASSERT_EQUAL(tile_x(8, 8, 0).get_slope(), slope.flat)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
