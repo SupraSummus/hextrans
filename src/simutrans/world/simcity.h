@@ -19,6 +19,7 @@
 
 class building_desc_t;
 class karte_ptr_t;
+struct map_shape_t;
 class player_t;
 class rule_t;
 class way_desc_t;
@@ -622,14 +623,13 @@ public:
 
 	/**
 	 * Generates an array of random coordinates suitable for creating cities.
-	 * Do not consider coordinates in (0,0) - (old_x, old_y)
-	 * (leave @p old_x and @p old_y 0 to generate cities on the whole map).
+	 * Do not consider the tiles of @p old_shape, the hexagon an enlarged map
+	 * grew from (map_shape_t::none() to generate cities on the whole map).
 	 *
 	 * @param count how many cities to generate
-	 * @param old_x
-	 * @param old_y
+	 * @param old_shape
 	 */
-	static vector_tpl<koord> *random_place(sint32 count, sint16 old_x, sint16 old_y);
+	static vector_tpl<koord> *random_place(sint32 count, const map_shape_t &old_shape);
 
 	void open_info_window();
 };

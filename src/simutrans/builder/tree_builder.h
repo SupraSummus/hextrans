@@ -19,6 +19,7 @@
 
 class tree_desc_t;
 class baum_t;
+struct map_shape_t;
 
 
 /// Handles desc management and distribution of trees.
@@ -55,8 +56,8 @@ public:
 
 	static sint32 get_num_trees() { return tree_list.get_count()-1; }
 
-	/// Fill rectangular region with trees.
-	static void fill_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom);
+	/// Fill rectangular region with trees, but not the tiles of @p skip (if given).
+	static void fill_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip = NULL);
 
 	static bool register_desc(const tree_desc_t *desc);
 	static bool successfully_loaded();
@@ -67,11 +68,11 @@ public:
 	/// Plant a new tree in a (2n+1) * (2n+1) square around @p tree.
 	static bool spawn_tree_near(const baum_t *tree, int radius = 3);
 
-	static uint32 create_forest(koord center, koord size, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom);
+	static uint32 create_forest(koord center, koord size, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip = NULL);
 
 public:
-	/// distributes trees in a rectangular region of the map
-	static void distribute_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom);
+	/// distributes trees in a rectangular region of the map, but not on the tiles of @p skip (if given)
+	static void distribute_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip = NULL);
 
 	/// tree planting function - it takes care of checking suitability of area
 	static bool plant_tree_on_coordinate(koord pos, const tree_desc_t *desc, const bool check_climate, const bool random_age);

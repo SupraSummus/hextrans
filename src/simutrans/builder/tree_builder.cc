@@ -147,7 +147,7 @@ bool tree_builder_t::plant_tree_on_coordinate(koord pos, const tree_desc_t *desc
 }
 
 
-uint32 tree_builder_t::create_forest(koord new_center, koord wh, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom)
+uint32 tree_builder_t::create_forest(koord new_center, koord wh, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip)
 {
 	// none there
 	if(  desc_table.empty()  ) {
@@ -168,6 +168,9 @@ uint32 tree_builder_t::create_forest(koord new_center, koord wh, sint16 xtop, si
 				continue;
 			}
 			if( ytop > (ypos_f + y_tree_pos)  ||  (ypos_f + y_tree_pos) >= ybottom ) {
+				continue;
+			}
+			if( skip  &&  skip->contains(xpos_f + x_tree_pos, ypos_f + y_tree_pos) ) {
 				continue;
 			}
 
@@ -203,7 +206,7 @@ uint32 tree_builder_t::create_forest(koord new_center, koord wh, sint16 xtop, si
 }
 
 
-void tree_builder_t::fill_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom )
+void tree_builder_t::fill_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip )
 {
 	// none there
 	if(  desc_table.empty()  ) {
@@ -216,7 +219,7 @@ void tree_builder_t::fill_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbo
 	for(  pos.y=ytop;  pos.y<ybottom;  pos.y++  ) {
 		for(  pos.x=xtop;  pos.x<xbottom;  pos.x++  ) {
 			grund_t *gr = welt->lookup_kartenboden(pos);
-			if(gr  &&  gr->obj_count() == 0  &&  gr->get_typ() == grund_t::boden)  {
+			if(gr  &&  gr->obj_count() == 0  &&  gr->get_typ() == grund_t::boden  &&  !(skip  &&  skip->contains(pos)))  {
 				// plant spare trees, (those with low preffered density) or in an entirely tree climate
 				const uint16 cl = 1 << welt->get_climate(pos);
 				const settings_t &s = welt->get_settings();
@@ -309,7 +312,7 @@ bool tree_builder_t::register_desc(const tree_desc_t *desc)
 }
 
 
-void tree_builder_t::distribute_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom)
+void tree_builder_t::distribute_trees(int dichte, sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip)
 {
 	// now we can proceed to tree planting routine itself
 	// best forests results are produced if forest size is tied to map size -
@@ -327,10 +330,10 @@ void tree_builder_t::distribute_trees(int dichte, sint16 xtop, sint16 ytop, sint
 		koord const start = welt->get_random_tile();
 		koord const size  = koord(t_forest_size,t_forest_size) + koord::koord_random(t_forest_size, t_forest_size);
 
-		create_forest( start, size, xtop, ytop, xbottom, ybottom );
+		create_forest( start, size, xtop, ytop, xbottom, ybottom, skip );
 	}
 
-	fill_trees( dichte, xtop, ytop, xbottom, ybottom );
+	fill_trees( dichte, xtop, ytop, xbottom, ybottom, skip );
 }
 
 

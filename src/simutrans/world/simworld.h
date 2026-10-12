@@ -96,6 +96,9 @@ public:
 	 */
 	void set_vertex_heights_from_perlin(koord tile, koord rot_size);
 
+	/// The same for the one canonical vertex (@p tile, @p c), which is E or SE.
+	void set_vertex_height_from_perlin(koord tile, hex_corner_t::type c, koord rot_size);
+
 	/**
 	 * Fills canonical vertex heights for the map interior, one
 	 * `world_xy_loop` y-strip at a time.  Paired with
@@ -282,9 +285,11 @@ private:
 private:
 	/**
 	 * The fractal generation of the map is not perfect.
-	 * cleanup_karte() eliminates errors.
+	 * cleanup_karte() eliminates errors, and creates the ground of the
+	 * tiles that the map has beyond @p old_shape, the hexagon it grew from
+	 * (map_shape_t::none() for a new world).
 	 */
-	void cleanup_karte( int xoff, int yoff );
+	void cleanup_karte( const map_shape_t &old_shape );
 
 	/**
 	 * @name Player management
@@ -524,18 +529,19 @@ private:
 	void create_lakes( int xoff, int yoff, sint8 height );
 
 	/**
-	 * Will create beaches.
+	 * Will create beaches, on the tiles of the map within 19 tiles of the
+	 * edge it grew from: the band of @p old_shape along its far sides.
 	 */
-	void create_beaches( int xoff, int yoff );
+	void create_beaches( const map_shape_t &old_shape );
 
 	/**
 	 * Distribute groundobjs and cities on the map but not
-	 * in the rectangle from (0,0) till (old_x, old_y).
+	 * on the tiles of @p old_shape, the hexagon it grew from.
 	 * It's now an extra function so we don't need the code twice.
 	 */
-	void distribute_cities(int new_cities, sint32 new_mean_citizen_count, sint16 old_x, sint16 old_y );
-	void distribute_groundobjs(sint16 old_x, sint16 old_y);
-	void distribute_movingobjs(sint16 old_x, sint16 old_y);
+	void distribute_cities(int new_cities, sint32 new_mean_citizen_count, const map_shape_t &old_shape );
+	void distribute_groundobjs(const map_shape_t &old_shape);
+	void distribute_movingobjs(const map_shape_t &old_shape);
 
 	/**
 	 * The last time when a server announce was performed (in ms).
@@ -1170,9 +1176,11 @@ public:
 
 public:
 	/**
-	* Calculates appropriate climate for a region using elliptic areas for each
+	* Calculates appropriate climate for a region using elliptic areas for each.
+	* @param skip tiles of this shape keep their climate: the region is the
+	*        rectangle without them, which are all unassigned in it
 	*/
-	void calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom );
+	void calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip = NULL );
 
 	/**
 	* Calculates appropriate climate for a region using elliptic areas for each
@@ -1182,12 +1190,13 @@ public:
 	/**
 	 * assign climated from the climate map to a region
 	 */
-	void assign_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom );
+	void assign_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip = NULL );
 
 	/**
-	 * Since the trees follow humidity, we have to redistribute them only in the new region
+	 * Since the trees follow humidity, we have to redistribute them only in the new region:
+	 * the rectangle without the tiles of @p skip
 	 */
-	void distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom );
+	void distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip = NULL );
 
 	/**
 	 * Loop recalculating transitions - suitable for multithreading
@@ -1201,10 +1210,11 @@ public:
 
 	/**
 	 * @return A list of the centres of all buildable hex discs of the given radius,
-	 * that is all tiles within @p radius steps of the centre.
+	 * that is all tiles within @p radius steps of the centre, on the tiles
+	 * that the map has beyond @p old_shape (map_shape_t::none() for all).
 	 * @note Only used for town creation at the moment.
 	 */
-	slist_tpl<koord> * find_free_discs(sint16 radius, climate_bits cl, sint16 old_x, sint16 old_y) const;
+	slist_tpl<koord> * find_free_discs(sint16 radius, climate_bits cl, const map_shape_t &old_shape) const;
 
 	/**
 	 * Plays the sound when the position is inside the visible region.
