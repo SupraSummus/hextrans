@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+freelist_tpl<image_t> image_t::ifl;
 
 /**
  * Definition of special colors
@@ -55,6 +56,14 @@ const uint32 image_t::rgbtab[SPECIAL] = {
 
 image_t* image_t::copy_image(const image_t& other)
 {
+#if COLOUR_DEPTH == 0
+	image_t* img = new image_t();
+	img->x = other.x;
+	img->y = other.y;
+	img->w = other.w;
+	img->h = other.h;
+	img->imageid = IMG_EMPTY;
+#else
 	image_t* img = new image_t(other.len);
 	img->len = other.len;
 	img->x   = other.x;
@@ -63,7 +72,8 @@ image_t* image_t::copy_image(const image_t& other)
 	img->h   = other.h;
 	img->imageid  = IMG_EMPTY;
 	img->zoomable = other.zoomable;
-	memcpy(img->data, other.data, other.len * sizeof(PIXVAL));
+	memcpy(img->data, other.data, other.len * sizeof(STORED_PIXVAL));
+#endif
 	return img;
 }
 
@@ -71,16 +81,18 @@ image_t* image_t::copy_image(const image_t& other)
 image_t* image_t::create_single_pixel()
 {
 	image_t* desc = new image_t(4);
-	desc->len = 4;
 	desc->x = 0;
 	desc->y = 0;
 	desc->w = 1;
 	desc->h = 1;
+#if COLOUR_DEPTH != 0
+	desc->len = 4;
 	desc->zoomable = 0;
 	desc->data[0] = 0;
 	desc->data[1] = 0;
 	desc->data[2] = 0;
 	desc->data[3] = 0;
+#endif
 	return desc;
 }
 
@@ -108,8 +120,8 @@ image_t *image_t::copy_rotate(const sint16 angle) const
 	// now you should understand below arithmetics ...
 
 	sint16        const x_y    = w;
-	PIXVAL const* const src    = get_data();
-	PIXVAL*       const target = target_image->get_data();
+	STORED_PIXVAL const* const src    = get_data();
+	STORED_PIXVAL*       const target = target_image->get_data();
 
 	switch(angle) {
 		case 90:
@@ -143,6 +155,9 @@ image_t *image_t::copy_rotate(const sint16 angle) const
 
 image_t *image_t::copy_flipvertical() const
 {
+#if COLOUR_DEPTH == 0
+	return create_single_pixel();
+#endif
 	image_t* target_image = copy_image(*this);
 
 	// the format is
@@ -154,8 +169,8 @@ image_t *image_t::copy_flipvertical() const
 	// now you should understand below arithmetics ...
 
 	sint16        const x_y    = w;
-	PIXVAL const* const src    = get_data();
-	PIXVAL*       const target = target_image->get_data();
+	STORED_PIXVAL const* const src    = get_data();
+	STORED_PIXVAL*       const target = target_image->get_data();
 
 	for(  int j = 0;  j < x_y;  j++  ) {
 		for(  int i = 0;  i < x_y;  i++  ) {
@@ -168,6 +183,9 @@ image_t *image_t::copy_flipvertical() const
 
 image_t *image_t::copy_fliphorizontal() const
 {
+#if COLOUR_DEPTH == 0
+	return create_single_pixel();
+#endif
 	image_t* target_image  = copy_image(*this);
 
 	// the format is
@@ -179,8 +197,8 @@ image_t *image_t::copy_fliphorizontal() const
 	// now you should understand below arithmetics ...
 
 	sint16        const x_y    = w;
-	PIXVAL const* const src    = get_data();
-	PIXVAL*       const target = target_image->get_data();
+	STORED_PIXVAL const* const src    = get_data();
+	STORED_PIXVAL*       const target = target_image->get_data();
 
 	for(  int i = 0;  i < x_y;  i++  ) {
 		for(  int j = 0;  j < x_y;  j++  ) {

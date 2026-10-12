@@ -1,3 +1,4 @@
+
 /* This file is part of the Simutrans project under the Artistic License.
  * (see LICENSE.txt)
  */
@@ -92,8 +93,10 @@
 #include "vehicle/vehicle.h"
 #include "vehicle/simroadtraffic.h"
 
+#include "simsocial.h"
+
 #ifdef STEAM_BUILT
-#include "../steam/steam.h"
+#include "../steam/steam_iface.h"
 #endif
 
 using std::string;
@@ -771,7 +774,7 @@ int simu_main(int argc, char** argv)
 	// always save and reload on Android
 	env_t::reload_and_save_on_quit = true;
 #elif defined(STEAM_BUILT) && STEAM_BUILT != 0
-	steam_t::get_instance()->install_workshop_items();
+	steam_install_workshop_items();
 #endif
 
 	// now set the desired objectfilename (override all previous settings)
@@ -1806,7 +1809,7 @@ int simu_main(int argc, char** argv)
 	// give user a mouse to work with
 	if (skinverwaltung_t::mouse_cursor != NULL) {
 		// we must use our softpointer (only Allegro!)
-		display_set_pointer(skinverwaltung_t::mouse_cursor->get_image_id(0));
+		gfx->set_default_cursor(skinverwaltung_t::mouse_cursor->get_image_id(0));
 	}
 #endif
 	gfx->set_cursor_visible(true);
@@ -1936,9 +1939,7 @@ int simu_main(int argc, char** argv)
 	freelist_t::free_all_nodes();
 #endif
 
-#ifdef STEAM_BUILT
-	steam_t::get_instance()->shutdown();
-#endif
+	social_shutdown();
 
 	return EXIT_SUCCESS;
 }

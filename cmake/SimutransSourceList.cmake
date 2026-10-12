@@ -271,6 +271,7 @@ target_sources(simutrans PRIVATE
 	src/simutrans/script/api/api_player.cc
 	src/simutrans/script/api/api_scenario.cc
 	src/simutrans/script/api/api_schedule.cc
+	src/simutrans/script/api/api_ai_test.cc
 	src/simutrans/script/api/api_schedule_route_test.cc
 	src/simutrans/script/api/api_settings.cc
 	src/simutrans/script/api/api_simple.cc
@@ -302,6 +303,7 @@ target_sources(simutrans PRIVATE
 	src/simutrans/simmem.cc
 	src/simutrans/simmesg.cc
 	src/simutrans/simskin.cc
+	src/simutrans/simsocial.cc
 	src/simutrans/simsound.cc
 	src/simutrans/simticker.cc
 	src/simutrans/simware.cc
@@ -336,6 +338,11 @@ target_sources(simutrans PRIVATE
 	src/simutrans/world/simworld.cc
 	src/simutrans/world/surface.cc
 	src/simutrans/world/terraformer.cc
+)
+
+
+# To allow separate compiler flags for Squirrel (see below)
+add_library(simusquirrel OBJECT
 	src/squirrel/sq_extensions.cc
 	src/squirrel/sqstdlib/sqstdaux.cc
 	src/squirrel/sqstdlib/sqstdblob.cc
@@ -357,4 +364,38 @@ target_sources(simutrans PRIVATE
 	src/squirrel/squirrel/sqstate.cc
 	src/squirrel/squirrel/sqtable.cc
 	src/squirrel/squirrel/sqvm.cc
+)
+
+
+if (MSVC)
+	target_compile_options(simusquirrel PRIVATE
+		${SIMUTRANS_COMMON_COMPILE_OPTIONS}
+		# TODO add warning-silencing flags here
+	)
+else ()
+	SIMUTRANS_CHECK_CXX_COMPILER_FLAGS(SIMUSQUIRREL_COMPILE_OPTIONS
+		-Wno-cast-align
+		-Wno-cast-qual
+		-Wno-class-memaccess
+		-Wno-deprecated-copy
+		-Wno-deprecated-declarations
+		-Wno-implicit-fallthrough
+		-Wno-nontrivial-memcall
+		-Wno-return-std-move
+		-Wno-unused-but-set-variable
+
+		# Disabled because Squirrel internally has code that dereferences type-punned pointer
+		# See also https://github.com/albertodemichelis/squirrel/pull/257
+		-fno-strict-aliasing
+	)
+
+	target_compile_options(simusquirrel PRIVATE
+		${SIMUTRANS_COMMON_COMPILE_OPTIONS}
+		${SIMUSQUIRREL_COMPILE_OPTIONS}
+	)
+endif ()
+
+
+target_link_libraries(simutrans PRIVATE
+	simusquirrel
 )

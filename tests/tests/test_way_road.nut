@@ -494,7 +494,7 @@ function test_way_road_build_below_powerline()
 	// with it at every tile, so check_powerline rejects -> nothing built,
 	// no cost, powerline untouched.
 	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 5, 0), road, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 1, 0), coord3d(3, 5, 0), road, true), "A powerline blocks the construction")
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0), power_col)
 		ASSERT_EQUAL(pl.get_current_maintenance(), power_maintenance)
@@ -544,7 +544,7 @@ function test_way_road_build_below_powerline()
 	// Road crossing at the powerline's dead-end (3,1), where the line is
 	// single (ribi S only), is rejected -> nothing built, powerline intact.
 	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 1, 0), coord3d(4, 1, 0), road, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 1, 0), coord3d(4, 1, 0), road, true), "A powerline blocks the construction")
 		ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0), empty_8x8)
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0), power_col)
 		ASSERT_EQUAL(pl.get_current_maintenance(), power_maintenance)
@@ -1233,7 +1233,7 @@ function test_way_road_build_terraform_across_slope()
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
 
 	local cash = pl.get_current_cash()
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true), "")
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true), "Slope is too steep")
 	ASSERT_EQUAL(pl.get_current_cash(), cash)
 	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_narrow)
 
@@ -1276,7 +1276,7 @@ function test_way_road_build_road_terraform_across_slope()
 	// the same crossing turned by 90 degrees, and through build_road this time
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.east), null)
 
-	ASSERT_EQUAL(command_x.build_road(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), road_desc, true, false), "")
+	ASSERT_EQUAL(command_x.build_road(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), road_desc, true, false), "Slope is too steep")
 	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.east)
 
 	ASSERT_EQUAL(command_x.build_road(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), road_desc, true, false, true), null)
@@ -1359,7 +1359,7 @@ function test_way_road_build_terraform_is_no_bypass()
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.all_up_slope), null)
 
 	local cash = pl.get_current_cash()
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 2, 0), coord3d(4, 4, 1), road_desc, true), "")
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 2, 0), coord3d(4, 4, 1), road_desc, true), "Slope is too steep")
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 2, 0), coord3d(4, 4, 1), road_desc, true, true), "")
 	ASSERT_EQUAL(pl.get_current_cash(), cash)
 	ASSERT_TRUE(square_x(4, 4).get_tile_at_height(0) == null)
@@ -1383,7 +1383,7 @@ function test_way_road_build_terraform_forbidden_by_scenario()
 
 	// the way is still built by the tool, so the scenario still sees the way name
 	rules.forbid_way_tool_rect(0, tool_build_way, wt_road, road_desc.get_name(), coord(3, 3), coord(5, 5), "Foo Bar")
-	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true, true), "")
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true, true), "Foo Bar")
 	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_narrow)
 	rules.clear()
 
@@ -1445,7 +1445,7 @@ function test_way_road_build_terraform_not_kept_by_the_tool()
 	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.flat)
 
 	builder.set_flags(2)
-	ASSERT_EQUAL(builder.work(pl, coord3d(8, 9, 0), coord3d(10, 9, 0), road_desc.get_name()), "")
+	ASSERT_EQUAL(builder.work(pl, coord3d(8, 9, 0), coord3d(10, 9, 0), road_desc.get_name()), "Slope is too steep")
 	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_narrow)
 
 	// clean up

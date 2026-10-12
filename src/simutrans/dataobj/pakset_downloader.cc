@@ -216,6 +216,84 @@ static void extract_pak_from_zip(const char* zipfile)
 	zip_close(zip);
 }
 
+#ifndef USE_CURL
+/**
+ * A redirect target arrives over the network. The downloaders below never let it
+ * reach a command interpreter, but this still keeps the url to the characters a
+ * pakset url actually needs, as a second line of defence.
+ */
+static bool is_safe_https_url(const char *url)
+{
+	if(  strncmp(url, "https://", 8) != 0  ) {
+		return false;
+	}
+	for(  const char *c = url + 8;  *c;  c++  ) {
+		const bool allowed = (*c >= 'a'  &&  *c <= 'z')  ||  (*c >= 'A'  &&  *c <= 'Z')  ||
+		                     (*c >= '0'  &&  *c <= '9')  ||  strchr("-._~:/?#@&=+,%", *c) != NULL;
+		if(  !allowed  ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+
+/// download an https url with whatever https capable downloader this platform has
+static bool download_https(const char *url, const char *target)
+{
+	if(  !is_safe_https_url(url)  ) {
+		dbg->warning("download_https()", "refusing url with unexpected characters: %s", url);
+		return false;
+	}
+#ifdef _WIN32
+#ifndef USE_URLMON
+	// Start powershell itself, not a shell that would parse a command line first,
+	// and hand the url over as an environment value. The command line below is a
+	// constant, so no part of the url is ever interpreted as syntax.
+	SetEnvironmentVariableA("SIMUTRANS_PAK_URL", url);
+	SetEnvironmentVariableA("SIMUTRANS_PAK_TARGET", target);
+
+	wchar_t commandline[] = L"powershell.exe -NoProfile -NonInteractive -Command "
+		L"\"(New-Object System.Net.WebClient).DownloadFile($env:SIMUTRANS_PAK_URL, $env:SIMUTRANS_PAK_TARGET)\"";
+
+	STARTUPINFOW si;
+	PROCESS_INFORMATION pi;
+	MEMZERO(si);
+	MEMZERO(pi);
+	si.cb = sizeof(si);
+
+	DWORD exitcode = 1;
+	const BOOL started = CreateProcessW(NULL, commandline, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+	if(  started  ) {
+		WaitForSingleObject(pi.hProcess, INFINITE);
+		GetExitCodeProcess(pi.hProcess, &exitcode);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+	}
+	else {
+		dbg->warning("download_https()", "could not start powershell");
+	}
+
+	// do not leave the url behind for the next download or for any other child
+	SetEnvironmentVariableA("SIMUTRANS_PAK_URL", NULL);
+	SetEnvironmentVariableA("SIMUTRANS_PAK_TARGET", NULL);
+	return started  &&  exitcode == 0;
+#else
+	return URLDownloadToFile(NULL, url, target, 0, NULL) == 0;
+#endif
+#else
+#ifndef __ANDROID__
+	char command[2048];
+	sprintf(command, "curl --progress-bar -L '%s' > '%s'", url, target);
+	return system(command) == 0;
+#else
+	return download_file(url, target) == NULL;
+#endif
+#endif
+}
+#endif // !USE_CURL
+
+
 // download and install pak into install path: using own zip/http routines
 bool pak_download(vector_tpl<paksetinfo_t*>paks)
 {
@@ -239,36 +317,13 @@ bool pak_download(vector_tpl<paksetinfo_t*>paks)
 			continue;
 		}
 #else
+		bool downloaded;
 		if (strncmp(pi->url, "https://", 8) == 0) {
-#ifdef _WIN32
-#ifndef USE_URLMON
-			sprintf(outfilename, "powershell \"(New-Object System.Net.WebClient).DownloadFile('%s', 'temp.zip')\"", pi->url);
-			system(outfilename);
-#else
-			// use
-			if (URLDownloadToFile(NULL, pi->url, "temp.zip", 0, NULL) != 0) {
-				dbg->warning("pak_download()", "Pakset download failed");
-				j += 2;
-				ls.set_progress(j);
-				all_good = false;
-				continue;
+			strcpy(outfilename, "temp.zip");
+			downloaded = download_https(pi->url, outfilename);
+			if(  !downloaded  ) {
+				dbg->warning("pak_download()", "Failed to download %s", pi->url);
 			}
-			strcpy(outfilename, "temp.zip");
-#endif
-#else
-#ifndef __ANDROID__
-			sprintf(outfilename, "curl --progress-bar -L '%s' > 'temp.zip'", pi->url);
-			system(outfilename);
-			strcpy(outfilename, "temp.zip");
-#else
-			// using system to download
-			strcpy(outfilename, "temp.zip");
-			if (const char* err = download_file(pi->url, "temp.zip")) {
-				outfilename[0] = 0;
-				dbg->warning("pak_download()","Failed to download %s",pi->url);
-			}
-#endif
-#endif
 		}
 		else {
 			// download using our simutrans code
@@ -277,16 +332,27 @@ bool pak_download(vector_tpl<paksetinfo_t*>paks)
 			char site_ip[1024];
 			const char *site_path = NULL;
 			const char *err = parse_http_url(pi->url, site_ip, lengthof(site_ip), &site_path);
+			cbuffer_t https_url;
 			if (err == NULL) {
-				err = network_http_get_file(site_ip, site_path, outfilename);
+				err = network_http_get_file(site_ip, site_path, outfilename, &https_url);
 			}
-			if (err) {
+			downloaded = (err == NULL);
+			if(  err  &&  https_url.len() > 0  ) {
+				// the server moved us to https, which only the downloader above speaks
+				DBG_DEBUG("pak_download()", "%s redirected to %s", pi->url, https_url.get_str());
+				dr_remove(outfilename);
+				strcpy(outfilename, "temp.zip");
+				downloaded = download_https(https_url.get_str(), outfilename);
+			}
+			if(  !downloaded  ) {
 				dbg->warning("Pakset download failed with", "%s", err);
-				j += 2;
-				ls.set_progress(j);
-				all_good = false;
-				continue;
 			}
+		}
+		if(  !downloaded  ) {
+			j += 2;
+			ls.set_progress(j);
+			all_good = false;
+			continue;
 		}
 #endif // USE_CURL
 

@@ -55,6 +55,13 @@ that mangles explicit-port redirect targets (also bit
 handle https: Server returned %d" string returned for every non-200.
 They remain present in the legacy `#else` branch since fixing them
 there is wasted work ahead of retirement.
+Upstream's https handoff (#242, #243) lives only in that branch:
+`network_http_get_file` reports an http→https redirect target
+through its `redirect_to` parameter,
+and the legacy pakset path hands it to `download_https`
+(PowerShell, `URLDownloadToFile` or system curl).
+The libcurl `network_http_get_file` takes the same parameter
+and never fills it.
 
 ## Tests
 

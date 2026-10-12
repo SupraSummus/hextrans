@@ -8,6 +8,7 @@
 // list  containing all tests
 //
 
+include("tests/test_ai_scripted")
 include("tests/test_air")
 include("tests/test_building")
 include("tests/test_city")
@@ -39,6 +40,7 @@ include("tests/test_way_bridge")
 include("tests/test_way_bridge_maintenance")
 include("tests/test_way_bridge_maintenance_auto")
 include("tests/test_way_elevated")
+include("tests/test_way_fail_reason")
 include("tests/test_way_planner")
 include("tests/test_way_rail")
 include("tests/test_way_road")
@@ -159,6 +161,7 @@ all_tests <- [
 	test_halt_build_on_depot,
 	test_halt_build_station_invalid_param,
 	test_halt_build_station_extension,
+	test_halt_build_explicit_layout_way_orientation,
 	test_halt_upgrade_downgrade,
 	test_halt_make_public_single,
 	test_halt_make_public_shared,
@@ -200,6 +203,7 @@ all_tests <- [
 	test_sign_build_signal_multiple,
 	test_sign_replace_signal,
 	test_sign_signal_when_player_removed,
+	test_sign_signals_removed_with_bankrupt_company,
 	test_slope_to_dir,
 	test_slope_can_set,
 	test_slope_set_and_restore,
@@ -210,6 +214,7 @@ all_tests <- [
 	test_slope_restore_on_label,
 	test_slope_raise_lower_corner_near_way,
 	test_slope_max_height_diff,
+	test_slope_max_height_diff_on_field,
 	test_vm_ops_counters_are_integers,
 	test_vm_ops_counters_track_each_other,
 	test_vm_suspend_resume_keeps_state,
@@ -279,6 +284,11 @@ all_tests <- [
 	test_way_bridge_maintenance_auto,
 	test_way_bridge_maintenance_auto_equals_manual,
 	test_way_bridge_maintenance_auto_off,
+	test_way_fail_reason_building,
+	test_way_fail_reason_crossing,
+	test_way_fail_reason_ground,
+	test_way_fail_reason_slope,
+	test_way_fail_reason_still_silent,
 	test_way_planner_step_cost_ground,
 	// test_way_planner_step_cost_slope: HEX-PORT PENDING.
 	test_way_planner_step_cost_refused,
@@ -374,5 +384,21 @@ all_tests <- [
 	test_schedule_route_electric_without_catenary,
 	test_schedule_route_electric_survives_schedule_change,
 	test_schedule_route_diagonal_staircase,
+	test_schedule_route_height_flat,
+	test_schedule_route_height_slope,
+	test_schedule_route_height_bridge_head_flat,
+	test_schedule_route_height_bridge_head_sloped,
+	test_schedule_route_corner_flat,
+	test_schedule_route_corner_slope,
+	test_schedule_route_corner_bridge_head,
+	test_schedule_route_corner_terminus,
+	test_ai_scripted_fixture_start_dispatched,
+	test_ai_scripted_shipped_sqai_smoke,
+	test_ai_scripted_attach_missing_ai_fails,
+	test_ai_scripted_attach_empty_name_fails,
+	test_ai_scripted_attach_network_policy,
+	test_ai_scripted_attach_server_succeeds,
+	test_ai_scripted_network_state_restored,
+	test_ai_scripted_slot_allocation_skips_occupied,
 	test_city_population_ledger, // keep last: grows a city across the whole map
 ]

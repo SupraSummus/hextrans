@@ -23,11 +23,12 @@ HOSTCXX ?=$(CXX)
 
 SDL2_CONFIG      ?= pkg-config sdl2
 #SDL2_CONFIG     ?= sdl2-config
+SDL3_CONFIG      ?= pkg-config sdl3
 FREETYPE_CONFIG  ?= pkg-config freetype2
 # FREETYPE_CONFIG ?= freetype-config
 FONTCONFIG_CONFIG  ?= pkg-config fontconfig
 
-BACKENDS  := gdi sdl2 mixer_sdl2 posix
+BACKENDS  := gdi sdl2 sdl3 mixer_sdl2 posix
 OSTYPES   := amiga freebsd haiku linux mac mingw openbsd
 
 
@@ -62,6 +63,9 @@ ifdef MULTI_THREAD
       ifeq ($(BACKEND),sdl2)
         LDFLAGS += -lpthread
       endif
+      ifeq ($(BACKEND),sdl3)
+        LDFLAGS += -lpthread
+      endif
       ifeq ($(BACKEND),mixer_sdl2)
         LDFLAGS += -lpthread
       endif
@@ -91,7 +95,7 @@ else ifeq ($(OSTYPE),mingw)
     LDFLAGS   += -Wl,--large-address-aware
   endif
   LDFLAGS   += -pthread
-  CFLAGS    += -Wno-deprecated-copy -DNOMINMAX -DWIN32_LEAN_AND_MEAN -DWINVER=0x0501 -D_WIN32_IE=0x0500
+  CFLAGS    += -Wno-deprecated-copy -DNOMINMAX -DWIN32_LEAN_AND_MEAN -DWINVER=0x0600 -D_WIN32_IE=0x0500
   LIBS      += -lmingw32 -lgdi32 -lwinmm -lws2_32 -limm32
 
   # Disable the console on Windows unless WIN32_CONSOLE is set or graphics are disabled
@@ -116,6 +120,8 @@ endif
 
 ifeq ($(BACKEND),sdl2)
   SOURCES += src/simutrans/sys/clipboard_s2.cc
+else ifeq ($(BACKEND),sdl3)
+  SOURCES += src/simutrans/sys/clipboard_s3.cc
 else ifeq ($(OSTYPE),mingw)
   SOURCES += src/simutrans/sys/clipboard_w32.cc
 else
@@ -572,6 +578,7 @@ SOURCES += src/simutrans/script/api/api_pathfinding.cc
 SOURCES += src/simutrans/script/api/api_player.cc
 SOURCES += src/simutrans/script/api/api_scenario.cc
 SOURCES += src/simutrans/script/api/api_schedule.cc
+SOURCES += src/simutrans/script/api/api_ai_test.cc
 SOURCES += src/simutrans/script/api/api_schedule_route_test.cc
 SOURCES += src/simutrans/script/api/api_settings.cc
 SOURCES += src/simutrans/script/api/api_simple.cc
@@ -603,6 +610,7 @@ SOURCES += src/simutrans/simmain.cc
 SOURCES += src/simutrans/simmem.cc
 SOURCES += src/simutrans/simmesg.cc
 SOURCES += src/simutrans/simskin.cc
+SOURCES += src/simutrans/simsocial.cc
 SOURCES += src/simutrans/simsound.cc
 SOURCES += src/simutrans/simticker.cc
 SOURCES += src/simutrans/simware.cc
@@ -712,6 +720,43 @@ ifeq ($(BACKEND),sdl2)
     ifeq ($(shell expr $(STATIC) \>= 1), 1)
       ifeq ($(OSTYPE),mingw)
         SDL_LDFLAGS = $(shell $(SDL2_CONFIG) --static --libs)
+      endif
+    endif
+  endif
+  CFLAGS += $(SDL_CFLAGS)
+  LIBS   += $(SDL_LDFLAGS)
+endif
+
+ifeq ($(BACKEND),sdl3)
+  SOURCES += src/simutrans/sys/simsys_s3.cc
+  # Sound is the SDL3 counterpart of the sdl2_sound.cc the sdl2 backend uses.
+  # Music is not an SDL concern for either backend, so the per-platform
+  # routine is picked exactly as it is picked there.
+  SOURCES += src/simutrans/sound/sdl3_sound.cc
+  ifneq ($(shell expr $(USE_FLUIDSYNTH_MIDI) \>= 1), 1)
+    ifneq ($(OSTYPE),mingw)
+      SOURCES += src/simutrans/music/no_midi.cc
+    else
+      SOURCES += src/simutrans/music/w32_midi.cc
+    endif
+  endif
+
+  ifeq ($(SDL3_CONFIG),)
+    ifeq ($(OSTYPE),mac)
+      SDL_CFLAGS  := -F /Library/Frameworks -I/Library/Frameworks/SDL3.framework/Headers
+      SDL_LDFLAGS := -framework SDL3 -F /Library/Frameworks
+    else
+      # No -Dmain=SDL_main and no -lSDL3main: unlike SDL2, SDL3 does not
+      # redefine main unless SDL_main.h is included, and simsys_s3.cc does not.
+      SDL_CFLAGS  := -I$(MINGDIR)/include
+      SDL_LDFLAGS := -lSDL3
+    endif
+  else
+    SDL_CFLAGS    := $(shell $(SDL3_CONFIG) --cflags)
+    SDL_LDFLAGS   := $(DYNAMICSTART) $(shell $(SDL3_CONFIG) --libs) $(DYNAMICEND)
+    ifeq ($(shell expr $(STATIC) \>= 1), 1)
+      ifeq ($(OSTYPE),mingw)
+        SDL_LDFLAGS = $(shell $(SDL3_CONFIG) --static --libs)
       endif
     endif
   endif

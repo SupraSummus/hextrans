@@ -1064,6 +1064,10 @@ its `check_station` reads the removed `dir.east` / `dir.west`,
 and its double-track and station-extension code
 is built on square offsets and the old straight ribis 5 / 10.
 Hide it from the AI picker until then.
+`test_ai_scripted.nut` (upstream #245/#246) attaches a fixture or shipped AI
+to a `world.create_player(slot, 4)` player,
+so the `sqai` port lands with a test there
+that reaches a target north of the start.
 
 The passenger AI's hub test and hub search
 (`ai_passenger_t::get_our_hub` and `find_area_for_hub`)
@@ -1207,9 +1211,13 @@ so signals, signs and traffic-light arms on NE-SW tracks draw nothing;
 the tunnel-mouth masks clear single edges;
 the private-way image index uses the SE bit (`1 - (dir & 1)`);
 `state_to_direction[state & 7]` reads a 6-entry table.
-Upstream stage 4 (#223) rewrites the same image selection.
-Next move: after stage 4, a `state_to_direction`-style projection
-(NE → N slot, SW → S slot), image index by `straight_axis`,
+Upstream's front and drive-on-left image lists (#223) are plumbed in
+with the same four slots,
+so a single-direction front image covers N, S, NW and SE only;
+the diagonal lists stay unused (`calc_diagonal_index` is a tripwire).
+Next move: a `state_to_direction`-style projection
+(NE → N slot, SW → S slot) shared by `calc_image` and the front-image index,
+image index by `straight_axis`,
 and clamp the state on load.
 
 ## Pak reader child-count expectations are implicit
@@ -1450,6 +1458,19 @@ anything registered at static init), which would surface as an ASAN
 use-after-free at exit.  Next move: build `-DSIMUTRANS_TRACK_DESCRIPTORS=ON`
 with ASAN, run a headless load-then-quit, and resolve any post-free
 deref by reordering the call or clearing the offending holder before it.
+
+`fuzz_pak` given a complete pak64 file
+(`bridge.ClassicRoad.pak`, `ground_obj.flowers.pak`)
+hits a heap-use-after-free when libFuzzer runs the input a second time:
+`free_all_descriptors()` frees the descriptors,
+but the per-type tables they were registered into
+(`bridge_builder_t::desc_table`, the ground-object list, …)
+keep their name pointers,
+and the next `register_desc` calls `remove(name)` on them.
+The committed corpus holds no complete descriptor, so CI does not see it.
+Next move: clear those tables in `free_all_descriptors()`
+(one `clear` per `register_desc` owner),
+then commit a minimized real-pak seed under `src/fuzz/corpus/pak/`.
 
 The production payoff that motivated the engine-side option is freeing
 on *pakset reload* (GUI pakset switch, server map reload), where the
