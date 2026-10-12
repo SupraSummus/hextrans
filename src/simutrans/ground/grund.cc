@@ -2364,7 +2364,12 @@ bool grund_t::remove_everything_from_way(player_t* player, waytype_t wt, ribi_t:
 			}
 			if (roadsign_t* const sign = obj_cast<roadsign_t>(obj)) {
 				// roadsigns: check dir: dirs changed => delete
-				if (sign->get_desc()->get_wtyp() == wt && (sign->get_dir() & ~add) != 0) {
+				// a traffic light's dir is the axis green at the moment, so it
+				// stays exactly as long as the way is still a junction
+				const bool gone = sign->get_desc()->is_traffic_light()
+					? !ribi_t::is_threeway(add)
+					: (sign->get_dir() & ~add) != 0;
+				if (sign->get_desc()->get_wtyp() == wt && gone) {
 					costs -= sign->get_desc()->get_price();
 					delete sign;
 				}

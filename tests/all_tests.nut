@@ -232,6 +232,7 @@ all_tests <- [
 	test_sign_build_oneway_at_crossing,
 	test_sign_build_trafficlight,
 	test_sign_remove_trafficlight,
+	test_sign_trafficlight_removal_follows_junction,
 	test_sign_build_private_way,
 	test_sign_build_signal,
 	test_sign_build_signal_multiple,
