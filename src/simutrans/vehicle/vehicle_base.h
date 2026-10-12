@@ -132,15 +132,18 @@ public:
 
 	void rotate90() OVERRIDE;
 
+	/// Direction through a tile for the displacement @p start -> @p ende;
+	/// what calc_set_direction() stores in `direction`.
+	static ribi_t::ribi calc_chord_direction(const koord& start, const koord& ende);
+	static ribi_t::ribi calc_chord_direction(const koord3d& start, const koord3d& ende) { return calc_chord_direction(start.get_2d(), ende.get_2d()); }
+
+	/// The chords of a route classified as the vehicles' `direction`, so
+	/// that the two compare on a 60 degree bend.
 	template<class K1, class K2>
 	static ribi_t::ribi calc_direction(const K1& from, const K2& to)
 	{
-		return ribi_type(from, to);
+		return calc_chord_direction(koord(from.x, from.y), koord(to.x, to.y));
 	}
-
-	/// Direction through a tile for the displacement @p start -> @p ende;
-	/// what calc_set_direction() stores in `direction`.
-	static ribi_t::ribi calc_chord_direction(const koord3d& start, const koord3d& ende);
 
 	/// Sets direction, dx, dy and steps_next for crossing the tile @p cur,
 	/// entered from @p prev and left to @p next.

@@ -386,7 +386,7 @@ void vehicle_base_t::get_screen_offset( int &xoff, int &yoff, const sint16 raste
 // A displacement on a hex axis names its edge.  The chords of the 60 degree
 // bends are off-axis and are sorted into NE / SW by their signs, except
 // (1,1) and (-1,-1) (the SE-S and NW-N bends), which give none.
-ribi_t::ribi vehicle_base_t::calc_chord_direction(const koord3d& start, const koord3d& ende)
+ribi_t::ribi vehicle_base_t::calc_chord_direction(const koord& start, const koord& ende)
 {
 	const sint32 di = ende.x - start.x;
 	const sint32 dj = ende.y - start.y;

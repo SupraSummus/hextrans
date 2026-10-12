@@ -196,3 +196,71 @@ function test_vehicle_tile_length_bends()
 		}
 	}
 }
+
+
+// Two buses drive towards each other over a 60 degree bend, each from its depot at
+// one end to a stop next to the other depot.  They meet on the bend tile and must
+// pass each other there, on their own lanes, like on a straight road.
+function test_vehicle_buses_meet_on_bend()
+{
+	local pl = player_x(0)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+
+	for (local i = 0; i < 6; i++) {
+		local road = vehicle_bent_road(i, 1)
+		local a = road.path[0]
+		local b = road.path[1]
+		local c = road.path[2]
+		local e1 = vehicle_edges[i]
+		local e2 = vehicle_edges[(i + 1) % 6]
+		local stop_a = coord3d(a.x + e1.x, a.y + e1.y, 0)
+		local stop_c = coord3d(c.x - e2.x, c.y - e2.y, 0)
+
+		ASSERT_EQUAL(command_x.build_way(pl, a, b, road_desc, true), null)
+		ASSERT_EQUAL(command_x.build_way(pl, b, c, road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, stop_a, "BusStop"), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, stop_c, "BusStop"), null)
+		ASSERT_EQUAL(command_x.build_depot(pl, a, building_desc_x("CarDepot")), null)
+		ASSERT_EQUAL(command_x.build_depot(pl, c, building_desc_x("CarDepot")), null)
+
+		local depot_a = depot_x(a.x, a.y, a.z)
+		local depot_c = depot_x(c.x, c.y, c.z)
+		depot_a.append_vehicle(pl, convoy_x(0), vehicle_desc_x("Buessig"))
+		depot_c.append_vehicle(pl, convoy_x(0), vehicle_desc_x("Buessig"))
+		local cnv_a = depot_a.get_convoy_list()[0]
+		local cnv_c = depot_c.get_convoy_list()[0]
+		cnv_a.change_schedule(pl, create_simple_schedule(wt_road, [ stop_c, stop_a ]))
+		cnv_c.change_schedule(pl, create_simple_schedule(wt_road, [ stop_a, stop_c ]))
+		depot_a.start_all_convoys(pl)
+		depot_c.start_all_convoys(pl)
+
+		local arrived_a = false
+		local arrived_c = false
+		for (local step = 1; step < 3000  &&  !(arrived_a  &&  arrived_c); step++) {
+			sleep()
+			local pa = cnv_a.get_pos()
+			local pc = cnv_c.get_pos()
+			arrived_a = arrived_a  ||  (pa.x == stop_c.x  &&  pa.y == stop_c.y)
+			arrived_c = arrived_c  ||  (pc.x == stop_a.x  &&  pc.y == stop_a.y)
+		}
+		local pa = cnv_a.get_pos()
+		local pc = cnv_c.get_pos()
+
+		// clean up
+		cnv_a.destroy(pl)
+		cnv_c.destroy(pl)
+		sleep()
+		sleep() // make sure the convoys are destroyed
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, stop_a), null)
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, stop_c), null)
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, a), null)
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, c), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, a, b, "" + wt_road), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, b, c, "" + wt_road), null)
+		RESET_ALL_PLAYER_FUNDS()
+
+		if (!arrived_a  ||  !arrived_c) {
+			throw road.name + " road: the buses got stuck at (" + pa.x + "," + pa.y + ") and (" + pc.x + "," + pc.y + ")"
+		}
+	}
+}
