@@ -1384,6 +1384,135 @@ function test_halt_build_station_extension()
 }
 
 
+// The 3x3 axial square around a stop holds two tiles that are not hex
+// neighbours: (1,1) and (-1,-1) are two steps away.  (1,-1) and (-1,1) are.
+function test_halt_stop_join_hex_neighbours_only()
+{
+	local pl = player_x(0)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local pax_halt  = building_desc_x.get_available_stations(building_desc_x.station, wt_road, good_desc_x.passenger)[0]
+	local wayremover = command_x(tool_remove_way)
+
+	// dx, dy, joins the stop at (4, 4)
+	local cases = [ [1, 1, false], [-1, -1, false], [1, -1, true], [-1, 1, true] ]
+
+	foreach (c in cases) {
+		local k = coord3d(4 + c[0], 4 + c[1], 0)
+
+		// each stop has its own one-tile road so that no way joins them
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 4, 0), coord3d(4, 3, 0), road_desc, true), null)
+		ASSERT_EQUAL(command_x.build_way(pl, k, coord3d(k.x, k.y - 1, 0), road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, coord3d(4, 4, 0), pax_halt.get_name()), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, k, pax_halt.get_name()), null)
+
+		local centre = halt_x.get_halt(coord3d(4, 4, 0), pl)
+		local other  = halt_x.get_halt(k, pl)
+		ASSERT_TRUE(centre != null)
+		ASSERT_TRUE(other != null)
+		if (c[2]) {
+			ASSERT_EQUAL(other.get_name(), centre.get_name())
+			ASSERT_EQUAL(centre.get_tile_list().len(), 2)
+		}
+		else {
+			ASSERT_TRUE(other.get_name() != centre.get_name())
+			ASSERT_EQUAL(centre.get_tile_list().len(), 1)
+			ASSERT_EQUAL(other.get_tile_list().len(), 1)
+		}
+
+		ASSERT_EQUAL(wayremover.work(pl, coord3d(4, 4, 0), coord3d(4, 3, 0), "" + wt_road), null)
+		ASSERT_EQUAL(wayremover.work(pl, k, coord3d(k.x, k.y - 1, 0), "" + wt_road), null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// A station extension joins the halt next to it, and tiles at the axial
+// corners (1,1) and (-1,-1) of the footprint are not next to it.
+function test_halt_station_extension_hex_neighbours_only()
+{
+	local pl = player_x(0)
+	local stationbuilder = command_x(tool_build_station)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local station_desc = building_desc_x.get_available_stations(building_desc_x.station, wt_road, {})[0]
+	local stext_desc = building_desc_x.get_available_stations(building_desc_x.station_extension, wt_rail, good_desc_x.passenger)[0]
+
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 2, 0), coord3d(4, 4, 0), road_desc, true), null)
+	ASSERT_EQUAL(stationbuilder.work(pl, coord3d(4, 3, 0), station_desc.get_name()), null)
+
+	// auto rotation, then the pre-selected rotation path
+	foreach (suffix in ["", ",0"]) {
+		local name = stext_desc.get_name() + suffix
+
+		// (1,1) and (-1,-1) from the stop are not hex neighbours
+		foreach (k in [coord3d(5, 4, 0), coord3d(3, 2, 0)]) {
+			ASSERT_EQUAL(stationbuilder.work(pl, k, name), "Post muss neben\nHaltestelle\nliegen!\n")
+			ASSERT_EQUAL(tile_x(k.x, k.y, 0).find_object(mo_building), null)
+		}
+
+		// (1,-1) and (-1,1) are
+		foreach (k in [coord3d(5, 2, 0), coord3d(3, 4, 0)]) {
+			ASSERT_EQUAL(stationbuilder.work(pl, k, name), null)
+			ASSERT_TRUE(tile_x(k.x, k.y, 0).find_object(mo_building) != null)
+			ASSERT_EQUAL(halt_x.get_halt(coord3d(4, 3, 0), pl).get_tile_list().len(), 2)
+			ASSERT_EQUAL(command_x(tool_remover).work(pl, k), null)
+		}
+	}
+
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(4, 2, 0), coord3d(4, 4, 0), "" + wt_road), null)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// Making a stop public merges it into a public halt next to it, which the
+// axial corners (1,1) and (-1,-1) are not.
+function test_halt_make_public_merges_hex_neighbours_only()
+{
+	local pl        = player_x(0)
+	local public_pl = player_x(1)
+	local pax_halt  = building_desc_x.get_available_stations(building_desc_x.station, wt_road, good_desc_x.passenger)[0]
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local makepublic = command_x(tool_make_stop_public)
+	local wayremover = command_x(tool_remove_way)
+
+	// dx, dy, merges into the public halt at (4, 4)
+	local cases = [ [1, 1, false], [-1, -1, false], [1, -1, true], [-1, 1, true] ]
+
+	foreach (c in cases) {
+		local k = coord3d(4 + c[0], 4 + c[1], 0)
+
+		ASSERT_EQUAL(command_x.build_way(public_pl, coord3d(4, 4, 0), coord3d(4, 3, 0), road_desc, true), null)
+		ASSERT_EQUAL(command_x.build_way(pl, k, coord3d(k.x, k.y - 1, 0), road_desc, true), null)
+		ASSERT_EQUAL(command_x.build_station(public_pl, coord3d(4, 4, 0), pax_halt), null)
+		ASSERT_EQUAL(command_x.build_station(pl, k, pax_halt), null)
+
+		// pl cannot use the public player's halt, so they start out apart
+		ASSERT_TRUE(halt_x.get_halt(k, pl).get_name() != halt_x.get_halt(coord3d(4, 4, 0), public_pl).get_name())
+
+		// the public player takes pl's stop over, next to its own halt
+		ASSERT_EQUAL(makepublic.work(public_pl, k), null)
+
+		local centre = halt_x.get_halt(coord3d(4, 4, 0), public_pl)
+		local other  = halt_x.get_halt(k, public_pl)
+		ASSERT_TRUE(centre != null)
+		ASSERT_TRUE(other != null)
+		if (c[2]) {
+			ASSERT_EQUAL(other.get_name(), centre.get_name())
+			ASSERT_EQUAL(centre.get_tile_list().len(), 2)
+		}
+		else {
+			ASSERT_TRUE(other.get_name() != centre.get_name())
+			ASSERT_EQUAL(centre.get_tile_list().len(), 1)
+		}
+
+		ASSERT_EQUAL(wayremover.work(public_pl, coord3d(4, 4, 0), coord3d(4, 3, 0), "" + wt_road), null)
+		ASSERT_EQUAL(wayremover.work(public_pl, k, coord3d(k.x, k.y - 1, 0), "" + wt_road), null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_halt_upgrade_downgrade()
 {
 	local pl = player_x(0)

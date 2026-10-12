@@ -8,6 +8,7 @@
 
 
 #include "ribi.h"
+#include "../macros.h"
 #include "../simtypes.h"
 
 #include <stdlib.h>
@@ -302,6 +303,20 @@ static inline uint32 physical_distance_sq(const koord &a, const koord &b)
 static inline sint32 physical_dot_x2(const koord &a, const koord &b)
 {
 	return 2 * a.x * b.x + a.x * b.y + a.y * b.x + 2 * a.y * b.y;
+}
+
+// Hex distance from tile p to the nearest tile of the axial rectangle
+// pos .. pos+size-1 (size.x by size.y tiles).  A rectangle in (q, r) is
+// a parallelogram, so the tiles within n steps of it are the rectangle
+// grown by n minus two corner triangles: the (-n,-n) and (+n,+n) corners
+// of the grown rectangle are 2n steps away.  Clamping p into the
+// rectangle picks the nearest tile on every side.
+//
+//   koord_distance_to_rect(p, pos, size) == 1   p touches the footprint
+static inline uint32 koord_distance_to_rect(const koord &p, const koord &pos, const koord &size)
+{
+	return koord_distance(p, koord(clamp<sint16>(p.x, pos.x, pos.x + size.x - 1),
+	                               clamp<sint16>(p.y, pos.y, pos.y + size.y - 1)));
 }
 
 // multiply the value by the distance weight
