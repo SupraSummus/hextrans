@@ -70,6 +70,43 @@ koord koord::step(ribi_t::ribi r)
 }
 
 
+// Steps are reduced mod 6 first (also for negative values), then each
+// power of the step (q, r) -> (-r, q + r) is written out.
+koord hex_axial_rotate(koord c, int steps)
+{
+	const sint32 q = c.x, r = c.y;
+	switch (((steps % 6) + 6) % 6) {
+		case 1:  return koord((sint16)(-r),     (sint16)(q + r));
+		case 2:  return koord((sint16)(-q - r), (sint16)q);
+		case 3:  return koord((sint16)(-q),     (sint16)(-r));
+		case 4:  return koord((sint16)r,        (sint16)(-q - r));
+		case 5:  return koord((sint16)(q + r),  (sint16)(-q));
+		default: return c;
+	}
+}
+
+
+koord hex_axial_rotate_inv(koord c, int steps)
+{
+	return hex_axial_rotate(c, -steps);
+}
+
+
+hex_vertex_t hex_axial_rotate(hex_vertex_t v, int steps)
+{
+	const int corner = (((int)v.corner + steps) % 6 + 6) % 6;
+	return { hex_axial_rotate(v.tile, steps), (hex_corner_t::type)corner };
+}
+
+
+// D = 1 spelling of map_shape_t::rotate_tile, which needs only
+// y_size = h - 1: the second component of its shift is -(d - 1) = 0.
+void koord::rotate90(sint16 y_size)
+{
+	*this = hex_axial_rotate(*this, 1) + koord(y_size, 0);
+}
+
+
 void vertex_owners(koord tile, hex_corner_t::type c, hex_vertex_t out[3])
 {
 	const uint8 dir_a = (uint8)(((uint8)c + 5) % 6);

@@ -87,8 +87,18 @@ public:
 		return *this;
 	}
 
-	// 90° is not a hex lattice symmetry; calling this is a
-	// `dbg->fatal`.  Top-level callers are gated; see TODO.md.
+	/**
+	 * One 60° step of the whole map, clockwise on screen, for a map
+	 * that is a plain w x h rhombus (map_shape_t d == 1) with
+	 * @p y_size = h - 1.  Same tile as `map_shape_t(w, h, 1).rotate_tile`
+	 * for any w, i.e. hex_axial_rotate(*this, 1) shifted by (y_size, 0).
+	 *
+	 * The tile lands in the rotated hexagon (1, w, h), whose bounding
+	 * rhombus is h x (w + h - 1): one step does not map a rhombus onto
+	 * itself, only three do.  Worlds with d > 1, and several steps in
+	 * a row, go through map_shape_t::rotate_tile.
+	 * The top-level rotation is still gated off; see TODO.md.
+	 */
 	void rotate90( sint16 y_size );
 
 	inline void clip_min( koord k_min )
@@ -221,6 +231,28 @@ struct hex_pos_t {
  * without any reconciliation pass.
  */
 hex_pos_t hex_vertex_pos(hex_vertex_t v);
+
+
+/**
+ * Rotation about the centre of tile (0, 0) by @p steps * 60° clockwise
+ * on screen: one step takes SE to S and S to SW, i.e. koord::neighbours[i]
+ * to neighbours[(i + 1) % 6], the direction of ribi_t::rotate60 and
+ * slope_t::rotate60.  The step is linear, (q, r) -> (-r, q + r).
+ * Negative @p steps rotate counter-clockwise; six steps are the
+ * identity and three the point reflection (-q, -r).
+ *
+ * This is the one definition of the map-rotation geometry.  Shifting
+ * it into the rotated map's rhombus is map_shape_t::rotate_tile's job.
+ *
+ * The vertex form rotates the name too: corner c becomes corner c + steps,
+ * and all three names of a world vertex rotate to names of one world vertex.
+ */
+koord hex_axial_rotate(koord c, int steps);
+
+/// Inverse of hex_axial_rotate: @p steps * 60° counter-clockwise.
+koord hex_axial_rotate_inv(koord c, int steps);
+
+hex_vertex_t hex_axial_rotate(hex_vertex_t v, int steps);
 
 
 // Hex axial distance (cube formula: (|dx|+|dy|+|dz|)/2 with x+y+z=0).
