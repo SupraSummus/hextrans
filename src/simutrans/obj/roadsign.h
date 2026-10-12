@@ -36,6 +36,7 @@ protected:
 	// HEX-PORT: was :2 bitfield; traffic lights now use 0..5 (3 axes
 	// × {green, yellow}).  Signals still use 0..2.
 	uint8 state;
+	enum { NUM_TRAFFIC_LIGHT_STATES = 6 };
 	uint8 dir:6; // 6-bit hex ribi mask (was :4 under square grid)
 
 	uint8 automatic:1;
@@ -44,6 +45,9 @@ protected:
 	// diagonal image of each direction, ordered as the image list has them: north, south,
 	// west, east. base is where the row of this state and electrification starts
 	static void calc_diagonal_index(uint16 idx[4], ribi_t::ribi way_ribi, uint16 base);
+
+	/// the gate image of a private way sign, as the active player sees it
+	image_id get_private_image() const;
 
 	/*
 	 * Many things go in these...

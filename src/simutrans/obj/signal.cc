@@ -103,14 +103,8 @@ void signal_t::calc_image()
 			ribi_t::ribi temp_dir = dir;
 			if(  gr->get_typ()==grund_t::tunnelboden  &&  gr->ist_karten_boden()  &&
 				(grund_t::underground_mode==grund_t::ugm_none  ||  (grund_t::underground_mode==grund_t::ugm_level  &&  gr->get_hoehe()<grund_t::underground_level))   ) {
-				// entering tunnel here: hide the image further in if not undergroud/sliced
-				const ribi_t::ribi tunnel_hang_dir = ribi_t::backward( ribi_type(gr->get_grund_hang()) );
-				if(  tunnel_hang_dir==ribi_t::southeast ||  tunnel_hang_dir==ribi_t::north  ) {
-					temp_dir &= ~ribi_t::southwest;
-				}
-				else {
-					temp_dir &= ~ribi_t::northeast;
-				}
+				// entering tunnel here: hide the image further in, the direction the slope climbs, if not undergroud/sliced
+				temp_dir &= ~ribi_type( gr->get_grund_hang() );
 			}
 
 			// signs for left side need other offsets and other front/back order
