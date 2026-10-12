@@ -2985,8 +2985,8 @@ static koord const area3x3[] = {
 bool update_city_street(koord pos)
 {
 // !!! We should take the bulding size into consideration, missing!!!
-	for(  int i=0;  i<8;  i++  ) {
-		koord check_pos = pos + neighbors[i];
+	for(  uint8 i=0;  i<lengthof(koord::neighbours);  i++  ) {
+		koord check_pos = pos + koord::neighbours[i];
 		if(  grund_t *gr = world()->lookup_kartenboden(check_pos)) {
 			if(  weg_t* const weg = gr->get_weg(road_wt)  ) {
 				// Check if any changes are needed.
