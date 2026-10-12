@@ -224,9 +224,11 @@ static uint8 quarter_turn_layout(const building_desc_t *desc, uint8 layout)
 
 uint8 building_desc_t::get_half_turn_layout(uint8 layout) const
 {
-	if(  layouts == 6  ) {
-		static const uint8 opposite[6] = { 2, 3, 0, 1, 5, 4 };
-		return opposite[layout % 6];
+	if(  layouts == 6  ||  (layouts == 8  &&  type >= city_res)  ) {
+		// layouts 0..5 face S, SE, N, NW, NE, SW (ribi_t::layout_to_ribi);
+		// eight-layout city buildings use those six, see orient_city_building()
+		static const uint8 opposite[8] = { 2, 3, 0, 1, 5, 4, 7, 6 };
+		return opposite[layout % layouts];
 	}
 	return quarter_turn_layout( this, quarter_turn_layout( this, layout ) );
 }
