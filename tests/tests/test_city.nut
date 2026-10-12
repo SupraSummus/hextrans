@@ -372,3 +372,53 @@ function test_city_road_seed_next_to_depot()
 
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+// stadt_t::orient_city_building turns a one-tile city building to face a
+// road on any of its six sides.  `faces` lists [side, layout] pairs: a
+// road on `side` of the building must give it `layout`.
+function check_city_building_faces_road(name, faces)
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local site = coord3d(10, 10, 0)
+
+	// the building is only placed if there is a city to own it
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(3, 3, 0), "0"), null)
+
+	foreach (face in faces) {
+		local near = site + dir.to_coord(face[0])
+		local far = near + dir.to_coord(face[0])
+		local where = name + " with a road to " + face[0]
+		ASSERT_EQUAL(command_x.build_way(pl, near, far, road, true), null)
+
+		// the "A" in the parameter asks for the automatic orientation
+		ASSERT_EQUAL(command_x(tool_build_house).work(public_pl, site, "1A" + name), null)
+		local house = tile_x(site.x, site.y, site.z).find_object(mo_building)
+		ASSERT_TRUE(house != null)
+		ASSERT_EQUAL(where + ": layout " + house.get_layout(), where + ": layout " + face[1])
+
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, site), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, near, far, "" + wt_road), null)
+	}
+
+	// clean up
+	clear_townhall_and_roads(public_pl, 3, 3)
+}
+
+
+// Layouts 0..5 face S, SE, N, NW, NE and SW.  A building with four layouts
+// has none for NE and SW, which building_desc_t::adjust_layout folds onto
+// S and SE.
+function test_city_building_faces_road()
+{
+	check_city_building_faces_road("TEST_RES_1x1_8L", [
+		[dir.south, 0], [dir.southeast, 1], [dir.north, 2],
+		[dir.northwest, 3], [dir.northeast, 4], [dir.southwest, 5]])
+	check_city_building_faces_road("TEST_RES_1x1_4L", [
+		[dir.south, 0], [dir.southeast, 1], [dir.north, 2],
+		[dir.northwest, 3], [dir.northeast, 0], [dir.southwest, 1]])
+
+	RESET_ALL_PLAYER_FUNDS()
+}

@@ -2955,19 +2955,6 @@ koord stadt_t::evaluate_size_res_com_ind(const koord pos, int &ind_score, int &c
 }
 
 
-// return the eight neighbors:
-// orthogonal before diagonal
-static koord const neighbors[] = {
-	koord( 0,  1),
-	koord( 1,  0),
-	koord( 0, -1),
-	koord(-1,  0),
-	// now the diagonals
-	koord( 1,  1),
-	koord( 1, -1),
-	koord(-1,  1),
-	koord(-1, -1)
-};
 /*
 static koord const area3x3[] = {
 	koord( 0, 1),  //  1x2
@@ -3012,10 +2999,6 @@ bool update_city_street(koord pos)
 }
 
 
-// return layout
-#define CHECK_NEIGHBOUR (128)
-static int const building_layout[] = { CHECK_NEIGHBOUR | 0, 0, 1, 4, 2, 0, 5, CHECK_NEIGHBOUR | 1, 3, 7, 1, CHECK_NEIGHBOUR | 0, 6, CHECK_NEIGHBOUR | 3, CHECK_NEIGHBOUR | 2, CHECK_NEIGHBOUR | 0 };
-
 inline sint8 check_layout(const building_desc_t* h, koord max_size, sint8 rotation2)
 {
 	if (h->get_x(rotation2) > max_size.x || h->get_y(rotation2) > max_size.y) {
@@ -3032,30 +3015,14 @@ int stadt_t::orient_city_building(const koord k, const building_desc_t *h, koord
 	/*******************************************************
 	* these are the layout possible for city buildings
 	********************************************************
-	dims=1,1,1
-	+---+
-	|000|
-	|0 0|
-	|000|
-	+---+
-	dims=1,1,2
-	+---+
-	|001|
-	|1 1|
-	|100|
-	+---+
-	dims=1,1,4
-	+---+
-	|221|
-	|3 1|
-	|300|
-	+---+
-	dims=1,1,8
-	+---+
-	|625|
-	|3 1|
-	|704|
-	+---+
+	A layout is the side the building faces; layouts 0..5 face S, SE, N,
+	NW, NE and SW (ribi_t::layout_to_ribi).  A building with fewer layouts
+	has the first ones, and the layouts it lacks fold onto them the way
+	building_desc_t::adjust_layout does:
+	dims=1,1,1  0 0 0 0 0 0
+	dims=1,1,2  0 1 0 1 0 1
+	dims=1,1,4  0 1 2 3 0 1
+	dims=1,1,8  0 1 2 3 4 5   (6 and 7 are not used)
 	********************************************************/
 
 	// we have something to built here ...
@@ -3073,50 +3040,25 @@ int stadt_t::orient_city_building(const koord k, const building_desc_t *h, koord
 		int rotation = 0;
 		int max_layout = h->get_all_layouts()-1;
 		if(  max_layout  ) {
-			// check for pavement
-			int streetdir = 0;
-			for(  int i = 0;  i < 4;  i++  ) {
-				// Neighbors goes through these in 'preferred' order, orthogonal first
-				koord offset = ((neighbors[i] + koord(1, 1)) / 2) * (h->get_x(0)-1);	// symmetric building
-				gr = welt->lookup_kartenboden(k + offset + neighbors[i]);
+			// check for pavement on each of the six sides
+			ribi_t::ribi streetdir = ribi_t::none;
+			for(  uint8 i = 0;  i < lengthof(koord::neighbours);  i++  ) {
+				const koord d = koord::neighbours[i];
+				koord offset = ((d + koord(1, 1)) / 2) * (h->get_x(0)-1);	// symmetric building
+				gr = welt->lookup_kartenboden(k + offset + d);
 				if(  gr  &&  gr->get_weg_hang() == gr->get_grund_hang()  &&  gr->hat_weg(road_wt)  ){
-					streetdir += (1 << i);
+					streetdir |= ribi_t::nesw[i];
 				}
 			}
-			// not completely unique layout, see if any of the neighbouring building gives a hint
-			rotation = building_layout[streetdir] & ~CHECK_NEIGHBOUR;
-			// for four rotation stop here ...
-			if(  max_layout<7  ) {
-				return rotation & max_layout;
-			}
-			// now this is an eight roation building, so we must put in more effort
-			bool unique_orientation = !(building_layout[streetdir] & CHECK_NEIGHBOUR);
-			if(  !unique_orientation  ) {
-				// no unique answer, check nearby buildings (more likely to fail)
-				int gb_dir = 0;
-				for(  int i = 0;  i < 4;  i++  ) {
-					// look for adjacent buildings
-					gr = welt->lookup_kartenboden(k + neighbors[i]);
-					if(  gr  &&  gr->get_typ()==grund_t::fundament  ){
-						if(  gr->find<gebaeude_t>()  ) {
-							gb_dir |= (1<<i);
-						}
-					}
-				}
-				// lets hope this gives an unique answer
-				static uint8 gb_dir_to_layout[16] = { CHECK_NEIGHBOUR, 1, 0, 6, 1, 1, 7, CHECK_NEIGHBOUR, 0, 5, 0, CHECK_NEIGHBOUR, 4, CHECK_NEIGHBOUR, CHECK_NEIGHBOUR, CHECK_NEIGHBOUR };
-				if(  gb_dir_to_layout[gb_dir] == CHECK_NEIGHBOUR  ) {
-					return rotation;
-				}
-				// ok our answer is unique, now we just check for left and right via street nearby
-				rotation = gb_dir_to_layout[gb_dir];
-				if(  rotation<2  ) {
-					// check on which side is the road
-					if(  streetdir & 0x0C  ) {
-						return rotation + 2;
-					}
+			// face the road on the first side in layout order, so that a
+			// building which lacks the NE and SW layouts prefers a road it can face
+			for(  uint8 layout = 0;  layout < lengthof(ribi_t::layout_to_ribi);  layout++  ) {
+				if(  streetdir & ribi_t::layout_to_ribi[layout]  ) {
+					rotation = layout;
+					break;
 				}
 			}
+			return rotation & max_layout;
 		}
 
 		return rotation;

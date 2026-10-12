@@ -432,5 +432,7 @@ all_tests <- [
 	test_ai_scripted_attach_server_succeeds,
 	test_ai_scripted_network_state_restored,
 	test_ai_scripted_slot_allocation_skips_occupied,
+	// after the sign tests, see "Traffic light removal follows its phase" in TODO.md
+	test_city_building_faces_road,
 	test_city_population_ledger, // keep last: grows a city across the whole map
 ]
