@@ -3,12 +3,16 @@
 // around its tiles.  An axial (q, r) rectangle is a parallelogram: the square
 // "(-1..size)^2 ring" that square-grid neighbour loops walk around it has two
 // corners, (-1,-1) and (size.x,size.y), that are not adjacent.
+//
+// Also pins pos_list_t / pos_list_wh_t in world/pos_list.h, the outward spiral
+// of the placefinder: the hex disc, once each, closest first in the map plane.
 
 #include <cstdio>
 #include <set>
 #include <utility>
 
 #include "simutrans/dataobj/koord.h"
+#include "simutrans/world/pos_list.h"
 
 
 static int failures = 0;
@@ -135,8 +139,89 @@ static void test_disc_indexing()
 }
 
 
+// pos_list_t visits the hex disc of radius M around (0, 0) once each, never
+// moving to a nearer tile: physical_distance_sq() does not decrease.
+static void test_pos_list_is_sorted_disc()
+{
+	for (sint16 m = 0; m <= 14; m++) {
+		pos_list_t list(m);
+		std::set<std::pair<int, int> > seen;
+		koord k;
+		uint32 prev = 0;
+		bool first = true;
+
+		while (list.get_next_pos(k)) {
+			CHECK(seen.insert(std::make_pair((int)k.x, (int)k.y)).second);
+			CHECK(koord_distance(koord(0, 0), k) <= (uint32)m);
+
+			const uint32 d = physical_distance_sq(koord(0, 0), k);
+			CHECK(d >= prev);
+			prev = d;
+
+			if (first) {
+				CHECK(k == koord(0, 0));
+				first = false;
+			}
+		}
+		CHECK(seen.size() == hex_disc(m).size());
+	}
+}
+
+
+// ... and restart() starts over, so one list serves several searches.
+static void test_pos_list_restart()
+{
+	pos_list_t list(5);
+	koord k;
+	int first_run = 0;
+	while (list.get_next_pos(k)) {
+		first_run++;
+	}
+	list.restart();
+	int second_run = 0;
+	while (list.get_next_pos(k)) {
+		second_run++;
+	}
+	CHECK(first_run == (int)hex_disc(5).size());
+	CHECK(second_run == first_run);
+}
+
+
+// pos_list_wh_t anchors a w x h box so that the tile of the box nearest the
+// origin along each axis, clamp(0, anchor, anchor + size - 1), walks the disc:
+// every box position whose nearest tile is within M steps, once each.
+static void test_pos_list_wh_anchors_every_box_once()
+{
+	const sint16 m = 6;
+	for (sint16 w = 1; w <= 3; w++) {
+		for (sint16 h = 1; h <= 3; h++) {
+			pos_list_wh_t list(m, w, h);
+			std::set<std::pair<int, int> > seen;
+			koord k;
+			while (list.get_next_pos(k)) {
+				CHECK(seen.insert(std::make_pair((int)k.x, (int)k.y)).second);
+			}
+
+			std::set<std::pair<int, int> > expected;
+			for (sint16 y = -3 * m; y <= 3 * m; y++) {
+				for (sint16 x = -3 * m; x <= 3 * m; x++) {
+					const koord nearest(clamp<sint16>(0, x, x + w - 1), clamp<sint16>(0, y, y + h - 1));
+					if (koord_distance(koord(0, 0), nearest) <= (uint32)m) {
+						expected.insert(std::make_pair((int)x, (int)y));
+					}
+				}
+			}
+			CHECK(seen == expected);
+		}
+	}
+}
+
+
 int main()
 {
+	test_pos_list_is_sorted_disc();
+	test_pos_list_restart();
+	test_pos_list_wh_anchors_every_box_once();
 	test_disc_indexing();
 	test_matches_brute_force();
 	test_is_minkowski_sum_with_hex_disc();
