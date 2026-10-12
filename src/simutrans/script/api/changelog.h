@@ -21,6 +21,7 @@
  *
  * @section api-trunk Current trunk
  *
+ * - Added @ref sign_x::get_dirs, @ref sign_x::get_state
  * - Changed @ref way_planner_x::set_build_types which accepts an optional parameter now, to plan steps that change slopes
  * - Changed @ref command_x::build_way and @ref command_x::build_road which accept an optional parameter now, to change slopes while building
  * - Changed @ref command_x::build_bridge_at which accepts an optional parameter now, to search for longer bridges

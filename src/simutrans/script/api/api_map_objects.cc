@@ -414,6 +414,18 @@ static bool roadsign_can_pass(const roadsign_t* rs, player_t* player)
 	return player  &&  rs->get_desc()->is_private_way()  ?  (rs->get_player_mask() & (1<<player->get_player_nr()))!=0 : true;
 }
 
+// like the way ribis, the directions of a sign have to be rotated
+static SQInteger roadsign_get_dirs(HSQUIRRELVM vm)
+{
+	roadsign_t *rs = param<roadsign_t*>::get(vm, 1);
+	return param<my_ribi_t>::push(vm, rs ? rs->get_dir() : 0);
+}
+
+static sint32 roadsign_get_state(roadsign_t* rs)
+{
+	return rs->get_state();
+}
+
 // depot
 static call_tool_init depot_append_vehicle(depot_t *depot, player_t *player, convoihandle_t cnv, const vehicle_desc_t *desc)
 {
@@ -827,6 +839,22 @@ void export_map_objects(HSQUIRRELVM vm)
 	 * @param player
 	 */
 	register_method(vm, &roadsign_can_pass, "can_pass", true);
+	/**
+	 * Directions the sign applies to: the direction a one-way sign or signal lets vehicles pass,
+	 * both ways for a signal that allows reverse passage, the directions of the way for a
+	 * private-way sign, and for a traffic light the axis that has green right now (none during yellow).
+	 * @returns direction
+	 * @typemask dir()
+	 */
+	register_function(vm, &roadsign_get_dirs, "get_dirs", 1, "x");
+	/**
+	 * State of a signal or traffic light. A signal is 0 red, 1 green or 2 yellow (the caution
+	 * of a pre-signal). A traffic light goes through the axes that have a road: 0 N-S green,
+	 * 1 NW-SE green, 2 NE-SW green, then the same axes yellow as 3, 4, 5.
+	 * Other signs have state 0.
+	 * @returns state
+	 */
+	register_method(vm, &roadsign_get_state, "get_state", true);
 	end_class(vm);
 
 	/**
