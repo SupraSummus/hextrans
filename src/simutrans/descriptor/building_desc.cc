@@ -183,13 +183,23 @@ const building_tile_desc_t *building_desc_t::get_tile(uint8 layout, sint16 x, si
 
 
 
+uint8 building_desc_t::fold_ne_sw_layout(uint8 layout)
+{
+	switch(layout) {
+		case 4:  return 2; // NE onto N
+		case 5:  return 0; // SW onto S
+		default: return layout;
+	}
+}
+
+
 /**
  * Layout normalisation. Returns number of different layouts
  */
 uint8 building_desc_t::adjust_layout(uint8 layout) const
 {
 	if(layout >= 4 && layouts <= 4) {
-		layout -= 4;
+		layout = layout <= 5 ? fold_ne_sw_layout(layout) : layout - 4;
 	}
 	if(layout >= 2 && layouts <= 2) {
 		// if layouts C and D are not defined, we use A and B as substitutes

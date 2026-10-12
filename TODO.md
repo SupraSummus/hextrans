@@ -515,9 +515,10 @@ the generated `NoEntry:x:y`);
 next move is to report them through the script transform
 (the generator writes script coordinates and directions)
 or to mark them world-frame and keep them out of the rotated run.
-`test_toolkit_slope_commands` only runs out of opcodes in the rotated run,
-where the generator tests that sleep before it are left out;
-it comes back with them.
+`test_toolkit_slope_constants` and `test_toolkit_slope_commands`
+only run out of opcodes in `include()` in the rotated run,
+where the generator tests that sleep before them are left out;
+they come back with them.
 The `test_ai_site_*` tests call the test-only probes of
 `script/api/api_ai_test.cc`, which take and return world coordinates;
 next move is to pass their coordinates through the script transform
@@ -538,14 +539,6 @@ which the unturned run does not:
 the terraforming under `tool_setslope_t` is not mirror symmetric;
 next move is a scenario test that sets and restores the same ramp
 on the N and the S edge and compares the neighbours.
-`test_city_building_faces_road` checks a four-layout building:
-`building_desc_t::adjust_layout` and the `& max_layout` of
-`stadt_t::orient_city_building` fold NE onto S and SW onto SE,
-which are 120° from the road and do not commute with the half turn
-(SW turns to NE, folds to S, turns back to N, not SE);
-next move is a fold to a face 60° from the road that turns with the map,
-NE onto N and SW onto S (or NE onto SE and SW onto NW),
-in `adjust_layout` and `orient_city_building` together.
 `is_within_grid_limits` (14 more sites) is the square grid-point range;
 `tool_set_climate_t` used it as the neighbour-tile test
 and read off-map heights at the far edges, which the rotated run exposed;
@@ -1076,8 +1069,8 @@ onto the images the pakset ships.
 A 2-layout through depot, and every through stop,
 picks its layout with `ribi_t::axis_to_layout`:
 the S, SE and SW end give layouts 0, 1 and 5,
-and `adjust_layout` folds 5 onto 1,
-so NE-SW track shows the SE-NW image.
+and `adjust_layout` folds 5 onto 0,
+so NE-SW track shows the N-S image.
 Real fix is a 3-axis depot and through-stop descriptor;
 needs `depot_t` rotation handling
 and pakset images for all three axes.
@@ -1087,7 +1080,7 @@ and pakset images for all three axes.
 so `hausbauer_t::get_facing_ribi` reads a stop's or depot's exit or axis
 from its way and falls back to the layout.
 A lone NE or SW terminal whose road was removed
-can only be reconnected from its folded S or SE side.
+can only be reconnected from its folded N or S side.
 Next move: store the real facing in `gebaeude_t` with the next save-format bump,
 read it first in `get_facing_ribi`,
 then drop the way-derived path and the fallback.
@@ -1102,12 +1095,13 @@ if the axis that is green is the one that stays.
 Whether `test_sign_build_trafficlight` passes then depends on the game time
 at which it runs,
 which the script time of the tests before it moves.
-`test_city_building_faces_road` and `test_city_road_fills_valley_tile`
+`test_city_building_faces_road`, `test_city_road_beside_terminal_stored_side`
+and `test_city_road_fills_valley_tile`
 stand after the sign tests in `tests/all_tests.nut`
 to leave that time as it was.
 Next move: delete a traffic light when the ribi that remains is not a threeway,
 which is what `place_sign_intern` requires to build one,
-and move the two city tests back beside the other city tests.
+and move the three city tests back beside the other city tests.
 
 *Crossroads collision FSM.*
 `vehicle_base_t::no_cars_blocking` (`vehicle_base.cc:491`)

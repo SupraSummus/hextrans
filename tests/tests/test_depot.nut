@@ -195,7 +195,7 @@ function test_depot_build_road()
 
 
 // pak64's depots have 4 layouts, so building_desc_t::adjust_layout stores
-// a NE depot as layout 0 (S) and a SW depot as layout 1 (SE).  The road
+// a NE depot as layout 2 (N) and a SW depot as layout 0 (S).  The road
 // builder has to read the depot's direction off its way: the road along the
 // depot's own axis stays buildable, a road from any other side is refused.
 function test_depot_third_axis()

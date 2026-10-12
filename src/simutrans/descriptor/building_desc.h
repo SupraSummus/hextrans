@@ -363,6 +363,19 @@ public:
 		return true;
 	}
 
+	/**
+	 * The layout a building that lacks the NE and SW faces shows for
+	 * layout 4 (NE) or 5 (SW): N for NE and S for SW, the faces 60° away.
+	 * Any other layout is returned as it is.
+	 * Upstream's `layout - 4` (NE onto S, SW onto SE, where its layouts
+	 * 4..7 were corner variants of 0..3) is 120° from the road and does not
+	 * commute with the half turn of the map, which swaps NE with SW and S
+	 * with N (get_half_turn_layout).  NE onto SE and SW onto NW would
+	 * commute as well; N and S are what the legacy art heads for NE and SW
+	 * on screen (pak N is upper-right, pak S is lower-left).
+	 */
+	static uint8 fold_ne_sw_layout(uint8 layout);
+
 	uint8 adjust_layout(uint8 layout) const;
 
 	/**
