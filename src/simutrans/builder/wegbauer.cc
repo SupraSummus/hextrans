@@ -1575,10 +1575,6 @@ void way_builder_t::init_builder(bautyp_t wt, const way_desc_t *b, const tunnel_
 		bridge_desc = NULL;
 		tunnel_desc = NULL;
 	}
-	else if (br || tunnel_desc) {
-		bridge_desc = br;
-		tunnel_desc = tunnel;
-	}
 
 	DBG_MESSAGE("way_builder_t::init_builder()", "setting way type to %d, desc=%s, bridge_desc=%s, tunnel_desc=%s",
 			bautyp,

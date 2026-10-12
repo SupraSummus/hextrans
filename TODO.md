@@ -109,10 +109,9 @@ edit.
 
 Upstream's way-builder rework (125 stage 5) left some loose ends in code
 that is otherwise grid-neutral.
-`init_builder` hands the bridge and tunnel back to a builder without a
-player after clearing them, and `dialog_way_builder_t::exit` destroys
-`magic_player_ranking` instead of `magic_way_builder`.
-Next move: fix the two one-liners.
+`dialog_way_builder_t::exit` destroys `magic_player_ranking` instead of
+`magic_way_builder`.
+Next move: fix the one-liner.
 
 ## Lower_to water-tile NW-only gate
 
