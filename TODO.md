@@ -321,10 +321,14 @@ ahead of the tree sprite offsets in the renderer port.
 The playable world becomes the W×H×D hexagon of #280,
 stored as its bounding rhombus with a validity predicate;
 `documentation/map-shape.md` has the design and a six-step plan.
-Step 1, `map_shape_t` in `dataobj/map_shape.h`, has landed;
-only `array2d_tpl::rotate90` uses it so far.
-Next move is step 2: `size_d` in `settings_t` and the save,
-and the cut in `surface_t::is_within_limits`.
+Steps 1 and 2 have landed:
+`map_shape_t`, `size_d` in the settings and the save,
+and the cut in `surface_t::is_within_limits`,
+so a flat D > 1 hexagon generates, saves and loads
+(`-flatmap W,H,D`, `tools/test.py --map`).
+Next move is step 3: the full-map loops the doc lists as left,
+`edge_distance`, border walls, cursor and viewport,
+with a `-mapshape W,H,D` hook that grows a populated world.
 
 ## Engine → pakset descriptor boundary
 
