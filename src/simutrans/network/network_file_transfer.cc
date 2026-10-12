@@ -259,8 +259,10 @@ const char *network_connect(const char *cp, karte_t *world)
 			err = "Server busy";
 			goto end;
 		}
-		// set nickname
-		env_t::nickname = nwj->nickname.c_str();
+		// set nickname; a reply without one leaves ours unchanged
+		if (nwj->nickname != NULL) {
+			env_t::nickname = nwj->nickname.c_str();
+		}
 
 		network_set_client_id(nwj->client_id);
 		// update map counter
