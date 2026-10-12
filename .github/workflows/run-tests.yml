@@ -52,7 +52,8 @@ jobs:
       run: make -C tools/hex_slope_test run
     - name: Map generation shape self-test
       # dataobj/mapgen_shape.h: the climate smoothing weights add up to
-      # their divisor and every neighbour weighs the same.  ~1 second.
+      # their divisor and every neighbour weighs the same, and a climate
+      # patch is round in the physical plane.  ~1 second.
       run: make -C tools/hex_mapgen_test run
     - name: Cache
       uses: actions/cache@v4

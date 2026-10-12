@@ -43,4 +43,49 @@ static inline sint32 climate_smooth_cell(sint32 centre, const sint32 (&neighbour
 }
 
 
+/**
+ * The tiles around its start tile that a patch of the height based
+ * climate generator covers.  wx and wy are the patch's extent in tiles
+ * along the physical x and y axes (screen horizontal and vertical, see
+ * physical_distance_sq in koord.h), so patches of equal wx and wy are
+ * round in the physical plane whatever their direction on the grid.
+ *
+ * The patch is the box of wx by wy around its start tile cut down to
+ * an ellipse.  The ellipse is the legacy test, with the physical x and y
+ * offsets in place of the axial ones: a tile belongs when
+ *   threshold = 8 (wx^2 + wy^2) / distance > 40
+ *   with distance = 1 + sqrt(x^2 wx^2 + y^2 wy^2),
+ * and the square root drops out as `x^2 wx^2 + y^2 wy^2 < limit^2`.
+ */
+class climate_patch_t
+{
+	sint32 wx, wy;
+	sint64 limit_sq_x4; // 4 * limit^2, to keep the physical y offset (q + 2r) / 2 integral
+
+public:
+	climate_patch_t(sint32 wx_, sint32 wy_) : wx(wx_), wy(wy_)
+	{
+		// distance <= 8 (wx^2 + wy^2) / 41 is threshold > 40; the tile
+		// itself has distance 1, so isqrt(x^2 wx^2 + y^2 wy^2) < limit
+		const sint64 limit = (8 * ((sint64)wx * wx + (sint64)wy * wy)) / 41;
+		limit_sq_x4 = 4 * limit * limit;
+	}
+
+	/// |dq| <= reach_q() and |dr| <= reach_r() for every tile of the patch.
+	sint16 reach_q() const { return (sint16)((5 * wx) / 8); }          // wx / sqrt(3) < 5 wx / 8
+	sint16 reach_r() const { return (sint16)((wy + reach_q()) / 2); }  // |dq + 2 dr| <= wy
+
+	/// Is the tile at axial offset (dq, dr) from the start tile in the patch?
+	bool contains(sint16 dq, sint16 dr) const
+	{
+		// physical offset of (dq, dr): x = sqrt(3) dq / 2, y = (dq + 2 dr) / 2
+		const sint64 x2 = 3 * (sint64)dq * dq;           // 4 x^2
+		const sint64 y2 = (sint64)(dq + 2 * dr) * (dq + 2 * dr);  // 4 y^2
+		return x2 <= (sint64)wx * wx
+		    && y2 <= (sint64)wy * wy
+		    && x2 * wx * wx + y2 * wy * wy < limit_sq_x4;
+	}
+};
+
+
 #endif
