@@ -34,6 +34,7 @@
 #include "../display/scr_coord.h"
 #include "../display/simgraph.h"
 #include "../display/viewport.h"
+#include "../display/hex_proj.h"
 #include "../utils/simrandom.h"
 #include "../player/simplay.h"
 
@@ -1764,29 +1765,33 @@ void minimap_t::draw(scr_coord pos)
 	}
 
 	// zoom/resize "selection box" in map
-	// this must be rotated by 45 degree (sin45=cos45=0,5*sqrt(2)=0.707...)
+	// the screen is a parallelogram in the axial map coordinates
 	const sint16 raster = gfx->get_tile_raster_width();
 
 	const scr_size screen = gfx->get_screen_size();
 
-	// calculate and draw the rotated coordinates
-	koord ij = world->get_viewport()->get_world_position();
-	const koord diff = koord( screen.w/(2*raster), screen.h/raster );
+	// calculate and draw the transformed coordinates
+	const viewport_t *const viewport = world->get_viewport();
+	koord ij = viewport->get_world_position();
 
 	koord view[4];
 	scr_coord test[4];
-	// default coordinates - may be off if screen shows high mountains
-	view[0] = ij + koord( -diff.y+diff.x, -diff.y-diff.x );
-	view[1] = ij + koord( -diff.y-diff.x, -diff.y+diff.x );
-	view[2] = ij + koord( diff.y-diff.x, diff.y+diff.x );
-	view[3] = ij + koord( diff.y+diff.x, diff.y-diff.x );
-
-	// try to find tile under the four corners of the screen
+	// the four corners of the screen
 	test[0] = scr_coord(screen.w,0);
 	test[1] = scr_coord(0,0);
 	test[2] = scr_coord(0,screen.h);
 	test[3] = scr_coord(screen.w, screen.h);
 
+	// default coordinates: the hex tile at height 0 under each corner,
+	// which may be off if screen shows high mountains
+	const scr_coord centre = viewport->get_screen_coord( koord3d( ij, 0 ) ) + scr_coord( raster/2, hex_visible_centre_y(raster) );
+	for(int i=0; i<4; i++) {
+		double q_f, r_f;
+		hex_screen_to_fractional( test[i].x - centre.x, test[i].y - centre.y, raster, q_f, r_f );
+		view[i] = ij + hex_round_to_axial( q_f, r_f );
+	}
+
+	// try to find tile under the four corners of the screen
 	for(int i=0; i<4; i++) {
 		sint32 dummy1, dummy2;
 		if (grund_t *gr = world->get_viewport()->get_ground_on_screen_coordinate( test[i], dummy1, dummy2 ) ) {
