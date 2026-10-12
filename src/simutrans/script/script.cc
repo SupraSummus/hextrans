@@ -87,7 +87,12 @@ void script_vm_t::errorfunc(HSQUIRRELVM vm, const SQChar *s_, ...)
 			script->set_error(buf);
 			// pause game
 			if (script->pause_on_error) {
-				script_api::pause_game();
+				if (script_vm_t::ignore_pause_on_error) {
+					fputs( "ai_soak: script error would have paused the game\n", stderr );
+				}
+				else {
+					script_api::pause_game();
+				}
 			}
 		}
 	}
@@ -102,6 +107,8 @@ void script_vm_t::errorfunc(HSQUIRRELVM vm, const SQChar *s_, ...)
 }
 
 void export_include(HSQUIRRELVM vm, const char* include_path); // api_include.cc
+
+bool script_vm_t::ignore_pause_on_error = false;
 
 // virtual machine
 script_vm_t::script_vm_t(const char* include_path_, const char* log_name)
