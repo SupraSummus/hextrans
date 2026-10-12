@@ -669,6 +669,13 @@ with its halts, convoys and cash.
 `-ai_snapshot` adds a screenshot of the newest AI halt each January,
 `screenshot/aisoak-YYYY.MM-map.png` in the user directory,
 and `-windows.png` for the open script-error window, if any.
+It also shoots the info windows that embed a small world view,
+`-view-halt.png` (the newest AI halt), `-view-convoy.png` (an AI convoy
+on the road) and `-view-factory.png` (the first factory),
+and for the halt and the factory `-view-NAME-main.png`,
+the main view's picture of the area the small view shows.
+The two agree pixel for pixel
+except for the station labels and overlays only the main view draws.
 It also works with `SDL_VIDEODRIVER=dummy`.
 
 `tools/mapgen_metrics.py` prints the climate shares of generated maps
