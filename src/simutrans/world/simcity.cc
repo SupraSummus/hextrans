@@ -1729,22 +1729,19 @@ void stadt_t::new_month( bool recalc_destinations )
 		city_history_month[0][HIST_CITYCARS] = number_of_cars;
 		city_history_year[0][HIST_CITYCARS] += number_of_cars;
 
-		koord k;
 		koord pos = get_zufallspunkt();
-		for (k.y = pos.y - 3; k.y < pos.y + 3; k.y++) {
-			for (k.x = pos.x - 3; k.x < pos.x + 3; k.x++) {
-				if(number_of_cars==0) {
-					return;
-				}
+		for (koord d : hex_disc(3)) {
+			if(number_of_cars==0) {
+				return;
+			}
 
-				if(  grund_t* gr = welt->lookup_kartenboden(k)  ) {
-					if(  weg_t* w = gr->get_weg(road_wt)  ) {
-						// do not spawn on private roads or if there is already a car
-						if(  ribi_t::is_twoway(w->get_ribi_unmasked())  &&  w->get_owner()==NULL  &&  gr->find<private_car_t>() == NULL  ) {
-							private_car_t* vt = new private_car_t(gr, koord::invalid);
-							gr->obj_add(vt);
-							number_of_cars--;
-						}
+			if(  grund_t* gr = welt->lookup_kartenboden(pos + d)  ) {
+				if(  weg_t* w = gr->get_weg(road_wt)  ) {
+					// do not spawn on private roads or if there is already a car
+					if(  ribi_t::is_twoway(w->get_ribi_unmasked())  &&  w->get_owner()==NULL  &&  gr->find<private_car_t>() == NULL  ) {
+						private_car_t* vt = new private_car_t(gr, koord::invalid);
+						gr->obj_add(vt);
+						number_of_cars--;
 					}
 				}
 			}
