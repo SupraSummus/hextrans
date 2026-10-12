@@ -15,6 +15,7 @@
 #include "../simdebug.h"
 #include "../simmain.h"
 #include "../simtypes.h"
+#include "../simversion.h"
 #include "../sys/simsys.h"
 #include "../utils/simrandom.h"
 #include "../utils/simstring.h"
@@ -144,6 +145,11 @@ void settings_t::rdwr(loadsave_t *file)
 {
 	// used to be called einstellungen_t - keep old name during save/load for compatibility
 	xml_tag_t e( file, "einstellungen_t" );
+
+	if(  file->is_loading()  ) {
+		// saves before SAVE_VERSION_HEX_MAP_SHAPE hold the plain W x H rhombus
+		size_d = 1;
+	}
 
 	if(file->is_version_less(86, 0)) {
 		uint32 dummy;
@@ -754,6 +760,10 @@ void settings_t::rdwr(loadsave_t *file)
 		}
 		else {
 			cst_kw_per_credit = 512;
+		}
+
+		if (file->is_version_atleast(SAVE_VERSION_HEX_MAP_SHAPE_MAJOR, SAVE_VERSION_HEX_MAP_SHAPE_MINOR)) {
+			file->rdwr_long(size_d);
 		}
 	}
 

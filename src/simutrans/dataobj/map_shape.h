@@ -46,6 +46,18 @@ struct map_shape_t
 
 	bool contains(koord k) const { return contains(k.x, k.y); }
 
+	/**
+	 * contains() without branches, in the cached form
+	 * surface_t::is_within_limits uses: @p max_q = get_size_q()-1,
+	 * @p max_r = get_size_r()-1.  Each term is negative exactly when
+	 * its half-plane is violated, so the bitwise or is negative when
+	 * any one is.
+	 */
+	static bool contains_cached(sint32 q, sint32 r, sint32 max_q, sint32 max_r, sint32 cut_lo, sint32 cut_hi)
+	{
+		return (q | r | (max_q - q) | (max_r - r) | (q + r - cut_lo) | (cut_hi - q - r)) >= 0;
+	}
+
 	/// A world vertex is on-map when any of its three owning tiles is.
 	bool contains_vertex(hex_vertex_t v) const
 	{

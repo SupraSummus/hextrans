@@ -361,6 +361,9 @@ void planquadrat_t::check_season_snowline(const bool season_change, const bool s
 void planquadrat_t::correct_water()
 {
 	grund_t *gr = get_kartenboden();
+	if(  !gr  ) {
+		return; // off-map cell of the W x H x D hexagon
+	}
 	slope_t::type slope = gr->get_grund_hang();
 	sint8 max_height = gr->get_hoehe() + slope_t::max_diff( slope );
 	koord k = gr->get_pos().get_2d();
@@ -923,6 +926,9 @@ bool planquadrat_t::is_connected(halthandle_t halt) const
 
 void planquadrat_t::update_underground() const
 {
+	if(  ground_size == 0  ) {
+		return; // off-map cell of the W x H x D hexagon
+	}
 	get_kartenboden()->check_update_underground();
 	// update tunnel tiles
 	for(unsigned int i=1; i<get_boden_count(); i++) {

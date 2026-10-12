@@ -26,8 +26,8 @@
 // Hextrans is a save-incompatible fork: terrain topology, slope encoding and
 // direction semantics diverge from upstream Simutrans.  Keep fork saves in a
 // high minor range so they are visibly not upstream 124.x saves.
-#define SIM_SAVE_MINOR      901
-#define SIM_SERVER_MINOR    901
+#define SIM_SAVE_MINOR      902
+#define SIM_SERVER_MINOR    902
 
 #define SAVE_VERSION_HEX_CLIMATE_CORNERS_MAJOR 124
 #define SAVE_VERSION_HEX_CLIMATE_CORNERS_MINOR   5
@@ -35,6 +35,8 @@
 #define SAVE_VERSION_HEX_SLOPE_SHORT_MINOR     900
 #define SAVE_VERSION_HEX_TRAFFICLIGHT_3AXIS_MAJOR 124
 #define SAVE_VERSION_HEX_TRAFFICLIGHT_3AXIS_MINOR 901
+#define SAVE_VERSION_HEX_MAP_SHAPE_MAJOR       124
+#define SAVE_VERSION_HEX_MAP_SHAPE_MINOR       902
 // NOTE: increment before next release to enable save/load of new features
 
 /* for next release after 124.5 */

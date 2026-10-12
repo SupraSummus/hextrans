@@ -11,6 +11,7 @@
 
 #include "../dataobj/koord.h"
 #include "../dataobj/koord3d.h"
+#include "../dataobj/map_shape.h"
 #include "../tpl/array2d_tpl.h"
 
 
@@ -43,6 +44,18 @@ protected:
 	/// @brief The maximum of cached_size.x and cached_size.y.
 	/// Maximum size for waiting bars etc.
 	sint16 cached_size_max;
+
+	/**
+	 * The two cut lines of the W x H x D hexagon (map_shape_t):
+	 * on-map tiles have cached_cut_lo <= x + y <= cached_cut_hi.
+	 * With D = 1 they cut nothing.  See documentation/map-shape.md.
+	 */
+	sint32 cached_cut_lo = 0;
+	sint32 cached_cut_hi = 0;
+
+	/// Sets cached_grid_size (the bounding rhombus) and the other
+	/// cached extents and cut lines from @p shape.
+	void set_cached_shape(const map_shape_t &shape);
 
 	/// the maximum allowed world height. No tile/grid point can be higher than this limit.
 	sint8 max_allowed_height;
@@ -153,8 +166,9 @@ public:
 	inline bool is_within_limits(sint16 x, sint16 y) const {
 		// since negative values will make the whole result negative, we can use bitwise or
 		// This is faster, since pentiums and other long pipeline processors do not like jumps
-		// return x>=0 &&  y>=0  &&  cached_size.x>=x  &&  cached_size.y>=y;
-		return (x|y|(cached_size.x-x)|(cached_size.y-y))>=0;
+		// return x>=0 &&  y>=0  &&  cached_size.x>=x  &&  cached_size.y>=y
+		//    &&  x+y>=cached_cut_lo  &&  x+y<=cached_cut_hi;
+		return map_shape_t::contains_cached(x, y, cached_size.x, cached_size.y, cached_cut_lo, cached_cut_hi);
 	}
 
 	/**
