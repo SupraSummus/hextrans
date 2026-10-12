@@ -5430,25 +5430,21 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 							//assert( !allowed.empty() );
 							climate cl = !allowed.empty() ? (climate)pick_any(allowed) : temperate_climate;
 
-							// now we do an ellipse with size wx and wy around the starting point
+							// now we do an ellipse with size wx and wy around the starting point,
+							// round in the physical plane when they are equal
 							const sint32 wx = 2+simrand( max_patchsize_x );
 							const sint32 wy = 2+simrand( max_patchsize_y );
-							for( sint16 j = 0; j < wx; j++) {
-								for( sint16 i = 0; i < wy; i++) {
+							const climate_patch_t patch( wx, wy );
+							for( sint16 dr = -patch.reach_r(); dr <= patch.reach_r(); dr++) {
+								for( sint16 dq = -patch.reach_q(); dq <= patch.reach_q(); dq++) {
 
-									const sint32 x_off = (j-(wx>>1));
-									const sint32 y_off = (i-(wy>>1));
-									if(  x+x_off>=xtop  &&  x+x_off<xbottom  &&  y+y_off>=ytop  &&  y+y_off<ybottom  &&  climate_map.at( x+x_off, y+y_off )>arctic_climate  ) {
-
-										const uint64 distance = 1 + sqrt_i64( ((uint64)x_off*x_off*(wx*wx) + (uint64)y_off*y_off*(wy*wy)));
-										const uint32 threshold = (uint32)( ( 8 * (uint32)((wx*wx)+(wy*wy)) ) / distance );
-
-										if(  threshold > 40  ) {
-											hgt = min_hgt_nocheck(koord(x+x_off, y+y_off));
-											// find out if the climate is still allowed here
-											if(  hgt >= settings.get_climate_borders( cl, 0 )  &&  hgt <= settings.get_climate_borders( cl, 1 )  ) 	{
-												climate_map.at( x+x_off, y+y_off ) = cl;
-											}
+									const sint16 px = x+dq;
+									const sint16 py = y+dr;
+									if(  px>=xtop  &&  px<xbottom  &&  py>=ytop  &&  py<ybottom  &&  climate_map.at( px, py )>arctic_climate  &&  patch.contains( dq, dr )  ) {
+										hgt = min_hgt_nocheck(koord(px, py));
+										// find out if the climate is still allowed here
+										if(  hgt >= settings.get_climate_borders( cl, 0 )  &&  hgt <= settings.get_climate_borders( cl, 1 )  ) 	{
+											climate_map.at( px, py ) = cl;
 										}
 									}
 								}
