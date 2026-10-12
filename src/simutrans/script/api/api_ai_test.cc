@@ -31,6 +31,7 @@
 
 #include "../../dataobj/environment.h"
 #include "../../dataobj/scenario.h"
+#include "../../player/ai.h"
 #include "../../player/ai_scripted.h"
 #include "../../player/simplay.h"
 #include "../../simconst.h"
@@ -259,6 +260,50 @@ static SQInteger aitest_net_state(HSQUIRRELVM vm)
 }
 
 
+/**
+ * Resolves a player slot to a computer player of the C++ kind (goods or
+ * passenger AI), whose site search the next function drives.
+ * @returns the player, or NULL if the slot is empty or holds another player type
+ */
+static ai_t* aitest_get_cpp_ai(uint8 nr)
+{
+	if (nr >= MAX_PLAYER_COUNT) {
+		return NULL;
+	}
+	return dynamic_cast<ai_t*>(welt->get_player(nr));
+}
+
+
+/// the result of a site search as "found,x,y,run.x,run.y"; "" for no such AI
+static SQInteger aitest_push_site(HSQUIRRELVM vm, const ai_t* ai, bool found, koord start, koord run)
+{
+	if (ai == NULL) {
+		return param<const char*>::push(vm, "");
+	}
+	cbuffer_t buf;
+	buf.printf("%d,%d,%d,%d,%d", found ? 1 : 0, start.x, start.y, run.x, run.y);
+	return param<const char*>::push(vm, (const char*)buf);
+}
+
+
+/**
+ * ai_t::suche_platz(): where a station of @p length + 1 tiles goes near the
+ * factory whose footprint starts at @p fab and spans @p off, on the way to
+ * @p target.  Arguments: slot, fab, off, target, length.
+ */
+static SQInteger aitest_suche_platz(HSQUIRRELVM vm)
+{
+	ai_t* ai = aitest_get_cpp_ai(param<uint8>::get(vm, 2));
+	koord start = param<koord>::get(vm, 3);
+	const koord off = param<koord>::get(vm, 4);
+	const koord target = param<koord>::get(vm, 5);
+	koord run(param<sint16>::get(vm, 6), 0);
+
+	const bool found = ai != NULL  &&  ai->suche_platz(start, run, target, off);
+	return aitest_push_site(vm, ai, found, start, run);
+}
+
+
 void export_ai_test(HSQUIRRELVM vm, bool scenario)
 {
 	// a fixture ai has to be able to report from inside its own vm
@@ -276,4 +321,5 @@ void export_ai_test(HSQUIRRELVM vm, bool scenario)
 	register_function(vm, aitest_note_count,        "aitest_note_count",        1, ".");
 	register_function(vm, aitest_reset_notes,       "aitest_reset_notes",       1, ".");
 	register_function(vm, aitest_net_state,         "aitest_net_state",         1, ".");
+	register_function(vm, aitest_suche_platz,       "aitest_suche_platz",       6, ".i...i");
 }

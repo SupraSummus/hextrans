@@ -9,6 +9,7 @@
 //
 
 include("tests/test_ai_scripted")
+include("tests/test_ai_site")
 include("tests/test_air")
 include("tests/test_back_wall")
 include("tests/test_building")
@@ -439,6 +440,8 @@ all_tests <- [
 	test_ai_scripted_attach_server_succeeds,
 	test_ai_scripted_network_state_restored,
 	test_ai_scripted_slot_allocation_skips_occupied,
+	test_ai_site_station_reaches_factory,
+	test_ai_site_extends_own_station_on_all_sides,
 	// after the sign tests, see "Traffic light removal follows its phase" in TODO.md
 	test_city_building_faces_road,
 	test_city_building_3x2_faces_road,
