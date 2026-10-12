@@ -33,6 +33,7 @@ include("tests/test_script_generator")
 include("tests/test_script_sandbox")
 include("tests/test_script_toolkit")
 include("tests/test_sign")
+include("tests/test_sign_ne_sw")
 include("tests/test_slope")
 include("tests/test_squirrel_vm")
 include("tests/test_terraform")
@@ -215,6 +216,13 @@ all_tests <- [
 	test_sign_replace_signal,
 	test_sign_signal_when_player_removed,
 	test_sign_signals_removed_with_bankrupt_company,
+	test_sign_signal_ne_sw,
+	test_sign_signal_ne_sw_art,
+	test_sign_signal_tunnel_mouth_ne_sw,
+	test_sign_oneway_ne_sw,
+	test_sign_oneway_ne_sw_art,
+	test_sign_private_way_ne_sw,
+	test_sign_trafficlight_ne_sw,
 	test_slope_to_dir,
 	test_slope_can_set,
 	test_slope_set_and_restore,
