@@ -1,6 +1,6 @@
-// Checks koord_distance_to_rect in dataobj/koord.h against a brute-force
-// search over the footprint and against the union of hex discs around its
-// tiles.  An axial (q, r) rectangle is a parallelogram: the square
+// Checks koord_distance_to_rect and hex_disc::at in dataobj/koord.h against
+// a brute-force search over the footprint and against the union of hex discs
+// around its tiles.  An axial (q, r) rectangle is a parallelogram: the square
 // "(-1..size)^2 ring" that square-grid neighbour loops walk around it has two
 // corners, (-1,-1) and (size.x,size.y), that are not adjacent.
 
@@ -116,8 +116,28 @@ static void test_adjacent_ring()
 }
 
 
+// size() and at() index the disc in iteration order, so one random number
+// picks a uniformly random tile of the disc.
+static void test_disc_indexing()
+{
+	for (sint16 r = 0; r <= 12; r++) {
+		const hex_disc disc(r);
+		uint32 n = 0;
+		for (koord d : disc) {
+			CHECK(n < disc.size());
+			CHECK(disc.at(n) == d);
+			CHECK(koord_distance(koord(0, 0), d) <= (uint32)r);
+			n++;
+		}
+		CHECK(n == disc.size());
+		CHECK(disc.size() == 3u * r * (r + 1) + 1);
+	}
+}
+
+
 int main()
 {
+	test_disc_indexing();
 	test_matches_brute_force();
 	test_is_minkowski_sum_with_hex_disc();
 	test_adjacent_ring();

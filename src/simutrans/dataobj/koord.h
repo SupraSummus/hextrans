@@ -386,6 +386,25 @@ class hex_disc
 public:
 	explicit hex_disc(sint16 radius) : r(radius) {}
 
+	/// Number of offsets in the disc, 3r(r+1)+1.
+	uint32 size() const { return 3u * (uint32)r * ((uint32)r + 1u) + 1u; }
+
+	/// The index-th offset in iteration order, 0 <= index < size():
+	/// a uniformly random tile of the disc from one random number.
+	koord at(uint32 index) const
+	{
+		sint16 dy = -r;
+		for(;;) {
+			const uint32 row = 2u * (uint32)r + 1u - (uint32)(dy < 0 ? -dy : dy);
+			if (index < row) {
+				break;
+			}
+			index -= row;
+			dy++;
+		}
+		return koord((sint16)(min_dx(dy, r) + (sint32)index), dy);
+	}
+
 	class iterator
 	{
 		koord d;

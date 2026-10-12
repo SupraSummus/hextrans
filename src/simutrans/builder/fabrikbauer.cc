@@ -61,6 +61,10 @@ static void add_factory_to_fab_map(karte_t const* const welt, fabrik_t const* co
 	sint16       const  end_x   = min(welt->get_size().x - 1, pos.x + bdsc.get_x(rotate) + spacing);
 	for (sint16 y = start_y; y < end_y; ++y) {
 		for (sint16 x = start_x; x < end_x; ++x) {
+			// the corners of the rectangle are further than spacing steps away
+			if (koord_distance_to_rect(koord(x, y), pos.get_2d(), bdsc.get_size(rotate)) > (uint32)spacing) {
+				continue;
+			}
 			fab_map[fab_map_w * y + x / 8] |= 1 << (x % 8);
 		}
 	}
@@ -392,10 +396,15 @@ koord3d factory_builder_t::find_random_construction_site(koord pos, int radius, 
 	const uint32 c = 37; // very unlikely to have this as a factor in somewhere ...
 
 	// in order to stop on the first occurence, one has to iterate over all tiles in a reproducable but random enough manner
-	for(  uint32 i = 0;  i<max_iterations; i++,  index = (a*index+c) % area  ) {
+	for(  uint32 i = 0;  i<max_iterations; i++,  index = (uint32)(((uint64)a*index+c) % area)  ) {
 
 		// so it is guaranteed that the iteration hits all tiles and does not repeat itself
 		k = koord( pos.x - radius + (index % diam), pos.y - radius + (index / diam) );
+
+		// the square also holds corners that are up to twice radius steps away
+		if(  koord_distance(k, pos) > (uint32)radius  ) {
+			continue;
+		}
 
 		// check place (it will actually check an grosse.x/y size rectangle, so we can iterate over less tiles)
 		if(  factory_builder_t::check_construction_site(k, size, site, is_factory, climates)  ) {
@@ -1059,8 +1068,9 @@ int factory_builder_t::increase_industry_density( bool tell_me )
 				koord3d pos;
 				int rotation = simrand( fab->get_building()->get_all_layouts() );
 				if(!in_city) {
-					// find somewhere on the map
-					pos = find_random_construction_site( koord(welt->get_size().x/2,welt->get_size().y/2), welt->get_size_max()/2, fab->get_building()->get_size(rotation),fab->get_placement(),fab->get_building(),ignore_climates,10000);
+					// find somewhere on the map: the disc around its middle must reach the farthest corner,
+					// so most samples fall off the map (hence the larger budget)
+					pos = find_random_construction_site( koord(welt->get_size().x/2,welt->get_size().y/2), (welt->get_size().x+welt->get_size().y)/2, fab->get_building()->get_size(rotation),fab->get_placement(),fab->get_building(),ignore_climates,4*10000);
 				}
 				else {
 					// or within the city limit

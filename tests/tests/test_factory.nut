@@ -479,3 +479,39 @@ function test_factory_desc()
 		ASSERT_TRUE("Aufwindkraftwerk" in list)
 	}
 }
+
+
+// Fields are laid in shells around the factory: every tile at one step
+// first, then every tile at two steps.  The 3x3 axial square around the
+// factory has two tiles, (1,1) and (-1,-1), that are two steps away.
+function test_factory_fields_fill_hex_shells()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+
+	// the field positions are random, and so is whether a corner comes up
+	// before the six real neighbours are used
+	for (local n = 0; n < 6; n++) {
+		ASSERT_EQUAL(command_x(tool_build_factory).work(pl, coord3d(7, 7, 0), "011024,PVkraftwerk"), null)
+
+		local fab = factory_x(7, 7)
+		local fields = fab.get_fields_list()
+		ASSERT_TRUE(fields.len() >= fab.get_min_field_count())
+		ASSERT_TRUE(fields.len() > 6)
+
+		// listed in the order they were laid
+		local prev = 1
+		foreach (i, t in fields) {
+			local d = hex_distance(t.x, t.y, 7, 7)
+			ASSERT_TRUE(d >= prev)
+			prev = d
+			if (i < 6) {
+				ASSERT_EQUAL(d, 1)
+			}
+		}
+
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(7, 7, 0)), null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}

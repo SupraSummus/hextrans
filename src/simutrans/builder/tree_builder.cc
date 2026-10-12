@@ -171,7 +171,11 @@ uint32 tree_builder_t::create_forest(koord new_center, koord wh, sint16 xtop, si
 				continue;
 			}
 
-			const uint64 distance = 1 + sqrt_i64( ((uint64)x_tree_pos*x_tree_pos*(wh.y*wh.y) + (uint64)y_tree_pos*y_tree_pos*(wh.x*wh.x)));
+			// distance from the middle in the map plane, which is not x^2 + y^2 in axial
+			// coordinates but physical_distance_sq(); scaled so that wh is the ellipse's extent
+			const sint64 u = (sint64)x_tree_pos*wh.y;
+			const sint64 v = (sint64)y_tree_pos*wh.x;
+			const uint64 distance = 1 + sqrt_i64( (uint64)(u*u + u*v + v*v) );
 			const uint32 tree_probability = (uint32)( ( 8 * (uint32)((wh.x*wh.x)+(wh.y*wh.y)) ) / distance );
 
 			if (tree_probability < 38) {
@@ -348,9 +352,8 @@ uint16 tree_builder_t::random_tree_id_for_climate(climate cl)
 bool tree_builder_t::spawn_tree_near(const baum_t *tree, int radius)
 {
 	// to have same execution order for simrand
-	const sint16 sx = simrand(2*radius + 1)-radius;
-	const sint16 sy = simrand(2*radius + 1)-radius;
-	const koord k = tree->get_pos().get_2d() + koord(sx,sy);
+	const hex_disc disc(radius);
+	const koord k = tree->get_pos().get_2d() + disc.at(simrand(disc.size()));
 
 	return plant_tree_on_coordinate(k, tree->get_desc(), true, false);
 }
