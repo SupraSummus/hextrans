@@ -108,14 +108,11 @@ class LocalToolTest(unittest.TestCase):
                     tool_id, [tid for tid, _ in relayed(seen)],
                     f"server relayed WFL_LOCAL {what} to clients")
 
-                # Execution follows the relay by a sync step or so.  No
-                # second connection for a liveness probe: a nickname-less
-                # connection open while a joined client leaves crashes the
-                # server in socket_list_t::get_all_nicks.
+                # Execution follows the relay by a sync step or so.
                 ticks = conn.drain(0.7)
                 seen += ticks
-                self.assertIsNone(
-                    srv.proc.poll(),
+                self.assertTrue(
+                    srv.alive(),
                     f"server exited after {what}; stderr tail:\n"
                     + srv.read_stderr_tail())
                 self.assertFalse(conn.eof,

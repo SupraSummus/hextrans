@@ -31,6 +31,7 @@ HEADER_SIZE = 6
 
 # Mirrors network_command_id in src/simutrans/network/network_cmd.h.
 NWC_GAMEINFO     = 1
+NWC_CHAT         = 3
 NWC_JOIN         = 4
 NWC_SYNC         = 5
 NWC_GAME         = 6
@@ -44,6 +45,7 @@ NWC_STEP         = 16
 
 _PACKET_NAMES = {
     NWC_GAMEINFO: "NWC_GAMEINFO",
+    NWC_CHAT: "NWC_CHAT",
     NWC_JOIN: "NWC_JOIN",
     NWC_SYNC: "NWC_SYNC",
     NWC_GAME: "NWC_GAME",
