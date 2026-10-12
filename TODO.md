@@ -470,6 +470,10 @@ upstream's 90° cascade,
 and the 6 top-level callers (`fabrikbauer` retry loops ×4,
 `karte_t::destroy` / `karte_t::save` retry loops, the `tool_rotate90` player tool)
 are gated off.
+`objlist_t::rotate90_moving` still reorders movers with the square
+heading sets (`append_dirs`, `rotated_append_dirs`, `rotated_mirror_dirs`);
+its hex body takes both append tests from `hex_heading_climbs_screen`,
+on the heading before and after the step.
 Next move: give the cascade hex bodies, 180° first on today's rhombus
 (`(q, r) -> (W-1-q, H-1-r)`: tiles, heights, buildings, offsets,
 `settings_t::rotation` mod 6), then drop the tripwire and open the tool;
@@ -1287,13 +1291,10 @@ in `climate_smooth_cell`,
 and compare `tools/mapgen_metrics.py --generators humidity` before and after.
 
 Descriptor visuals.
-`objlist_t::intern_add_moving` orders NE movers like the square-era
-NE diagonal;
-the bridge preview in `tool_build_bridge_t::mark_tiles`
+The bridge preview in `tool_build_bridge_t::mark_tiles`
 draws the delta-2 ramp with the single-height image
 (`narrow_to_double` is missing).
-Next move: order movers by whether their heading climbs the screen,
-and build the preview's ramp slopes with `narrow_to_double`.
+Next move: build the preview's ramp slopes with `narrow_to_double`.
 
 GUI views.
 `world_view_t::internal_draw` lays out the square lattice in every

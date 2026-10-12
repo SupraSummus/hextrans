@@ -73,6 +73,30 @@ static void test_forward_neighbours()
 }
 
 
+// ---- 2b. Draw order of objects moving on a tile ----------------------------
+
+// hex_heading_climbs_screen picks which end of a tile's object list a
+// vehicle entering the tile goes to (objlist_t::intern_add_moving): one
+// heading up the screen is appended, one heading down is prepended.  It
+// has to follow the sign of the projected step for every edge.  The
+// square-era rule appended N and NW only, which sent NE (3u, -u) down.
+static void test_heading_climbs_screen()
+{
+	static const char *const names[] = { "SE", "S", "SW", "NW", "N", "NE" };
+	for (int i = 0; i < 6; i++) {
+		const ribi_t::ribi dir = (ribi_t::ribi)(1 << i);
+		const sint32 sy = hex_screen_dy(koord::neighbours[i].x, koord::neighbours[i].y, W);
+		if (sy == 0 || hex_heading_climbs_screen(dir) != (sy < 0)) {
+			std::fprintf(stderr,
+				"heading %s: screen dy = %d, hex_heading_climbs_screen = %d\n",
+				names[i], sy, (int)hex_heading_climbs_screen(dir));
+			std::abort();
+		}
+	}
+	assert(!hex_heading_climbs_screen(ribi_t::none));
+}
+
+
 // ---- 3. Inverse round-trip on integer hex centres --------------------------
 
 static void test_round_trip()
@@ -517,6 +541,7 @@ int main()
 {
 	test_forward_unit_steps();
 	test_forward_neighbours();
+	test_heading_climbs_screen();
 	test_round_trip();
 	test_inverse_noise();
 	test_inverse_picks_screen_closest();
