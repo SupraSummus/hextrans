@@ -1269,18 +1269,6 @@ and the wind box in `settings_climates_stats_t` (0..3) are 4-way.
 Next move: `world_view_t` through `hex_proj` first,
 since every info window uses it.
 
-Script-side constants.
-`simutrans/script/hm_lib/hm_global.nut` keeps upstream's base-3 slope
-constants (`UP=82` is a real hex slope; the hex values are 4097/4098,
-and `N1`..`W2` come from `slope.*_narrow`);
-the `SQAPI_DOC` lists in `api_simple.cc` and `api_settings.cc`
-document removed direction constants;
-`simtool-script-generator.cc` drops NE-SW segments in `write_command`
-and `write_sign_at` assumes the old four-step sign cycle.
-Next move: regenerate the constants from the C++ enums,
-and a round-trip test that exports a NE-SW road with the script generator
-and replays it.
-
 Signals and signs on NE/SW.
 `signal_t` and `roadsign_t` have four image slots and no NE/SW projection,
 so signals, signs and traffic-light arms on NE-SW tracks draw nothing;
