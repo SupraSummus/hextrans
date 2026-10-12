@@ -123,6 +123,7 @@ all_tests <- [
 	test_factory_build_pp,
 	test_factory_build_with_fields,
 	test_factory_fields_fill_hex_shells,
+	test_factory_fields_follow_rotated_footprint,
 	test_factory_build_climate,
 	test_factory_build_on_water_occupied,
 	test_factory_build_short_param,
