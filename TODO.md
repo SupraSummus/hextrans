@@ -109,6 +109,16 @@ and collapse the sites to one line each.
 Soft trigger:
 fold in next time a test file in this set is being rewritten anyway.
 
+## Test leftovers
+
+`test_city_building_3x2_faces_road` ends with zero maintenance
+but still leaves something behind:
+run before the halt tests, it shifts the money check
+of `test_halt_make_public_single` by 256.
+It runs near the end of `tests/all_tests.nut` until that is found.
+Next move: diff the world (cities, ground objects, ownership) before and after the test,
+fix its cleanup, and move it back beside the other city tests.
+
 ## `is_allowed_step` prefer_parallel branches near-duplicated
 
 `strasse`, `schiene`, and `schiene_tram` in `wegbauer.cc::is_allowed_step`
