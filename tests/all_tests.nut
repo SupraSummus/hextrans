@@ -90,6 +90,11 @@ all_tests <- [
 	test_city_road_seed_next_to_stop,
 	test_city_road_seed_next_to_depot,
 	test_city_remove_with_multitile_townhall,
+	test_city_building_faces_road,
+	test_city_building_3x2_faces_road,
+	test_city_road_beside_terminal_stored_side,
+	test_city_cityroad_along_all_axes,
+	test_city_road_fills_valley_tile,
 	test_climate_invalid,
 	test_climate_flat,
 	test_climate_cliff,
@@ -452,12 +457,6 @@ all_tests <- [
 	test_ai_site_harbour_second_direction,
 	test_ai_site_random_dock_length_limit,
 	test_ai_site_extends_own_station_on_all_sides,
-	// after the sign tests, see "Traffic light removal follows its phase" in TODO.md
-	test_city_building_faces_road,
-	test_city_building_3x2_faces_road,
-	test_city_road_beside_terminal_stored_side,
-	test_city_cityroad_along_all_axes,
-	test_city_road_fills_valley_tile,
 	test_world_rotate_roundtrip,
 	test_city_population_ledger, // keep last but for the enlarge tests: grows a city across the whole map
 	// the map is another one after these, so they come last

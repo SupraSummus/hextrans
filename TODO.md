@@ -1085,24 +1085,6 @@ Next move: store the real facing in `gebaeude_t` with the next save-format bump,
 read it first in `get_facing_ribi`,
 then drop the way-derived path and the fallback.
 
-*Traffic light removal follows its phase.*
-A traffic light's `dir` is the axis that is green at the moment:
-`roadsign_t::sync_step` rewrites it with every phase.
-`grund_t::remove_everything_from_way` deletes a sign
-when its `dir` holds a direction that goes,
-so taking away the legs of a junction keeps the light
-if the axis that is green is the one that stays.
-Whether `test_sign_build_trafficlight` passes then depends on the game time
-at which it runs,
-which the script time of the tests before it moves.
-`test_city_building_faces_road`, `test_city_road_beside_terminal_stored_side`
-and `test_city_road_fills_valley_tile`
-stand after the sign tests in `tests/all_tests.nut`
-to leave that time as it was.
-Next move: delete a traffic light when the ribi that remains is not a threeway,
-which is what `place_sign_intern` requires to build one,
-and move the three city tests back beside the other city tests.
-
 *Crossroads collision FSM.*
 `vehicle_base_t::no_cars_blocking` (`vehicle_base.cc:491`)
 and the related branches in `road_vehicle.cc::can_enter_tile`
