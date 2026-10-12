@@ -396,7 +396,7 @@ void movingobj_t::hop(grund_t* gr)
 	}
 	else {
 		ribi_t::ribi old_dir = direction;
-		direction = calc_set_direction( get_pos(), pos_next_next );
+		direction = calc_set_direction( get_pos(), pos_next, pos_next_next );
 		if(old_dir!=direction) {
 			calc_image();
 		}

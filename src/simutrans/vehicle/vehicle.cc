@@ -303,6 +303,20 @@ void vehicle_t::play_sound() const
 }
 
 
+// A save from before the hex bend lengths holds the square-era diagonal
+// length (181 steps) for a 60 degree bend and a full tile for a 120 degree
+// one.  Only a vehicle with a tile before and after it on the route is
+// checked; the ends of a route keep lengths that hop() does not derive.
+bool vehicle_t::need_realignment() const
+{
+	route_t const& r = *cnv->get_route();
+	if(  route_index < 2  ||  route_index >= r.get_count()  ||  r.at(route_index - 1) != get_pos()  ||  r.at(route_index) != pos_next  ) {
+		return false;
+	}
+	return steps_next != calc_chord_steps_next(r.at(route_index - 2), get_pos(), pos_next);
+}
+
+
 /**
  * Prepare vehicle for new ride.
  * Sets route_index, pos_next, steps_next.
@@ -325,7 +339,7 @@ void vehicle_t::initialise_journey(route_t::index_t start_route_index, bool reca
 		assert(get_pos() == r.at(start_route_index));
 		// the vehicle stays in its tile: refresh its length as hop() set it,
 		// from the tile before this one to the next
-		steps_next = calc_chord_steps_next(r.at(start_route_index > 0 ? start_route_index - 1 : 0), pos_next);
+		steps_next = calc_chord_steps_next(r.at(start_route_index > 0 ? start_route_index - 1 : 0), get_pos(), pos_next);
 	}
 	else {
 		// set pos_next
@@ -555,11 +569,11 @@ void vehicle_t::hop(grund_t* gr)
 	}
 	else {
 		if(  pos_next!=get_pos()  ) {
-			direction = calc_set_direction( pos_prev, pos_next );
+			direction = calc_set_direction( pos_prev, get_pos(), pos_next );
 		}
 		else if(  (  check_for_finish  &&  welt->lookup(pos_next)  &&  ribi_t::is_straight(welt->lookup(pos_next)->get_weg_ribi_unmasked(get_waytype()))  )  ||  welt->lookup(pos_next)->is_halt()) {
 			// allow diagonal stops at waypoints on diagonal tracks but avoid them on halts and at straight tracks...
-			direction = calc_set_direction( pos_prev, pos_next );
+			direction = calc_set_direction( pos_prev, get_pos(), pos_next );
 		}
 	}
 
@@ -886,12 +900,10 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(purchase_time%12
 			file->rdwr_byte(dy);
 		}
 		else {
+			// a tile length from before the hex bend lengths is replaced in
+			// convoi_t::finish_rd(), see need_realignment()
 			file->rdwr_byte(steps);
 			file->rdwr_byte(steps_next);
-			if(steps_next==old_diagonal_vehicle_steps_per_tile - 1  &&  file->is_loading()) {
-				// reset diagonal length (convoi will be reset anyway, if game diagonal is different)
-				steps_next = diagonal_vehicle_steps_per_tile - 1;
-			}
 		}
 		sint16 dummy16 = ((16*(sint16)hoff)/TILE_HEIGHT_STEP);
 		file->rdwr_short(dummy16);
@@ -920,15 +932,9 @@ DBG_MESSAGE("vehicle_t::rdwr_from_convoi()","bought at %i/%i.",(purchase_time%12
 		set_xoff( ddx-(16-i)*dx );
 		set_yoff( ddy-(16-i)*dy );
 		if(file->is_loading()) {
-			if(dx && dy) {
-				steps = min( VEHICLE_STEPS_PER_TILE - 1, VEHICLE_STEPS_PER_TILE - 1-(i*16) );
-				steps_next = VEHICLE_STEPS_PER_TILE - 1;
-			}
-			else {
-				// will be corrected anyway, if in a convoi
-				steps = min( diagonal_vehicle_steps_per_tile - 1, diagonal_vehicle_steps_per_tile - 1-(uint8)(((uint16)i*(uint16)(diagonal_vehicle_steps_per_tile - 1))/8) );
-				steps_next = diagonal_vehicle_steps_per_tile - 1;
-			}
+			// will be corrected anyway on a bend, if in a convoi
+			steps = min( VEHICLE_STEPS_PER_TILE - 1, VEHICLE_STEPS_PER_TILE - 1-(i*16) );
+			steps_next = VEHICLE_STEPS_PER_TILE - 1;
 		}
 	}
 

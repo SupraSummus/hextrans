@@ -386,7 +386,6 @@ DBG_MESSAGE("convoi_t::finish_rd()","state=%s, next_stop_index=%d", state_names[
 			// test also for realignment
 			sint16 step_pos = 0;
 			koord3d drive_pos;
-			uint8 const diagonal_vehicle_steps_per_tile = (uint8)(130560U / welt->get_settings().get_pak_diagonal_multiplier());
 			for( uint8 i=0;  i<vehicle_count;  i++ ) {
 				vehicle_t* v = fahr[i];
 				v->set_leading( i==0 );
@@ -397,7 +396,7 @@ DBG_MESSAGE("convoi_t::finish_rd()","state=%s, next_stop_index=%d", state_names[
 
 				// wrong alignment here => must relocate
 				if(v->need_realignment()) {
-					// diagonal => convoi must restart
+					// tile length changed => convoi must restart
 					realign_position |= (state==DRIVING  ||  is_waiting());
 				}
 				// if version is 99.17 or lower, some convois are broken, i.e. had too large gaps between vehicles
@@ -407,13 +406,13 @@ DBG_MESSAGE("convoi_t::finish_rd()","state=%s, next_stop_index=%d", state_names[
 					}
 					else {
 						if(  drive_pos!=v->get_pos()  ) {
-							// with long vehicles on diagonals, vehicles need not to be on consecutive tiles
+							// with long vehicles, vehicles need not to be on consecutive tiles
 							// do some guessing here
 							uint32 dist = koord_distance(drive_pos, v->get_pos());
 							if (dist>1) {
-								step_pos += (dist-1) * diagonal_vehicle_steps_per_tile;
+								step_pos += (dist-1) * VEHICLE_STEPS_PER_TILE;
 							}
-							step_pos += v->is_cutting_corner() ? diagonal_vehicle_steps_per_tile : VEHICLE_STEPS_PER_TILE;
+							step_pos += v->get_steps_next() + 1;
 						}
 						dbg->message("convoi_t::finish_rd()", "v: pos(%s) steps(%d) len=%d ribi=%d prev (%s) step(%d)", v->get_pos().get_str(), v->get_steps(), v->get_desc()->get_length()*16, v->get_direction(),  drive_pos.get_2d().get_str(), step_pos);
 						if(  abs( v->get_steps() - step_pos )>15  ) {
@@ -1989,13 +1988,13 @@ bool convoi_t::can_go_alte_richtung()
 		}
 
 		if(  pred  &&  pred->get_pos()!=v->get_pos()  ) {
-			tile_length += (ribi_t::is_straight(welt->lookup(pred->get_pos())->get_weg_ribi_unmasked(pred->get_waytype())) ? 16 : 8192/vehicle_t::get_diagonal_multiplier())*koord_distance(pred->get_pos(),v->get_pos());
+			tile_length += (vehicle_base_t::get_tile_steps(welt->lookup(pred->get_pos())->get_weg_ribi_unmasked(pred->get_waytype())) / VEHICLE_STEPS_PER_CARUNIT)*koord_distance(pred->get_pos(),v->get_pos());
 		}
 
 		pred = v;
 	}
 	// check if convoi is way too short (even for diagonal tracks)
-	tile_length += (ribi_t::is_straight(welt->lookup(fahr[vehicle_count-1]->get_pos())->get_weg_ribi_unmasked(fahr[vehicle_count-1]->get_waytype())) ? 16 : 8192/vehicle_t::get_diagonal_multiplier());
+	tile_length += vehicle_base_t::get_tile_steps(welt->lookup(fahr[vehicle_count-1]->get_pos())->get_weg_ribi_unmasked(fahr[vehicle_count-1]->get_waytype())) / VEHICLE_STEPS_PER_CARUNIT;
 	if(  convoi_length>tile_length  ) {
 		dbg->warning("convoi_t::go_alte_richtung()","convoy too short (id %i) => fixing!",self.get_id());
 		akt_speed = 8;
@@ -3881,7 +3880,7 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, sint32 other_speed, si
 			return false;
 		}
 
-		int d = ribi_t::is_straight(str->get_ribi()) ? VEHICLE_STEPS_PER_TILE : vehicle_base_t::get_diagonal_vehicle_steps_per_tile();
+		int d = vehicle_base_t::get_tile_steps(str->get_ribi());
 		distance -= d;
 		time_overtaking += d;
 
@@ -3939,14 +3938,9 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, sint32 other_speed, si
 			return false;
 		}
 
-		if(  ribi_t::is_straight(str->get_ribi())  ) {
-			time_overtaking -= (VEHICLE_STEPS_PER_TILE<<16) / kmh_to_speed(str->get_max_speed());
-			distance -= VEHICLE_STEPS_PER_TILE;
-		}
-		else {
-			time_overtaking -= (vehicle_base_t::get_diagonal_vehicle_steps_per_tile()<<16) / kmh_to_speed(str->get_max_speed());
-			distance -= vehicle_base_t::get_diagonal_vehicle_steps_per_tile();
-		}
+		const sint32 d = vehicle_base_t::get_tile_steps(str->get_ribi());
+		time_overtaking -= (d<<16) / kmh_to_speed(str->get_max_speed());
+		distance -= d;
 
 		// Check for other vehicles in facing direction
 		ribi_t::ribi their_direction = ribi_t::backward( fahr[0]->calc_direction(pos_prev, pos_next) );

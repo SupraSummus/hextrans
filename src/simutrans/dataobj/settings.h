@@ -259,12 +259,6 @@ private:
 	/* maximum number of steps for breath search */
 	sint32 max_transfers = 9;
 
-	/* multiplier for steps on diagonal:
-	 * 1024: TT-like, factor 2, vehicle will be too long and too fast
-	 * 724: correct one, factor sqrt(2)
-	 */
-	uint16 pak_diagonal_multiplier = 724;
-
 	// names of the stations ...
 	char language_code_names[4];
 
@@ -541,9 +535,6 @@ public:
 	const way_desc_t *get_city_road_type( uint16 year );
 	const way_desc_t *get_intercity_road_type( uint16 year );
 	uint16 get_city_road_speed_limit(uint16 year);
-
-	void set_pak_diagonal_multiplier(uint16 n) { pak_diagonal_multiplier = n; }
-	uint16 get_pak_diagonal_multiplier() const { return pak_diagonal_multiplier; }
 
 	int get_name_language_id() const;
 	void set_name_language_iso( const char *iso ) {

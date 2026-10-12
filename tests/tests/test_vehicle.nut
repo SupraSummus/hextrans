@@ -8,17 +8,57 @@
 // Tests for vehicle movement along the three hex axes
 //
 
-// Headings of the straight roads: a road is built from the depot at `from` to the
-// stop at `to`, so `from` -> `to` is the direction of travel.  All roads are 11 steps
-// long and lie well inside the 16x16 map.
+// Headings of the straight roads: a road is built from the depot at the first point
+// of `path` to the stop at the last, so that is the direction of travel.  All roads
+// are 11 steps long and lie well inside the 16x16 map.
 vehicle_roads <- [
-	{ name = "S",  from = coord3d(4, 2, 0),  to = coord3d(4, 13, 0) },
-	{ name = "N",  from = coord3d(4, 13, 0), to = coord3d(4, 2, 0) },
-	{ name = "SE", from = coord3d(2, 4, 0),  to = coord3d(13, 4, 0) },
-	{ name = "NW", from = coord3d(13, 4, 0), to = coord3d(2, 4, 0) },
-	{ name = "SW", from = coord3d(13, 2, 0), to = coord3d(2, 13, 0) },
-	{ name = "NE", from = coord3d(2, 13, 0), to = coord3d(13, 2, 0) },
+	{ name = "S",  path = [coord3d(4, 2, 0),  coord3d(4, 13, 0)] },
+	{ name = "N",  path = [coord3d(4, 13, 0), coord3d(4, 2, 0)] },
+	{ name = "SE", path = [coord3d(2, 4, 0),  coord3d(13, 4, 0)] },
+	{ name = "NW", path = [coord3d(13, 4, 0), coord3d(2, 4, 0)] },
+	{ name = "SW", path = [coord3d(13, 2, 0), coord3d(2, 13, 0)] },
+	{ name = "NE", path = [coord3d(2, 13, 0), coord3d(13, 2, 0)] },
 ]
+
+// The 6 hex edges in clockwise order, as axial steps.
+vehicle_edges <- [
+	{ name = "SE", x =  1, y =  0 },
+	{ name = "S",  x =  0, y =  1 },
+	{ name = "SW", x = -1, y =  1 },
+	{ name = "NW", x = -1, y =  0 },
+	{ name = "N",  x =  0, y = -1 },
+	{ name = "NE", x =  1, y = -1 },
+]
+
+// Bend tile of the bent roads, and the length of their legs.
+vehicle_bend <- coord3d(8, 8, 0)
+const vehicle_leg = 5
+
+
+function vehicle_hex_dist(a, b)
+{
+	local dx = b.x - a.x
+	local dy = b.y - a.y
+	return (abs(dx) + abs(dy) + abs(dx + dy)) / 2
+}
+
+
+// A road that comes in along edge `i` to the bend tile and leaves along the
+// edge `turn` steps clockwise from it.
+function vehicle_bent_road(i, turn)
+{
+	local e1 = vehicle_edges[i]
+	local e2 = vehicle_edges[(i + turn) % 6]
+	local b = vehicle_bend
+	return {
+		name = e1.name + "-" + e2.name,
+		path = [
+			coord3d(b.x - vehicle_leg * e1.x, b.y - vehicle_leg * e1.y, 0),
+			b,
+			coord3d(b.x + vehicle_leg * e2.x, b.y + vehicle_leg * e2.y, 0)
+		]
+	}
+}
 
 
 // Drive a bus from the depot at one end of the road to the stop at the other end and
@@ -31,12 +71,19 @@ function vehicle_cross_times(road)
 {
 	local pl = player_x(0)
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
-	local from = road.from
-	local to = road.to
-	local len = (abs(to.x - from.x) + abs(to.y - from.y) + abs(to.x - from.x + to.y - from.y)) / 2
-	local near = coord3d(from.x + (to.x - from.x) / len, from.y + (to.y - from.y) / len, 0)
+	local path = road.path
+	local from = path[0]
+	local to = path[path.len() - 1]
+	local len = 0
+	for (local i = 1; i < path.len(); i++) {
+		len += vehicle_hex_dist(path[i - 1], path[i])
+	}
+	local first = vehicle_hex_dist(path[0], path[1])
+	local near = coord3d(from.x + (path[1].x - from.x) / first, from.y + (path[1].y - from.y) / first, 0)
 
-	ASSERT_EQUAL(command_x.build_way(pl, from, to, road_desc, true), null)
+	for (local i = 1; i < path.len(); i++) {
+		ASSERT_EQUAL(command_x.build_way(pl, path[i - 1], path[i], road_desc, true), null)
+	}
 	ASSERT_EQUAL(command_x(tool_build_station).work(pl, to, "BusStop"), null)
 	ASSERT_EQUAL(command_x(tool_build_station).work(pl, near, "BusStop"), null)
 	ASSERT_EQUAL(command_x.build_depot(pl, from, building_desc_x("CarDepot")), null)
@@ -76,7 +123,9 @@ function vehicle_cross_times(road)
 	ASSERT_EQUAL(command_x(tool_remover).work(pl, to), null)
 	ASSERT_EQUAL(command_x(tool_remover).work(pl, near), null)
 	ASSERT_EQUAL(command_x(tool_remover).work(pl, from), null)
-	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, from, to, "" + wt_road), null)
+	for (local i = 1; i < path.len(); i++) {
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, path[i - 1], path[i], "" + wt_road), null)
+	}
 	RESET_ALL_PLAYER_FUNDS()
 
 	if (seen.len() != len + 1) {
@@ -117,6 +166,32 @@ function test_vehicle_tile_length_all_hex_directions()
 		for (local i = 0; i < ref.len(); i++) {
 			if (abs(times[i] - ref[i]) > 3) {
 				throw road.name + " road: script steps per tile are [" + vehicle_times_str(times) + "] but [" + vehicle_times_str(ref) + "] on the " + vehicle_roads[0].name + " road"
+			}
+		}
+	}
+}
+
+
+// A bus crosses a tile on the chord from the middle of the edge it enters by to the
+// middle of the edge it leaves by.  Turning by 60 degrees the two edges are 120
+// degrees apart and the chord is cos 30 = 0.87 of a straight crossing; turning by
+// 120 degrees they are 60 degrees apart and it is half of one.  Each bent road is
+// compared with the straight S road tile by tile: up to the bend tile the bus
+// drives exactly as there.
+function test_vehicle_tile_length_bends()
+{
+	local ref = vehicle_cross_times(vehicle_roads[0])
+	// the bend is tile `vehicle_leg` from the depot, times[] starts at tile 1
+	local k = vehicle_leg - 1
+
+	foreach (turn in [1, 2]) {
+		for (local i = 0; i < 6; i++) {
+			local road = vehicle_bent_road(i, turn)
+			local times = vehicle_cross_times(road)
+			local expect = turn == 1 ? (ref[k] * 222 + 128) / 256 : (ref[k] + 1) / 2
+
+			if (abs(times[k] - expect) > 3  ||  abs(times[k - 1] - ref[k - 1]) > 3) {
+				throw road.name + " road: script steps per tile are [" + vehicle_times_str(times) + "], expected " + expect + " on the bend tile " + (k + 1) + " and [" + vehicle_times_str(ref) + "] on the " + vehicle_roads[0].name + " road"
 			}
 		}
 	}

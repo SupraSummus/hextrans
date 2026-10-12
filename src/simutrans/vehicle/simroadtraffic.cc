@@ -775,7 +775,7 @@ void private_car_t::hop(grund_t* to)
 		steps_next = 0; // mark for starting at end of tile!
 	}
 	else {
-		direction = calc_set_direction( get_pos(), pos_next_next );
+		direction = calc_set_direction( get_pos(), pos_next, pos_next_next );
 	}
 	calc_image();
 
@@ -1003,7 +1003,7 @@ bool private_car_t::can_overtake( overtaker_t *other_overtaker, sint32 other_spe
 			return false;
 		}
 
-		int d = ribi_t::is_straight(str->get_ribi()) ? VEHICLE_STEPS_PER_TILE : diagonal_vehicle_steps_per_tile;
+		int d = get_tile_steps(str->get_ribi());
 		distance -= d;
 		time_overtaking += d;
 
@@ -1069,12 +1069,7 @@ bool private_car_t::can_overtake( overtaker_t *other_overtaker, sint32 other_spe
 	time_overtaking = (time_overtaking << 16)/(sint32)current_speed;
 	do {
 		// we can allow crossings or traffic lights here, since they will stop also oncoming traffic
-		if(  ribi_t::is_straight(str->get_ribi())  ) {
-			time_overtaking -= (VEHICLE_STEPS_PER_TILE<<16) / kmh_to_speed(str->get_max_speed());
-		}
-		else {
-			time_overtaking -= (diagonal_vehicle_steps_per_tile<<16) / kmh_to_speed(str->get_max_speed());
-		}
+		time_overtaking -= (get_tile_steps(str->get_ribi())<<16) / kmh_to_speed(str->get_max_speed());
 
 		// start of bridge is one level deeper
 		if(gr->get_weg_yoff()>0)  {

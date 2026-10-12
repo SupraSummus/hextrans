@@ -47,27 +47,26 @@ void vehicle_base_t::set_dxdy(ribi_t::ribi dir)
 }
 
 
-// Constants
-uint8 vehicle_base_t::old_diagonal_vehicle_steps_per_tile = 128;
-uint8 vehicle_base_t::diagonal_vehicle_steps_per_tile = 181;
-uint16 vehicle_base_t::diagonal_multiplier = 724;
+// Steps across a bend tile, on the chord between the middles of the entry and
+// exit edges: edges 120 degrees apart (a 60 degree turn) are 256 cos 30 apart,
+// edges 60 degrees apart (a 120 degree turn) 256 / 2.
+static const uint16 STEPS_PER_WIDE_BEND  = 222;
+static const uint16 STEPS_PER_SHARP_BEND = VEHICLE_STEPS_PER_TILE / 2;
+
+// The screen path through a tile is still the square-era one (TODO.md
+// "Bend tile length"): the 60 degree bends drew 181 steps, of which a step with
+// dx or dy 0 covered 1/sqrt(2) = 724/1024, and the 120 degree bends 256.
+static const uint16 LEGACY_WIDE_BEND_SCREEN_STEPS = 181;
+static const uint16 LEGACY_DIAGONAL_SCREEN_SCALE = 724;
 
 
-// set only once, before loading!
-void vehicle_base_t::set_diagonal_multiplier( uint32 multiplier, uint32 old_diagonal_multiplier )
+uint16 vehicle_base_t::get_tile_steps(ribi_t::ribi edges)
 {
-	diagonal_multiplier = (uint16)multiplier;
-	diagonal_vehicle_steps_per_tile = (uint8)(130560u/diagonal_multiplier) + 1;
-	old_diagonal_vehicle_steps_per_tile = (uint8)(130560u/max(old_diagonal_multiplier, 1u)) + 1;
-}
-
-
-// if true, convoi, must restart!
-// Only the tile length of a bend depends on the diagonal multiplier; the
-// loader has already turned the old bend length in steps_next into the new one.
-bool vehicle_base_t::need_realignment() const
-{
-	return old_diagonal_vehicle_steps_per_tile!=diagonal_vehicle_steps_per_tile  &&  is_cutting_corner();
+	if(  !ribi_t::is_bend(edges)  ) {
+		return VEHICLE_STEPS_PER_TILE;
+	}
+	// two neighbouring edges: rotating one by 60 degrees gives the other
+	return (ribi_t::rotate60(edges) & edges) ? STEPS_PER_SHARP_BEND : STEPS_PER_WIDE_BEND;
 }
 
 // [0]=xoff [1]=yoff
@@ -352,17 +351,31 @@ uint32 vehicle_base_t::do_drive(uint32 distance)
 }
 
 
-// to make smaller steps than the tile granularity, we have to use this trick
-void vehicle_base_t::get_screen_offset( int &xoff, int &yoff, const sint16 raster_width ) const
+sint32 vehicle_base_t::get_display_steps(uint32 s, sint16 raster_width) const
 {
-	// vehicles needs finer steps to appear smoother
-	sint32 display_steps = (uint32)steps*(uint16)raster_width;
+	// stretch the steps of a bend onto its square-era screen path
+	if(  steps_next == STEPS_PER_WIDE_BEND - 1  ) {
+		s = (s * (LEGACY_WIDE_BEND_SCREEN_STEPS - 1)) / steps_next;
+	}
+	else if(  steps_next == STEPS_PER_SHARP_BEND - 1  ) {
+		s = (s * (VEHICLE_STEPS_PER_TILE - 1)) / steps_next;
+	}
+	sint32 display_steps = s*(uint16)raster_width;
 	if(dx && dy) {
 		display_steps &= 0xFFFFFC00;
 	}
 	else {
-		display_steps = (display_steps*diagonal_multiplier)>>10;
+		display_steps = (display_steps*LEGACY_DIAGONAL_SCREEN_SCALE)>>10;
 	}
+	return display_steps;
+}
+
+
+// to make smaller steps than the tile granularity, we have to use this trick
+void vehicle_base_t::get_screen_offset( int &xoff, int &yoff, const sint16 raster_width ) const
+{
+	// vehicles needs finer steps to appear smoother
+	const sint32 display_steps = get_display_steps( steps, raster_width );
 	xoff += (display_steps*dx) >> 10;
 	yoff += ((display_steps*dy) >> 10) + (get_hoff(raster_width))/(4*16);
 }
@@ -395,18 +408,13 @@ ribi_t::ribi vehicle_base_t::calc_chord_direction(const koord3d& start, const ko
 }
 
 
-// Steps to cross a tile along the chord start -> ende.
-// Straight travel takes the same number of steps along all 3 hex axes, as
-// all 6 neighbours are equally far away.  An off-axis chord is a bend that
-// cuts the corner: it keeps the shorter square-era diagonal length, see
-// TODO.md "Bend tile length".
-uint8 vehicle_base_t::calc_chord_steps_next(const koord3d& start, const koord3d& ende)
+// Steps to cross the tile cur, from the edge towards prev to the edge
+// towards next.  The two-tile chord prev -> next cannot tell a 120 degree bend
+// from a single step, both are one edge long.
+uint8 vehicle_base_t::calc_chord_steps_next(const koord3d& prev, const koord3d& cur, const koord3d& next)
 {
-	const sint32 di = ende.x - start.x;
-	const sint32 dj = ende.y - start.y;
-
-	const bool on_axis = (di != 0  ||  dj != 0)  &&  (di == 0  ||  dj == 0  ||  di + dj == 0);
-	return (on_axis ? VEHICLE_STEPS_PER_TILE : diagonal_vehicle_steps_per_tile) - 1;
+	const ribi_t::ribi edges = ribi_type(cur.get_2d(), prev.get_2d()) | ribi_type(cur.get_2d(), next.get_2d());
+	return (uint8)(get_tile_steps(edges) - 1);
 }
 
 
@@ -416,14 +424,14 @@ uint8 vehicle_base_t::calc_chord_steps_next(const koord3d& start, const koord3d&
 // calc_chord_steps_next().  The (1,1) and (-1,-1) chords come from the
 // SE-S and NW-N bends and keep the legacy square-diagonal screen step
 // (0,+-2) until the viewport port lands.
-ribi_t::ribi vehicle_base_t::calc_set_direction(const koord3d& start, const koord3d& ende)
+ribi_t::ribi vehicle_base_t::calc_set_direction(const koord3d& prev, const koord3d& cur, const koord3d& next)
 {
-	const ribi_t::ribi direction = calc_chord_direction(start, ende);
+	const ribi_t::ribi direction = calc_chord_direction(prev, next);
 
-	steps_next = calc_chord_steps_next(start, ende);
+	steps_next = calc_chord_steps_next(prev, cur, next);
 	set_dxdy(direction);
 	if(direction == ribi_t::none) {
-		dy = (ende.y > start.y) ? 2 : -2;
+		dy = (next.y > prev.y) ? 2 : -2;
 	}
 	return direction;
 }
