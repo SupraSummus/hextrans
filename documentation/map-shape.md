@@ -130,11 +130,9 @@ The season and image loops (`check_season_snowline`, `update_map_intern`)
 and `fabrikbauer`'s `fab_map` stay rectangular:
 they go through `get_boden_count()`, which is 0 off the map,
 or touch no ground.
-The `enlarge_map` strips (step 5) and `rotate90_plans` (step 6)
-are tripwires instead:
-`enlarge_map` on an existing world and `rotate90` call `dbg->fatal`
-when D > 1;
-the `obj_t` and vehicle `rotate90` walks only run inside them.
+The `enlarge_map` strips (step 5) are a tripwire instead:
+`enlarge_map` on an existing world calls `dbg->fatal` when D > 1.
+`karte_t::rotate90` walks the on-map cells only (see "Rotation").
 
 `koord_random(W', H')` callers sample by rejection
 through `surface_t::get_random_tile()`
@@ -294,22 +292,47 @@ It permutes the sides and moves each tile into the new rhombus:
     (tile, corner c) -> (rotated tile, c + 1 mod 6)
 
 The new extents are `(H+D-1, W+H-1)`.
-`karte_t::rotate90`, renamed `rotate_one_step` by the #281 plan,
-reallocates `plan` and the vertex arrays at the new extents
-and moves each on-map cell to its rotated index,
-as upstream's `rotate90_plans` swaps W and H.
-Three steps map the shape onto itself with `(q, r) -> (W'-1-q, H'-1-r)`,
-so 180° needs no reallocation and works on today's rhombus.
+Three steps map the shape onto itself with `(q, r) -> (W'-1-q, H'-1-r)`.
 
 The linear part of a step, `(q, r) -> (-r, q + r)`,
 is `hex_axial_rotate` in `dataobj/koord_hex.cc`;
-`rotate_tile` and `rotate_vertex` add the shift `(H + D - 2, -(D - 1))`.
-`koord::rotate90(y_size)`, `koord3d::rotate90` and `array2d_tpl::rotate90()`
-are the D = 1 forms, with `y_size = H - 1`:
-upstream's signatures, one step of a W×H rhombus.
-The rotated hexagon (1, W, H) is not a rhombus,
-so `array2d_tpl::rotate90()` grows the array to its bounding rhombus.
-`tools/hex_map_shape_test` pins all of them against `rotate_tile`.
+`rotate_tile` and `rotate_vertex` add the shift `(H + D - 2, -(D - 1))`,
+and their `steps` forms chain single steps through the rotated shapes.
+`koord::rotate90(shape)`, `koord3d::rotate90(shape)` and
+`array2d_tpl::rotate90(shape)` take one step from `shape`;
+the hooks of the cascade take that shape where upstream took `y_size`,
+and `obj_t` hooks read it from `surface_t::get_map_shape()`,
+which still holds the old shape while the tiles move.
+`tools/hex_map_shape_test` pins them against `rotate_tile`.
+
+`karte_t::rotate90(steps)` runs the cascade once per step.
+Each step moves every on-map cell of `plan` and `water_hgts`
+into arrays at the rotated extents,
+maps each canonical height slot `(tile, E|SE)` to
+`canonical_vertex(shape.rotate_vertex(v))`,
+turns the climate maps, sets the rotated shape in the settings and
+`surface_t`, and then rotates cities, factories, halts, convoys, players,
+labels, the viewport, messages, windows, the scenario and the script
+transform.
+Ribis and slopes take exact 60° steps.
+Building layouts and footprints, factory origins, pixel offsets
+and axial rectangles (the city area, scenario rects) have no 60° form
+before the 6-orientation footprint:
+they turn by 180° on the step that completes a half turn
+(`settings_t::is_half_turn_rotation`),
+which is exact because positions take exact steps in between.
+So `karte_t::can_rotate90` allows whole half turns from 0° or 180°,
+on any W×H×D,
+and the rotate tool turns by three steps, offline only, as upstream.
+
+The script API sees the world at its own rotation 0
+(`script_api::coordinate_transform_t`):
+tiles through `rotate_tile` back over the map shape,
+directions, slopes, corners and building layouts with them.
+`debug.rotate_map()` turns the map from a script;
+`tests/tests/test_world_rotate.nut` snapshots the world through the API
+across half turns,
+and `tools/test.py --rotate` runs the suite on a turned map.
 
 ## Upstream divergence
 
@@ -377,5 +400,8 @@ and small `contains` hunks inside upstream loops.
    Test: enlarge the fixture to a larger W and H;
    old tiles are unchanged, every new on-map tile has ground,
    and the tile count matches the formula.
-6. **Rotation.** #281's W×H×D and 60° steps, built on `rotate_tile`.
+6. **Rotation.** #281's 60° steps, built on `rotate_tile`.
+   Half turns landed on any W×H×D;
+   the single step waits for this plan and the 6-orientation footprint
+   (`TODO.md`, "Rotation cascade").
    Test: the rotation round trip on a D > 1 fixture.
