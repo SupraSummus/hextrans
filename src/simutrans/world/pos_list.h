@@ -143,16 +143,90 @@ public:
 /**
  * pos_list_wh_t:
  *
- * Extended version of pos_list_t. Provides surrounding positions
- * for a range of size h by w.
- * (0, 0) is used as the end marker again.
+ * Extended version of pos_list_t. Provides the anchors (the tile with the
+ * smallest q and r) of the w by h boxes around the origin, closest first: the
+ * physical distance to the nearest tile of the box does not decrease.  The
+ * boxes are those whose nearest tile is in the hex disc of radius max_radius,
+ * once each; the w * h boxes that contain the origin come first.
+ *
+ * The square-grid version took the corner of the box nearest the origin along
+ * each axis for its nearest tile.  That is the nearest tile in hex steps, but
+ * in the map plane only when q and r have the same sign: for q > 0 > r the
+ * distance q^2 + q*r + r^2 falls with q up to |r| / 2, so a box at
+ * (2..4, -6) is nearest at (3, -6), not at (2, -6).
+ *
+ * Every box belongs to its nearest tile p, the smallest (q, r) of the tiles
+ * at the same distance, which pos_list_t hands out closest first.  p is the
+ * nearest tile of the box exactly when no neighbour of p nearer the origin
+ * (or as near with a smaller (q, r)) is in it: the distance is a sum of convex
+ * functions of q, r and q + r, so a tile with no nearer neighbour in the box is
+ * nearer than all of them.  The boxes of p are the offsets (i, j) of p from
+ * the anchor with that property.
  */
 class pos_list_wh_t : public pos_list_t {
 	sint16 w;
 	sint16 h;
 
-	sint16 dx;
-	sint16 dy;
+	koord p;          // the tile that the boxes below have as their nearest
+	uint8 nearer;     // bit n: neighbours[n] of p is nearer the origin
+	sint16 i_lo, i_hi, j_lo, j_hi; // offsets of p in the box, bounded by the neighbours on an axis
+	sint16 i, j;      // the next offset to try, j > j_hi when p has no more
+
+	void exhaust()
+	{
+		i = 0;
+		j = 1;
+		j_hi = 0;
+	}
+
+	// whether neighbours[n] of p is nearer the origin than p, or as near and
+	// first in (q, r) order
+	static bool is_nearer(koord t, koord p)
+	{
+		const uint32 dt = physical_distance_sq(t, koord(0, 0));
+		const uint32 dp = physical_distance_sq(p, koord(0, 0));
+		return dt < dp  ||  (dt == dp  &&  (t.x < p.x  ||  (t.x == p.x  &&  t.y < p.y)));
+	}
+
+	bool next_tile()
+	{
+		if(!pos_list_t::get_next_pos(p)) {
+			return false;
+		}
+		nearer = 0;
+		for(uint8 n = 0; n < 6; n++) {
+			if(is_nearer(p + koord::neighbours[n], p)) {
+				nearer |= 1u << n;
+			}
+		}
+		// a nearer SE, NW, S or N neighbour in the box leaves one column or row
+		// for p: koord::neighbours[] is SE, S, SW, NW, N, NE
+		i_lo = (nearer & (1u << 0)) ? w - 1 : 0;
+		i_hi = (nearer & (1u << 3)) ? 0 : w - 1;
+		j_lo = (nearer & (1u << 1)) ? h - 1 : 0;
+		j_hi = (nearer & (1u << 4)) ? 0 : h - 1;
+		i = i_lo;
+		j = j_lo;
+		if(i_lo > i_hi) {
+			j = j_hi + 1;
+		}
+		return true;
+	}
+
+	bool is_nearest_tile(sint16 oi, sint16 oj) const
+	{
+		for(uint8 n = 0; n < 6; n++) {
+			if(nearer & (1u << n)) {
+				const sint16 x = oi + koord::neighbours[n].x;
+				const sint16 y = oj + koord::neighbours[n].y;
+				if(x >= 0  &&  x < w  &&  y >= 0  &&  y < h) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
 public:
 	pos_list_wh_t(sint16 max_radius, sint16 w, sint16 h) :
 		pos_list_t(max_radius)
@@ -164,58 +238,32 @@ public:
 	{
 		this->w = w;
 		this->h = h;
-		dx = dy = 0;
-		pos_list_t::restart();
+		restart();
 	}
-	void restart() { pos_list_t::restart(); }
+	void restart()
+	{
+		pos_list_t::restart();
+		exhaust();
+	}
 
 	bool get_next_pos(koord &k) OVERRIDE
 	{
-		get_pos(k);
-
-		if(k.x == 0 && k.y == 0 && (dx > 0 || dy > 0)) {
-			if(dx > 0) {
-				dx--;
-			}
-			else if(dy > 0) {
-				dy--;
-				dx = w - 1;
-			}
-			k.x -= dx;
-			k.y -= dy;
-		}
-		else if(dx > 0) {
-			k.x -= --dx;
-			if(k.y <= 0) {
-				k.y -= h - 1;
-			}
-		}
-		else if(dy > 0) {
-			k.y -= --dy;
-			if(k.x <= 0) {
-				k.x -= w - 1;
-			}
-		}
-		else {
-			if(pos_list_t::get_next_pos(k)) {
-				if(k.y == 0) {
-					dy = h - 1;
+		for(;;) {
+			while(j <= j_hi) {
+				const sint16 oi = i, oj = j;
+				if(++i > i_hi) {
+					i = i_lo;
+					j++;
 				}
-				if(k.x == 0) {
-					dx = w - 1;
-				}
-				if(k.y <= 0) {
-					k.y -= h - 1;
-				}
-				if(k.x <= 0) {
-					k.x -= w - 1;
+				if(is_nearest_tile(oi, oj)) {
+					k = koord(p.x - oi, p.y - oj);
+					return true;
 				}
 			}
-			else {
+			if(!next_tile()) {
 				return false;
 			}
 		}
-		return true;
 	}
 };
 
