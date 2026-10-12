@@ -24,9 +24,12 @@ protected:
 	/// steps_next of the tile @p cur, entered from @p prev and left to @p next
 	static uint8 calc_chord_steps_next(const koord3d& prev, const koord3d& cur, const koord3d& next);
 
-	// [0]=xoff [1]=yoff
+	// [0]=xoff [1]=yoff, row get_lane_offset_row()
 	static sint8 driveleft_base_offsets[8][2];
 	static sint8 overtaking_base_offsets[8][2];
+
+	/// Row of the lane offset tables for the screen step dx, dy
+	uint8 get_lane_offset_row() const;
 
 	/**
 	 * Actual travel direction in screen coordinates

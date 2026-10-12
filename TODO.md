@@ -774,13 +774,6 @@ and scales a step with `dx` or `dy` 0 by the old 724/1024;
 rebase it on the chord between the two edge middles together with the
 per-edge offsets.
 
-Two more per-direction tables still follow the old square model.
-`driveleft_base_offsets` and `overtaking_base_offsets` (`vehicle_base.cc`)
-are keyed by `get_dir()`,
-so SE/NW traffic gets the square-diagonal lane rows
-instead of the rows the old east/west edges used.
-Next move: key them by ribi, the way `set_dxdy` does.
-
 **Chord direction of vehicles.**
 `vehicle_base_t::direction` and `calc_direction` both hold
 `calc_chord_direction` of the tiles before and after a tile,
