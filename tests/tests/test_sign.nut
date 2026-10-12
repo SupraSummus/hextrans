@@ -411,18 +411,88 @@ function test_sign_remove_trafficlight()
 	ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(2, 2, 0), trafficlight), null)
 	ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(5, 5, 0), trafficlight), null)
 
-	// Note that both traffic lights must have the same direction for the test to work
-	// So the second traffic light must not change direction between the two wayremover calls
+	// a light does not survive its junction, whichever axis stays: see also
+	// test_sign_trafficlight_removal_follows_junction
 	{
 		ASSERT_EQUAL(wayremover.work(pl, coord3d(2, 1, 0), coord3d(2, 3, 0), "" + wt_road), null)
 		ASSERT_EQUAL(wayremover.work(pl, coord3d(4, 5, 0), coord3d(6, 5, 0), "" + wt_road), null)
 
-		ASSERT_EQUAL(tile_x(2, 2, 0).find_object(mo_signal), null)
-		ASSERT_EQUAL(tile_x(5, 5, 0).find_object(mo_signal), null)
+		ASSERT_EQUAL(tile_x(2, 2, 0).find_object(mo_roadsign), null)
+		ASSERT_EQUAL(tile_x(5, 5, 0).find_object(mo_roadsign), null)
 	}
 
 	ASSERT_EQUAL(wayremover.work(pl, coord3d(1, 2, 0), coord3d(3, 2, 0), "" + wt_road), null)
 	ASSERT_EQUAL(wayremover.work(pl, coord3d(5, 4, 0), coord3d(5, 6, 0), "" + wt_road), null)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+// A traffic light shows the axis that is green at the moment as its direction,
+// and a yellow light shows none. Advances the simulation until the light is in
+// state `state` of its cycle (green of axis 0..2, yellow 3..5), or gives up.
+// A new light stands in state 0 with every direction of its tile until the
+// first state change, so state 0 only counts once its direction is the axis.
+function wait_for_trafficlight_state(light, state)
+{
+	local axes = [dir.northsouth, dir.northwest_southeast, dir.northeast_southwest]
+	local want = state < 3 ? axes[state] : dir.none
+
+	for (local step = 0; step < 3000  &&  !(light.get_state() == state  &&  light.get_dirs() == want); step++) {
+		sleep()
+	}
+	ASSERT_EQUAL(light.get_state(), state)
+	ASSERT_EQUAL(light.get_dirs(), want)
+}
+
+
+function test_sign_trafficlight_removal_follows_junction()
+{
+	// Taking legs off the junction of a traffic light deletes the light unless
+	// a 3-way remains, whichever axis is green when it happens. N|S column
+	// (constant x, +y) crossed by the NW|SE road (+x) at (2,3), as in
+	// test_sign_build_trafficlight. The cycle of the 4-way is state 0 (N|S
+	// green), 3 (yellow), 1 (NW|SE green), 4 (yellow).
+	local pl = player_x(0)
+	local wayremover = command_x(tool_remove_way)
+	local remover = command_x(tool_remover)
+	local road = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local trafficlight = sign_desc_x.get_available_signs(wt_road).filter(@(idx, sign) sign.is_traffic_light())[0]
+
+	local column = [coord3d(2, 1, 0), coord3d(2, 4, 0)]
+	local cross  = [coord3d(1, 3, 0), coord3d(3, 3, 0)]
+	// what is taken off, whether the light stays, and what is left of the roads
+	local cases = [
+		{ remove = cross,                            kept = false, left = [column] }, // N|S remains
+		{ remove = column,                           kept = false, left = [cross] },  // NW|SE remains
+		{ remove = [coord3d(1, 3, 0), coord3d(2, 3, 0)], kept = true,  left = [column, [coord3d(2, 3, 0), coord3d(3, 3, 0)]] }, // N|S|SE remains
+	]
+
+	foreach (state in [0, 3, 1, 4]) {
+		foreach (c in cases) {
+			ASSERT_EQUAL(command_x.build_way(pl, column[0], column[1], road, true), null)
+			ASSERT_EQUAL(command_x.build_way(pl, cross[0], cross[1], road, true), null)
+			ASSERT_EQUAL(command_x.build_sign_at(pl, coord3d(2, 3, 0), trafficlight), null)
+
+			wait_for_trafficlight_state(tile_x(2, 3, 0).find_object(mo_roadsign), state)
+
+			ASSERT_EQUAL(wayremover.work(pl, c.remove[0], c.remove[1], "" + wt_road), null)
+
+			local tl = tile_x(2, 3, 0).find_object(mo_roadsign)
+			if (c.kept) {
+				ASSERT_TRUE(tl != null)
+				ASSERT_TRUE(tl.get_desc().is_traffic_light())
+				ASSERT_EQUAL(remover.work(pl, coord3d(2, 3, 0)), null)
+			}
+			else {
+				ASSERT_EQUAL(tl, null)
+			}
+
+			foreach (r in c.left) {
+				ASSERT_EQUAL(wayremover.work(pl, r[0], r[1], "" + wt_road), null)
+			}
+		}
+	}
 
 	RESET_ALL_PLAYER_FUNDS()
 }
