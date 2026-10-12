@@ -1,7 +1,8 @@
 # Standalone self-test for the "tiles around here" helpers in
-# src/simutrans/dataobj/koord.h (koord_distance_to_rect, hex_disc) and the
-# placefinder's spiral in src/simutrans/world/pos_list.h, built against the
-# headers and dataobj/koord_hex.cc directly.  Not wired into the main build.
+# src/simutrans/dataobj/koord.h (koord_distance_to_rect, hex_disc), the turn
+# of a route (hex_turn_steps) and the placefinder's spiral in
+# src/simutrans/world/pos_list.h, built against the headers and
+# dataobj/koord_hex.cc directly.  Not wired into the main build.
 #
 #   make           # build ./hex_neighbourhood_test
 #   make run       # build and run the self-test
