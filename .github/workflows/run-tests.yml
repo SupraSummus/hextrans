@@ -50,6 +50,10 @@ jobs:
       # slope_t::raise_base in dataobj/ribi.h: all 6 corners, E and W
       # included, follow a water surface raised over a tile.  ~1 second.
       run: make -C tools/hex_slope_test run
+    - name: Map generation shape self-test
+      # dataobj/mapgen_shape.h: the climate smoothing weights add up to
+      # their divisor and every neighbour weighs the same.  ~1 second.
+      run: make -C tools/hex_mapgen_test run
     - name: Cache
       uses: actions/cache@v4
       with:

@@ -663,6 +663,15 @@ with its halts, convoys and cash.
 and `-windows.png` for the open script-error window, if any.
 It also works with `SDL_VIDEODRIVER=dummy`.
 
+`tools/mapgen_metrics.py` prints the climate shares of generated maps
+through the `-mapstats SIZE [SEED [humidity|height]]` hook in `simmain.cc`
+(terrain, lakes and rivers as in a normal new world, no cities or industry).
+Run it once per engine build, with `--binary` for the other one,
+to compare a change to the climate passes on the same maps.
+The same seed gives the same terrain,
+but a change that draws a different number of random values
+moves the random stream after it, so compare means over several seeds.
+
 `tools/nwc_protocol_test/` is the multiplayer wire-protocol suite —
 black-box tests that spawn a headless server, send one hand-rolled
 NWC_* packet, and assert on the parsed reply. Plain `unittest`,
