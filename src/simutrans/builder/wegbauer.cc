@@ -86,13 +86,14 @@ static stringhashtable_tpl <const way_desc_t *> desc_table;
 
 // Edges the A* loop in `intern_calc_route{,_elevated}` is allowed to
 // step into from this node: slope-allowed minus the back direction,
-// or `straight_dir` when build_straight is pinned.  Root nodes return
+// or `straight_dir` when pinned (build_straight, a bridge or tunnel
+// end, or a slope that must start a bridge).  Root nodes return
 // slope_dir directly because hex `backward(all) == all` collapses the
 // legacy `~backward(straight_dir)` mask to 0.  The is_way_* predicates
 // already handle flat / all_up uniformly across the 3 hex axes.
-static ribi_t::ribi compute_test_dir(slope_t::type sl, ribi_t::ribi straight_dir, bool is_root, bool build_straight_pinned)
+static ribi_t::ribi compute_test_dir(slope_t::type sl, ribi_t::ribi straight_dir, bool is_root, bool pinned)
 {
-	if (build_straight_pinned) {
+	if (pinned) {
 		return straight_dir;
 	}
 	ribi_t::ribi slope_dir = ribi_t::none;
