@@ -1074,10 +1074,10 @@ void karte_t::distribute_cities(int new_city_count, sint32 new_mean_citizen_coun
 								// is there a connection i..l..j ? forbid stumpfe winkel
 								for (int l = 0; l < settings.get_city_count(); ++l) {
 									if(  city_flag[i] == city_flag[l]  &&  city_dist.at(i,l) == env_t::intercity_road_length  &&  city_dist.at(j,l) == env_t::intercity_road_length  ) {
-										// cosine < 0 ?
-										koord3d d1 = k[i]-k[l];
-										koord3d d2 = k[j]-k[l];
-										if(  d1.x*d2.x + d1.y*d2.y < 0  ) {
+										// cosine < 0 ?  in the physical plane, not on the axial axes
+										const koord d1 = (k[i]-k[l]).get_2d();
+										const koord d2 = (k[j]-k[l]).get_2d();
+										if(  physical_dot_x2( d1, d2 ) < 0  ) {
 											city_dist.at(i,j) = env_t::intercity_road_length+1;
 											city_dist.at(j,i) = env_t::intercity_road_length+1;
 											ok = false;

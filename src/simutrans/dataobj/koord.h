@@ -292,6 +292,18 @@ static inline uint32 physical_distance_sq(const koord &a, const koord &b)
 	return (uint32)(dq * dq + dq * dr + dr * dr);
 }
 
+// Twice the *physical* dot product of two axial offsets, as an integer:
+// (q1*e_q + r1*e_r) . (q2*e_q + r2*e_r) = q1*q2 + (q1*r2 + r1*q2)/2 + r1*r2
+// for the basis above, so physical_distance_sq(a, b) is half of
+// physical_dot_x2(a - b, a - b).  Its sign is the sign of the cosine of
+// the physical angle between the offsets (negative: obtuse).  The
+// square-grid q1*q2 + r1*r2 is not that cosine: e_q and e_r are 60 degrees
+// apart, not 90.
+static inline sint32 physical_dot_x2(const koord &a, const koord &b)
+{
+	return 2 * a.x * b.x + a.x * b.y + a.y * b.x + 2 * a.y * b.y;
+}
+
 // multiply the value by the distance weight
 static inline uint32 weight_by_distance(const sint32 value, const uint32 distance)
 {
