@@ -330,6 +330,15 @@ public:
 	void calc_image();
 
 	/**
+	 * Recalculates the images of the tiles whose back walls read the tile
+	 * at @p k, after its height, slope or building changed: its SE, S and
+	 * SW neighbours, which have it as their NW, N and NE neighbour in
+	 * `calc_back_image`.  The tile at @p k itself is not touched.  Tiles
+	 * off the map and in the cut corners of the hexagon are skipped.
+	 */
+	static void recalc_back_wall_dependants(koord k);
+
+	/**
 	* Return the number of images the ground has.
 	* @return The number of images.
 	*/

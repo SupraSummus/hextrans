@@ -763,6 +763,17 @@ static const back_wall_geometry_t back_wall_geometry[grund_t::BACK_WALL_COUNT] =
 };
 
 
+void grund_t::recalc_back_wall_dependants(koord k)
+{
+	for(  const back_wall_geometry_t &g : back_wall_geometry  ) {
+		// the tile that has `k` as its `g.nbr` neighbour
+		if(  grund_t *gr = welt->lookup_kartenboden(k - g.nbr)  ) {
+			gr->calc_image();
+		}
+	}
+}
+
+
 // Per-edge clip lines for the 3 hex back walls (NW, N, NE).  Two
 // call sites: `display_boden`'s way-clip block (slope = way slope,
 // `non_convex` reflects whether all 3 back ribis are active on the

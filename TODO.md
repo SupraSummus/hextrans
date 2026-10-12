@@ -1270,15 +1270,20 @@ and test it with a 3×2 city building in `tests/test-pak/`
 and a `tool_build_house` `1A` case with a road on a far corner.
 
 Back-wall redraw sets.
-After a height or building change, the tiles whose back walls must be
-redrawn are the SE, S and SW neighbours
-(`calc_back_image` reads NW, N and NE),
-but the refresh loops in `stadt_t::build_city_house`
-and `stadt_t::build_road`, `terraformer_t::raise_to` / `lower_to`,
-`way_builder_t::do_terraforming`, `hausbauer_t::build` / `remove`
-and the `simtool.cc` terraform tools still refresh the square set.
-Next move: one helper that marks the three dependants dirty,
-called from each site.
+`grund_t::recalc_back_wall_dependants` redraws the SE, S and SW tiles
+after a height or building change,
+the tiles that read it as their NW, N and NE neighbour
+in `calc_back_image`,
+and the terraform, building and city sites call it.
+What is left is the hide test in `calc_back_image` that sets `draw_as_obj`.
+It still steps along the square back diagonal
+(`testdir` and `koord(step, step)`, up to `MAXIMUM_HIDE_TEST_DISTANCE`),
+which runs up and to the left on the hex screen,
+so the tiles it reads are not the tiles the helper redraws.
+Next move: step the hide test straight up the screen
+(`koord(0, -1)` per step, see `display/hex_proj.h`)
+and add the tiles that read a tile that way to the helper,
+reading both from one table as the wall table does for the walls.
 
 Descriptor visuals.
 The bridge branch of `tool_build_way_t::mark_tiles` previews every ramp
