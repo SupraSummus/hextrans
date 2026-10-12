@@ -3267,22 +3267,11 @@ gebaeude_t* stadt_t::build_city_house(koord3d base_pos, const building_desc_t* h
 	}
 	// we may need to recalculate vertical walls
 	if (recalc_foundations) {
-		// need to calc the grounds to south x+1 and east y+1 and the diagonal
+		// need to calc the grounds to the SE, S and SW of every footprint tile
 		for (int x = 0; x < h->get_x(rotation); x++) {
-			koord k = base_pos.get_2d() + koord(x, h->get_y(rotation));
-			if (grund_t* gr = welt->lookup_kartenboden(k)) {
-				gr->calc_image();
+			for (int y = 0; y < h->get_y(rotation); y++) {
+				grund_t::recalc_back_wall_dependants(base_pos.get_2d() + koord(x, y));
 			}
-		}
-		for (int y = 0; y < h->get_y(rotation); y++) {
-			koord k = base_pos.get_2d() + koord(h->get_x(rotation),y);
-			if (grund_t* gr = welt->lookup_kartenboden(k)) {
-				gr->calc_image();
-			}
-		}
-		koord k = base_pos.get_2d() + h->get_size(rotation);
-		if (grund_t* gr = welt->lookup_kartenboden(k)) {
-			gr->calc_image();
 		}
 	}
 
@@ -3951,12 +3940,7 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 
 						// assume that we have terraformed ...
 						bd->calc_image();
-						if (grund_t* gr = welt->lookup_kartenboden(k + koord(1, 0))) {
-							gr->calc_image();
-						}
-						if (grund_t* gr = welt->lookup_kartenboden(k + koord(0, 1))) {
-							gr->calc_image();
-						}
+						grund_t::recalc_back_wall_dependants(k);
 					}
 				}
 			}
@@ -4065,26 +4049,10 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 					}
 
 					// update slope graphics on tile and tile in front
-					if( grund_t *bd_recalc = welt->lookup_kartenboden( k + koord( 0, 1 ) ) ) {
-						bd_recalc->check_update_underground();
-					}
-					if( grund_t *bd_recalc = welt->lookup_kartenboden( k + koord( 1, 0 ) ) ) {
-						bd_recalc->check_update_underground();
-					}
-					if( grund_t *bd_recalc = welt->lookup_kartenboden( k + koord( 1, 1 ) ) ) {
-						bd_recalc->check_update_underground();
-					}
+					grund_t::recalc_back_wall_dependants(k);
 
 					// update slope graphics on tile and tile in front
-					if (grund_t* bd_recalc = welt->lookup_kartenboden(end + koord(0, 1))) {
-						bd_recalc->check_update_underground();
-					}
-					if (grund_t* bd_recalc = welt->lookup_kartenboden(end + koord(1, 0))) {
-						bd_recalc->check_update_underground();
-					}
-					if (grund_t* bd_recalc = welt->lookup_kartenboden(end + koord(1, 1))) {
-						bd_recalc->check_update_underground();
-					}
+					grund_t::recalc_back_wall_dependants(end);
 				}
 				else {
 					// err and not a good starting position
@@ -4155,6 +4123,10 @@ bool stadt_t::test_and_build_cityroad(koord start, koord end)
 			gr->set_grund_hang(slope_t::flat);
 			gr->calc_image();
 		}
+	}
+	// the new slopes change the walls of the tiles in front
+	for (sint8 i = 0; i <= length; i++) {
+		grund_t::recalc_back_wall_dependants(start + dir*i);
 	}
 	// now all slopes should be correct, we can build
 	way_builder_t bauigel(NULL);

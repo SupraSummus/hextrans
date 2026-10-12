@@ -916,8 +916,8 @@ const char *tool_remover_t::work( player_t *player, koord3d pos )
 	}
 
 	// must recalc neighbourhood for slopes etc.
-	for(  ribi_t::ribi dir : { ribi_t::northwest, ribi_t::north, ribi_t::southeast, ribi_t::south }  ) {
-		if(  grund_t *gr = welt->lookup_kartenboden(pos.get_2d()+koord::step(dir))  ) {
+	for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
+		if(  grund_t *gr = welt->lookup_kartenboden(pos.get_2d()+koord::neighbours[i])  ) {
 			gr->calc_image();
 		}
 	}
@@ -1621,9 +1621,9 @@ const char *tool_setslope_t::tool_set_slope_work( player_t *player, koord3d pos,
 					}
 				}
 				// recalc slope walls on neighbours
-				for(int y=-1; y<=1; y++) {
-					for(int x=-1; x<=1; x++) {
-						grund_t *gr = welt->lookup_kartenboden(k+koord(x,y));
+				gr1->calc_image();
+				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
+					if(  grund_t *gr = welt->lookup_kartenboden(k+koord::neighbours[i])  ) {
 						gr->calc_image();
 					}
 				}

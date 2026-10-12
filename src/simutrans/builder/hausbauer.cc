@@ -458,12 +458,7 @@ void hausbauer_t::remove( player_t *player, gebaeude_t *gb )
 		}
 
 		// there might be walls from foundations left => thus some tiles may need to be redrawn
-		if (grund_t* gr = welt->lookup_kartenboden(newk + koord::step(ribi_t::southeast))) {
-			gr->calc_image();
-		}
-		if (grund_t* gr = welt->lookup_kartenboden(newk + koord::step(ribi_t::south))) {
-			gr->calc_image();
-		}
+		grund_t::recalc_back_wall_dependants(newk);
 		welt->set_grid_hgt_nocheck(newk, hex_corner_t::NW, new_hgt + corner_nw(new_slope));
 	}
 
@@ -602,10 +597,8 @@ gebaeude_t* hausbauer_t::build(player_t* player, koord pos, int org_layout, cons
 					gr->obj_add(keptobjs[i]);
 				}
 
-				if(needs_ground_recalc  &&  welt->is_within_limits(pos+k+koord(1,1))  &&  (k.y+1==dim.y  ||  k.x+1==dim.x)) {
-					welt->lookup_kartenboden(pos+k+koord(1,0))->calc_image();
-					welt->lookup_kartenboden(pos+k+koord(0,1))->calc_image();
-					welt->lookup_kartenboden(pos+k+koord(1,1))->calc_image();
+				if(needs_ground_recalc) {
+					grund_t::recalc_back_wall_dependants(pos+k);
 				}
 			}
 			gb->set_pos( gr->get_pos() );

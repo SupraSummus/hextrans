@@ -1378,17 +1378,13 @@ void way_builder_t::do_terraforming()
 			last_terraformed = i+1; // do not pay twice for terraforming one tile
 		}
 
-		// recalc slope image of neighbors
+		// recalc slope image of both tiles and of the neighbours that draw walls to them
 		if (changed) {
 			for(uint8 j=0; j<2; j++) {
-				for(uint8 x=0; x<2; x++) {
-					for(uint8 y=0; y<2; y++) {
-						grund_t *gr = welt->lookup_kartenboden(route[i+j].get_2d()+koord(x,y));
-						if (gr) {
-							gr->calc_image();
-						}
-					}
+				if (grund_t *gr = welt->lookup_kartenboden(route[i+j].get_2d())) {
+					gr->calc_image();
 				}
+				grund_t::recalc_back_wall_dependants(route[i+j].get_2d());
 			}
 		}
 	}
