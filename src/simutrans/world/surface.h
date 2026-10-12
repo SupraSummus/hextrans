@@ -453,6 +453,15 @@ public:
 	/// @return true, if square in place (i,j) with size w, h is constructible.
 	bool square_is_free(koord k, sint16 w, sint16 h, int *last_y, climate_bits cl) const;
 
+	/// @return true, if all tiles within @p radius hex steps of @p centre are
+	/// constructible, as square_is_free tests them with @p centre as its first tile.
+	bool disc_is_free(koord centre, sint16 radius, climate_bits cl) const;
+
+private:
+	/// @return true, if the tile at @p k can be built on as part of a site whose
+	/// first tile has base height @p platz_base_h and maximum height @p platz_max_h.
+	bool tile_is_free(koord k, sint16 platz_base_h, sint16 platz_max_h, climate_bits cl) const;
+
 public:
 	/// @returns Minimum height of the planquadrat (tile) at @p k.
 	/// For speed no checks performed that coordinates are valid

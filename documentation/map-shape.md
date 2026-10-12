@@ -91,7 +91,8 @@ the three `create_beaches` passes, `calc_humidity_map_region`,
 `distribute_groundobjs`, `distribute_movingobjs`,
 the rainfall pass of `distribute_trees_region`,
 `tree_builder_t::fill_trees`,
-`square_is_free` (so `find_squares` and city placement skip the cut),
+`square_is_free` and `disc_is_free`
+(so `find_free_discs` and city placement skip the cut),
 `plans_finish_rd`,
 and `planquadrat_t::correct_water` and `update_underground`,
 which return early on a cell without ground.

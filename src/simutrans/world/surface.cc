@@ -156,6 +156,35 @@ bool surface_t::is_water(koord pos, koord dim) const
 }
 
 
+bool surface_t::tile_is_free(koord k_check, sint16 platz_base_h, sint16 platz_max_h, climate_bits cl) const
+{
+	const grund_t *gr = lookup_kartenboden(k_check);
+	if(  !gr  ) {
+		// off-map cell of the W x H x D hexagon
+		return false;
+	}
+
+	// we can built, if: max height all the same, everything removable and no buildings there
+	slope_t::type slope = gr->get_grund_hang();
+	sint8 max_height = gr->get_hoehe() + slope_t::max_diff(slope);
+	climate test_climate = get_climate(k_check);
+	if(  cl & (1 << water_climate)  &&  test_climate != water_climate  ) {
+		bool neighbour_water = false;
+		for(size_t i=0; i<lengthof(koord::neighbours)  &&  !neighbour_water; i++) {
+			if(  is_within_limits(k_check + koord::neighbours[i])  &&  get_climate( k_check + koord::neighbours[i] ) == water_climate  ) {
+				neighbour_water = true;
+			}
+		}
+		if(  neighbour_water  ) {
+			test_climate = water_climate;
+		}
+	}
+	return !( (platz_max_h != max_height  &&  platz_base_h != gr->get_hoehe())  ||  !gr->ist_natur()  ||  gr->kann_alle_obj_entfernen(NULL) != NULL  ||
+	     (cl & (1 << test_climate)) == 0  ||  ( slope && (lookup( gr->get_pos()+koord3d(0,0,1) ) ||
+	     (slope_t::max_diff(slope)==2 && lookup( gr->get_pos()+koord3d(0,0,2) )) ))  );
+}
+
+
 bool surface_t::square_is_free(koord pos, sint16 w, sint16 h, int *last_y, climate_bits cl) const
 {
 	if(pos.x < 0  ||  pos.y < 0  ||  pos.x+w > get_size().x || pos.y+h > get_size().y) {
@@ -176,37 +205,36 @@ bool surface_t::square_is_free(koord pos, sint16 w, sint16 h, int *last_y, clima
 	koord k_check;
 	for(k_check.x=pos.x; k_check.x<pos.x+w; k_check.x++) {
 		for(k_check.y=pos.y+h-1; k_check.y>=pos.y; k_check.y--) {
-			const grund_t *gr = lookup_kartenboden(k_check);
-			if(  !gr  ) {
+			if(  !tile_is_free(k_check, platz_base_h, platz_max_h, cl)  ) {
 				if(  last_y  ) {
 					*last_y = k_check.y;
 				}
 				return false;
 			}
+		}
+	}
 
-			// we can built, if: max height all the same, everything removable and no buildings there
-			slope_t::type slope = gr->get_grund_hang();
-			sint8 max_height = gr->get_hoehe() + slope_t::max_diff(slope);
-			climate test_climate = get_climate(k_check);
-			if(  cl & (1 << water_climate)  &&  test_climate != water_climate  ) {
-				bool neighbour_water = false;
-				for(size_t i=0; i<lengthof(koord::neighbours)  &&  !neighbour_water; i++) {
-					if(  is_within_limits(k_check + koord::neighbours[i])  &&  get_climate( k_check + koord::neighbours[i] ) == water_climate  ) {
-						neighbour_water = true;
-					}
-				}
-				if(  neighbour_water  ) {
-					test_climate = water_climate;
-				}
-			}
-			if( (platz_max_h != max_height  &&  platz_base_h != gr->get_hoehe())  ||  !gr->ist_natur()  ||  gr->kann_alle_obj_entfernen(NULL) != NULL  ||
-			     (cl & (1 << test_climate)) == 0  ||  ( slope && (lookup( gr->get_pos()+koord3d(0,0,1) ) ||
-			     (slope_t::max_diff(slope)==2 && lookup( gr->get_pos()+koord3d(0,0,2) )) ))  ) {
-				if(  last_y  ) {
-					*last_y = k_check.y;
-				}
-				return false;
-			}
+	return true;
+}
+
+
+bool surface_t::disc_is_free(koord centre, sint16 radius, climate_bits cl) const
+{
+	if(  !is_within_limits(centre)  ) {
+		return false;
+	}
+
+	grund_t *gr = lookup_kartenboden(centre);
+	if(  !gr  ) {
+		return false;
+	}
+	const sint16 platz_base_h = gr->get_hoehe(); // remember the base height of the centre tile
+	const sint16 platz_max_h = gr->get_hoehe() + slope_t::max_diff( gr->get_grund_hang() ); // remember the max height of the centre tile
+
+	for(  koord d : hex_disc(radius)  ) {
+		const koord k_check = centre + d;
+		if(  !is_within_limits(k_check)  ||  !tile_is_free(k_check, platz_base_h, platz_max_h, cl)  ) {
+			return false;
 		}
 	}
 
