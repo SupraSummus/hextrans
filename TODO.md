@@ -654,23 +654,6 @@ The new-map dialog in `climates.cc` already has a 6-entry combobox.
 Next move: reuse that combobox there, or drop the field,
 and clamp the value as `settings_t::rdwr` does.
 
-`do_terraforming` in `wegbauer.cc` has an
-`if (from_slope > slope_t::all_up_one  &&  is_axis_slope(from_slope -
-slope_t::all_up_one))` branch (and its `to_slope` twin) that was
-unreachable while slopes were stored in `uint8` (`all_up_one ==
-1365 > 255`).  After the widening in this branch it can fire for
-the first time under hex.  The semantic — "shifted-up axis slope
-means raise tile by 1 and unshift" — is geometrically plausible
-under the hex 6-corner encoding (axis slopes still subtract
-cleanly when both layers' corners are at the same height), but
-hasn't been exercised by a concrete trace.  Run one through and
-either confirm or replace with a hex-aware lift; lands alongside
-the first real-gameplay surfacing of city / AI terraforming.
-While here, consider widening the predicate to `is_axis_ramp` —
-shifted-up `*_double` slopes have corner heights up to 3 (still in
-the base-4 encoding) and currently fall through the
-single-only filter into the "leave alone" branch.
-
 ## Renderer port
 
 The square renderer assumed a 2:1 iso "diamond" lattice everywhere
