@@ -205,8 +205,9 @@ ENLARGE_DIRS_R <- [0, 1, 1, 0, -1, -1]
 
 
 // What the script sees of the on-map tiles of the shape (w, h, d), keyed
-// "x,y"; with `climate_only` just the climate, not the tiles themselves.
-function enlarge_snapshot(w, h, d, climate_only)
+// "x,y"; with `ground_only` just the height and slope of the ground tile,
+// not its climate, water or what stands on it.
+function enlarge_snapshot(w, h, d, ground_only)
 {
 	local snap = {}
 	local size = world.get_size()
@@ -217,8 +218,9 @@ function enlarge_snapshot(w, h, d, climate_only)
 			}
 			local sq = square_x(x, y)
 			local g = sq.get_ground_tile()
-			local line = "climate=" + sq.get_climate()
-			if (!climate_only) {
+			local line = "z=" + g.z + " slope=" + g.get_slope()
+			if (!ground_only) {
+				line = "climate=" + sq.get_climate()
 				for (local z = g.z - 4; z <= g.z + 4; z++) {
 					local t = sq.get_tile_at_height(z)
 					if (t != null) {
@@ -336,7 +338,7 @@ function enlarge_and_check(w, h, d, w2, h2, cities)
 {
 	local cities_before = enlarge_city_count()
 
-	local shift = debug.enlarge_map(w2, h2, cities)
+	local shift = debug.enlarge_map(w2, h2, cities, 160)
 	ASSERT_TRUE(shift != null)
 
 	ASSERT_EQUAL(settings.get_map_side_w(), w2)
@@ -370,9 +372,9 @@ function enlarge_and_check(w, h, d, w2, h2, cities)
 
 // The old tiles are as the snapshot `before` has them, except where
 // `spared(x, y)` (of the new coordinates) is true.
-function ASSERT_ENLARGE_KEPT(before, w2, h2, d, shift, climate_only, spared)
+function ASSERT_ENLARGE_KEPT(before, w2, h2, d, shift, ground_only, spared)
 {
-	local after = enlarge_snapshot(w2, h2, d, climate_only)
+	local after = enlarge_snapshot(w2, h2, d, ground_only)
 	foreach (key, line in before) {
 		local xy = split(key, ",")
 		local x = xy[0].tointeger() + shift.x
@@ -386,8 +388,10 @@ function ASSERT_ENLARGE_KEPT(before, w2, h2, d, shift, climate_only, spared)
 
 
 // Two enlargements of the current map: the first grows both sides, the
-// second only W.  Without cities, so that nothing of the old part may
-// change but the vertices it shares with the new one.
+// second only W.  The new part has mountains, but no cities.  The first
+// leaves dry land alone but for the vertices it shares with the new part;
+// the second finds water in the old part, and an enlargement beaches the
+// water tiles within 19 of the far sides, so it keeps the old ground only.
 function test_map_shape_enlarge()
 {
 	local pl = player_x(0)
@@ -403,20 +407,20 @@ function test_map_shape_enlarge()
 	ASSERT_ENLARGE_KEPT(before, w + 4, h + 3, d, shift, false, null)
 	ASSERT_ENLARGE_SURFACE_CONTINUOUS(w + 4, h + 3, d)
 
-	before = enlarge_snapshot(w + 4, h + 3, d, false)
+	before = enlarge_snapshot(w + 4, h + 3, d, true)
 	shift = enlarge_and_check(w + 4, h + 3, d, w + 7, h + 3, 0)
-	ASSERT_ENLARGE_KEPT(before, w + 7, h + 3, d, shift, false, null)
+	ASSERT_ENLARGE_KEPT(before, w + 7, h + 3, d, shift, true, null)
 	ASSERT_ENLARGE_SURFACE_CONTINUOUS(w + 7, h + 3, d)
 
 	// shrinking is refused, not done
-	ASSERT_EQUAL(debug.enlarge_map(w, h, 0), null)
+	ASSERT_EQUAL(debug.enlarge_map(w, h, 0, -1), null)
 	ASSERT_EQUAL(settings.get_map_side_w(), w + 7)
 }
 
 
 // Cities of an enlargement stand in the new part.  Their houses and roads
-// spread over the old tiles next to it and level them, so only the old
-// tiles away from every new city are compared, and by their climate.
+// spread over the old tiles next to it and level them, so only the ground
+// of the old tiles away from every new city is compared.
 function test_map_shape_enlarge_cities()
 {
 	local w = settings.get_map_side_w()

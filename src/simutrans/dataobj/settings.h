@@ -453,6 +453,7 @@ public:
 	void set_max_mountain_height(double d) { max_mountain_height = d; }
 
 	double get_map_roughness() const {return map_roughness;}
+	void set_map_roughness(double d) { map_roughness = d; }
 
 	uint16 get_station_coverage() const {return station_coverage_size;}
 
