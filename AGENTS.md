@@ -156,8 +156,14 @@ on the table; don't force it where it would be contrived.
 A cleanup that only restyles upstream code
 widens every future merge
 and makes fixes harder to send upstream.
-Offer it on the forum first;
-if upstream declines it, drop it in the fork too.
+Only the maintainer talks to upstream, on the forum,
+and only about changes they judge important;
+an agent has no channel there.
+So such a change is dropped
+unless the maintainer takes it to the forum,
+and dropped in the fork too if upstream declines it.
+A speed-up without a hex reason counts the same
+(PR #261, about 3 ms off a pak64 load, closed).
 The NETTOOL retirement (closed PRs #225, #227, #228) is the worked example.
 
 ## Cross-checking simutrans-extended
