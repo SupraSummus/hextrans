@@ -7,8 +7,8 @@
 // cosine of anything.  Each check pairs the hex-aware shape with the
 // legacy axial formula, so that a test that cannot fail would show.
 //
-// Covers karte_t::calc_climate_map_region (smoothing weights, patch
-// shape), karte_t::distribute_cities (obtuse-angle test) and
+// Covers karte_t::calc_climate_map_region (smoothing weights and rounding,
+// patch shape), karte_t::distribute_cities (obtuse-angle test) and
 // karte_t::find_free_discs (hex_disc region).
 
 #include <cmath>
@@ -98,6 +98,18 @@ static sint32 legacy_smooth_cell(sint32 centre, const sint32 (&neighbour)[6])
 }
 
 
+// The smoothing with the hex weights, rounded down as it was until the
+// weights were fixed: the result is the mean truncated.
+static sint32 truncating_smooth_cell(sint32 centre, const sint32 (&neighbour)[6])
+{
+	sint32 sum = CLIMATE_SMOOTH_CENTRE * centre;
+	for (int i = 0; i < 6; i++) {
+		sum += CLIMATE_SMOOTH_NEIGHBOUR * neighbour[i];
+	}
+	return sum / CLIMATE_SMOOTH_TOTAL;
+}
+
+
 // climate_smooth_cell: an average, the same in every direction.
 static void test_smoothing()
 {
@@ -139,6 +151,61 @@ static void test_smoothing()
 			}
 		}
 	}
+}
+
+
+// climate_smooth_cell rounds the mean to the nearest climate.  Truncating
+// it turns a tile into the climate below as soon as one neighbour is lower
+// and never the other way round, so small pockets of a climate drain into
+// the climate below them.
+static void test_smoothing_rounds_to_nearest()
+{
+	// centre 3 with n neighbours of 2 has a mean of 3 - n/8: it stays 3
+	// while the mean is above 2.5, which is up to four lower neighbours
+	for (int n = 0; n <= 6; n++) {
+		sint32 nb[6];
+		for (int i = 0; i < 6; i++) {
+			nb[i] = i < n ? 2 : 3;
+		}
+		CHECK(climate_smooth_cell(3, nb) == (n <= 4 ? 3 : 2));
+		CHECK(truncating_smooth_cell(3, nb) == (n == 0 ? 3 : 2));
+	}
+	// and the other way round: centre 2 with n neighbours of 3 turns 3
+	// from four of them on
+	for (int n = 0; n <= 6; n++) {
+		sint32 nb[6];
+		for (int i = 0; i < 6; i++) {
+			nb[i] = i < n ? 3 : 2;
+		}
+		CHECK(climate_smooth_cell(2, nb) == (n >= 4 ? 3 : 2));
+		CHECK(truncating_smooth_cell(2, nb) == 2);
+	}
+
+	// the result is the nearest integer to the mean, a half going up,
+	// so the mean error over all inputs is 1/16 of a climate (the ties
+	// are 1 in 8 inputs); the truncated mean is 7/16 of a climate low
+	double error = 0, truncating_error = 0;
+	int cases = 0, not_nearest = 0;
+	sint32 nb[6];
+	for (sint32 centre = 0; centre <= 7; centre++) {
+		for (int mask = 0; mask < 8 * 8 * 8 * 8 * 8 * 8; mask++) {
+			int m = mask;
+			sint32 sum = CLIMATE_SMOOTH_CENTRE * centre;
+			for (int i = 0; i < 6; i++) {
+				nb[i] = m & 7;
+				m >>= 3;
+				sum += CLIMATE_SMOOTH_NEIGHBOUR * nb[i];
+			}
+			const double mean = (double)sum / CLIMATE_SMOOTH_TOTAL;
+			not_nearest += climate_smooth_cell(centre, nb) != (sint32)std::floor(mean + 0.5);
+			error += climate_smooth_cell(centre, nb) - mean;
+			truncating_error += truncating_smooth_cell(centre, nb) - mean;
+			cases++;
+		}
+	}
+	CHECK(not_nearest == 0);
+	CHECK(std::fabs(error / cases - 1.0 / 16) < 0.001);
+	CHECK(std::fabs(truncating_error / cases + 7.0 / 16) < 0.001);
 }
 
 
@@ -298,6 +365,7 @@ static void test_free_disc()
 int main()
 {
 	test_smoothing();
+	test_smoothing_rounds_to_nearest();
 	test_patch();
 	test_dot();
 	test_free_disc();

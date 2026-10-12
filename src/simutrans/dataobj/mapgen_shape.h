@@ -32,14 +32,20 @@ static_assert(CLIMATE_SMOOTH_CENTRE + 6 * CLIMATE_SMOOTH_NEIGHBOUR == CLIMATE_SM
               "the smoothing weights must add up to the divisor");
 
 
-/// One smoothing pass over a tile's climate value and those of its six neighbours.
+/**
+ * One smoothing pass over a tile's climate value and those of its six
+ * neighbours.  The mean is rounded to the nearest value: rounding down
+ * turns a tile into the climate below it as soon as one neighbour is
+ * lower, and never the other way round, so small pockets of a climate
+ * drain into the climate below.
+ */
 static inline sint32 climate_smooth_cell(sint32 centre, const sint32 (&neighbour)[6])
 {
 	sint32 sum = CLIMATE_SMOOTH_CENTRE * centre;
 	for(  int i = 0;  i < 6;  i++  ) {
 		sum += CLIMATE_SMOOTH_NEIGHBOUR * neighbour[i];
 	}
-	return sum / CLIMATE_SMOOTH_TOTAL;
+	return (sum + CLIMATE_SMOOTH_TOTAL / 2) / CLIMATE_SMOOTH_TOTAL;
 }
 
 
