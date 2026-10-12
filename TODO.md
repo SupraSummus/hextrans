@@ -503,8 +503,10 @@ The sign and signal tests see `get_dirs_masked` flip:
 world frame;
 next move is to pick it from the way's axis
 so that the choice turns with the map.
-The image-slot, render and script-generator tests read world-frame output
-(`image[s]` vs `image[n]`, image ids, the generated `NoEntry:x:y`);
+The image-slot, render, back-wall and script-generator tests
+read world-frame output
+(`image[s]` vs `image[n]`, image ids, `tile_x::get_back_walls`,
+the generated `NoEntry:x:y`);
 next move is to report them through the script transform
 (the generator writes script coordinates and directions)
 or to mark them world-frame and keep them out of the rotated run.
