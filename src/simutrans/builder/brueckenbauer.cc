@@ -805,12 +805,14 @@ bool bridge_builder_t::is_start_of_bridge( const grund_t *gr )
 }
 
 
-// Way-hang for a bridge ramp climbing in direction `zv` by `delta`
-// z-steps.  Replaces the upstream square-era arithmetic
-// `slope_type(zv) * delta`, which under hex's base-4 corner encoding
-// produces a kinked-cliff shape (no sprite) at delta=2.
-static slope_t::type ramp_for_climb(koord zv, sint8 delta)
+// Replaces the upstream square-era arithmetic `slope_type(zv) * delta`,
+// which under hex's base-4 corner encoding produces a kinked-cliff
+// shape (no sprite) at delta=2.
+slope_t::type bridge_builder_t::ramp_for_climb(koord zv, sint8 delta)
 {
+	if (delta <= 0) {
+		return slope_t::flat;
+	}
 	const slope_t::type narrow = slope_type(zv);
 	return delta == 2 ? slope_t::narrow_to_double(narrow) : narrow;
 }

@@ -1291,10 +1291,18 @@ in `climate_smooth_cell`,
 and compare `tools/mapgen_metrics.py --generators humidity` before and after.
 
 Descriptor visuals.
-The bridge preview in `tool_build_bridge_t::mark_tiles`
-draws the delta-2 ramp with the single-height image
-(`narrow_to_double` is missing).
-Next move: build the preview's ramp slopes with `narrow_to_double`.
+The bridge branch of `tool_build_way_t::mark_tiles` previews every ramp
+with the single-height slope (`wh`) and every deck one level up,
+although `way_builder_t` builds delta-2 ramps from flat ground
+where the span needs them.
+Next move: ask `bridge_builder_t::can_build_bridge` for the height of each
+gap in the preview, pass `bridge_builder_t::ramp_for_climb` as `wh` and
+`-(height - z) * TILE_HEIGHT_STEP` as the deck offset,
+as `tool_build_bridge_t::mark_tiles` now does for its ramps.
+Neither preview is reachable from the script API;
+a test wants a hook in a `script/api/*_test.cc` (like
+`api_schedule_route_test.cc`) that calls `two_click_tool_t::move` twice
+and reads the marker images off the tiles.
 
 GUI views.
 `world_view_t::internal_draw` lays out the square lattice in every
