@@ -65,21 +65,48 @@ bool ai_passenger_t::set_active(bool new_state)
 }
 
 
-/** return the hub of a city (always the very first stop) or zero
+/** return the hub of a city or zero; *hub_pos gets the road stop tile of the hub in the city
+ *
+ * The city's extent is the lo/ur rectangle of stadt_t, and find_area_for_hub scans
+ * that same rectangle for a place to build a hub.  The test has to use the same
+ * extent: a hex disc around the centre would reject hubs that find_area_for_hub
+ * itself has just built in a corner of the rectangle.
+ * What cannot stay is judging the halt by get_basis_pos().
+ * That is the tile nearest the centre of the halt, and a new stop joins an adjacent
+ * halt of ours (an airport, a harbour), so for those it can be an air stop or a dock
+ * outside the rectangle.  Look for any road tile of the halt inside it instead.
  */
-halthandle_t ai_passenger_t::get_our_hub( const stadt_t *s ) const
+halthandle_t ai_passenger_t::get_our_hub( const stadt_t *s, koord *hub_pos ) const
 {
+	const koord lo = s->get_linksoben();
+	const koord ur = s->get_rechtsunten();
 	for(halthandle_t const halt : haltestelle_t::get_alle_haltestellen()) {
 		if (halt->get_first_owner() == sim::up_cast<player_t const*>(this)) {
 			if(  halt->get_pax_enabled()  &&  (halt->get_station_type()&haltestelle_t::busstop)!=0  ) {
-				koord h=halt->get_basis_pos();
-				if(h.x>=s->get_linksoben().x  &&  h.y>=s->get_linksoben().y  &&  h.x<=s->get_rechtsunten().x  &&  h.y<=s->get_rechtsunten().y  ) {
-					return halt;
+				for(haltestelle_t::tile_t const& tile : halt->get_tiles()) {
+					const koord h = tile.grund->get_pos().get_2d();
+					if(  h.x>=lo.x  &&  h.y>=lo.y  &&  h.x<=ur.x  &&  h.y<=ur.y  &&  tile.grund->hat_weg(road_wt)  ) {
+						if(  hub_pos  ) {
+							*hub_pos = h;
+						}
+						return halt;
+					}
 				}
 			}
 		}
 	}
+	if(  hub_pos  ) {
+		*hub_pos = koord::invalid;
+	}
 	return halthandle_t();
+}
+
+
+koord ai_passenger_t::get_hub_pos( const stadt_t *s ) const
+{
+	koord pos;
+	get_our_hub( s, &pos );
+	return pos;
 }
 
 
@@ -130,9 +157,9 @@ DBG_MESSAGE("ai_passenger_t::find_area_for_hub()","suggest hub at (%i,%i)",best_
  */
 koord ai_passenger_t::find_place_for_hub( const stadt_t *s ) const
 {
-	halthandle_t h = get_our_hub( s );
-	if(h.is_bound()) {
-		return h->get_basis_pos();
+	const koord hub_pos = get_hub_pos( s );
+	if(  hub_pos!=koord::invalid  ) {
+		return hub_pos;
 	}
 	return find_area_for_hub( s->get_linksoben(), s->get_rechtsunten(), s->get_pos() );
 }
@@ -339,7 +366,10 @@ bool ai_passenger_t::create_water_transport_vehicle(const stadt_t* start_stadt, 
 			koord sch = find_place_for_hub( start_stadt );
 			call_general_tool( TOOL_BUILD_STATION, sch, busstop_desc->get_name() );
 			start_connect_hub = get_our_hub( start_stadt );
-			assert( start_connect_hub.is_bound() );
+			if(!start_connect_hub.is_bound()) {
+				// no stop of ours in the city: the harbour would have no connection
+				return false;
+			}
 		}
 	}
 	if(!end_hub.is_bound()) {
@@ -372,7 +402,10 @@ bool ai_passenger_t::create_water_transport_vehicle(const stadt_t* start_stadt, 
 			koord ech = find_place_for_hub( end_stadt );
 			call_general_tool( TOOL_BUILD_STATION, ech, busstop_desc->get_name() );
 			end_connect_hub = get_our_hub( end_stadt );
-			assert( end_connect_hub.is_bound() );
+			if(!end_connect_hub.is_bound()) {
+				// no stop of ours in the city: the harbour would have no connection
+				return false;
+			}
 		}
 	}
 
@@ -431,13 +464,13 @@ bool ai_passenger_t::create_water_transport_vehicle(const stadt_t* start_stadt, 
 
 	// eventually build a shuttle bus ...
 	if(start_connect_hub.is_bound()  &&  start_connect_hub!=start_hub) {
-		koord stops[2] = { start_harbour+start_dx, start_connect_hub->get_basis_pos() };
+		koord stops[2] = { start_harbour+start_dx, get_hub_pos( start_stadt ) };
 		create_bus_transport_vehicle( stops[1], 1, stops, 2, false );
 	}
 
 	// eventually build a airport shuttle bus ...
 	if(end_connect_hub.is_bound()  &&  end_connect_hub!=end_hub) {
-		koord stops[2] = { end_harbour+end_dx, end_connect_hub->get_basis_pos() };
+		koord stops[2] = { end_harbour+end_dx, get_hub_pos( end_stadt ) };
 		create_bus_transport_vehicle( stops[1], 1, stops, 2, false );
 	}
 
@@ -471,8 +504,7 @@ halthandle_t ai_passenger_t::build_airport(const stadt_t* city, koord pos, int r
 		size.y = -size.y;
 	}
 	// find coord to connect in the town
-	halthandle_t hub = get_our_hub( city );
-	const koord town_road = hub.is_bound() ? hub->get_basis_pos() : find_place_for_hub( city );
+	const koord town_road = find_place_for_hub( city );
 	if(  town_road==koord::invalid) {
 		return halthandle_t();
 	}
@@ -713,7 +745,10 @@ bool ai_passenger_t::create_air_transport_vehicle(const stadt_t *start_stadt, co
 				const building_desc_t* busstop_desc = hausbauer_t::get_random_station(building_desc_t::generic_stop, road_wt, welt->get_timeline_year_month(), haltestelle_t::PAX );
 				call_general_tool( TOOL_BUILD_STATION, sch, busstop_desc->get_name() );
 				start_connect_hub = get_our_hub( start_stadt );
-				assert( start_connect_hub.is_bound() );
+				if(!start_connect_hub.is_bound()) {
+					// no stop of ours in the city: the airport would have no connection
+					return false;
+				}
 			}
 		}
 		if(!end_hub.is_bound()) {
@@ -739,7 +774,10 @@ bool ai_passenger_t::create_air_transport_vehicle(const stadt_t *start_stadt, co
 				const building_desc_t* busstop_desc = hausbauer_t::get_random_station(building_desc_t::generic_stop, road_wt, welt->get_timeline_year_month(), haltestelle_t::PAX );
 				call_general_tool( TOOL_BUILD_STATION, ech, busstop_desc->get_name() );
 				end_connect_hub = get_our_hub( end_stadt );
-				assert( end_connect_hub.is_bound() );
+				if(!end_connect_hub.is_bound()) {
+					// no stop of ours in the city: the airport would have no connection
+					return false;
+				}
 			}
 		}
 	}
@@ -766,13 +804,13 @@ bool ai_passenger_t::create_air_transport_vehicle(const stadt_t *start_stadt, co
 
 	// eventually build a airport shuttle bus ...
 	if(start_connect_hub.is_bound()  &&  start_connect_hub!=start_hub) {
-		koord stops[2] = { start_hub->get_basis_pos(), start_connect_hub->get_basis_pos() };
+		koord stops[2] = { start_hub->get_basis_pos(), get_hub_pos( start_stadt ) };
 		create_bus_transport_vehicle( stops[1], 1, stops, 2, false );
 	}
 
 	// eventually build a airport shuttle bus ...
 	if(end_connect_hub.is_bound()  &&  end_connect_hub!=end_hub) {
-		koord stops[2] = { end_hub->get_basis_pos(), end_connect_hub->get_basis_pos() };
+		koord stops[2] = { end_hub->get_basis_pos(), get_hub_pos( end_stadt ) };
 		create_bus_transport_vehicle( stops[1], 1, stops, 2, false );
 	}
 
@@ -909,11 +947,16 @@ void ai_passenger_t::cover_city_with_bus_route(koord start_pos, int number_of_st
 		return;
 	}
 
+	grund_t *start = welt->lookup_kartenboden(start_pos);
+	if(  start==NULL  ) {
+		// e.g. no hub in the city
+		return;
+	}
+
 	// nothing in lists
 	marker = &marker_t::instance(welt->get_size().x, welt->get_size().y);
 
 	// and init all stuff for recursion
-	grund_t *start = welt->lookup_kartenboden(start_pos);
 	linehandle_t line = simlinemgmt.create_line( simline_t::truckline,this, new truck_schedule_t() );
 	line->get_schedule()->append(start,0);
 
@@ -995,14 +1038,14 @@ void ai_passenger_t::step()
 			}
 
 DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using city %s for start",start_stadt->get_name());
-			const halthandle_t start_halt = get_our_hub(start_stadt);
+			const koord start_hub_pos = get_hub_pos(start_stadt);
 			// find starting place
 
-			if(!start_halt.is_bound()) {
+			if(start_hub_pos==koord::invalid) {
 				DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","new_hub");
 			}
 
-			platz1 = start_halt.is_bound() ? start_halt->get_basis_pos() : find_place_for_hub( start_stadt );
+			platz1 = start_hub_pos!=koord::invalid ? start_hub_pos : find_place_for_hub( start_stadt );
 			if(platz1==koord::invalid) {
 				return;
 			}
@@ -1080,9 +1123,9 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","searching town");
 					const int nr = (i+offset)%count;
 					const stadt_t* cur = staedte[nr];
 					if(cur!=last_start_stadt  &&  cur!=start_stadt) {
-						halthandle_t end_halt = get_our_hub(cur);
+						const koord cur_hub_pos = get_hub_pos(cur);
 						int dist = koord_distance(platz1,cur->get_pos());
-						if(  end_halt.is_bound()  &&  is_connected(platz1,end_halt->get_basis_pos(),goods_manager_t::passengers) ) {
+						if(  cur_hub_pos!=koord::invalid  &&  is_connected(platz1,cur_hub_pos,goods_manager_t::passengers) ) {
 							// already connected
 							continue;
 						}
@@ -1112,13 +1155,7 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","Find hub");
 			if(end_stadt!=NULL) {
 DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","try to built connect to city %p", end_stadt );
 				// target is town
-				halthandle_t h = get_our_hub(end_stadt);
-				if(h.is_bound()) {
-					end_hub_pos = h->get_basis_pos();
-				}
-				else {
-					end_hub_pos = find_place_for_hub( end_stadt );
-				}
+				end_hub_pos = find_place_for_hub( end_stadt );
 			}
 			else {
 				// already found place
@@ -1228,9 +1265,9 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using %s on %s",road_vehicle->g
 			if(  end_attraction == NULL  &&  ship_transport  &&
 					create_water_transport_vehicle(start_stadt, end_stadt ? end_stadt->get_pos() : ziel->get_pos().get_2d())) {
 				// add two intown routes
-				cover_city_with_bus_route( get_our_hub(start_stadt)->get_basis_pos(), 6);
+				cover_city_with_bus_route( get_hub_pos(start_stadt), 6);
 				if(end_stadt!=NULL) {
-					cover_city_with_bus_route( get_our_hub(end_stadt)->get_basis_pos(), 6);
+					cover_city_with_bus_route( get_hub_pos(end_stadt), 6);
 				}
 				else {
 					// start again with same town
@@ -1261,8 +1298,8 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using %s on %s",road_vehicle->g
 			}
 			else {
 				// add two intown routes
-				cover_city_with_bus_route( get_our_hub(start_stadt)->get_basis_pos(), 6);
-				cover_city_with_bus_route( get_our_hub(end_stadt)->get_basis_pos(), 6);
+				cover_city_with_bus_route( get_hub_pos(start_stadt), 6);
+				cover_city_with_bus_route( get_hub_pos(end_stadt), 6);
 				cbuffer_t buf;
 				buf.printf( translator::translate("Airline service by\n%s\nnow between\n%s \nand %s.\n"), get_name(), start_stadt->get_name(), end_stadt->get_name() );
 				koord3d pos = welt->lookup_kartenboden(end_stadt->get_pos())->get_pos();

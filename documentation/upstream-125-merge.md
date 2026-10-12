@@ -7,8 +7,11 @@ Delete it when stage 5 has landed.
 Status:
 stage 1 (#1–#10) landed in PR #291,
 together with the city population ledger commits
-from the abandoned `claude/admiring-davinci-l0cr7t` branch (section 6).
-Stages 2–5 are open.
+from the abandoned `claude/admiring-davinci-l0cr7t` branch (section 6);
+stage 2 (#11–#93) in PR #300, after reverting the include sweep `28f4ae97a`;
+stage 3 (#94–#183) in PR #305.
+Stages 4 and 5 are open; issue #296 tracks them.
+The merge commits record each stage's resolutions.
 The reconnaissance below predates stage 1
 and was written against `origin/main` `ab4b677df`.
 
