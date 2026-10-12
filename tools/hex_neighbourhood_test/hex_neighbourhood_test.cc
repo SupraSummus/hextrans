@@ -193,20 +193,56 @@ static void test_pos_list_restart()
 }
 
 
-// pos_list_wh_t anchors a w x h box so that the tile of the box nearest the
-// origin along each axis, clamp(0, anchor, anchor + size - 1), walks the disc:
-// every box position whose nearest tile is within M steps, once each.
+// The physical distance (squared) from the origin to the nearest tile of the
+// w x h box anchored at `a`, found by looking at every tile.
+static uint32 brute_box_distance(koord a, sint16 w, sint16 h)
+{
+	uint32 best = 0xFFFFFFFFu;
+	for (sint16 y = 0; y < h; y++) {
+		for (sint16 x = 0; x < w; x++) {
+			const uint32 d = physical_distance_sq(koord(0, 0), a + koord(x, y));
+			if (d < best) {
+				best = d;
+			}
+		}
+	}
+	return best;
+}
+
+
+// pos_list_wh_t walks the boxes whose nearest tile in steps (clamp(0, anchor,
+// anchor + size - 1) in each axis) is within M steps of the origin, once each,
+// and never moves to a nearer box: the physical distance to the nearest tile
+// of the box does not decrease.  Clamping does not find the nearest tile in the
+// map plane when q and r have opposite signs: a box at (2..4, -6) is nearest
+// at (3, -6).
 static void test_pos_list_wh_anchors_every_box_once()
 {
 	const sint16 m = 6;
-	for (sint16 w = 1; w <= 3; w++) {
-		for (sint16 h = 1; h <= 3; h++) {
+	for (sint16 w = 1; w <= 6; w++) {
+		for (sint16 h = 1; h <= 6; h++) {
 			pos_list_wh_t list(m, w, h);
 			std::set<std::pair<int, int> > seen;
 			koord k;
+			uint32 prev = 0;
+			uint32 containing = 0;
 			while (list.get_next_pos(k)) {
 				CHECK(seen.insert(std::make_pair((int)k.x, (int)k.y)).second);
+
+				const uint32 d = brute_box_distance(k, w, h);
+				CHECK(d >= prev);
+				prev = d;
+				containing += d == 0;
 			}
+			CHECK(containing == (uint32)(w * h));
+
+			// restart() starts over, with the same or another size
+			list.restart(w, h);
+			uint32 again = 0;
+			while (list.get_next_pos(k)) {
+				again++;
+			}
+			CHECK(again == seen.size());
 
 			std::set<std::pair<int, int> > expected;
 			for (sint16 y = -3 * m; y <= 3 * m; y++) {
