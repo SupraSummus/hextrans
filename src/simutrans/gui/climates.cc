@@ -23,7 +23,7 @@
 // 6-entry list maps directly to the 6 hex edges used by the wind
 // system.  Strings are translation keys — add hex-edge entries to
 // the pakset translations.
-static const char *wind_dir_text[6] = { "Southeast", "South", "Southwest", "Northwest", "North", "Northeast" };
+const char *const wind_dir_text[6] = { "Southeast", "South", "Southwest", "Northwest", "North", "Northeast" };
 
 /**
  * set the climate borders
