@@ -14,6 +14,7 @@
 #include "../world/simworld.h"
 #include "../obj/crossing.h"
 #include "../simconvoi.h"
+#include "../descriptor/sprite_dir.h"
 
 
 /* get dx and dy from dir (just to remind you)
@@ -29,9 +30,6 @@
  *   NW (-1,0): screen (-2, -1) — takes over the old square "west"
  *   NE (1,-1): screen (+4,  0) — visual-length of old square diagonals
  *   SW (-1,1): screen (-4,  0) — visual-length of old square diagonals
- *
- * Keyed by the hex edge, not by ribi_t::get_dir(): that slot index puts
- * SE and NW on the old square-diagonal slots, which are (0,2) and (0,-2).
  */
 void vehicle_base_t::set_dxdy(ribi_t::ribi dir)
 {
@@ -424,6 +422,18 @@ ribi_t::ribi vehicle_base_t::calc_chord_direction(const koord& start, const koor
 		return ribi_t::southwest;
 	}
 	return ribi_t::none;
+}
+
+
+// The (1,1) and (-1,-1) bend chords have no direction; calc_set_direction
+// leaves the sign of their r in dy.
+ribi_t::dir vehicle_base_t::get_sprite_dir() const
+{
+	if(  direction != ribi_t::none  ) {
+		return sprite_dir_of_heading(koord(direction));
+	}
+	const sint16 r = (dy > 0) - (dy < 0);
+	return sprite_dir_of_heading(koord(r, r));
 }
 
 

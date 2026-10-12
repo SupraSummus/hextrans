@@ -74,20 +74,6 @@ namespace {
 }
 
 
-ribi_t::dir ribi_t::get_dir(ribi x)
-{
-	switch (x) {
-		case north:     return dir_north;
-		case northeast: return dir_northeast;
-		case southeast: return dir_southeast;
-		case south:     return dir_south;
-		case southwest: return dir_southwest;
-		case northwest: return dir_northwest;
-		default:        return dir_invalid;
-	}
-}
-
-
 // Slope → direction of travel that goes UP this slope.  Convention
 // "going X walks up slope named after low-edge opposite(X)": e.g.
 // going north walks up slope_t::south_narrow (N corners raised).  Two

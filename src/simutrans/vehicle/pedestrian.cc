@@ -123,15 +123,15 @@ pedestrian_t::pedestrian_t(grund_t *gr) :
 
 void pedestrian_t::calc_image()
 {
-	set_image(desc->get_image_id(ribi_t::get_dir(get_direction())));
+	set_image(desc->get_image_id(get_sprite_dir()));
 }
 
 
 image_id pedestrian_t::get_image() const
 {
 	if (desc->get_steps_per_frame() > 0) {
-		uint16 frame = ((animation_steps + steps) / desc->get_steps_per_frame()) % desc->get_animation_count(ribi_t::get_dir(direction));
-		return desc->get_image_id(ribi_t::get_dir(get_direction()), frame);
+		uint16 frame = ((animation_steps + steps) / desc->get_steps_per_frame()) % desc->get_animation_count(get_sprite_dir());
+		return desc->get_image_id(get_sprite_dir(), frame);
 	}
 	else {
 		return image;
@@ -354,7 +354,7 @@ void pedestrian_t::hop(grund_t *gr)
 
 	calc_disp_lane();
 	// carry over remainder to next tile for continuous animation during straight movement
-	uint16 steps_per_animation = desc->get_steps_per_frame() * desc->get_animation_count(ribi_t::get_dir(direction));
+	uint16 steps_per_animation = desc->get_steps_per_frame() * desc->get_animation_count(get_sprite_dir());
 	if (steps_per_animation > 0) {
 		animation_steps = (animation_steps + steps_next + 1) % steps_per_animation;
 	}

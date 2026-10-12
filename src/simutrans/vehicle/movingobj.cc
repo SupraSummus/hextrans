@@ -153,7 +153,7 @@ void movingobj_t::calc_image()
 			break;
 		}
 	}
-	set_image( get_desc()->get_image( season, ribi_t::get_dir(get_direction()) )->get_id() );
+	set_image( get_desc()->get_image( season, get_sprite_dir() )->get_id() );
 }
 
 

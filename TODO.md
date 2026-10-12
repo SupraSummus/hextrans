@@ -325,8 +325,8 @@ compromise to ratify.
 The current working hypothesis for where the seam between hex-aware
 sim and 4-direction pakset art lives is the descriptor API
 (`way_desc::get_image_id`, `vehicle_desc` sprite lookup, the
-`ribi_t::_dir` enum and `get_dir()`): sim above the boundary always
-passes a full 6-bit ribi in, descriptor below the boundary owns the
+`ribi_t::_dir` enum and `sprite_dir_of_heading()`):
+sim above the boundary always passes a full 6-bit ribi in, descriptor below the boundary owns the
 projection onto whatever sprite table its art actually has, with the
 lossy mappings named and centralised.  This is a hypothesis to test
 as the audit-surface entries below get cleaned up, not a committed
@@ -599,10 +599,13 @@ Proper fix is a hex-aware vehicle direction model —
 likely 12 states (6 hex edges × 2 magnitudes for 1-step vs 2-step)
 or a distinct `path_t` that carries both entry and exit edge names —
 and lands together with the viewport / sprite port.
-The dir enum in ribi.h similarly needs widening;
-`get_dir()` currently maps each of the 6 hex edges onto its
-same-named slot of the 8-value enum
-and returns `dir_invalid` for anything that is not a single edge.
+Sprites take the slot of the 8-direction table
+whose square screen heading is nearest
+(`sprite_dir_of_heading` in `descriptor/sprite_dir.h`):
+at most 8° off on an edge,
+27° on a bend chord stored as NE or SW.
+Hex art with more directions would widen `ribi_t::_dir`
+and that table together.
 
 Save-file format: `weg_t`'s in-memory ribi is now two full bytes
 (was a packed 4-bit bitfield that silently truncated hex bits 4-5),
@@ -613,14 +616,6 @@ hex mean SE/S/SW/NW, not the original N/E/S/W.  Needs a save
 version bump + a one-shot converter (or clean rejection) before
 any pre-port saved game survives a round-trip.  See also the
 "Save format version bump" section below.
-
-`ribi_t::_dir` sprite enum is still 4-direction;
-`get_dir()` maps NE/SE/SW/NW onto the same-named slots
-(`dir_northeast` etc.) and returns `dir_invalid` only for `none` and
-multi-bit ribis.
-Tied to sprite port.
-See also the vehicle-direction compound-displacement note above —
-18 distinct visual states under hex, 8 slots in the current dir enum.
 
 **Aircraft landing-circle 4-of-6 runways.**
 `air_vehicle_t::calc_route` in `air_vehicle.cc:418` switches on the
@@ -757,8 +752,12 @@ legacy square-iso pair (`(±2, ±1)` for the four edges that survive
 the rename, `(±4, 0)` for NE/SW); under the hex lattice N/S
 neighbours are at screen distance `2u` while NE/SW are at `u·√10`
 ≈ `3.16u`, so NE/SW vehicles visibly drift off-tile mid-hop on
-straight segments.  Rebase the per-edge offsets on the lattice; every
-edge crosses a tile in the same number of steps.
+straight segments.
+Sprites already face the lattice heading,
+so within a tile an N or S vehicle slides along the old diagonal
+63° away from where its sprite points.
+Rebase the per-edge offsets on the lattice;
+every edge crosses a tile in the same number of steps.
 The screen path through a bend is still the square-era one:
 `vehicle_base_t::get_display_steps` stretches the chord lengths
 (222 steps for a 60 degree turn, 128 for a 120 degree one)
@@ -851,10 +850,9 @@ bends fills the gap.  *Doesn't transform cleanly*: vehicles need
 above) vs. typically 4 sprite slots with ~8 rotation frames in
 square pakset art — pixel rotation of vehicles breaks silhouette
 and shading.
-`get_dir()` already maps each hex edge onto the same-named slot
-of the 8-direction sprite table,
-so 8-direction vehicle art shows a sprite in every hex direction,
-at an approximate angle.
+`sprite_dir_of_heading` gives each hex heading the 8-direction sprite
+nearest to it on screen, at most 8° off on an edge,
+so 8-direction vehicle art serves as is.
 Recommended order if a "playable but visibly stubby" demo is wanted before
 real art lands: base ground now comes from LightTexture.
 Skip the 60° way-bend rotations — that's where the cost-quality
