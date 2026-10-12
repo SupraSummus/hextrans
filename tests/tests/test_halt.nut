@@ -1553,6 +1553,48 @@ function test_halt_name_from_building_within_two_steps()
 }
 
 
+// A stop in the suburbs is named after its direction from the town, one of
+// the six hex edge directions: flat-top hexes have no due east or west
+// neighbour.  The stops lie 5 steps out, past the town's bounding box and the
+// 2 tile margin the naming adds, but within 6 more.  (5, -2) and (-5, 2)
+// have the signs of the NE and SW corners of an axial square, yet lie in
+// the SE and NW sectors on the map.
+function test_halt_name_has_hex_direction()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local pax_halt  = building_desc_x.get_available_stations(building_desc_x.station, wt_road, good_desc_x.passenger)[0]
+	local wayremover = command_x(tool_remove_way)
+	local townhall = coord3d(8, 8, 0)
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, townhall, "0"), null)
+
+	// dq, dr of the stop from the townhall, and the word in its name
+	local cases = [
+		[ 5,  0, "Southeast"], [ 0,  5, "South"], [-5,  5, "Southwest"],
+		[-5,  0, "Northwest"], [ 0, -5, "North"], [ 5, -5, "Northeast"],
+		[ 5, -2, "Southeast"], [-5,  2, "Northwest"]
+	]
+
+	foreach (c in cases) {
+		local k = coord3d(townhall.x + c[0], townhall.y + c[1], 0)
+		// a road leading away from the town
+		local end = coord3d(k.x, k.y + (c[1] > 0 ? 1 : -1), 0)
+		ASSERT_EQUAL(command_x.build_way(pl, k, end, road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, k, pax_halt.get_name()), null)
+
+		local name = halt_x.get_halt(k, pl).get_name()
+		ASSERT_TRUE(name.find(" " + c[2] + " ") != null)
+
+		ASSERT_EQUAL(wayremover.work(pl, k, end, "" + wt_road), null)
+	}
+
+	clear_townhall_and_roads(public_pl, townhall.x, townhall.y)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // A new stop within the catchment of a factory is named after it
 // ("<city> <factory> yard"), one out of reach is not.
 function test_halt_name_from_factory()
