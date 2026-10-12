@@ -178,6 +178,10 @@ private:
 public:
 	bool pause_on_error;
 
+	/// Test hook (-ai_soak): script errors are logged but never pause the
+	/// game, even for a script that asked for it with set_pause_on_error.
+	static bool ignore_pause_on_error;
+
 private:
 	/// @{
 	/// @name Helper functions to call, suspend, queue calls to scripted functions
