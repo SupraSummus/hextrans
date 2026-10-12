@@ -14,6 +14,8 @@
 #include "../../tool/simtool.h"
 #include "../../world/simworld.h"
 #include "../../dataobj/environment.h"
+#include "../../dataobj/settings.h"
+#include "../api_param.h"
 
 namespace script_api {
 
@@ -44,6 +46,40 @@ namespace script_api {
 };
 
 using namespace script_api;
+
+/**
+ * Grows the map to W x H with the same D, as the enlarge-map dialog does,
+ * and adds up to @p cities new cities in the new part.
+ * Returns the shift of the script's coordinates: the new part lies beyond
+ * the far sides of the map as it is, so the old tiles keep their
+ * coordinates, unless the map is turned by 180 degrees, where the script's
+ * frame has the new part at its near sides.  Null when the map cannot grow
+ * to that size or the game is a network game.
+ */
+SQInteger debug_enlarge_map(HSQUIRRELVM vm)
+{
+	const sint32 w = param<sint32>::get(vm, 2);
+	const sint32 h = param<sint32>::get(vm, 3);
+	const sint32 cities = param<sint32>::get(vm, 4);
+
+	const map_shape_t old_shape = welt->get_map_shape();
+	const map_shape_t new_shape(w, h, old_shape.d);
+	if (env_t::networkmode  ||  w < old_shape.w  ||  h < old_shape.h  ||  cities < 0
+		||  new_shape.get_size_q() > 32766  ||  new_shape.get_size_r() > 32766) {
+		sq_pushnull(vm);
+		return 1;
+	}
+
+	settings_t sets(welt->get_settings());
+	sets.set_size(w, h);
+	sets.set_city_count(cities);
+	welt->enlarge_map(&sets, NULL);
+
+	const bool turned = coordinate_transform_t::get_rotation() != 0;
+	return push_instance(vm, "coord",
+		turned ? new_shape.get_size_q() - old_shape.get_size_q() : 0,
+		turned ? new_shape.get_size_r() - old_shape.get_size_r() : 0);
+}
 
 SQInteger sleep(HSQUIRRELVM vm)
 {
@@ -113,6 +149,20 @@ void export_control(HSQUIRRELVM vm)
 	 * @returns true when the map was rotated.
 	 */
 	STATIC register_method(vm, &rotate_map, "rotate_map", false, true);
+
+	/**
+	 * Enlarges the map to @p w x @p h with the same depth D, as the
+	 * enlarge-map dialog does, and adds up to @p cities cities in the new
+	 * part.  The old hexagon keeps its tiles; see karte_t::enlarge_map.
+	 * Does not work in network games.
+	 * @param w new side W, at least the current one
+	 * @param h new side H, at least the current one
+	 * @param cities number of cities to add
+	 * @returns the coord by which the script's coordinates of the old tiles
+	 *          moved, or null when the map was not enlarged.
+	 * @typemask coord(integer,integer,integer)
+	 */
+	STATIC register_function(vm, debug_enlarge_map, "enlarge_map", 4, ".iii");
 
 	/**
 	 * Scripts can pause the game in case of error. Toggle this behavior by parameter @p p.
