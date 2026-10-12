@@ -729,7 +729,7 @@ void map_frame_t::draw(scr_coord pos, scr_size size)
 	// may add compass
 	if(  skinverwaltung_t::compass_map  &&  env_t::compass_map_position!=0  ) {
 		const uint16 isometric_img_offset = minimap_t::get_instance()->is_isometric() ? 4 : 0;
-		gfx->draw_img_aligned( skinverwaltung_t::compass_map->get_image_id( isometric_img_offset+welt->get_settings().get_rotation() ),
+		gfx->draw_img_aligned( skinverwaltung_t::compass_map->get_image_id( isometric_img_offset+welt->get_settings().get_compass_rotation() ),
 							 scrolly.get_client()+pos+scr_coord(4,4+D_TITLEBAR_HEIGHT)-scr_size(8,8), env_t::compass_map_position, false );
 	}
 }

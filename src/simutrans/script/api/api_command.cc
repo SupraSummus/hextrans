@@ -415,18 +415,10 @@ call_tool_work build_station_rotation(player_t* pl, koord3d pos, const building_
 	static cbuffer_t buf;
 	buf.clear();
 	if (layout >= 0) {
-		uint8 rotation = welt->get_settings().get_rotation();
-		// we need to rotate the station back according to the map
-		if (rotation) {
-			if (building->get_all_layouts() <= 4) {
-				layout = (layout + 4 - rotation) & (building->get_all_layouts() - 1);
-			}
-			else for (uint8 i = 0; i < rotation; i++) {
-				// this is different for station building that houses ...
-				static uint8 layout_rotate[16] = { 1, 8, 5, 10, 3, 12, 7, 14, 9, 0, 13, 2, 11, 4, 15, 6 };
-				// 8 & 16 tile lyoutout for stations
-				layout = layout_rotate[layout] & (building->get_all_layouts()-1);
-			}
+		// the script gives the layout of its rotation 0; the world turns by
+		// half turns only (karte_t::can_rotate90)
+		if (coordinate_transform_t::get_rotation() >= 3) {
+			layout = building->get_half_turn_layout((uint8)layout);
 		}
 		buf.printf("%s,%i", building->get_name(), layout);
 	}
@@ -571,16 +563,11 @@ call_tool_work change_climate_at(player_t* pl, koord3d start, int climate)
 
 call_tool_work lower_raise(player_t* pl, koord3d pos, sint8 corner, bool lower)
 {
-	// need to transform coordinate to grid coordinates
-	switch(coordinate_transform_t::get_rotation()) {
-		case 1: pos += koord(1,0); break;
-		case 2: pos += koord(1,1); break;
-		case 3: pos += koord(0,1); break;
-		default:;
-	}
 	if (corner < 0  ||  corner >= (sint8)hex_corner_t::count) {
 		return call_tool_work("Invalid hex corner");
 	}
+	// pos is already in world coordinates; the corner turns with the tile
+	corner = (sint8)((corner + coordinate_transform_t::get_rotation()) % hex_corner_t::count);
 	return call_tool_work((lower ? TOOL_LOWER_LAND : TOOL_RAISE_LAND) | GENERAL_TOOL, NULL, 0, pl, pos)
 		.set_cursor_corner((hex_corner_t::type)corner);
 }

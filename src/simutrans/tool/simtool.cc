@@ -8155,7 +8155,7 @@ void tool_rotate90_t::draw_after(scr_coord pos, bool dirty) const
 {
 	if(  !env_t::networkmode  ) {
 		if(  skinverwaltung_t::compass_map  ) {
-			gfx->draw_img_aligned( skinverwaltung_t::compass_map->get_image_id( welt->get_settings().get_rotation()+4 ), scr_rect(pos,env_t::iconsize), ALIGN_CENTER_V|ALIGN_CENTER_H, false );
+			gfx->draw_img_aligned( skinverwaltung_t::compass_map->get_image_id( welt->get_settings().get_compass_rotation()+4 ), scr_rect(pos,env_t::iconsize), ALIGN_CENTER_V|ALIGN_CENTER_H, false );
 		}
 		tool_t::draw_after( pos, dirty );
 	}
@@ -8163,7 +8163,12 @@ void tool_rotate90_t::draw_after(scr_coord pos, bool dirty) const
 
 bool tool_rotate90_t::init( player_t * )
 {
-	// HEX-PORT: map rotation disabled; see TODO.md.
+	// A single 60° step leaves a world karte_t cannot hold yet (see
+	// karte_t::can_rotate90): the tool turns the map by a half turn.
+	if(  !env_t::networkmode  &&  welt->can_rotate90( 3 )  ) {
+		welt->rotate90( 3 );
+		welt->update_map();
+	}
 	return false;
 }
 

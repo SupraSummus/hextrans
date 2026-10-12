@@ -26,11 +26,11 @@ namespace script_api {
 	void rotate90() { coordinate_transform_t::rotate90(); }
 	void new_world() { coordinate_transform_t::new_world(); }
 
-	uint8 coordinate_transform_t::rotation = 4;
+	uint8 coordinate_transform_t::rotation = coordinate_transform_t::invalid_rotation;
 
 	void coordinate_transform_t::initialize()
 	{
-		if (rotation == 4) {
+		if (rotation == invalid_rotation) {
 			rotation = welt->get_settings().get_rotation();
 		}
 	}
@@ -38,20 +38,25 @@ namespace script_api {
 	void coordinate_transform_t::rdwr(loadsave_t *file)
 	{
 		file->rdwr_byte(rotation);
+		if (file->is_loading()  &&  rotation == 4) {
+			// the square-era "not initialised"; unreachable as a rotation
+			// while karte_t only turns by half turns (see TODO.md)
+			rotation = invalid_rotation;
+		}
 	}
 
+	// The script sees the world as it was at script rotation 0: the map
+	// shape turned back by `rotation` steps, and its tiles, directions
+	// and slopes with it (map_shape_t::rotate_tile, ribi_t::rotate60,
+	// slope_t::rotate60, all clockwise).
 	void coordinate_transform_t::koord_w2sq(koord &k)
 	{
 		// do not transform koord::invalid
 		if (k.x == -1  &&  k.y == -1) {
 			return;
 		}
-		switch( rotation ) {
-			// 0: do nothing
-			case 1: k = koord(k.y, welt->get_size().x-1 - k.x); break;
-			case 2: k = koord(welt->get_size().x-1 - k.x, welt->get_size().y-1 - k.y); break;
-			case 3: k = koord(welt->get_size().y-1 - k.y, k.x); break;
-			default: break;
+		if (const uint8 steps = get_rotation()) {
+			k = welt->get_map_shape().rotate_tile(k, -(int)steps);
 		}
 	}
 
@@ -61,47 +66,44 @@ namespace script_api {
 		if (k.x == -1  &&  k.y == -1) {
 			return;
 		}
-		switch( rotation ) {
-			// 0: do nothing
-			case 1: k = koord(welt->get_size().x-1 - k.y, k.x); break;
-			case 2: k = koord(welt->get_size().x-1 - k.x, welt->get_size().y-1 - k.y); break;
-			case 3: k = koord(k.y, welt->get_size().y-1 - k.x); break;
-			default: break;
+		if (const uint8 steps = get_rotation()) {
+			k = welt->get_map_shape().rotated(-(int)steps).rotate_tile(k, steps);
 		}
 	}
 
 	void coordinate_transform_t::ribi_w2sq(ribi_t::ribi &r)
 	{
-		// HEX-PORT: was a 4-bit cyclic rotation by `rotation` steps,
-		// paired with the square rotate90 (one step = 90°).  Under
-		// hex the ribi is 6 bits and one step = 60° — matches
-		// `ribi_t::rotate_for_map_rotate90`.  Cycle within 6 bits.
-		if (rotation) {
-			r = ( ( (r << 6) | r) >> rotation) & 0x3f;
+		if (const uint8 steps = get_rotation()) {
+			r = ( ( (r << 6) | r) >> steps) & 0x3f;
 		}
 	}
 
 	void coordinate_transform_t::ribi_sq2w(ribi_t::ribi &r)
 	{
-		if (rotation) {
-			r = ( ( (r << 6) | r) << rotation) >> 6 & 0x3f;
+		if (const uint8 steps = get_rotation()) {
+			r = ( ( (r << 6) | r) << steps) >> 6 & 0x3f;
+		}
+	}
+
+	// slopes outside the slope table (the terraform sentinels) pass as they are
+	static void rotate_slope(slope_t::type &s, uint8 steps)
+	{
+		if (s < 0  ||  s > slope_t::max_number) {
+			return;
+		}
+		for (uint8 i = 0; i < steps; i++) {
+			s = slope_t::rotate60(s);
 		}
 	}
 
 	void coordinate_transform_t::slope_w2sq(slope_t::type &s)
 	{
-		// HEX-PORT: was rotate90 × (4-rotation) under the square quarter-
-		// turn rotation model; under hex one rotation step is 60° and
-		// the game still has 4 rotation states, so 4 rotate60's = 240°
-		// ≠ identity.  Until the rotation state widens to hex this
-		// transform is a no-op — scripts see world coords unrotated.
-		(void)s;
+		rotate_slope(s, (6 - get_rotation()) % 6);
 	}
 
 	void coordinate_transform_t::slope_sq2w(slope_t::type &s)
 	{
-		// HEX-PORT: see slope_w2sq — no-op during the hex-port transition.
-		(void)s;
+		rotate_slope(s, get_rotation());
 	}
 
 // integer arguments

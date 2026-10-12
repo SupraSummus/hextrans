@@ -247,13 +247,9 @@ SQInteger world_get_convoy_list(HSQUIRRELVM vm)
 
 SQInteger world_get_size(HSQUIRRELVM vm)
 {
-	koord k = welt->get_size();
-	if (coordinate_transform_t::get_rotation() & 1) {
-		return push_instance(vm, "coord", k.y, k.x);
-	}
-	else {
-		return push_instance(vm, "coord", k.x, k.y);
-	}
+	// the bounding rhombus of the map as the script sees it, at its rotation 0
+	const map_shape_t s = welt->get_map_shape().rotated(-(int)coordinate_transform_t::get_rotation());
+	return push_instance(vm, "coord", s.get_size_q(), s.get_size_r());
 }
 
 const char* get_pakset_name()

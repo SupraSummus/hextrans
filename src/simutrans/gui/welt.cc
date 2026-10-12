@@ -560,8 +560,10 @@ void welt_gui_t::update_preview(bool load_heightfield)
 
 	setsimrand( 0xFFFFFFFF, sets->get_map_number() );
 
+	// the size perlin_hoehe_loop passes, so a new world turned by 180°
+	// (settings from a loaded turned game) previews what it generates
 	fill_preview( map, map_size, sets->get_map_shape(), [&](sint32 x, sint32, sint32 r) {
-		return minimap_t::calc_height_color(karte_t::perlin_hoehe( sets, koord(x,r), hex_corner_t::E, koord::invalid ), sets->get_groundwater());
+		return minimap_t::calc_height_color(karte_t::perlin_hoehe( sets, koord(x,r), hex_corner_t::E, koord(0,0) ), sets->get_groundwater());
 	} );
 	sets->heightfield = "";
 	map_preview.set_map_data(&map);

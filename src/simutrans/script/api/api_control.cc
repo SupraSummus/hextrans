@@ -12,6 +12,8 @@
 #include "../script.h"
 #include "../../../squirrel/sq_extensions.h"
 #include "../../tool/simtool.h"
+#include "../../world/simworld.h"
+#include "../../dataobj/environment.h"
 
 namespace script_api {
 
@@ -28,6 +30,16 @@ namespace script_api {
 	{
 		tool_pause_t t;
 		return t.is_selected();
+	}
+
+	bool rotate_map()
+	{
+		if (env_t::networkmode  ||  !welt->can_rotate90(3)) {
+			return false;
+		}
+		tool_rotate90_t t;
+		t.init(NULL);
+		return true;
 	}
 };
 
@@ -92,6 +104,15 @@ void export_control(HSQUIRRELVM vm)
 	 * @returns true when successful.
 	 */
 	STATIC register_method(vm, &is_game_paused, "is_paused", false, true);
+
+	/**
+	 * Rotates the map by 180 degrees, as the rotate-map tool does.
+	 * The script keeps seeing the map as before: coordinates, directions
+	 * and slopes are translated (see coord).
+	 * Does not work in network games.
+	 * @returns true when the map was rotated.
+	 */
+	STATIC register_method(vm, &rotate_map, "rotate_map", false, true);
 
 	/**
 	 * Scripts can pause the game in case of error. Toggle this behavior by parameter @p p.
