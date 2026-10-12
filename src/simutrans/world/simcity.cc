@@ -3162,9 +3162,11 @@ int stadt_t::orient_city_building(const koord k, const building_desc_t *h, koord
 			return RC((simrand(2) * 2) & max_layout);
 		}
 		else if (roads_ns < roads_ew) {
-			// more EW roads
+			// more EW roads: layouts 1 and 3 face SE and NW, so the building
+			// faces a road on the +x side (east) with layout 1.  Upstream
+			// returns 3 here, against its own table for symmetric buildings
 			if (street_counter_ew) {
-				return RC((street_counter_ew > 0 ? 3 : 1) & max_layout);
+				return RC((street_counter_ew > 0 ? 1 : 3) & max_layout);
 			}
 			return RC((simrand(2) * 2 + 1) & max_layout);
 		}

@@ -537,15 +537,18 @@ function check_city_building_3x2_picks(roads, layout)
 // A road votes for a side of the footprint only on a tile that touches it.
 // Of the four corner tiles of the ring round an axial rectangle, the NE
 // one (size.x, -1) and the SW one (-1, size.y) touch it, and (-1, -1) and
-// (size.x, size.y) are two steps away.  A road on the SW corner (-1, 3) of
-// the 2x3 footprint gives layout 1, one on the NE corner (3, -1) of the
-// 3x2 footprint layout 2.  With a road on the far corner (3, 2) of the 3x2
-// footprint, or (2, 3) of the 2x3 one, the far road has no say.
+// (size.x, size.y) are two steps away.  The layouts face S, SE, N and NW,
+// so a road on the +x side of the 2x3 footprint gives layout 1 (SE) and
+// one on its -x side, here the SW corner (-1, 3), layout 3 (NW); one on
+// the NE corner (3, -1) of the 3x2 footprint gives layout 2 (N).  With a
+// road on the far corner (3, 2) of the 3x2 footprint, or (2, 3) of the
+// 2x3 one, the far road has no say.
 function test_city_building_3x2_faces_road()
 {
-	check_city_building_3x2_picks([[-1, 3, -1, 4]], 1)
+	check_city_building_3x2_picks([[2, 0, 2, 1]], 1)
+	check_city_building_3x2_picks([[-1, 3, -1, 4]], 3)
 	check_city_building_3x2_picks([[3, -1, 4, -1]], 2)
-	check_city_building_3x2_picks([[-1, 3, -1, 4], [3, 2, 4, 2]], 1)
+	check_city_building_3x2_picks([[-1, 3, -1, 4], [3, 2, 4, 2]], 3)
 	check_city_building_3x2_picks([[3, -1, 4, -1], [2, 3, 2, 4]], 2)
 
 	RESET_ALL_PLAYER_FUNDS()
