@@ -515,3 +515,40 @@ function test_factory_fields_fill_hex_shells()
 
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+// The shell of fields follows the footprint of the layout the factory was
+// built in.  TEST_FIELD_FACTORY is 3x1 in layout 0 and 1x3 in layout 1, and
+// as many fields as touch the footprint (ten), so a field at a larger
+// distance means the shell was taken around the other footprint.
+function test_factory_fields_follow_rotated_footprint()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+
+	for (local rotation = 0; rotation < 2; rotation++) {
+		ASSERT_EQUAL(build_factory(pl, coord3d(7, 7, 0), 1, rotation, 1024, "TEST_FIELD_FACTORY"), null)
+
+		local fab = factory_x(7, 7)
+		local tiles = fab.get_tile_list()
+		ASSERT_EQUAL(tiles.len(), 3)
+		// layout 0 runs along q, layout 1 along r
+		foreach (t in tiles) {
+			ASSERT_EQUAL(rotation == 0 ? t.y : t.x, 7)
+		}
+
+		local fields = fab.get_fields_list()
+		ASSERT_EQUAL(fields.len(), 10)
+		foreach (f in fields) {
+			local d = 99
+			foreach (t in tiles) {
+				d = min(d, hex_distance(f.x, f.y, t.x, t.y))
+			}
+			ASSERT_EQUAL(d, 1)
+		}
+
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(7, 7, 0)), null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}
