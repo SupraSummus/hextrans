@@ -1048,6 +1048,25 @@ and make the NE and SW cases of `test_halt_build_harbour_all_directions`
 and `test_halt_build_flat_dock_all_directions`
 assert the same line of tiles as the other four directions.
 
+Broken-townhall layout guess.
+`check_bau_townhall` guesses the layout of a one-layout, non-square townhall
+by probing the four corners of its axial rectangle,
+turning the corner offset with `koord(-y, x)`.
+That enumerates the corners of a rectangle and its transpose,
+not a hex rotation, so it stays right while `get_size` keeps the
+`layout & 1` rule.
+Nothing runs it today:
+every pak64 townhall is square, and so is the one in `tests/test-pak/`.
+Upstream wrote it for the arrangement an odd 90° map step leaves,
+because `gebaeude_t::rotate90` cannot turn a one-layout building.
+The 180° step planned first for the rotation cascade mirrors the offsets
+and leaves the footprint whole,
+and a 60° step leaves a parallelogram that no corner probe finds.
+Next move: delete the guess loop and keep the origin from
+`gb->get_tile()->get_offset()` just above it
+when `gebaeude_t::rotate90` gets its hex body
+(see "Rotation cascade").
+
 ## City growth anisotropy
 
 City footprints come out elongated rather than round.
