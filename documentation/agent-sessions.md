@@ -31,6 +31,10 @@ The orchestrator keeps its ordered queue of fix groups in a scratch file,
 so the order survives a context compaction;
 a merge or an agent report that unblocks a `TODO.md` entry
 adds that entry to the queue.
+When the queue runs short, a read-only triage agent
+classifies every `TODO.md` entry as actionable now, blocked, stale or epic,
+and proposes the next fix groups;
+the stale ones are removed in a small PR of their own.
 
 ## One unit of work
 
@@ -87,6 +91,15 @@ Merge the first one green and rebase the other, keeping both sides.
 When a rebase brings in another PR's new code,
 read that code for the problem the rebased branch fixes
 (a whole-map loop added while the map-shape loops were in review).
+A CI step that runs every test in another mode
+(the suite on a map turned by 180°, `tools/test.py --rotate`)
+reaches every PR's new tests:
+before merging, rebase each open PR onto `main`, run that mode too,
+and list a test that cannot pass there yet in its pending file
+(`tests/rotate-pending.txt`) under the class that explains why.
+Agent prompts carry the same rule.
+A test that passes or fails with the game time it starts at
+is fixed at its cause, not moved in `tests/all_tests.nut`.
 
 ## Ordering
 
@@ -110,3 +123,11 @@ when each finishes.
 A watcher over the agents' transcripts flags an agent
 that is idle for minutes, stuck in one command, or failing repeatedly.
 Stop and re-scope such an agent rather than letting it loop.
+
+A usage limit or a restart can stop every agent at once.
+Prompts tell agents to commit as they go:
+a worktree with commits survives and the agent resumes from its transcript
+when sent a message,
+while one with only uncommitted work may be cleaned up.
+The orchestrator keeps one worktree with a build of its own
+for rebasing open PRs and rerunning the extra suites locally.
