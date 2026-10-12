@@ -1716,7 +1716,9 @@ int simu_main(int argc, char** argv)
 		sets.set_traffic_level(7);
 		// Test hook: -flatmap N generates an empty, perfectly flat NxN
 		// map (no mountains, rivers, cities or industry) for measurement
-		// harnesses such as tools/city_anisotropy.py.  An empty flat map
+		// harnesses such as tools/city_anisotropy.py; -flatmap W,H,D
+		// generates the flat W x H x D hexagon of documentation/map-shape.md
+		// (the test fixture tests/empty-hex-9x7x5.sve).  An empty flat map
 		// needs no simulation, so we save it directly below and quit
 		// rather than running the interactive loop to -until: that crawls
 		// through the quit month in NORMAL mode (set_fast_forward does not
@@ -1725,9 +1727,17 @@ int simu_main(int argc, char** argv)
 		bool is_flatmap = false;
 		if(  const char *fm = args.gimme_arg("-flatmap", 1)  ) {
 			is_flatmap = true;
-			sint32 n = atoi(fm);
-			if(  n < 8  ) { n = 64; }
-			sets.set_size(n, n);
+			int w = 0, h = 0, d = 1;
+			if(  sscanf(fm, "%d,%d,%d", &w, &h, &d) != 3  ) {
+				w = h = atoi(fm);
+				d = 1;
+				if(  w < 8  ) { w = h = 64; }
+			}
+			if(  w < 1  ||  h < 1  ||  d < 1  ) {
+				dbg->fatal("simu_main()", "-flatmap W,H,D needs W, H, D >= 1 (got %s)", fm);
+			}
+			sets.set_size(w, h);
+			sets.set_size_d(d);
 			sets.set_city_count(0);
 			sets.set_factory_count(0);
 			sets.set_tourist_attractions(0);

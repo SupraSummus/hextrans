@@ -84,6 +84,17 @@ surface_t::~surface_t()
 }
 
 
+void surface_t::set_cached_shape(const map_shape_t &shape)
+{
+	cached_grid_size = koord((sint16)shape.get_size_q(), (sint16)shape.get_size_r());
+	cached_size_max = max(cached_grid_size.x, cached_grid_size.y);
+	cached_size.x = cached_grid_size.x - 1;
+	cached_size.y = cached_grid_size.y - 1;
+	cached_cut_lo = shape.get_cut_lo();
+	cached_cut_hi = shape.get_cut_hi();
+}
+
+
 koord surface_t::get_closest_coordinate(koord outside_pos) const
 {
 	outside_pos.clip_min(koord(0,0));
@@ -152,6 +163,13 @@ bool surface_t::square_is_free(koord pos, sint16 w, sint16 h, int *last_y, clima
 	}
 
 	grund_t *gr = lookup_kartenboden(pos);
+	if(  !gr  ) {
+		// off-map cell of the W x H x D hexagon
+		if(  last_y  ) {
+			*last_y = pos.y;
+		}
+		return false;
+	}
 	const sint16 platz_base_h = gr->get_hoehe(); // remember the base height of the first tile
 	const sint16 platz_max_h = gr->get_hoehe() + slope_t::max_diff( gr->get_grund_hang() ); // remember the max height of the first tile
 
@@ -159,6 +177,12 @@ bool surface_t::square_is_free(koord pos, sint16 w, sint16 h, int *last_y, clima
 	for(k_check.x=pos.x; k_check.x<pos.x+w; k_check.x++) {
 		for(k_check.y=pos.y+h-1; k_check.y>=pos.y; k_check.y--) {
 			const grund_t *gr = lookup_kartenboden(k_check);
+			if(  !gr  ) {
+				if(  last_y  ) {
+					*last_y = k_check.y;
+				}
+				return false;
+			}
 
 			// we can built, if: max height all the same, everything removable and no buildings there
 			slope_t::type slope = gr->get_grund_hang();

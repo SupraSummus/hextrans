@@ -96,6 +96,14 @@ static void test_shape(const map_shape_t &s)
 			CHECK(s.contains(q, r) == s.contains(Q - 1 - q, R - 1 - r));
 		}
 	}
+
+	// The branchless form surface_t::is_within_limits caches, over a
+	// margin around the rhombus wide enough to cross both cut lines.
+	for (sint32 r = -R - 2; r <= 2 * R + 2; r++) {
+		for (sint32 q = -Q - 2; q <= 2 * Q + 2; q++) {
+			CHECK(s.contains(q, r) == map_shape_t::contains_cached(q, r, Q - 1, R - 1, s.get_cut_lo(), s.get_cut_hi()));
+		}
+	}
 }
 
 

@@ -365,6 +365,9 @@ void karte_t::cleanup_grounds_loop( sint16 x_min, sint16 x_max, sint16 y_min, si
 {
 	for(  int y = y_min;  y < y_max;  y++  ) {
 		for(  int x = x_min; x < x_max;  x++  ) {
+			if(  !is_within_limits(x, y)  ) {
+				continue; // off-map cells of the W x H x D hexagon get no ground
+			}
 			planquadrat_t *pl = access_nocheck(x,y);
 			koord k(x,y);
 			slope_t::type slope = calc_natural_slope(k);
@@ -522,8 +525,7 @@ void karte_t::destroy()
 
 	ls.set_progress( old_progress );
 	// dinge aufraeumen
-	cached_grid_size.x = cached_grid_size.y = 1;
-	cached_size.x = cached_size.y = 0;
+	set_cached_shape(map_shape_t(1, 1, 1));
 	delete [] plan;
 	plan = NULL;
 	DBG_MESSAGE("karte_t::destroy()", "planquadrat destroyed");
@@ -1173,7 +1175,7 @@ DBG_DEBUG("karte_t::distribute_groundobj()","distributing groundobjs");
 		for(  k.y=0;  k.y<get_size().y;  k.y++  ) {
 			for(  k.x=(k.y<old_y)?old_x:0;  k.x<get_size().x;  k.x++  ) {
 				grund_t *gr = lookup_kartenboden_nocheck(k);
-				if(  gr->get_typ()==grund_t::boden  &&  !gr->hat_wege()  ) {
+				if(  gr  &&  gr->get_typ()==grund_t::boden  &&  !gr->hat_wege()  ) {
 					queried --;
 					if(  queried<0  ) {
 						// test for beach
@@ -1211,7 +1213,7 @@ DBG_DEBUG("karte_t::distribute_movingobj()","distributing movingobjs");
 			for(k.x=(k.y<old_y)?old_x:1; k.x<get_size().x-1; k.x++) {
 				grund_t *gr = lookup_kartenboden_nocheck(k);
 				// flat ground or open water
-				if(  gr->obj_count()==0  &&  (  (gr->get_typ()==grund_t::boden  &&  gr->get_grund_hang()==slope_t::flat)  ||  (has_water  &&  gr->is_water())  )  ) {
+				if(  gr  &&  gr->obj_count()==0  &&  (  (gr->get_typ()==grund_t::boden  &&  gr->get_grund_hang()==slope_t::flat)  ||  (has_water  &&  gr->is_water())  )  ) {
 					queried --;
 					if(  queried<0  ) {
 						const groundobj_desc_t *desc = movingobj_t::random_movingobj_for_climate( get_climate(k) );
@@ -1499,6 +1501,12 @@ void karte_t::create_lakes(  int xoff, int yoff, sint8 max_lake_height  )
 		for(  uint16 x = 0;  x < size_x;  x++  ) {
 			uint32 offset = array_koord(x,y);
 			grund_t *gr = lookup_kartenboden_nocheck(x,y);
+			if(  !gr  ) {
+				// off-map cell: never a lake seed, and can_flood_to_depth
+				// treats it as the map edge
+				max_water_hgt[offset] = -126;
+				continue;
+			}
 
 			sint8 hgt = gr->get_hoehe();
 
@@ -1556,7 +1564,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 	for(  uint16 iy = 0;  iy < size_y;  iy++  ) {
 		for(  uint16 ix = (iy >= yoff - 19) ? 0 : max( xoff - 19, 0 );  ix < size_x;  ix++  ) {
 			grund_t *gr = lookup_kartenboden_nocheck(ix,iy);
-			if(  gr->is_water()  &&  gr->get_hoehe()==groundwater  &&  gr->kann_alle_obj_entfernen(NULL)==NULL) {
+			if(  gr  &&  gr->is_water()  &&  gr->get_hoehe()==groundwater  &&  gr->kann_alle_obj_entfernen(NULL)==NULL) {
 				koord k( ix, iy );
 				uint8 neighbour_water = 0;
 				bool water[6] = {};
@@ -1609,7 +1617,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 		for(  uint16 ix = (iy >= yoff - 19) ? 0 : max( xoff - 19, 0 );  ix < size_x;  ix++  ) {
 			koord k( ix, iy );
 			grund_t *gr = lookup_kartenboden_nocheck(k);
-			if(  !gr->is_water()  &&  gr->get_pos().z == groundwater  ) {
+			if(  gr  &&  !gr->is_water()  &&  gr->get_pos().z == groundwater  ) {
 				uint8 neighbour_water = 0;
 				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
 					grund_t *gr2 = lookup_kartenboden( k + koord::neighbours[i] );
@@ -1632,7 +1640,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 	for(  uint16 iy = 0;  iy < size_y;  iy++  ) {
 		for(  uint16 ix = (iy >= yoff - 19) ? 0 : max( xoff - 19, 0 );  ix < size_x;  ix++  ) {
 			koord k( ix, iy );
-			if(  access_nocheck(k)->get_climate()  ==  desert_climate  ) {
+			if(  is_within_limits(k)  &&  access_nocheck(k)->get_climate()  ==  desert_climate  ) {
 				uint8 neighbour_beach = 0;
 				climate neighbour_climate[6] = {};
 				for(  size_t i = 0;  i < lengthof(koord::neighbours);  i++  ) {
@@ -1681,7 +1689,7 @@ void karte_t::distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 			for(  pos.y=ytop;  pos.y<ybottom;  pos.y++  ) {
 				for(  pos.x=xtop;  pos.x<xbottom;  pos.x++  ) {
 					grund_t *gr = lookup_kartenboden(pos);
-					if(gr->obj_count() == 0  &&  gr->get_typ() == grund_t::boden)  {
+					if(gr  &&  gr->obj_count() == 0  &&  gr->get_typ() == grund_t::boden)  {
 						if(humidity_map.at(pos.x,pos.y)>75) {
 							const uint32 tree_probability = (humidity_map.at(pos.x,pos.y) - 75)/5 + 38;
 							uint8 number_to_plant = 0;
@@ -1725,10 +1733,16 @@ void karte_t::distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 
 void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 {
-	const koord new_size(sets->get_size_x(), sets->get_size_y());
-
-	assert(new_size.x >= 0);
-	assert(new_size.y >= 0);
+	const map_shape_t new_shape = sets->get_map_shape();
+	if(  !new_shape.is_valid()  ||  new_shape.get_size_q() > 32766  ||  new_shape.get_size_r() > 32766  ) {
+		dbg->fatal( "karte_t::enlarge_map", "invalid map shape %d x %d x %d", new_shape.w, new_shape.h, new_shape.d );
+	}
+	// the bounding rhombus of the W x H x D hexagon, see documentation/map-shape.md
+	const koord new_size((sint16)new_shape.get_size_q(), (sint16)new_shape.get_size_r());
+	if(  get_size() != koord(0, 0)  &&  (settings.get_size_d() != 1  ||  new_shape.d != 1)  ) {
+		// the old_x / old_y strips below only cover a W x H x 1 rhombus
+		dbg->fatal( "karte_t::enlarge_map", "enlarging a W x H x D map with D > 1 lands with step 5 of documentation/map-shape.md" );
+	}
 
 	if(  cached_grid_size.y>0  &&  cached_grid_size.y!=new_size.y  ) {
 		// to keep the labels
@@ -1751,12 +1765,10 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	const koord old_size = get_size();
 	const bool new_world = old_size.x == 0 && old_size.y == 0;
 
-	settings.set_size_x(new_size.x);
-	settings.set_size_y(new_size.y);
-	cached_grid_size = new_size;
-	cached_size_max = max(cached_grid_size.x,cached_grid_size.y);
-	cached_size.x = cached_grid_size.x-1;
-	cached_size.y = cached_grid_size.y-1;
+	settings.set_size_x(new_shape.w);
+	settings.set_size_y(new_shape.h);
+	settings.set_size_d(new_shape.d);
+	set_cached_shape(new_shape);
 
 	intr_disable();
 
@@ -1926,6 +1938,9 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	// update height bounds
 	for(  sint16 iy = 0;  iy < new_size.y;  iy++  ) {
 		for(  sint16 ix = (iy >= old_size.y) ? 0 : max( old_size.x, 0 );  ix < new_size.x;  ix++  ) {
+			if(  !is_within_limits(ix, iy)  ) {
+				continue;
+			}
 			sint8 hgt = lookup_kartenboden_nocheck(ix, iy)->get_hoehe();
 			if (hgt < min_height) {
 				min_height = hgt;
@@ -4109,6 +4124,9 @@ void karte_t::plans_finish_rd( sint16 x_min, sint16 x_max, sint16 y_min, sint16 
 	sint8 min_h = 127, max_h = -128;
 	for(  int y = y_min;  y < y_max;  y++  ) {
 		for(  int x = x_min; x < x_max;  x++  ) {
+			if(  !is_within_limits(x, y)  ) {
+				continue; // off-map cell of the W x H x D hexagon
+			}
 			planquadrat_t *plan = access_nocheck(x,y);
 			plan->sort_haltlist();
 			const int boden_count = plan->get_boden_count();
@@ -4522,15 +4540,15 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 		season = (2+last_month/3)&3; // summer always zero
 		snowline = settings.get_winter_snowline() + groundwater;
 
-		DBG_DEBUG("karte_t::rdwr_gamestate()", "settings loaded (size %i,%i) timeline=%i beginner=%i", settings.get_size_x(), settings.get_size_y(), settings.get_use_timeline(), settings.get_beginner_mode());
+		DBG_DEBUG("karte_t::rdwr_gamestate()", "settings loaded (size %i,%i,%i) timeline=%i beginner=%i", settings.get_size_x(), settings.get_size_y(), settings.get_size_d(), settings.get_use_timeline(), settings.get_beginner_mode());
 
 		// wird gecached, um den Pointerzugriff zu sparen, da
 		// die size _sehr_ oft referenziert wird
-		cached_grid_size.x = settings.get_size_x();
-		cached_grid_size.y = settings.get_size_y();
-		cached_size_max = max(cached_grid_size.x,cached_grid_size.y);
-		cached_size.x = cached_grid_size.x-1;
-		cached_size.y = cached_grid_size.y-1;
+		const map_shape_t shape = settings.get_map_shape();
+		if(  !shape.is_valid()  ||  shape.get_size_q() > 32766  ||  shape.get_size_r() > 32766  ) {
+			dbg->fatal( "karte_t::rdwr_gamestate()", "Savegame has an invalid map shape %d x %d x %d", shape.w, shape.h, shape.d );
+		}
+		set_cached_shape(shape);
 		viewport->set_x_off(0);
 		viewport->set_y_off(0);
 
@@ -4665,9 +4683,13 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 	if (file->is_loading()) {
 		DBG_MESSAGE("karte_t::rdwr_gamestate()","loading tiles");
 
+		// off-map cells of the W x H x D hexagon are not in the stream;
+		// a save before SAVE_VERSION_HEX_MAP_SHAPE has D = 1 and no off-map cell
 		for (int y = 0; y < get_size().y; y++) {
 			for (int x = 0; x < get_size().x; x++) {
-				plan[x+y*cached_grid_size.x].rdwr(file, koord(x,y) );
+				if(  is_within_limits(x, y)  ) {
+					plan[x+y*cached_grid_size.x].rdwr(file, koord(x,y) );
+				}
 			}
 			if(file->is_eof()) {
 				dbg->fatal("karte_t::rdwr_gamestate()","Savegame file mangled (too short)!");
@@ -4678,7 +4700,9 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 	else {
 		for(int j=0; j<get_size().y; j++) {
 			for(int i=0; i<get_size().x; i++) {
-				plan[i+j*cached_grid_size.x].rdwr(file, koord(i,j) );
+				if(  is_within_limits(i, j)  ) {
+					plan[i+j*cached_grid_size.x].rdwr(file, koord(i,j) );
+				}
 			}
 			if(!ls) {
 				INT_CHECK("saving");
@@ -4779,10 +4803,13 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 		// init climates and default climate map
 		DBG_MESSAGE("karte_t::rdwr_gamestate()", "init climates");
 		climate_map.resize( get_size().x, get_size().y );
+		climate_map.init( temperate_climate ); // off-map cells are not in the stream
 		if(  file->is_version_atleast( 121, 1 )  ) {
 			for(  sint16 y = 0;  y < get_size().y;  y++  ) {
 				for(  sint16 x = 0;  x < get_size().x;  x++  ) {
-					file->rdwr_byte( climate_map.at(x,y) );
+					if(  is_within_limits(x, y)  ) {
+						file->rdwr_byte( climate_map.at(x,y) );
+					}
 				}
 			}
 		}
@@ -4807,7 +4834,9 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 		if(  file->is_version_atleast( 121, 1 )  ) {
 			for(  sint16 y = 0;  y < get_size().y;  y++  ) {
 				for(  sint16 x = 0;  x < get_size().x;  x++  ) {
-					file->rdwr_byte( climate_map.at(x,y) );
+					if(  is_within_limits(x, y)  ) {
+						file->rdwr_byte( climate_map.at(x,y) );
+					}
 				}
 			}
 		}
@@ -5017,7 +5046,8 @@ bool karte_t::can_flood_to_depth(koord k, sint8 new_water_height, sint8 *stage, 
 
 	do {
 		koord k_neighbour = k + koord::neighbours[our_stage[offset]];
-		if(  k_neighbour.x < x_min  ||  k_neighbour.x>=x_max) {
+		if(  k_neighbour.x < x_min  ||  k_neighbour.x>=x_max  ||  !is_within_limits(k_neighbour)  ) {
+			// map edge, including the cut corners of the W x H x D hexagon
 			succeeded = false;
 		} else if(  k_neighbour.y >= y_min  &&  k_neighbour.y<y_max  ) {
 			const uint32 neighbour_offset = array_koord(k_neighbour.x,k_neighbour.y);
@@ -5162,6 +5192,11 @@ void karte_t::calc_humidity_map_region( sint16 , sint16 , sint16 xbottom, sint16
 			for(  sint16 x = x0;  x < xmax;  x+=dx  ) {
 
 				grund_t *gr = lookup_kartenboden(x,y);
+				if(  !gr  ) {
+					// off-map cell of the W x H x D hexagon
+					humidity_map.at(x,y) = current_humidity;
+					continue;
+				}
 				if(  gr->is_water()  ||   gr->hat_weg(water_wt)  ) {
 					// increase humidity over water and rivers
 					current_humidity = current_humidity+settings.get_moisture_water();
@@ -5194,6 +5229,11 @@ void karte_t::calc_humidity_map_region( sint16 , sint16 , sint16 xbottom, sint16
 			for(  sint16 y = y0;  y < ymax;  y+=dy  ) {
 
 				grund_t *gr = lookup_kartenboden(x,y);
+				if(  !gr  ) {
+					// off-map cell of the W x H x D hexagon
+					humidity_map.at(x,y) = current_humidity;
+					continue;
+				}
 				if(  gr->is_water()  ||   gr->hat_weg(water_wt)  ) {
 					// increase humidity over water and rivers
 					current_humidity = current_humidity+settings.get_moisture_water();

@@ -32,8 +32,9 @@ gameinfo_t::gameinfo_t(karte_t *welt) :
 	file_name(""),
 	pak_name("")
 {
-	size_x = welt->get_size().x;
-	size_y = welt->get_size().y;
+	size_x = welt->get_settings().get_size_x();
+	size_y = welt->get_settings().get_size_y();
+	size_d = welt->get_settings().get_size_d();
 
 	industries = welt->get_fab_list().get_count();
 	tourist_attractions = welt->get_attractions().get_count();
@@ -50,7 +51,8 @@ gameinfo_t::gameinfo_t(karte_t *welt) :
 		for( uint16 j = 0; j < MINIMAP_SIZE; j++ ) {
 			const koord pos(i * gr_x / MINIMAP_SIZE, j * gr_y / MINIMAP_SIZE);
 			const grund_t* gr = welt->lookup_kartenboden(pos);
-			map_pixval.at(i,j) = minimap_t::calc_ground_color(gr);
+			// off-map cells of the W x H x D hexagon draw black
+			map_pixval.at(i,j) = gr ? minimap_t::calc_ground_color(gr) : gfx->palette_lookup(COL_BLACK);
 		}
 	}
 
@@ -126,6 +128,12 @@ void gameinfo_t::rdwr(loadsave_t *file)
 
 	file->rdwr_long( size_x );
 	file->rdwr_long( size_y );
+	if(  file->is_version_atleast(SAVE_VERSION_HEX_MAP_SHAPE_MAJOR, SAVE_VERSION_HEX_MAP_SHAPE_MINOR)  ) {
+		file->rdwr_long( size_d );
+	}
+	else {
+		size_d = 1;
+	}
 	for( int y=0;  y<MINIMAP_SIZE;  y++  ) {
 		for( int x=0;  x<MINIMAP_SIZE;  x++  ) {
 			// one 16 bit word per pixel is the protocol, whatever a screen pixel is
