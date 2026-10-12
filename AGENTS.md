@@ -630,7 +630,8 @@ intrinsic street texture, a decaying one is founding-skeleton bias);
 `-ai_soak SIZE [SEED]` (in `simmain.cc`, beside `-flatmap`)
 runs the computer players unattended,
 which nothing else in the test suite exercises.
-It generates a SIZE×SIZE map with cities and industry from SEED,
+It generates a SIZE×SIZE map with cities and industry from SEED
+(SIZE = `W,H,D` generates that hexagon, `documentation/map-shape.md`),
 adds one goods and one passenger AI,
 skips the start-up banner,
 and steps the world flat out to `-until YEAR.MONTH`,
@@ -649,7 +650,9 @@ A full run, from `simutrans/`:
 `tools/ai_soak.py [SEED…] [--until YEAR.MONTH]` wraps that for several seeds
 (default 1–3 to 1933.1, the busy phase of both AIs)
 and exits non-zero on any abort or crash;
-CI runs it after the scenario suite.
+`--shape W,H,D` soaks the hexagon instead.
+CI runs it after the scenario suite,
+and again for a game year on 48×40×32.
 CI's `make` build defines `NDEBUG`,
 so there a failed assert shows up later as a null-handle crash;
 reproduce in a Debug build to get the assert.
