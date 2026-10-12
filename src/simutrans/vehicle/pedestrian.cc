@@ -16,6 +16,7 @@
 
 #include "../utils/cbuffer.h"
 #include "../descriptor/pedestrian_desc.h"
+#include "screen_chord.h"
 
 #include <cstdio>
 
@@ -367,21 +368,15 @@ void pedestrian_t::hop(grund_t *gr)
 
 void pedestrian_t::get_screen_offset( int &xoff, int &yoff, const sint16 raster_width ) const
 {
-	// vehicles needs finer steps to appear smoother
-	const sint32 display_steps = get_display_steps( (uint32)(steps + steps_offset), raster_width );
-	xoff += (display_steps*dx) >> 10;
-	yoff += ((display_steps*dy) >> 10) + (get_hoff(raster_width))/(4*16);
+	const koord off = get_chord_offset( (uint32)(steps + steps_offset), raster_width );
+	xoff += off.x;
+	yoff += off.y + (get_hoff(raster_width))/(4*16);
 
 	if (on_left) {
-		sint32 left_off_steps = ( (VEHICLE_STEPS_PER_TILE - 2*ped_offset)*(uint16)raster_width ) & 0xFFFFFC00;
-
-		if (dx*dy==0) {
-			// diagonal
-			left_off_steps /= 2;
-		}
-		// turn left (dx,dy) increments
-		xoff += (left_off_steps*2*dy) >> 10;
-		yoff -= (left_off_steps*dx) >> (10+1);
+		// the far sidewalk, ped_offset steps in from the other road side
+		const koord left = chord_left_offset( koord(dx, dy), VEHICLE_STEPS_PER_TILE - 2*ped_offset, raster_width );
+		xoff += left.x;
+		yoff += left.y;
 	}
 }
 

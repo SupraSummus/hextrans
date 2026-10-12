@@ -45,6 +45,11 @@ jobs:
       # 8-direction sprite nearest to it on screen under hex_proj.h.
       # ~1 second.
       run: make -C tools/hex_dir_test run
+    - name: Vehicle in-tile motion self-test
+      # vehicle/screen_chord.h: a vehicle crosses a tile on the chord
+      # between the middles of its entry and exit edges, as projected
+      # by hex_proj.h.  ~1 second.
+      run: make -C tools/hex_chord_test run
     - name: Back-image wall-floor decoder self-test
       # Pins the base-WALL_IMAGE_COUNT digit extraction in
       # ground/back_image_decode.h: range gates, single-wall
