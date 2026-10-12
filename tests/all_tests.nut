@@ -299,6 +299,7 @@ all_tests <- [
 	test_trees_plant_forest,
 	test_trees_forest_is_round,
 	test_vehicle_tile_length_all_hex_directions,
+	test_vehicle_tile_length_bends,
 	test_way_bridge_build_ground,
 	test_way_bridge_build_at_slope,
 	test_way_bridge_build_at_slope_stacked,

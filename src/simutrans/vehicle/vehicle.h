@@ -158,6 +158,10 @@ public:
 	 */
 	virtual void initialise_journey( route_t::index_t start_route_index, bool recalc );
 
+	/// True if the convoi must restart for correct alignment: the loaded
+	/// tile length is not the one hop() gives this tile now.
+	bool need_realignment() const;
+
 	vehicle_t();
 	vehicle_t(koord3d pos, const vehicle_desc_t* desc, player_t* player);
 

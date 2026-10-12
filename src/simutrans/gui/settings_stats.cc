@@ -18,7 +18,6 @@
 
 /* stuff not set here ....
 INIT_NUM( "intercity_road_length", env_t::intercity_road_length);
-INIT_NUM( "diagonal_multiplier", pak_diagonal_multiplier);
 */
 
 

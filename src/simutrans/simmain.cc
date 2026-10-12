@@ -820,7 +820,6 @@ int simu_main(int argc, char** argv)
 	}
 
 	// only the specified pak conf should override this!
-	uint16 pak_diagonal_multiplier = env_t::default_settings.get_pak_diagonal_multiplier();
 	sint8 pak_tile_height = TILE_HEIGHT_STEP;
 	sint8 pak_height_conversion_factor = env_t::pak_height_conversion_factor;
 
@@ -1333,7 +1332,6 @@ int simu_main(int argc, char** argv)
 		}
 		env_t::show_month = show_month;
 
-		pak_diagonal_multiplier = env_t::default_settings.get_pak_diagonal_multiplier();
 		pak_height_conversion_factor = env_t::pak_height_conversion_factor;
 		pak_tile_height = TILE_HEIGHT_STEP;
 
@@ -1387,8 +1385,6 @@ int simu_main(int argc, char** argv)
 	}
 
 	// now (re)set the correct length and other pak set only settings
-	env_t::default_settings.set_pak_diagonal_multiplier( pak_diagonal_multiplier );
-	vehicle_base_t::set_diagonal_multiplier( pak_diagonal_multiplier, pak_diagonal_multiplier );
 	env_t::pak_height_conversion_factor = pak_height_conversion_factor;
 	TILE_HEIGHT_STEP = pak_tile_height;
 

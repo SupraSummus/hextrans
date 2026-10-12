@@ -21,15 +21,8 @@ class overtaker_t;
 class vehicle_base_t : public obj_t
 {
 protected:
-	// to make the length on diagonals configurable
-	// Number of vehicle steps along a diagonal...
-	// remember to subtract one when stepping down to 0
-	static uint8 diagonal_vehicle_steps_per_tile;
-	static uint8 old_diagonal_vehicle_steps_per_tile;
-	static uint16 diagonal_multiplier;
-
-	/// steps_next of a tile crossed along the displacement @p start -> @p ende
-	static uint8 calc_chord_steps_next(const koord3d& start, const koord3d& ende);
+	/// steps_next of the tile @p cur, entered from @p prev and left to @p next
+	static uint8 calc_chord_steps_next(const koord3d& prev, const koord3d& cur, const koord3d& next);
 
 	// [0]=xoff [1]=yoff
 	static sint8 driveleft_base_offsets[8][2];
@@ -104,20 +97,16 @@ protected:
 	// only needed for old way of moving vehicles to determine position at loading time
 	bool is_about_to_hop( const sint8 neu_xoff, const sint8 neu_yoff ) const;
 
+	/// Screen steps for @p s steps into the tile, scaled by @p raster_width
+	sint32 get_display_steps(uint32 s, sint16 raster_width) const;
+
 public:
-	// only called during load time: set some offsets
-	static void set_diagonal_multiplier( uint32 multiplier, uint32 old_multiplier );
-	static uint16 get_diagonal_multiplier() { return diagonal_multiplier; }
-	static uint8 get_diagonal_vehicle_steps_per_tile() { return diagonal_vehicle_steps_per_tile; }
+	/// Steps to cross a tile entered and left by the two edges in @p edges:
+	/// the chord between the middles of the two edges.  Anything but a
+	/// bend is crossed straight.
+	static uint16 get_tile_steps(ribi_t::ribi edges);
 
 	static void set_overtaking_offsets( bool driving_on_the_left );
-
-	// if true, this convoi needs to restart for correct alignment
-	bool need_realignment() const;
-
-	/// True if this vehicle crosses its tile on a bend, with the short
-	/// diagonal tile length.  The saved steps_next is the only record of it.
-	bool is_cutting_corner() const { return steps_next == diagonal_vehicle_steps_per_tile - 1; }
 
 	uint32 do_drive(uint32 dist); // basis movement code
 
@@ -126,6 +115,7 @@ public:
 
 	sint16 get_hoff(const sint16 raster_width=1) const;
 	uint8 get_steps() const {return steps;}
+	uint8 get_steps_next() const {return steps_next;}
 
 	uint8 get_disp_lane() const { return disp_lane; }
 
@@ -152,7 +142,12 @@ public:
 	/// what calc_set_direction() stores in `direction`.
 	static ribi_t::ribi calc_chord_direction(const koord3d& start, const koord3d& ende);
 
-	ribi_t::ribi calc_set_direction(const koord3d& start, const koord3d& ende);
+	/// Sets direction, dx, dy and steps_next for crossing the tile @p cur,
+	/// entered from @p prev and left to @p next.
+	ribi_t::ribi calc_set_direction(const koord3d& prev, const koord3d& cur, const koord3d& next);
+
+	/// Same for a single step from @p start to @p ende, crossed straight.
+	ribi_t::ribi calc_set_direction(const koord3d& start, const koord3d& ende) { return calc_set_direction(start, start, ende); }
 
 	ribi_t::ribi get_direction() const {return direction;}
 

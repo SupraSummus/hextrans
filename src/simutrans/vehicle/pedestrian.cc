@@ -320,7 +320,7 @@ void pedestrian_t::hop(grund_t *gr)
 
 		if (  ribi_t::is_twoway(weg->get_ribi_unmasked())  ||  new_direction == current_direction  ) {
 			// going straight
-			direction = calc_set_direction(from, pos_next);
+			direction = calc_set_direction(from, get_pos(), pos_next);
 		}
 		else {
 			// HEX-PORT: 90° turn (cross-street) → 120° = 2× rotate60
@@ -332,7 +332,7 @@ void pedestrian_t::hop(grund_t *gr)
 
 			if (turn_ribi == new_direction) {
 				// short diagonal (turn but do not cross street)
-				direction = calc_set_direction(from, pos_next);
+				direction = calc_set_direction(from, get_pos(), pos_next);
 				steps_next = (ped_offset*181) / 128; // * sqrt(2)
 				steps_offset = 0;
 			}
@@ -368,13 +368,7 @@ void pedestrian_t::hop(grund_t *gr)
 void pedestrian_t::get_screen_offset( int &xoff, int &yoff, const sint16 raster_width ) const
 {
 	// vehicles needs finer steps to appear smoother
-	sint32 display_steps = (uint32)(steps + steps_offset)*(uint16)raster_width;
-	if(  dx && dy  ) {
-		display_steps &= 0xFFFFFC00;
-	}
-	else {
-		display_steps = (display_steps*diagonal_multiplier)>>10;
-	}
+	const sint32 display_steps = get_display_steps( (uint32)(steps + steps_offset), raster_width );
 	xoff += (display_steps*dx) >> 10;
 	yoff += ((display_steps*dy) >> 10) + (get_hoff(raster_width))/(4*16);
 

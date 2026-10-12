@@ -19,7 +19,6 @@
 #include "../sys/simsys.h"
 #include "../utils/simrandom.h"
 #include "../utils/simstring.h"
-#include "../vehicle/vehicle_base.h"
 #include "../world/simworld.h"
 #include "environment.h"
 #include "loadsave.h"
@@ -342,15 +341,11 @@ void settings_t::rdwr(loadsave_t *file)
 			file->rdwr_short( winter_snowline );
 		}
 
-		// vehicle may need realignment afterwards!
-		if(file->is_version_less(99, 19)) {
-			vehicle_base_t::set_diagonal_multiplier( pak_diagonal_multiplier, 1024 );
-		}
-		else {
-			uint16 old_multiplier = pak_diagonal_multiplier;
-			file->rdwr_short( old_multiplier );
-			vehicle_base_t::set_diagonal_multiplier( pak_diagonal_multiplier, old_multiplier );
-			// since vehicle will need realignment afterwards!
+		// The square-era diagonal_multiplier; the length of a bend tile now
+		// follows from the hex geometry (vehicle_base_t::get_tile_steps).
+		if(file->is_version_atleast(99, 19)) {
+			uint16 diagonal_multiplier = 724;
+			file->rdwr_short( diagonal_multiplier );
 		}
 
 		if(file->is_version_atleast(101, 0)) {
@@ -1347,9 +1342,6 @@ void settings_t::parse_simuconf( tabfile_t& simuconf, sint16& disp_width, sint16
 	tree_distribution = contents.get_int_clamped( "tree_distribution", tree_distribution, TREE_DIST_NONE, TREE_DIST_COUNT-1 );
 	lake_height       = contents.get_int("no_lakes", 1 )==0 ? -128 : lake_height;
 	lake_height       = contents.get_int_clamped("lake_height", lake_height, groundwater, 127 );
-
-	// these are pak specific; the diagonal length affect travelling time (is game critical)
-	pak_diagonal_multiplier = contents.get_int_clamped("diagonal_multiplier", pak_diagonal_multiplier, 1, INT_MAX );
 
 	// the height in z-direction will only cause pixel errors but not a different behaviour
 	env_t::pak_tile_height_step = contents.get_int_clamped("tile_height", env_t::pak_tile_height_step, 1, INT_MAX );
