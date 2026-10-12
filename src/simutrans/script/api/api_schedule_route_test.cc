@@ -142,8 +142,9 @@ static SQInteger sroute_step(HSQUIRRELVM)
 
 static SQInteger sroute_rotate(HSQUIRRELVM)
 {
-	// rotating rewrites every coordinate; the overlay must not survive it
-	welt->rotate90();
+	// rotating rewrites every coordinate; the overlay must not survive it.
+	// A half turn, the smallest rotation karte_t can hold.
+	welt->rotate90(3);
 	return 0;
 }
 

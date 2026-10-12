@@ -724,7 +724,6 @@ function test_way_tunnel_planner_invalid_direction()
 }
 
 
-// test_way_tunnel_planner_rotated_map: HEX-PORT PENDING.
 function test_way_tunnel_planner_rotated_map()
 {
 	local pl = player_x(0)
@@ -744,8 +743,6 @@ function test_way_tunnel_planner_rotated_map()
 	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south, tunnel_desc).tostring(), end_pos.tostring())
 
 	// back to the original orientation, so the rest of the suite is unaffected
-	sroute_rotate()
-	sroute_rotate()
 	sroute_rotate()
 	ASSERT_EQUAL(tunnel_planner_x.find_end(pl, start_pos, dir.south, tunnel_desc).tostring(), end_pos.tostring())
 
