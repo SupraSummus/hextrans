@@ -340,7 +340,13 @@ static sint32 obj_get_image(obj_t* o)
 
 static uint8 building_get_layout(gebaeude_t* gb)
 {
-	return gb->get_tile()->get_layout();
+	// as the script sees the map: turned back by the half turns since it started
+	const building_tile_desc_t *tile = gb->get_tile();
+	uint8 layout = tile->get_layout();
+	if (coordinate_transform_t::get_rotation() >= 3) {
+		layout = tile->get_desc()->get_half_turn_layout(layout);
+	}
+	return layout;
 }
 
 static sint32 obj_get_front_image(obj_t* o)

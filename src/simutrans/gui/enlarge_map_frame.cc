@@ -28,12 +28,11 @@
 koord enlarge_map_frame_t::koord_from_rotation(settings_t const* const sets, sint16 const x, sint16 const y, sint16 const w, sint16 const h)
 {
 	koord offset( sets->get_origin_x(), sets->get_origin_y() );
+	// the map turns by half turns only (karte_t::can_rotate90)
 	switch( sets->get_rotation() ) {
 		default:
 		case 0: return offset+koord(x,y);
-		case 1: return offset+koord(y,w-x);
-		case 2: return offset+koord(w-x,h-y);
-		case 3: return offset+koord(h-y,x);
+		case 3: return offset+koord(w-x,h-y);
 	}
 }
 
@@ -169,7 +168,6 @@ void enlarge_map_frame_t::draw(scr_coord pos, scr_size size)
 	while (welt->get_settings().get_rotation() != sets->get_rotation()) {
 		// map was rotated while we are active ... => rotate too!
 		sets->rotate90();
-		sets->set_size( sets->get_size_y(), sets->get_size_x() );
 		update_preview();
 	}
 

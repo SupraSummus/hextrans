@@ -522,16 +522,18 @@ namespace script_api {
 		/// Scripts do not take care of rotated maps.
 		/// Coordinates will be translated between in-game coordinates and script coordinates.
 		/// First v.m. to be started sets this value
+		/// 60° steps 0..5, or invalid_rotation before that.
 		static uint8 rotation;
+		static const uint8 invalid_rotation = 255;
 	public:
 		/// called if a new world is initialized
-		static void new_world() { rotation=4; /*invalid*/ }
+		static void new_world() { rotation = invalid_rotation; }
 
 		/// inits rotation from karte_t::settings
 		static void initialize();
 
 		/// keep track of rotation
-		static void rotate90()  { if (rotation<4) rotation = (rotation+1)&3; }
+		static void rotate90()  { if (rotation != invalid_rotation) rotation = (rotation+1)%6; }
 
 		/// read/save rotation to stay consistent after saving & loading
 		static void rdwr(loadsave_t*);
@@ -568,7 +570,8 @@ namespace script_api {
 		 */
 		static void slope_sq2w(slope_t::type &s);
 
-		static uint8 get_rotation() { return rotation; }
+		/// 60° steps the world turned since the script started, 0..5
+		static uint8 get_rotation() { return rotation == invalid_rotation ? 0 : rotation % 6; }
 	};
 
 	/// called by karte_t directly
