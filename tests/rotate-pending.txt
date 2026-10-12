@@ -63,3 +63,12 @@ test_way_tunnel_planner_no_exit
 # A building with four layouts folds a road on NE or SW onto S or SE
 # (adjust_layout), which does not commute with the half turn.
 test_city_building_faces_road
+
+# The test-only AI probes in script/api/api_ai_test.cc take and return
+# world coordinates, without the script transform.
+test_ai_site_station_reaches_factory
+test_ai_site_harbour_all_faces
+test_ai_site_harbour_search_window_is_a_disc
+test_ai_site_harbour_run_length_after_ne_sw_shore
+test_ai_site_harbour_second_direction
+test_ai_site_extends_own_station_on_all_sides
