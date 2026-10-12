@@ -2,9 +2,11 @@
 // bounding rhombus and against the vertex topology in
 // dataobj/koord_hex.cc, and the map rotations that take a map extent
 // (koord::rotate90, koord3d::rotate90, array2d_tpl::rotate90) against
-// map_shape_t::rotate_tile.  See documentation/map-shape.md.
+// map_shape_t::rotate_tile.  Also the relief image frame, the vertex slot
+// band and the noise cache bound.  See documentation/map-shape.md.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <set>
 #include <utility>
@@ -287,6 +289,133 @@ static void test_vertex_slots(const map_shape_t &s)
 }
 
 
+// The relief image frame: column q, row r + floor((q - t) / 2).  Tile
+// centres sit at row r + q/2 - t/2 of the plane, whose columns with
+// q - t odd are half a row below the integer pixel row.  Every on-map
+// tile has its own pixel inside the image, the pixels that map back
+// onto the map are exactly the tiles, and the image size gives the
+// shape back.
+static void test_image_frame(const map_shape_t &s)
+{
+	const sint32 cols = s.get_image_cols(), rows = s.get_image_rows();
+	const sint32 t = s.get_cut_lo();
+	CHECK(cols == s.get_size_q());
+	CHECK(rows == s.h + (s.get_size_q() / 2));
+
+	std::set<std::pair<int, int> > pixels;
+	for (koord k : tiles_of(s)) {
+		const sint32 j = s.get_image_row(k.x, k.y);
+		CHECK(j >= 0  &&  j < rows);
+		pixels.insert(std::make_pair((int)k.x, (int)j));
+		CHECK(s.get_tile_row(k.x, j) == k.y);
+
+		// the plane row of the centre, from the physical position
+		const double plane_row = k.y + 0.5 * k.x - 0.5 * t;
+		CHECK(plane_row - j == ((k.x - t) & 1 ? 0.5 : 0.0));
+	}
+	CHECK((sint64)pixels.size() == s.get_tile_count());
+
+	sint64 on_map = 0;
+	for (sint32 j = 0; j < rows; j++) {
+		for (sint32 i = 0; i < cols; i++) {
+			on_map += s.contains(i, s.get_tile_row(i, j));
+		}
+	}
+	CHECK(on_map == s.get_tile_count());
+
+	// w follows from the columns and the cut, h from the rows
+	const map_shape_t back = map_shape_t::from_image_size(cols, rows, s.d);
+	CHECK(back.w == s.w  &&  back.h == s.h  &&  back.d == s.d);
+	// the rows do not depend on d, the columns minus d - 1 give w
+	for (sint32 d = 1; d <= cols + 1; d++) {
+		const map_shape_t o = map_shape_t::from_image_size(cols, rows, d);
+		CHECK(o.h == s.h);
+		CHECK(o.w == cols - d + 1);
+		CHECK(o.is_valid() == (d <= cols));
+	}
+
+	// a regular hexagon has a square image
+	if (s.w == s.h  &&  s.h == s.d) {
+		CHECK(cols == rows);
+	}
+}
+
+
+// slot_near_map() skips only canonical slots whose vertex is off the
+// map and has no on-map neighbour, everything at d == 1, and it keeps
+// every slot of an on-map vertex.
+static void test_slot_band(const map_shape_t &s)
+{
+	const sint32 Q = s.get_size_q(), R = s.get_size_r();
+	int skipped = 0;
+	for (sint32 r = -1; r <= R; r++) {
+		for (sint32 q = -1; q < Q; q++) {
+			CHECK(s.slot_near_map(q, r) == map_shape_t::slot_near_map_cached(q, r, s.get_cut_lo(), s.get_cut_hi()));
+			for (int c = 0; c < 2; c++) {
+				const hex_vertex_t v = { koord((sint16)q, (sint16)r), c ? hex_corner_t::SE : hex_corner_t::E };
+				if (s.slot_near_map(q, r)) {
+					continue;
+				}
+				skipped++;
+				CHECK(!s.contains_vertex(v));
+				hex_vertex_t nb[3];
+				vertex_neighbours(v, nb);
+				for (const hex_vertex_t &n : nb) {
+					CHECK(!s.contains_vertex(n));
+				}
+			}
+		}
+	}
+	for (koord k : tiles_of(s)) {
+		for (int c = 0; c < hex_corner_t::count; c++) {
+			const hex_vertex_t cv = canonical_vertex({ k, (hex_corner_t::type)c });
+			CHECK(s.slot_near_map(cv.tile.x, cv.tile.y));
+		}
+	}
+	CHECK((s.d == 1) == (skipped == 0));
+}
+
+
+// The noise cache bound of get_vertex_pos_bound(): above every slot
+// generation fills, exact in y, within one tile in x.
+static void test_noise_bound(const map_shape_t &s)
+{
+	const sint32 Q = s.get_size_q(), R = s.get_size_r();
+	const hex_pos_t bound = s.get_vertex_pos_bound();
+	double max_x = 0.0, max_y = 0.0;
+	for (sint32 r = -1; r <= R; r++) {
+		for (sint32 q = -1; q < Q; q++) {
+			if (!s.slot_near_map(q, r)) {
+				continue;
+			}
+			for (int c = 0; c < 2; c++) {
+				const hex_pos_t p = hex_vertex_pos({ koord((sint16)q, (sint16)r), c ? hex_corner_t::SE : hex_corner_t::E });
+				max_x = std::max(max_x, p.x);
+				max_y = std::max(max_y, p.y);
+			}
+		}
+	}
+	CHECK(max_x <= bound.x  &&  bound.x - max_x <= 1.0);
+	CHECK(max_y <= bound.y + 1e-9  &&  bound.y - max_y <= 1e-9);
+}
+
+
+// The density scale is the side of the square map with the same tiles.
+static void test_side_equivalent()
+{
+	for (sint32 w = 1; w <= 40; w++) {
+		for (sint32 h = 1; h <= 40; h++) {
+			CHECK(map_shape_t(w, h, 1).get_side_equivalent() == std::sqrt((double)w * h));
+		}
+	}
+	// the default 150 x 150 x 150 hexagon has the tiles of a 259 x 259 map
+	CHECK(map_shape_t(150, 150, 150).get_tile_count() == 67051);
+	CHECK(std::fabs(map_shape_t(150, 150, 150).get_side_equivalent() - 258.94) < 0.01);
+	CHECK(std::fabs(map_shape_t(150, 150, 150).get_side_equivalent() / map_shape_t(259, 259, 1).get_side_equivalent() - 1.0) < 0.001);
+	CHECK(std::fabs(map_shape_t(48, 40, 32).get_side_equivalent() - std::sqrt(48.0*40 + 40.0*32 + 32.0*48 - 48 - 40 - 32 + 1)) < 1e-9);
+}
+
+
 // koord::rotate90( y_size ) is the d == 1 spelling of rotate_tile, which
 // shifts by -(d - 1) along r on top: y_size = h + d - 2 for any shape.
 // koord3d keeps its height, and a step takes SE to S as for the ribis.
@@ -355,7 +484,12 @@ int main()
 		test_vertices(s);
 		test_vertex_slots(s);
 		test_rotate90_forms(s);
+		test_image_frame(s);
+		test_slot_band(s);
+		test_noise_bound(s);
 	}
+	test_side_equivalent();
+	CHECK(!map_shape_t::from_image_size(5, 2, 1).is_valid());
 	for (sint32 w = 1; w <= 7; w++) {
 		for (sint32 h = 1; h <= 7; h++) {
 			test_array_rotate(w, h);
