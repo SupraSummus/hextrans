@@ -333,8 +333,6 @@ void weg_t::info(cbuffer_t & buf) const
 void weg_t::rotate90()
 {
 	obj_t::rotate90();
-	// HEX-PORT: rotate90 → rotate_for_map_rotate90 helper,
-	// tied to the karte_t::rotate90 refusal in TODO.md.
 	ribi = ribi_t::rotate_for_map_rotate90(ribi );
 	ribi_maske = ribi_t::rotate_for_map_rotate90(ribi_maske );
 }

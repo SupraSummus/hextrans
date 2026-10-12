@@ -92,7 +92,6 @@ public:
 	void rdwr(loadsave_t *file) OVERRIDE;
 
 	// may need to swap reservations
-	void rotate90() OVERRIDE;
 
 	/**
 	 * if a function return here a value with TRANSPARENT_FLAGS set

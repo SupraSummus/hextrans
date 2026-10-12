@@ -30,7 +30,6 @@
 void vehicle_t::rotate90()
 {
 	vehicle_base_t::rotate90();
-	// HEX-PORT: rotate90 → rotate_for_map_rotate90 helper.
 	previous_direction = ribi_t::rotate_for_map_rotate90(previous_direction );
 	last_stop_pos.rotate90( welt->get_map_shape() );
 }

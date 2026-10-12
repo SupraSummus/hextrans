@@ -115,6 +115,13 @@ const groundobj_desc_t *movingobj_t::random_movingobj_for_climate(climate cl)
 
 
 // recalculates only the seasonal image
+void movingobj_t::rotate90()
+{
+	vehicle_base_t::rotate90();
+	pos_next_next.rotate90( welt->get_map_shape() );
+}
+
+
 void movingobj_t::calc_image()
 {
 	const groundobj_desc_t *desc=get_desc();

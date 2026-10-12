@@ -184,7 +184,6 @@ void leitung_t::cleanup(player_t *player)
 void leitung_t::rotate90()
 {
 	obj_t::rotate90();
-	// HEX-PORT: see rotate_for_map_rotate90 helper.
 	ribi = ribi_t::rotate_for_map_rotate90(ribi );
 }
 

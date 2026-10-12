@@ -161,7 +161,5 @@ void pillar_t::rotate90()
 	// we cannot decide this here, since welt->lookup(get_pos())->get_grund_hang() cannot be called
 	// since we are in the middle of the rotation process
 
-	// 90° is not a hex symmetry (see bruecke_t::rotate90); leave
-	// `dir` unchanged.  Replace with a real 60° axis rotation when
-	// the viewport / rotation port lands.
+	dir = (uint8)bridge_desc_t::rotate60( (bridge_desc_t::img_t)dir );
 }

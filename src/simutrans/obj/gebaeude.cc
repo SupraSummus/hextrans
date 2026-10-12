@@ -148,39 +148,23 @@ void gebaeude_t::rotate90()
 {
 	obj_t::rotate90();
 
+	// A layout and a rectangular footprint have no 60° turn yet (that needs
+	// the 6-orientation footprint, see AGENTS.md): both turn by 180° on the
+	// step that completes a half turn and stay put on the two before it.
+	if(  !welt->get_settings().is_half_turn_rotation()  ) {
+		return;
+	}
+
 	// must or can rotate?
 	const building_desc_t* const building_desc = tile->get_desc();
 	if (building_desc->get_all_layouts() > 1  ||  building_desc->get_x() * building_desc->get_y() > 1) {
-		uint8 layout = tile->get_layout();
-		koord new_offset = tile->get_offset();
-
-		if(building_desc->get_type() == building_desc_t::unknown  ||  building_desc->get_all_layouts()<=4) {
-			layout = ((layout+3) % building_desc->get_all_layouts() & 3);
-		}
-		else if(  building_desc->get_all_layouts()==8  &&  building_desc->get_type() >= building_desc_t::city_res  ) {
-			// eight layout city building
-			layout = (layout & 4) + ((layout+3) & 3);
-		}
-		else {
-			// 8 & 16 tile lyoutout for stations
-			static uint8 layout_rotate[16] = { 1, 8, 5, 10, 3, 12, 7, 14, 9, 0, 13, 2, 11, 4, 15, 6 };
-			layout = layout_rotate[layout] % building_desc->get_all_layouts();
-		}
-		// have to rotate the tiles :(
-		if(  !building_desc->can_rotate()  &&  building_desc->get_all_layouts() == 1  ) {
-			if ((welt->get_settings().get_rotation() & 1) == 0) {
-				// rotate 180 degree
-				new_offset = koord(building_desc->get_x() - 1 - new_offset.x, building_desc->get_y() - 1 - new_offset.y);
-			}
-			// do nothing here, since we cannot fix it properly
-		}
-		else {
-			// rotate on ...
-			new_offset = koord(building_desc->get_y(tile->get_layout()) - 1 - new_offset.y, new_offset.x);
-		}
+		const uint8 layout = building_desc->get_half_turn_layout( tile->get_layout() );
+		const koord offset = tile->get_offset();
+		// the footprint is the same rectangle, entered from the far corner
+		const koord new_offset( building_desc->get_x(layout) - 1 - offset.x, building_desc->get_y(layout) - 1 - offset.y );
 
 		// such a tile exist?
-		if(  building_desc->get_x(layout) > new_offset.x  &&  building_desc->get_y(layout) > new_offset.y  ) {
+		if(  new_offset.x >= 0  &&  new_offset.y >= 0  &&  building_desc->get_x(layout) > new_offset.x  &&  building_desc->get_y(layout) > new_offset.y  ) {
 			const building_tile_desc_t* const new_tile = building_desc->get_tile(layout, new_offset.x, new_offset.y);
 			// add new tile: but make them old (no construction)
 			uint32 old_insta_zeit = insta_zeit;

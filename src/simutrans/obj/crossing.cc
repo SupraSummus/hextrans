@@ -64,8 +64,6 @@ crossing_t::~crossing_t()
 void crossing_t::rotate90()
 {
 	obj_t::rotate90();
-	// Rotation cascade is gated unreachable today (see TODO.md);
-	// kept internally consistent for whoever revives it.
 	axis = ribi_t::rotate_for_map_rotate90(axis);
 }
 

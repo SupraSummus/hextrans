@@ -165,16 +165,18 @@ vehicle_base_t::vehicle_base_t(koord3d pos):
 void vehicle_base_t::rotate90()
 {
 	obj_t::rotate90();
-	// HEX-PORT: map-rotate90 is itself semantically wrong under hex
-	// (90° is not a hex symmetry; see karte_t::rotate90 TODO).  We
-	// stub the ribi rotation via rotate_for_map_rotate90 so nothing assertion-fails while
-	// travelling a still-rotating map.
 	direction = ribi_t::rotate_for_map_rotate90(direction );
 	pos_next.rotate90( welt->get_map_shape() );
-	// new offsets
-	sint8 new_dx = -dy*2;
-	dy = dx/2;
-	dx = new_dx;
+	// The screen step follows from the direction (calc_set_direction);
+	// only the (1,1) / (-1,-1) bend chords have none, and those turn into
+	// each other on the half turn.
+	if(  direction != ribi_t::none  ) {
+		set_dxdy( direction );
+	}
+	else if(  welt->get_settings().is_half_turn_rotation()  ) {
+		dx = -dx;
+		dy = -dy;
+	}
 }
 
 
