@@ -66,7 +66,7 @@ void parse_images_2d(slist_tpl<std::string>& keys, tabfileobj_t& obj, roadsign_d
 
 
 // parse "<name>[number]" syntax
-void parse_images_numbered(slist_tpl<std::string>& keys, tabfileobj_t& obj, const char* name)
+void parse_images_numbered(slist_tpl<std::string>& keys, tabfileobj_t& obj, const char* name, uint8 group = 4)
 {
 	for (int i = 0; i < 32; i++) {
 		char buf[40];
@@ -74,8 +74,8 @@ void parse_images_numbered(slist_tpl<std::string>& keys, tabfileobj_t& obj, cons
 		const char *str = obj.get(buf);
 		// make sure, there are always 4, 8, 12, ... images (for all directions)
 		if(  !*str  ) {
-			if(  i % 4  ) {
-				dbg->fatal("roadsign_writer", "%s count is %d but must be multiple of 4!", name, i);
+			if(  i % group  ) {
+				dbg->fatal("roadsign_writer", "%s count is %d but must be multiple of %d!", name, i, group);
 			}
 			break;
 		}
@@ -85,7 +85,7 @@ void parse_images_numbered(slist_tpl<std::string>& keys, tabfileobj_t& obj, cons
 
 
 // parse "<name>[number][variant]" syntax
-void parse_images_numbered_variant(slist_tpl<std::string>& keys, tabfileobj_t& obj, const char* name, uint8 variant)
+void parse_images_numbered_variant(slist_tpl<std::string>& keys, tabfileobj_t& obj, const char* name, uint8 variant, uint8 group = 4)
 {
 	for (int i = 0; i < 32; i++) {
 		char buf[48];
@@ -93,8 +93,8 @@ void parse_images_numbered_variant(slist_tpl<std::string>& keys, tabfileobj_t& o
 		const char *str = obj.get(buf);
 		// make sure, there are always 4, 8, 12, ... images (for all directions)
 		if(  !*str  ) {
-			if(  i % 4  ) {
-				dbg->fatal("roadsign_writer", "%s[..][%i] count is %d but must be multiple of 4!", name, variant, i);
+			if(  i % group  ) {
+				dbg->fatal("roadsign_writer", "%s[..][%i] count is %d but must be multiple of %d!", name, variant, i, group);
 			}
 			break;
 		}
@@ -166,8 +166,9 @@ void roadsign_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& ob
 	// drive-on-left variant. The variant lists live in children of their own,
 	// so the count of the main list keeps meaning what it always meant - which
 	// is also what decides whether a sign is a traffic light
-	const bool plain_sign = (flags & (roadsign_desc_t::SIGN_SIGNAL|roadsign_desc_t::SIGN_PRE_SIGNAL|roadsign_desc_t::SIGN_PRIORITY_SIGNAL|roadsign_desc_t::SIGN_LONGBLOCK_SIGNAL|roadsign_desc_t::PRIVATE_ROAD)) == 0
-	                       &&  !*obj.get("image[ne][0]");
+	const bool plain_or_traffic_light = (flags & (roadsign_desc_t::SIGN_SIGNAL|roadsign_desc_t::SIGN_PRE_SIGNAL|roadsign_desc_t::SIGN_PRIORITY_SIGNAL|roadsign_desc_t::SIGN_LONGBLOCK_SIGNAL|roadsign_desc_t::PRIVATE_ROAD)) == 0;
+	const bool traffic_light = plain_or_traffic_light  &&  *obj.get("image[ne][0]");
+	const bool plain_sign = plain_or_traffic_light  &&  !traffic_light;
 
 	if(  *obj.get("image[0]")  ) {
 		// image[0] is defined.
@@ -184,7 +185,7 @@ void roadsign_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& ob
 	// them. The diagonal entries are places and not directions, two for each
 	// direction, so the [direction][state] syntax cannot name them and they
 	// are always numbered
-	slist_tpl<std::string> optional[7];
+	slist_tpl<std::string> optional[11];
 	parse_images_numbered(optional[0], obj, "diagonal");                 // diagonal[n] ...
 	if(  optional[0].empty()  ) {
 		parse_images_numbered_variant(optional[0], obj, "diagonal", 0);  // ... or diagonal[n][0]
@@ -205,11 +206,24 @@ void roadsign_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& ob
 		parse_images_2d(optional[5], obj, flags, "frontimage", 1, 2, false);
 		parse_images_numbered_variant(optional[6], obj, "frontdiagonal", 1);
 	}
+	// NE and SW, which have no place in the lists above: the NE image, then
+	// the SW image for every group of four of the list (the NE-SW gate, closed
+	// then open, for a private way). A traffic light has no art for them
+	// yet, and the [direction][state] syntax is taken by its image[ne][..]
+	if(  !traffic_light  ) {
+		parse_images_numbered(optional[7], obj, "image_ne_sw", 1);
+		parse_images_numbered(optional[8], obj, "frontimage_ne_sw", 1);
+		if(  plain_sign  ) {
+			parse_images_numbered_variant(optional[9], obj, "image_ne_sw", 1, 1);
+			parse_images_numbered_variant(optional[10], obj, "frontimage_ne_sw", 1, 1);
+		}
+	}
 
 	// any other length would silently shift the images instead of failing here
-	static const char* const optional_names[7] = { "diagonal", "frontimage", "frontdiagonal", "image[..][1]", "diagonal[..][1]", "frontimage[..][1]", "frontdiagonal[..][1]" };
-	for(  int j=0;  j<7;  j++  ) {
-		const uint32 want = (j&1) == 0 ? 2*keys.get_count() : keys.get_count();
+	static const char* const optional_names[11] = { "diagonal", "frontimage", "frontdiagonal", "image[..][1]", "diagonal[..][1]", "frontimage[..][1]", "frontdiagonal[..][1]",
+	                                                "image_ne_sw", "frontimage_ne_sw", "image_ne_sw[..][1]", "frontimage_ne_sw[..][1]" };
+	for(  int j=0;  j<11;  j++  ) {
+		const uint32 want = j >= 7 ? keys.get_count()/2 : (j&1) == 0 ? 2*keys.get_count() : keys.get_count();
 		if(  !optional[j].empty()  &&  optional[j].get_count() != want  ) {
 			dbg->fatal("roadsign_writer", "%i %s images given, but the sign needs %i!", optional[j].get_count(), optional_names[j], want);
 		}
@@ -225,7 +239,7 @@ void roadsign_writer_t::write_obj(FILE* fp, obj_node_t& parent, tabfileobj_t& ob
 	cursorkeys.append(i);
 
 	int last_list = -1;
-	for(  int j=0;  j<7;  j++  ) {
+	for(  int j=0;  j<11;  j++  ) {
 		if(  !optional[j].empty()  ) {
 			last_list = j;
 		}

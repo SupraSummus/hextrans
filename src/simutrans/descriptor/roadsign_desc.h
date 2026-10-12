@@ -30,6 +30,10 @@
  *  8   Drive-on-left diagonal image list (optional)
  *  9   Drive-on-left front image list (optional)
  * 10   Drive-on-left front diagonal image list (optional)
+ * 11   NE and SW image list (optional)
+ * 12   NE and SW front image list (optional)
+ * 13   Drive-on-left NE and SW image list (optional)
+ * 14   Drive-on-left NE and SW front image list (optional)
  */
 class roadsign_desc_t : public obj_desc_transport_infrastructure_t {
 	friend class roadsign_reader_t;
@@ -77,7 +81,9 @@ public:
 	 * The left lists repeat the exact layout of their right counterparts;
 	 * the diagonal lists hold two entries per normal one, because a
 	 * direction needs a different image in each of the two bends it can
-	 * appear in, and the bend of the way picks between them.
+	 * appear in, and the bend of the way picks between them. The NE and SW
+	 * lists hold half as many: the two directions of the hex grid for
+	 * every four of the normal list (see direction_slot).
 	 */
 	enum optional_children {
 		CHILD_DIAGONAL            =  4,
@@ -86,8 +92,60 @@ public:
 		CHILD_LEFT                =  7,
 		CHILD_LEFT_DIAGONAL       =  8,
 		CHILD_LEFT_FRONT          =  9,
-		CHILD_LEFT_FRONT_DIAGONAL = 10
+		CHILD_LEFT_FRONT_DIAGONAL = 10,
+		// the directions the four-slot lists have no place for, see direction_slot
+		CHILD_NE_SW               = 11,
+		CHILD_NE_SW_FRONT         = 12,
+		CHILD_NE_SW_LEFT          = 13,
+		CHILD_NE_SW_LEFT_FRONT    = 14
 	};
+
+	/*
+	 * The six directions a sign or signal can face, as places in the image
+	 * lists. The normal list has four of them for every state and
+	 * electrification: north, south, northwest and southeast, written n, s,
+	 * w and e in a .dat. Hex adds northeast and southwest. The count of the
+	 * normal list decides whether a sign is a traffic light or electrified,
+	 * so the two do not go in there but into the NE and SW lists: NE, then
+	 * SW, for every group of four of the normal list. The group of index
+	 * i = 4*g + slot of the normal list has its NE image at 2*g and its SW
+	 * image at 2*g + 1.
+	 *
+	 * A pak without those lists has no art for the two: callers fold them
+	 * onto north and south (see get_drawn_dirs), so such a sign still shows
+	 * on NE and SW ways.
+	 */
+	enum direction_slot {
+		SLOT_N    = 0,
+		SLOT_S    = 1,
+		SLOT_NW   = 2,
+		SLOT_SE   = 3,
+		SLOT_NE   = 4,
+		SLOT_SW   = 5,
+		SLOT_NONE = 0xFF
+	};
+
+	/// the slot of a single direction, SLOT_NONE for anything else
+	static uint8 get_slot(ribi_t::ribi dir)
+	{
+		switch(  dir  ) {
+			case ribi_t::north:     return SLOT_N;
+			case ribi_t::south:     return SLOT_S;
+			case ribi_t::northwest: return SLOT_NW;
+			case ribi_t::southeast: return SLOT_SE;
+			case ribi_t::northeast: return SLOT_NE;
+			case ribi_t::southwest: return SLOT_SW;
+			default:                return SLOT_NONE;
+		}
+	}
+
+	/// NE and SW as the north and south they are drawn as without NE and SW art
+	static ribi_t::ribi fold_ne_sw(ribi_t::ribi dirs)
+	{
+		return (ribi_t::ribi)((dirs & ~(ribi_t::northeast | ribi_t::southwest))
+			| ((dirs & ribi_t::northeast) ? ribi_t::north : 0)
+			| ((dirs & ribi_t::southwest) ? ribi_t::south : 0));
+	}
 
 private:
 	// one image of one optional list, or IMG_EMPTY when the list or the image is missing
@@ -137,9 +195,59 @@ public:
 		return img != IMG_EMPTY ? img : optional_image( CHILD_FRONT, index );
 	}
 
+	/// the directions @p dirs as this sign draws them: folded onto north and south unless it has NE and SW art
+	ribi_t::ribi get_drawn_dirs(ribi_t::ribi dirs) const { return has_ne_sw_images() ? dirs : fold_ne_sw(dirs); }
+
+	/// image of one direction slot of the group of four at @p base of the normal list
+	image_id get_dir_image_id(uint16 base, uint8 slot, uint16 diagonal, bool left) const
+	{
+		if(  slot < SLOT_NE  ) {
+			return get_image_id( base + slot, diagonal, left );
+		}
+		// NE and SW art is all or nothing: no fallback to the north and south
+		// image of the same state, that is for get_drawn_dirs to decide
+		const uint16 index = base/2 + (slot - SLOT_NE);
+		image_id img = left ? optional_image( CHILD_NE_SW_LEFT, index ) : IMG_EMPTY;
+		return img != IMG_EMPTY ? img : optional_image( CHILD_NE_SW, index );
+	}
+
+	/// as get_dir_image_id, for the front image list
+	image_id get_dir_front_image_id(uint16 base, uint8 slot, uint16 diagonal, bool left) const
+	{
+		if(  slot < SLOT_NE  ) {
+			return get_front_image_id( base + slot, diagonal, left );
+		}
+		const uint16 index = base/2 + (slot - SLOT_NE);
+		image_id img = left ? optional_image( CHILD_NE_SW_LEFT_FRONT, index ) : IMG_EMPTY;
+		return img != IMG_EMPTY ? img : optional_image( CHILD_NE_SW_FRONT, index );
+	}
+
+	/**
+	 * The gate of a private way sign. The normal list holds the closed gates
+	 * of the N-S and the NW-SE axis, then the open ones, and the NE and SW
+	 * list the NE-SW gate, closed then open. Without art for it the NE-SW
+	 * axis shows the N-S gate.
+	 */
+	image_id get_private_image_id(ribi_t::ribi way_ribi, bool open) const
+	{
+		const uint16 base = open ? 2 : 0;
+		switch(  ribi_t::straight_axis(way_ribi)  ) {
+			case ribi_t::northwest:
+				return get_image_id( (ribi_t::dir)(base + 1) );
+			case ribi_t::northeast:
+				if(  has_ne_sw_images()  ) {
+					return optional_image( CHILD_NE_SW, base/2 );
+				}
+				// fall through
+			default:
+				return get_image_id( (ribi_t::dir)base );
+		}
+	}
+
 	bool has_diagonal_image() const { return children > CHILD_DIAGONAL; }
 	bool has_left_images()    const { return children > CHILD_LEFT; }
 	bool has_front_images(bool left) const { return children > (left ? CHILD_LEFT_FRONT : CHILD_FRONT); }
+	bool has_ne_sw_images() const { return children > CHILD_NE_SW; }
 
 	// only the normal list: this count decides whether a sign is a traffic light
 	// and whether it has electrified images, so the diagonals must stay out of it

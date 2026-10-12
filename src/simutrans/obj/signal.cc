@@ -47,7 +47,7 @@ void signal_t::calc_image()
 {
 	foreground_image = IMG_EMPTY;
 	image_id image = IMG_EMPTY;
-	uint16 diag[4] = { roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL };
+	uint16 diag[6] = { roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL, roadsign_desc_t::NO_DIAGONAL };
 
 	after_xoffset = 0;
 	after_yoffset = 0;
@@ -107,76 +107,11 @@ void signal_t::calc_image()
 				temp_dir &= ~ribi_type( gr->get_grund_hang() );
 			}
 
+			// no NE and SW art: they look like N and S
+			temp_dir = desc->get_drawn_dirs( temp_dir );
+
 			// signs for left side need other offsets and other front/back order
-			if(  left_swap  ) {
-				const sint16 XOFF = 2*desc->get_offset_left();
-				const sint16 YOFF = desc->get_offset_left();
-
-				if(temp_dir&ribi_t::southeast) {
-					image = desc->get_image_id(3+state*4+offset, diag[3], left_variant);
-					xoff += XOFF;
-					yoff += -YOFF;
-				}
-
-				if(temp_dir&ribi_t::north) {
-					if(image!=IMG_EMPTY) {
-						foreground_image = desc->get_image_id(0+state*4+offset, diag[0], left_variant);
-						after_xoffset += -XOFF;
-						after_yoffset += -YOFF;
-					}
-					else {
-						image = desc->get_image_id(0+state*4+offset, diag[0], left_variant);
-						xoff += -XOFF;
-						yoff += -YOFF;
-					}
-				}
-
-				if(temp_dir&ribi_t::northwest) {
-					foreground_image = desc->get_image_id(2+state*4+offset, diag[2], left_variant);
-					after_xoffset += -XOFF;
-					after_yoffset += YOFF;
-				}
-
-				if(temp_dir&ribi_t::south) {
-					if(foreground_image!=IMG_EMPTY) {
-						image = desc->get_image_id(1+state*4+offset, diag[1], left_variant);
-						xoff += XOFF;
-						yoff += YOFF;
-					}
-					else {
-						foreground_image = desc->get_image_id(1+state*4+offset, diag[1], left_variant);
-						after_xoffset += XOFF;
-						after_yoffset += YOFF;
-					}
-				}
-			}
-			else {
-				if(temp_dir&ribi_t::southeast) {
-					foreground_image = desc->get_image_id(3+state*4+offset, diag[3], left_variant);
-				}
-
-				if(temp_dir&ribi_t::north) {
-					if(foreground_image==IMG_EMPTY) {
-						foreground_image = desc->get_image_id(0+state*4+offset, diag[0], left_variant);
-					}
-					else {
-						image = desc->get_image_id(0+state*4+offset, diag[0], left_variant);
-					}
-				}
-
-				if(temp_dir&ribi_t::northwest) {
-					image = desc->get_image_id(2+state*4+offset, diag[2], left_variant);
-				}
-
-				if(temp_dir&ribi_t::south) {
-					if(image==IMG_EMPTY) {
-						image = desc->get_image_id(1+state*4+offset, diag[1], left_variant);
-					}
-					else {
-						foreground_image = desc->get_image_id(1+state*4+offset, diag[1], left_variant);
-					}
-				}
-			}
+			calc_dir_images( temp_dir, state*4+offset, diag, left_swap, left_variant, image, xoff, yoff );
 		}
 	}
 	set_xoff( xoff );
