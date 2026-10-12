@@ -2830,12 +2830,16 @@ koord stadt_t::evaluate_size_res_com_ind(const koord pos, int &ind_score, int &c
 						bool building_ok = gb->is_city_building() && gb->get_stadt() == this;
 						if (building_ok) {
 							const building_desc_t* desc = gb->get_tile()->get_desc();
-							int t = desc->get_type() - building_desc_t::city_res;
-							ind_score += ind_neighbour_score[t];
-							com_score += com_neighbour_score[t];
-							res_score += res_neighbour_score[t];
-							neighbor_building_clusters |= desc->get_clusters();
-							exclude.append_unique(desc);
+							// only the hex disc of radius 2 counts as neighbourhood; the rest of the
+							// 5x5 box of axial offsets is there for the footprints of larger buildings
+							if (koord_distance(k, koord(0, 0)) <= 2) {
+								int t = desc->get_type() - building_desc_t::city_res;
+								ind_score += ind_neighbour_score[t];
+								com_score += com_neighbour_score[t];
+								res_score += res_neighbour_score[t];
+								neighbor_building_clusters |= desc->get_clusters();
+								exclude.append_unique(desc);
+							}
 							tile_ok = desc->get_area() == 1  &&  gb->get_pos().z == zpos  &&  !gb->get_owner()  &&  desc->no_renovation_month() >= welt->get_timeline_year_month();
 						}
 					}
