@@ -643,6 +643,18 @@ CI runs it after the scenario suite.
 CI's `make` build defines `NDEBUG`,
 so there a failed assert shows up later as a null-handle crash;
 reproduce in a Debug build to get the assert.
+`-ai_script NAME` replaces the two C++ AIs
+by the scripted AI `ai/NAME` (`sqai`, `sqai_rail`).
+A script error does not pause the game in this mode,
+whatever the script asked for with `set_pause_on_error`,
+so a script that fails on every step gives a long log, not a hang;
+the errors are in `script-ai-2.log` in the user directory.
+Every January the run logs one line per AI
+with its halts, convoys and cash.
+`-ai_snapshot` adds a screenshot of the newest AI halt each January,
+`screenshot/aisoak-YYYY.MM-map.png` in the user directory,
+and `-windows.png` for the open script-error window, if any.
+It also works with `SDL_VIDEODRIVER=dummy`.
 
 `tools/nwc_protocol_test/` is the multiplayer wire-protocol suite —
 black-box tests that spawn a headless server, send one hand-rolled

@@ -18,10 +18,12 @@
 #include "world/simworld.h"
 #include "simware.h"
 #include "display/simview.h"
+#include "display/viewport.h"
 #include "gui/simwin.h"
 #include "gui/gui_theme.h"
 #include "gui/messagebox.h"
 #include "simhalt.h"
+#include "simconvoi.h"
 #include "display/simimg.h"
 #include "simcolor.h"
 #include "simskin.h"
@@ -30,6 +32,7 @@
 #include "ground/wasser.h"
 #include "world/simcity.h"
 #include "player/simplay.h"
+#include "player/ai_scripted.h"
 #include "simsound.h"
 #include "simintr.h"
 #include "simloadingscreen.h"
@@ -88,6 +91,7 @@
 #include "utils/unicode.h"
 
 #include "builder/vehikelbauer.h"
+#include "script/script.h"
 #include "script/script_tool_manager.h"
 
 #include "vehicle/vehicle.h"
@@ -582,17 +586,93 @@ static void ai_soak_status(const karte_t *welt)
 }
 
 
+// -ai_soak: one line per AI with what it owns and its cash, to tell a script
+// that builds from one that stalls.  The AIs are the players in slots 2 up.
+static void ai_soak_players(const karte_t *welt)
+{
+	for(  int i = 2;  i < PLAYER_UNOWNED;  i++  ) {
+		player_t *player = welt->get_player(i);
+		if(  player == NULL  ) {
+			continue;
+		}
+		uint32 halts = 0;
+		for(  const halthandle_t &h : haltestelle_t::get_alle_haltestellen()  ) {
+			halts += h->is_owner(player);
+		}
+		uint32 convoys = 0;
+		for(  const convoihandle_t &cnv : welt->convoys()  ) {
+			convoys += cnv->get_owner() == player;
+		}
+		const uint32 month = welt->get_current_month();
+		fprintf( stderr, "ai_soak: %04u.%02u player %d (type %d) halts=%u convoys=%u cash=%.0f\n",
+			month / 12, month % 12 + 1, i, player->get_ai_id(), halts, convoys,
+			player->get_account_balance_as_double() );
+	}
+}
+
+
+// -ai_snapshot: screenshot the view centred on the newest halt of any AI
+// (or leave the view where it is if there is none yet).  The files are
+// screenshot/aisoak-YYYY.MM-map.png under the user directory.  If a window is
+// open (a script error opens one) it is shot as it stands first, as
+// ...-windows.png, then every window is closed and the map shot again.
+static void ai_soak_screenshot(const karte_t *welt, const char *what, const char *where)
+{
+	const uint32 month = welt->get_current_month();
+	char name[64];
+	sprintf( name, SCREENSHOT_PATH_X "aisoak-%04u.%02u-%s.png", month / 12, month % 12 + 1, what );
+	const bool ok = gfx->take_screenshot( scr_rect( scr_coord(0, 0), gfx->get_screen_size() ), name );
+	fprintf( stderr, "ai_soak: %04u.%02u snapshot %s %s at %s\n", month / 12, month % 12 + 1,
+		ok ? "saved" : "FAILED", name, where );
+}
+
+
+static void ai_soak_snapshot(karte_t *welt)
+{
+	const halthandle_t *newest = NULL;
+	for(  const halthandle_t &h : haltestelle_t::get_alle_haltestellen()  ) {
+		if(  h->get_owners() & ~3  ) { // an AI owns it
+			newest = &h;
+		}
+	}
+	if(  newest  ) {
+		welt->get_viewport()->change_world_position( (*newest)->get_basis_pos3d() );
+	}
+	const char *where = newest ? (*newest)->get_basis_pos3d().get_str() : "(no AI halt)";
+	intr_refresh_display( true );
+	if(  win_get_open_count() > 0  ) {
+		ai_soak_screenshot( welt, "windows", where );
+		destroy_all_win( true );
+		intr_refresh_display( true );
+	}
+	ai_soak_screenshot( welt, "map", where );
+}
+
+
 // -ai_soak: run the world one game month at a time, with a status line after
 // each.  interactive() sets quit_simutrans whenever it reaches the month it
 // was given, so that flag only stands once the last one is done.
-static void ai_soak_run(karte_t *welt, uint32 quit_month)
+static void ai_soak_run(karte_t *welt, uint32 quit_month, bool snapshots)
 {
+	if(  snapshots  ) {
+		// no night in the pictures
+		env_t::night_shift = false;
+		env_t::daynight_level = 0;
+	}
 	ai_soak_status( welt );
 	while(  !env_t::quit_simutrans  &&  welt->get_current_month() < quit_month  ) {
 		if(  welt->interactive( welt->get_current_month() + 1 )  ) {
 			break; // stopped from outside, e.g. by SIGTERM
 		}
 		ai_soak_status( welt );
+		const uint32 month = welt->get_current_month();
+		const bool last = month >= quit_month;
+		if(  month % 12 == 0  ||  last  ) {
+			ai_soak_players( welt );
+			if(  snapshots  ) {
+				ai_soak_snapshot( welt );
+			}
+		}
 		env_t::quit_simutrans = false;
 	}
 	env_t::quit_simutrans = true;
@@ -624,6 +704,7 @@ int simu_main(int argc, char** argv)
 	const bool ai_soak = args.has_arg("-ai_soak");
 	if(  ai_soak  ) {
 		log_t::set_fatal_hook( ai_soak_fatal );
+		script_vm_t::ignore_pause_on_error = true;
 	}
 #ifdef DEBUG
 	if (args.has_arg("-debug")) {
@@ -1677,11 +1758,13 @@ int simu_main(int argc, char** argv)
 		// Test hook: -ai_soak SIZE [SEED] runs the computer players
 		// unattended.  It generates a SIZE x SIZE map with cities and
 		// industry from SEED (default: the map number of settings_t),
-		// adds one goods and one passenger AI, and runs flat out to
+		// adds one goods and one passenger AI (or, with -ai_script NAME,
+		// the scripted AI ai/NAME instead), and runs flat out to
 		// -until without the start-up banner (its modal loop runs the
 		// world at normal speed).  A fatal error aborts instead of
 		// waiting for a key, and every game month logs a status line
-		// to stderr.
+		// to stderr.  Every January each AI logs what it owns, and
+		// -ai_snapshot also takes a screenshot.
 		if(  ai_soak  ) {
 			const char *size = args.gimme_arg("-ai_soak", 1);
 			sint32 n = size ? atoi(size) : 0;
@@ -1720,8 +1803,22 @@ int simu_main(int argc, char** argv)
 		welt->step();
 
 		if(  ai_soak  ) {
-			welt->change_player_tool(karte_t::new_player, 2, player_t::AI_GOODS, true, true);
-			welt->change_player_tool(karte_t::new_player, 3, player_t::AI_PASSENGER, true, true);
+			if(  const char *script = args.gimme_arg("-ai_script", 1)  ) {
+				// one scripted AI in place of the C++ ones; NAME is a
+				// directory under ai/ in the base directory
+				welt->change_player_tool(karte_t::new_player, 2, player_t::AI_SCRIPTED, true, true);
+				cbuffer_t ai_base;
+				ai_base.printf("%sai/", env_t::base_dir);
+				ai_scripted_t *ai = dynamic_cast<ai_scripted_t*>(welt->get_player(2));
+				const char *err = ai ? ai->init(ai_base, script) : "no scripted AI";
+				if(  err  ) {
+					dbg->fatal("ai_soak", "cannot start script AI %s: %s", script, err);
+				}
+			}
+			else {
+				welt->change_player_tool(karte_t::new_player, 2, player_t::AI_GOODS, true, true);
+				welt->change_player_tool(karte_t::new_player, 3, player_t::AI_PASSENGER, true, true);
+			}
 		}
 
 		env_t::autosave = old_autosave;
@@ -1884,7 +1981,7 @@ int simu_main(int argc, char** argv)
 
 		// run the loop
 		if(  ai_soak  ) {
-			ai_soak_run(welt, quit_month);
+			ai_soak_run(welt, quit_month, args.has_arg("-ai_snapshot"));
 		}
 		else {
 			welt->interactive(quit_month);
