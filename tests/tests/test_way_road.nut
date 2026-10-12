@@ -1426,6 +1426,33 @@ function test_way_road_build_terraform_builds_no_bridge()
 }
 
 
+function test_way_road_build_straight_auto_bridge_ne_sw()
+{
+	local pl        = player_x(0)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local taxiway   = way_desc_x.get_available_ways(wt_air, st_flat)[0]
+	local remover   = command_x(tool_remove_way)
+
+	// an air way column the road cannot cross at grade
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 0, 0), coord3d(8, 15, 0), taxiway, true), null)
+
+	// a straight drag along the NE-SW axis gives up at the column ...
+	ASSERT_EQUAL(command_x(tool_build_way).work(pl, coord3d(5, 11, 0), coord3d(11, 5, 0), road_desc.get_name() + ",s"), "No suitable crossing! (max speed too fast?)")
+	ASSERT_FALSE(tile_x(7, 9, 0).has_way(wt_road))
+
+	// ... and bridges it in the automatic mode: the run is straight to the end
+	ASSERT_EQUAL(command_x(tool_build_way).work(pl, coord3d(5, 11, 0), coord3d(11, 5, 0), road_desc.get_name() + ",as"), null)
+	ASSERT_TRUE(tile_x(7, 9, 0).find_object(mo_bridge) != null)
+	ASSERT_TRUE(tile_x(9, 7, 0).find_object(mo_bridge) != null)
+	ASSERT_TRUE(tile_x(11, 5, 0).has_way(wt_road))
+
+	// clean up
+	ASSERT_EQUAL(remover.work(pl, coord3d(5, 11, 0), coord3d(11, 5, 0), "" + wt_road), null)
+	ASSERT_EQUAL(remover.work(pl, coord3d(8, 0, 0), coord3d(8, 15, 0), "" + wt_air), null)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
 // test_way_road_build_terraform_not_kept_by_the_tool: HEX-PORT PENDING.
 function test_way_road_build_terraform_not_kept_by_the_tool()
 {

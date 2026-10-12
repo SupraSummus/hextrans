@@ -337,6 +337,7 @@ all_tests <- [
 	// test_way_road_build_terraform_single_step: HEX-PORT PENDING.
 	test_way_road_build_terraform_is_no_bypass,
 	test_way_road_build_terraform_builds_no_bridge,
+	test_way_road_build_straight_auto_bridge_ne_sw,
 	// test_way_road_build_terraform_forbidden_by_scenario: HEX-PORT PENDING.
 	// test_way_road_build_terraform_not_kept_by_the_tool: HEX-PORT PENDING.
 	test_way_runway_build_rw_flat,
