@@ -35,7 +35,11 @@ test_sign_oneway_ne_sw
 test_sign_oneway_ne_sw_art
 
 # The test reads world-frame output: image slots, image ids, the
-# generated script.
+# generated script, the back-wall state of tile_x::get_back_walls.
+test_back_wall_house_on_slope
+test_back_wall_city_house_on_slope
+test_back_wall_set_slope
+test_back_wall_road_terraform
 test_sign_signal_tunnel_mouth_ne_sw
 test_way_road_build_bend_on_3corner_ramp
 test_way_road_image_slot_dispatch
