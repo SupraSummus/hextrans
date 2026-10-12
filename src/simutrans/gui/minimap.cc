@@ -1077,8 +1077,10 @@ void minimap_t::calc_map()
 	needs_redraw = false;
 	is_visible = true;
 
-	// redraw the map
+	// redraw the map; calc_map_pixel skips the cut corners of the
+	// hexagon (and the isometric margins), which stay black
 	if(  !isometric  ) {
+		map_data->init( gfx->palette_lookup(COL_BLACK) );
 		koord k;
 		koord start_off = koord( (cur_off.x*zoom_out)/zoom_in, (cur_off.y*zoom_out)/zoom_in );
 		koord end_off = start_off+koord( ( map_data->get_width()*zoom_out)/zoom_in+1, ( map_data->get_height()*zoom_out)/zoom_in+1 );
@@ -1090,15 +1092,10 @@ void minimap_t::calc_map()
 	}
 	else {
 		// always the whole map ...
-		if(isometric) {
-			map_data->init( gfx->palette_lookup(COL_BLACK) );
-		}
-		koord k;
-		for(  k.y=0;  k.y < world->get_size().y;  k.y++  ) {
-			for(  k.x=0;  k.x < world->get_size().x;  k.x++  ) {
-				calc_map_pixel(k);
-			}
-		}
+		map_data->init( gfx->palette_lookup(COL_BLACK) );
+		world->for_each_tile( [&](koord k) {
+			calc_map_pixel(k);
+		} );
 	}
 }
 

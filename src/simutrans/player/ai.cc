@@ -192,8 +192,9 @@ bool ai_t::suche_platz(koord &start, koord &size, koord target, koord off)
 	for (int y = max(0,ypos-cov);  y < maxy;  y++) {
 		for (int x = max(0,xpos-cov);  x < maxx;  x++) {
 			platz = koord(x,y);
-			// no water tiles
-			if(  welt->lookup_kartenboden(platz)->get_hoehe() <= welt->get_water_hgt(platz)  ) {
+			// no water tiles, nor the cut corners of the hexagon
+			const grund_t *gr = welt->lookup_kartenboden(platz);
+			if(  !gr  ||  gr->get_hoehe() <= welt->get_water_hgt(platz)  ) {
 				continue;
 			}
 			// thus now check them
@@ -424,7 +425,8 @@ bool ai_t::find_harbour(koord &start, koord &size, koord target)
 			grund_t *gr = welt->lookup_kartenboden(k);
 			if(  gr  &&  gr->get_grund_hang() != 0  &&  slope_t::is_way( gr->get_grund_hang() )  &&  gr->ist_natur()  &&  gr->get_hoehe() == welt->get_water_hgt(k)  &&  !gr->is_halt()  ) {
 				koord zv = koord(gr->get_grund_hang());
-				if(welt->lookup_kartenboden(k-zv)->get_weg_ribi(water_wt)) {
+				const grund_t *water = welt->lookup_kartenboden(k-zv);
+				if(  water  &&  water->get_weg_ribi(water_wt)  ) {
 					// next place is also water
 					koord dir[2] = { zv, koord(zv.y,zv.x) };
 					koord platz = k+zv;

@@ -530,8 +530,8 @@ void player_t::ai_bankrupt()
 
 	// next remove all ways, depot etc, that are not road or channels
 	for( int y=0;  y<welt->get_size().y;  y++  ) {
-		for( int x=0;  x<welt->get_size().x;  x++  ) {
-			planquadrat_t *plan = welt->access(x,y);
+		for( int x=welt->get_row_begin(y);  x<welt->get_row_end(y);  x++  ) {
+			planquadrat_t *plan = welt->access_nocheck(x,y);
 			for (size_t b = plan->get_boden_count(); b-- != 0;) {
 				grund_t *gr = plan->get_boden_bei(b);
 				// remove tunnel and bridges first

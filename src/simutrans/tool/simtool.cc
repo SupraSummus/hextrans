@@ -916,18 +916,10 @@ const char *tool_remover_t::work( player_t *player, koord3d pos )
 	}
 
 	// must recalc neighbourhood for slopes etc.
-	if(pos.x>1) {
-		welt->lookup_kartenboden(pos.get_2d()+koord::step(ribi_t::northwest))->calc_image();
-	}
-	if(pos.y>1) {
-		welt->lookup_kartenboden(pos.get_2d()+koord::step(ribi_t::north))->calc_image();
-	}
-
-	if(pos.x<welt->get_size().x-1) {
-		welt->lookup_kartenboden(pos.get_2d()+koord::step(ribi_t::southeast))->calc_image();
-	}
-	if(pos.y<welt->get_size().y-1) {
-		welt->lookup_kartenboden(pos.get_2d()+koord::step(ribi_t::south))->calc_image();
+	for(  ribi_t::ribi dir : { ribi_t::northwest, ribi_t::north, ribi_t::southeast, ribi_t::south }  ) {
+		if(  grund_t *gr = welt->lookup_kartenboden(pos.get_2d()+koord::step(dir))  ) {
+			gr->calc_image();
+		}
 	}
 
 	return NULL;
@@ -1128,7 +1120,7 @@ const char *tool_raise_t::check_pos(player_t *, koord3d pos )
 		is_dragging = false;
 		return "";
 	}
-	if(  !welt->is_within_grid_limits(pos.get_2d())  ) {
+	if(  !welt->is_within_grid_limits(pos.get_2d())  ||  !welt->lookup_kartenboden_gridcoords(pos.get_2d())  ) {
 		return "";
 	}
 	sint8 h = (sint8) get_drag_height(pos.get_2d());
@@ -1150,7 +1142,7 @@ const char *tool_raise_t::work(player_t* player, koord3d pos )
 
 	CHECK_FUNDS();
 
-	if(welt->is_within_grid_limits(k)) {
+	if(welt->is_within_grid_limits(k)  &&  welt->lookup_kartenboden_gridcoords(k)) {
 
 		const sint8 hgt = (sint8) get_drag_height(k);
 
@@ -1194,7 +1186,7 @@ const char *tool_lower_t::check_pos( player_t *, koord3d pos )
 		is_dragging = false;
 		return "";
 	}
-	if (! welt->is_within_grid_limits(pos.get_2d())) {
+	if(  !welt->is_within_grid_limits(pos.get_2d())  ||  !welt->lookup_kartenboden_gridcoords(pos.get_2d())  ) {
 		return "";
 	}
 	sint8 h = (sint8) get_drag_height(pos.get_2d());
@@ -1216,7 +1208,7 @@ const char *tool_lower_t::work( player_t *player, koord3d pos )
 
 	CHECK_FUNDS();
 
-	if(welt->is_within_grid_limits(k)) {
+	if(welt->is_within_grid_limits(k)  &&  welt->lookup_kartenboden_gridcoords(k)) {
 		const sint8 hgt = (sint8) get_drag_height(k);
 
 		if(  hgt >= welt->get_water_hgt( k )  ) {
@@ -2252,7 +2244,7 @@ const char *tool_change_water_height_t::work( player_t *, koord3d pos )
 	stage[array_koord(k.x,k.y)]=0;
 	do {
 		// firstly we must be able to change ground height
-		bool ok = welt->is_plan_height_changeable( k.x, k.y )  &&  k.x > 0  &&  k.y > 0  &&  k.x < welt->get_size().x - 1  &&  k.y < welt->get_size().y - 1;
+		bool ok = welt->is_plan_height_changeable( k.x, k.y )  &&  welt->get_edge_distance(k) > 0;
 		const planquadrat_t *plan = welt->access(k);
 
 		// next there cannot be any grounds directly above this tile

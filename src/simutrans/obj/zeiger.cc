@@ -68,7 +68,7 @@ void zeiger_t::change_pos(koord3d k )
 			}
 			mark_at( get_pos(), false );
 		}
-		if(  get_pos().x >= welt->get_size().x-1  ||  get_pos().y >= welt->get_size().y-1  ) {
+		if(  !welt->is_within_limits(get_pos().get_2d())  ||  welt->is_front_edge(get_pos().get_2d())  ) {
 			// the raise and lower tool actually can go to size!
 			welt->set_background_dirty();
 			// this removes crap form large cursors overlapping into the nirvana

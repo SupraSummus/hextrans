@@ -325,7 +325,7 @@ grund_t* viewport_t::get_ground_on_screen_coordinate(scr_coord screen_pos, sint3
 		// Last resort, try to intersect with the same tile +1 height, seems to be necessary on steep slopes
 		// *NOTE* Don't do it on border tiles, since it will extend the range in which the cursor will be considered to be
 		// inside world limits.
-		if( found_i==(world->get_size().x-1)  ||  found_j == (world->get_size().y-1) ) {
+		if(  world->is_front_edge(koord(found_i, found_j))  ) {
 			continue;
 		}
 		gr = world->lookup(koord3d(found_i,found_j,hgt+1));

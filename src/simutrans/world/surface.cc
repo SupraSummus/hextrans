@@ -100,7 +100,31 @@ koord surface_t::get_closest_coordinate(koord outside_pos) const
 	outside_pos.clip_min(koord(0,0));
 	outside_pos.clip_max(koord(get_size().x-1,get_size().y-1));
 
+	// then onto the cut lines of the hexagon, splitting the step between
+	// q and r; inside the bounding rhombus this cannot leave it
+	const sint32 below = cached_cut_lo - (outside_pos.x + outside_pos.y);
+	if(  below > 0  ) {
+		outside_pos.x += (sint16)((below + 1) / 2);
+		outside_pos.y += (sint16)(below / 2);
+	}
+	const sint32 above = (outside_pos.x + outside_pos.y) - cached_cut_hi;
+	if(  above > 0  ) {
+		outside_pos.x -= (sint16)((above + 1) / 2);
+		outside_pos.y -= (sint16)(above / 2);
+	}
+
 	return outside_pos;
+}
+
+
+koord surface_t::get_random_tile() const
+{
+	// at least 36% of the rhombus is on the map, even at 128x128x512
+	koord k;
+	do {
+		k = koord::koord_random(get_size().x, get_size().y);
+	} while(  !is_within_limits(k)  );
+	return k;
 }
 
 
@@ -385,7 +409,8 @@ int surface_t::grid_raise(const player_t *player, koord k, hex_corner_t::type co
 {
 	int n = 0;
 
-	if(is_within_grid_limits(k)) {
+	// no tile in the cut corners of the hexagon
+	if(is_within_grid_limits(k)  &&  lookup_kartenboden_gridcoords(k)) {
 
 		const grund_t *gr = lookup_kartenboden_gridcoords(k);
 
@@ -434,7 +459,8 @@ int surface_t::grid_lower(const player_t *player, koord k, hex_corner_t::type co
 {
 	int n = 0;
 
-	if(is_within_grid_limits(k)) {
+	// no tile in the cut corners of the hexagon
+	if(is_within_grid_limits(k)  &&  lookup_kartenboden_gridcoords(k)) {
 
 		const grund_t *gr = lookup_kartenboden_gridcoords(k);
 

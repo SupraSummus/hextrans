@@ -222,18 +222,15 @@ void vehicle_base_t::leave_tile()
 			return;
 		}
 
-		koord k;
 		bool ok = false;
 
-		for(k.y=0; k.y<welt->get_size().y; k.y++) {
-			for(k.x=0; k.x<welt->get_size().x; k.x++) {
-				grund_t *gr = welt->access( k )->get_boden_von_obj(this);
-				if(gr && gr->obj_remove(this)) {
-					dbg->warning("vehicle_base_t::leave_tile()", "Removed %s %p from (%s)", get_name(), (void *)this, k.get_str());
-					ok = true;
-				}
+		welt->for_each_tile( [&](koord k) {
+			grund_t *gr = welt->access_nocheck( k )->get_boden_von_obj(this);
+			if(gr && gr->obj_remove(this)) {
+				dbg->warning("vehicle_base_t::leave_tile()", "Removed %s %p from (%s)", get_name(), (void *)this, k.get_str());
+				ok = true;
 			}
-		}
+		} );
 
 		if(!ok) {
 			dbg->error("vehicle_base_t::leave_tile()", "%s %p was not found on any map square!", get_name(), (void *)this);

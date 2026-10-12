@@ -4250,7 +4250,7 @@ void stadt_t::build()
 	}
 
 	// do not build on any border tile
-	if(  !welt->is_within_limits(k+koord(1,1))  ||  k.x<=0  ||  k.y<=0  ) {
+	if(  welt->get_edge_distance(k) < 1  ) {
 		return;
 	}
 

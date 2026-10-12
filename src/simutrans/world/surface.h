@@ -178,6 +178,59 @@ public:
 	 */
 	inline bool is_within_limits(koord k) const { return is_within_limits(k.x, k.y); }
 
+	/// On-map tiles of row @p y (0 <= y < get_size().y) are
+	/// get_row_begin(y) <= x < get_row_end(y): map_shape_t::get_q_begin/end.
+	inline sint16 get_row_begin(sint16 y) const { return (sint16)max(0, cached_cut_lo - y); }
+	inline sint16 get_row_end(sint16 y) const { return (sint16)min(cached_grid_size.x, cached_cut_hi - y + 1); }
+
+	/// Hex steps from @p k to the map's edge, negative off the map:
+	/// map_shape_t::edge_distance.
+	inline sint32 get_edge_distance(koord k) const {
+		return map_shape_t::edge_distance_cached(k.x, k.y, cached_size.x, cached_size.y, cached_cut_lo, cached_cut_hi);
+	}
+
+	/**
+	 * True for an on-map tile whose SE, S or SW neighbour is off the map:
+	 * the screen-facing map edge (the far rhombus sides, the far cut and
+	 * the q = 0 side), where grund_t::display_border draws the wall of
+	 * the missing neighbour.
+	 */
+	inline bool is_front_edge(koord k) const {
+		return is_within_limits(k)  &&  (!is_within_limits(k + koord::neighbours[0])
+			||  !is_within_limits(k + koord::neighbours[1])  ||  !is_within_limits(k + koord::neighbours[2]));
+	}
+
+	/// Edge distance of the footprint @p pos .. @p pos + @p size - (1,1):
+	/// each half-plane is monotone in q and r, so the two extreme
+	/// corners decide.
+	inline sint32 get_edge_distance(koord pos, koord size) const {
+		return min(get_edge_distance(pos), get_edge_distance(pos + size - koord(1, 1)));
+	}
+
+	/**
+	 * Calls @p f(koord) for each on-map tile in rows y_min <= y < y_max
+	 * and columns x_min <= x < x_max, row by row; the bounds are clipped
+	 * to the map.  The whole-map loop of the W x H x D hexagon: the
+	 * bounding rhombus minus the cut corners, whose cells have no ground.
+	 */
+	template<class F> void for_each_tile(sint16 x_min, sint16 x_max, sint16 y_min, sint16 y_max, F f) const
+	{
+		y_min = (sint16)max(y_min, 0);
+		y_max = (sint16)min(y_max, cached_grid_size.y);
+		for(  sint16 y = y_min;  y < y_max;  y++  ) {
+			const sint16 x_end = (sint16)min(x_max, get_row_end(y));
+			for(  sint16 x = (sint16)max(x_min, get_row_begin(y));  x < x_end;  x++  ) {
+				f(koord(x, y));
+			}
+		}
+	}
+
+	/// for_each_tile over the whole map.
+	template<class F> void for_each_tile(F f) const
+	{
+		for_each_tile(0, cached_grid_size.x, 0, cached_grid_size.y, f);
+	}
+
 	/**
 	 * @return True if the specified coordinate is inside the world height grid limits, false otherwise.
 	 * @param x,y Position
@@ -209,6 +262,10 @@ public:
 
 	/// @returns the closest coordinate to @p outside_pos that is within the world
 	koord get_closest_coordinate(koord outside_pos) const;
+
+	/// A uniformly random on-map tile: koord_random over the bounding
+	/// rhombus, drawn again while it lands in a cut corner.
+	koord get_random_tile() const;
 
 	/**
 	 * Absolute height of the world vertex @p v from each owning tile's
@@ -285,12 +342,12 @@ public:
 		}
 
 		if ( ( pos.x == cached_grid_size.x )  &&  ( pos.y == cached_grid_size.y ) ) {
-			return access(koord(pos.x-1, pos.y-1))->get_kartenboden();
+			return lookup_kartenboden(koord(pos.x-1, pos.y-1));
 		}
 		else if ( pos.x == cached_grid_size.x ) {
-			return access(koord(pos.x-1, pos.y))->get_kartenboden();
+			return lookup_kartenboden(koord(pos.x-1, pos.y));
 		}
-		return access(koord(pos.x, pos.y-1))->get_kartenboden();
+		return lookup_kartenboden(koord(pos.x, pos.y-1));
 	}
 
 public:

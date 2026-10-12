@@ -584,18 +584,12 @@ haltestelle_t::~haltestelle_t()
 
 	// remove from all haltlists
 	uint16 const cov = welt->get_settings().get_station_coverage();
-	ul.x = max(0, ul.x - cov);
-	ul.y = max(0, ul.y - cov);
-	lr.x = min(welt->get_size().x, lr.x + 1 + cov);
-	lr.y = min(welt->get_size().y, lr.y + 1 + cov);
-	for(  int y=ul.y;  y<lr.y;  y++  ) {
-		for(  int x=ul.x;  x<lr.x;  x++  ) {
-			planquadrat_t *plan = welt->access(x,y);
-			if(plan->get_haltlist_count()>0) {
-				plan->remove_from_haltlist(self);
-			}
+	welt->for_each_tile( ul.x - cov, lr.x + 1 + cov, ul.y - cov, lr.y + 1 + cov, [&](koord k) {
+		planquadrat_t *plan = welt->access_nocheck(k);
+		if(plan->get_haltlist_count()>0) {
+			plan->remove_from_haltlist(self);
 		}
-	}
+	} );
 
 	destroy_win( magic_halt_info + self.get_id() );
 

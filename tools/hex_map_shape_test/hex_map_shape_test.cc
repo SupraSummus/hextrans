@@ -4,6 +4,7 @@
 // (koord::rotate90, koord3d::rotate90, array2d_tpl::rotate90) against
 // map_shape_t::rotate_tile.  See documentation/map-shape.md.
 
+#include <algorithm>
 #include <cstdio>
 #include <set>
 #include <utility>
@@ -102,6 +103,53 @@ static void test_shape(const map_shape_t &s)
 	for (sint32 r = -R - 2; r <= 2 * R + 2; r++) {
 		for (sint32 q = -Q - 2; q <= 2 * Q + 2; q++) {
 			CHECK(s.contains(q, r) == map_shape_t::contains_cached(q, r, Q - 1, R - 1, s.get_cut_lo(), s.get_cut_hi()));
+		}
+	}
+}
+
+
+// The per-row range is exactly the on-map part of the row.  The edge
+// distance of an on-map tile is one less than the hex distance to the
+// nearest off-map cell (all of which neighbour the map inside the ring
+// around the rhombus), and negative off the map.  A parallelogram
+// footprint's minimum sits at one of its two extreme corners, which is
+// what surface_t::get_edge_distance(pos, size) reads.
+static void test_rows_and_edges(const map_shape_t &s)
+{
+	const sint32 Q = s.get_size_q(), R = s.get_size_r();
+	for (sint32 r = 0; r < R; r++) {
+		CHECK(s.get_q_begin(r) < s.get_q_end(r));
+		for (sint32 q = -1; q <= Q; q++) {
+			CHECK(s.contains(q, r) == (s.get_q_begin(r) <= q  &&  q < s.get_q_end(r)));
+		}
+	}
+
+	std::vector<koord> off;
+	for (sint16 r = -1; r <= R; r++) {
+		for (sint16 q = -1; q <= Q; q++) {
+			if (!s.contains(q, r)) {
+				off.push_back(koord(q, r));
+				CHECK(s.edge_distance(koord(q, r)) < 0);
+			}
+		}
+	}
+	for (koord k : tiles_of(s)) {
+		sint32 nearest = 1 << 20;
+		for (koord o : off) {
+			nearest = std::min(nearest, (sint32)koord_distance(k, o));
+		}
+		CHECK(s.edge_distance(k) == nearest - 1);
+
+		for (sint16 sy = 1; sy <= 3; sy++) {
+			for (sint16 sx = 1; sx <= 3; sx++) {
+				sint32 lowest = 1 << 20;
+				for (sint16 y = 0; y < sy; y++) {
+					for (sint16 x = 0; x < sx; x++) {
+						lowest = std::min(lowest, s.edge_distance(k + koord(x, y)));
+					}
+				}
+				CHECK(lowest == std::min(s.edge_distance(k), s.edge_distance(k + koord((sint16)(sx - 1), (sint16)(sy - 1)))));
+			}
 		}
 	}
 }
@@ -302,6 +350,7 @@ int main()
 {
 	for (const map_shape_t &s : sample_shapes()) {
 		test_shape(s);
+		test_rows_and_edges(s);
 		test_rotation(s);
 		test_vertices(s);
 		test_vertex_slots(s);

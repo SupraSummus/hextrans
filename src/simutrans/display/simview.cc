@@ -763,7 +763,7 @@ void main_view_t::display_region( koord lt, koord wh, sint16 y_min, sint16 y_max
 
 					}
 					// not on screen? We still might need to plot the border ...
-					else if(  env_t::draw_earth_border  &&  (pos.x-welt->get_size().x+1 == 0  ||  pos.y-welt->get_size().y+1 == 0)  ) {
+					else if(  env_t::draw_earth_border  &&  welt->is_front_edge(pos)  ) {
 						kb->display_border( xpos, yypos, IMG_SIZE  CLIP_NUM_PAR);
 					}
 				}
