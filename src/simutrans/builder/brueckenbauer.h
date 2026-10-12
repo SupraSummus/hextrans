@@ -87,6 +87,14 @@ public:
 	static bool is_start_of_bridge( const grund_t *gr );
 
 	/**
+	 * Way slope of a bridge ramp that climbs @p delta z-steps heading
+	 * along @p zv: the narrow edge slope for one step, the planar
+	 * double for two, flat for none.  The builder and the construction
+	 * preview both ask here, so they cannot disagree on a ramp.
+	 */
+	static slope_t::type ramp_for_climb(koord zv, sint8 delta);
+
+	/**
 	 * Build a bridge ramp.
 	 *
 	 * @param player the player wanting to build the bridge

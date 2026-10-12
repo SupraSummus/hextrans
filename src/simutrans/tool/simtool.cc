@@ -3080,6 +3080,22 @@ const char* tool_build_way_t::do_work(player_t* player, const koord3d& start, co
 	return err ? err : "";
 }
 
+// Sprites of a bridge ramp or start piece in a construction preview.
+// Like bruecke_t::calc_image, a pakset without the double-height set
+// shows the single-height piece; img_t_count (no such piece, from
+// bridge_desc_t::get_end) stays empty.
+static void set_bridge_piece_images(zeiger_t* z, const bridge_desc_t* desc, bridge_desc_t::img_t img)
+{
+	z->set_image(desc->get_background(img, 0));
+	z->set_foreground_image(desc->get_foreground(img, 0));
+	if (img < bridge_desc_t::img_t_count  &&  z->get_image() == IMG_EMPTY  &&  z->get_front_image() == IMG_EMPTY) {
+		const bridge_desc_t::img_t single = bridge_desc_t::single_height_of(img);
+		z->set_image(desc->get_background(single, 0));
+		z->set_foreground_image(desc->get_foreground(single, 0));
+	}
+}
+
+
 void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const koord3d& end)
 {
 	way_builder_t bauigel(player);
@@ -3118,12 +3134,7 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 						// we have already put a zeiger here
 						zeiger_t* z = from->find<zeiger_t>();
 						slope_t::type wh = h ? slope_t::flat : slope_type(-zv);
-						bridge_desc_t::img_t img = bridge->get_end(h, h, wh);
-						z->set_image(bridge->get_background(img,false));
-						z->set_foreground_image(bridge->get_foreground(img, false));
-						if (z->get_image() == IMG_EMPTY && z->get_front_image() == IMG_EMPTY) {
-							z->set_image(bridge->get_background(bridge_desc_t::single_height_of(img), false));
-						}
+						set_bridge_piece_images(z, bridge, bridge->get_end(h, h, wh));
 						z->mark_image_dirty(z->get_image(), 0);
 						sint8 z_offset = -slope_t::max_diff(h) * TILE_HEIGHT_STEP;
 						z->set_yoff(z_offset);
@@ -3162,8 +3173,7 @@ void tool_build_way_t::mark_tiles(player_t* player, const koord3d& start, const 
 						h = base_gr->get_grund_hang();
 						z = new zeiger_t(pos, player);
 						wh = h ? slope_t::flat : slope_type(wr);
-						z->set_image(bridge->get_background(bridge->get_end(h, h, wh), false));
-						z->set_foreground_image(bridge->get_foreground(bridge->get_end(h, h, wh), false));
+						set_bridge_piece_images(z, bridge, bridge->get_end(h, h, wh));
 						to->obj_add(z);
 						marked.insert(z);
 						z->mark_image_dirty(z->get_image(), 0);
@@ -3386,11 +3396,10 @@ void tool_build_bridge_t::mark_tiles( player_t *player, const koord3d &start, co
 	uint8 max_height = slope ?  slope_t::max_diff(slope) : bridge_height-start.z;
 
 	zeiger_t *way = new zeiger_t(start, player );
-	const bridge_desc_t::img_t img0 = desc->get_end( slope, slope, slope_type(zv)*max_height );
+	const bridge_desc_t::img_t img0 = desc->get_end( slope, slope, slope ? slope_t::flat : bridge_builder_t::ramp_for_climb(zv, max_height) );
 
 	gr->obj_add( way );
-	way->set_image( desc->get_background( img0, 0 ) );
-	way->set_foreground_image( desc->get_foreground( img0, 0 ) );
+	set_bridge_piece_images( way, desc, img0 );
 
 	if(  gr->get_grund_hang() != 0  ) {
 		way->set_yoff( -TILE_HEIGHT_STEP * max_height );
@@ -3444,10 +3453,9 @@ void tool_build_bridge_t::mark_tiles( player_t *player, const koord3d &start, co
 
 	if(  gr->ist_karten_boden()  &&  end.z + end_max_height == start.z + max_height  ) {
 		zeiger_t *way = new zeiger_t(end, player );
-		const bridge_desc_t::img_t img1 = desc->get_end( end_slope, end_slope, end_slope?0:(pos.z-end.z)*slope_type(-zv) );
+		const bridge_desc_t::img_t img1 = desc->get_end( end_slope, end_slope, end_slope ? slope_t::flat : bridge_builder_t::ramp_for_climb(-zv, pos.z-end.z) );
 		gr->obj_add( way );
-		way->set_image(desc->get_background(img1, 0));
-		way->set_foreground_image(desc->get_foreground(img1, 0));
+		set_bridge_piece_images( way, desc, img1 );
 		if(  gr->get_grund_hang() != 0  ) {
 			way->set_yoff( -TILE_HEIGHT_STEP * end_max_height );
 		}
