@@ -130,8 +130,6 @@ The season and image loops (`check_season_snowline`, `update_map_intern`)
 and `fabrikbauer`'s `fab_map` stay rectangular:
 they go through `get_boden_count()`, which is 0 off the map,
 or touch no ground.
-The `enlarge_map` strips (step 5) are a tripwire instead:
-`enlarge_map` on an existing world calls `dbg->fatal` when D > 1.
 `karte_t::rotate90` walks the on-map cells only (see "Rotation").
 
 `koord_random(W', H')` callers sample by rejection
@@ -275,12 +273,68 @@ and a saved `default.sve` keeps its own shape.
 inside the new one at the same coordinates,
 since `cut_lo` stays and `cut_hi` only grows.
 The new tiles are the new hexagon minus the old one,
-which replaces the L-shaped strips of `enlarge_map`'s `old_x`/`old_y` loops.
+which replaced the L-shaped strips of `enlarge_map`'s `old_x`/`old_y` loops.
+They lie to the right of the old tiles, one run per row and per column:
+`get_added_q_begin(old, r) <= q < get_q_end(r)`
+(`get_added_r_begin(old, q)` for the column).
+`map_shape_t::none()`, the shape with no tile, is the old map of a new world,
+so creating and enlarging one function walk the same loops.
+`get_far_q_begin(r, band)` is the first tile of a row
+within `band` tiles of the far sides of the old map,
+which is where the seam work of upstream's strips went:
+the transitions (20), the images of the old tiles (20),
+the beaches (19) and the halt lists (the station coverage).
+At D = 1 these are the same strips, a unit test pins it.
+
+With a cut the old rhombus has a far cut corner,
+tiles of the old extents that were off the map and are on the new one.
+They are new tiles like any other, with ground, water height,
+climate and trees: the climate and tree passes keep their two rectangles
+(the strip below the old extents, the strip beyond them) and add a third,
+the bounding box of that corner, minus the old hexagon (`skip` in
+`calc_climate_map_region`, `assign_climate_map_region`,
+`distribute_trees_region` and `tree_builder_t`).
+The cities, ground objects and moving objects of the new part
+(`stadt_t::random_place`, `find_free_discs`, the `distribute_*` loops)
+take the old shape instead of `old_x`/`old_y`.
+
+Vertex heights are kept for the vertices of the old hexagon,
+except the south-phantom row, which is generated and then anchored
+to the corner heights of the old tiles above it, as before.
+Slots that are no vertex of the old hexagon are generated from the noise,
+inside the old rectangle too:
+after a load the ghost slots next to the cut hold nothing,
+and the smoothing would raise the map by them.
+The smoothing visits the new slots and the old ones next to them,
+the last slot column and row of the old extents and the far cut,
+and leaves the old interior alone.
+A D = 1 world differs from the old enlargement only in the ghost slots
+of its outer ring, which no tile reads,
+and in the halt lists, which now cover the new tiles on all sides of an old
+stop and not only in +y.
+
+An enlargement beaches the water tiles of the old map within 19 of its far
+sides, as upstream does, so its water tiles there can become land;
+heights and slopes of the old tiles stay.
+The smoothing can still raise the old vertices next to the new ones
+("Enlarging moves the old grid" in `TODO.md`).
+
+D stays: `enlarge_map` calls `dbg->fatal` for another D or a smaller W or H.
 Growing D would move the old map by `(a, b)` with `a + b = ΔD`,
 a translation of every saved koord.
 `enlarge_map_frame` shows D read-only until 60° rotation lands;
 then rotate D into W's place, enlarge, rotate back.
+Its W and H start at their current values (not the extents, which are
+`W + D - 1`) and are bound so that the extents stay within 32766.
+The preview is the offset frame of the new shape, as in the new-world dialog
+(`gui_map_preview_t::get_preview_size/get_preview_tile` hold the mapping):
+the old map as it is, outlined in white along its far sides, then the
+noise of the new part, and the towns to add scale with the tile counts.
 Shrinking stays unsupported, as upstream.
+`debug.enlarge_map(w, h, cities)` grows the map from a script
+and returns the shift of the script's coordinates, nonzero after a half turn,
+where the new part lies at the script's near sides;
+`debug.enlarge_dialog(open)` opens the dialog.
 
 ## Rotation
 
@@ -397,11 +451,25 @@ and small `contains` hunks inside upstream loops.
    The dialog itself has no headless test.
 5. **Enlarge.** W and H grow with D fixed;
    the new-region loops use the predicate.
-   Test: enlarge the fixture to a larger W and H;
-   old tiles are unchanged, every new on-map tile has ground,
-   and the tile count matches the formula.
+   Landed.
+   Test: `test_map_shape_enlarge` grows a map twice (both sides, then W)
+   after raising a hill farthest east, south and along the far cut and
+   building a road on the last row:
+   the old tiles, objects included, are as they were,
+   ground is on exactly the new hexagon and the tile count matches the formula,
+   and neighbouring land tiles agree on their shared corners across the seam.
+   `test_map_shape_enlarge_cities` adds cities, which spread over the old tiles
+   next to them, so it compares the old climates away from them.
+   `tools/test.py --map` runs both on the 9×7×5 fixture,
+   the default suite on the 16×16 rhombus,
+   and `--rotate` on a map turned by 180°.
+   `test_map_shape_enlarge_dialog` opens the dialog.
+   `tools/hex_map_shape_test` checks the added runs and the far band
+   against enumeration, for each old shape inside a larger one.
 6. **Rotation.** #281's 60° steps, built on `rotate_tile`.
    Half turns landed on any W×H×D;
    the single step waits for this plan and the 6-orientation footprint
    (`TODO.md`, "Rotation cascade").
-   Test: the rotation round trip on a D > 1 fixture.
+   Test: the rotation round trip on a D > 1 fixture;
+   `test_world_rotate_roundtrip` has the 16×16 coordinates
+   and does not run on `--map` yet.
