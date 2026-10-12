@@ -27,12 +27,18 @@ if (test_map_file != null) {
 	map.file = test_map_file
 }
 
+// older hand-written filters do not set it
+if (!("test_rotate_map" in getroottable())) {
+	::test_rotate_map <- false
+}
+
 if (test_filter_patterns.len() > 0) {
 	local filtered = []
 	foreach (t in all_tests) {
 		local name = t.getinfos().name
 		foreach (pat in test_filter_patterns) {
-			if (name.find(pat) != null) {
+			// "=name" matches exactly, anything else as a substring
+			if (pat == "=" + name  ||  (pat.slice(0, 1) != "="  &&  name.find(pat) != null)) {
 				filtered.append(t)
 				break
 			}
@@ -116,6 +122,11 @@ function is_tool_allowed(pl, tool_id, wt, name)
 
 function start()
 {
+	// tools/test.py --rotate: the tests run on the map turned by 180
+	// degrees, which they keep seeing unturned (see test_world_rotate)
+	if (test_rotate_map  &&  !debug.rotate_map()) {
+		throw "cannot rotate the map"
+	}
 	run_all_tests()
 }
 

@@ -2140,7 +2140,7 @@ const char *tool_set_climate_t::do_work( player_t *player, const koord3d &start,
 						ok = welt->get_water_hgt(k) == hgt  &&  welt->is_plan_height_changeable( k.x, k.y );
 						for(  size_t i = 0 ;  i < lengthof(koord::neighbours) && ok ;  i++  ) {
 							koord k_neighbour(k + koord::neighbours[i]);
-							if(  welt->is_within_grid_limits(k_neighbour)  ) {
+							if(  welt->is_within_limits(k_neighbour)  ) {
 								ok = welt->min_hgt(k_neighbour) >= hgt;
 							}
 						}
