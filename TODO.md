@@ -109,14 +109,10 @@ edit.
 
 Upstream's way-builder rework (125 stage 5) left some loose ends in code
 that is otherwise grid-neutral.
-The two `&& build_tunnel_bridge` terms in `intern_calc_route` test the enum
-constant, not `tmp->count`, so they are always true
-(`-Wint-in-bool-context`).
 `init_builder` hands the bridge and tunnel back to a builder without a
 player after clearing them, and `dialog_way_builder_t::exit` destroys
 `magic_player_ranking` instead of `magic_way_builder`.
-Next move: decide whether the two terms meant `tmp->count &
-build_tunnel_bridge`, and fix the last two one-liners.
+Next move: fix the two one-liners.
 
 ## Lower_to water-tile NW-only gate
 
