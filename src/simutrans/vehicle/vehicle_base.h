@@ -52,15 +52,23 @@ protected:
 	 */
 	uint8 disp_lane:3;
 
+	/// Screen vector of the chord the object follows through its tile, in
+	/// W/8 (vehicle/screen_chord.h); xoff, yoff hold the chord's start.
 	sint8 dx, dy;
 
 	/**
-	 * Sets dx, dy to the screen offsets per step for travel along @p dir
-	 * (both 0 unless it is a single hex edge).
-	 * The only mapping from direction to dx, dy: calc_set_direction()
-	 * and loading a saved direction both go through it.
+	 * Sets dx, dy to a straight run across the tile along @p dir (both 0
+	 * unless it is a single hex edge), for a saved direction or a new
+	 * object; calc_set_direction() sets the exact chord.
 	 */
 	void set_dxdy(ribi_t::ribi dir);
+
+	/// Sets dx, dy to the chord with axial span @p span (screen_chord.h).
+	void set_chord(koord span);
+
+	/// Sets xoff, yoff to the start of the chord dx, dy for an object that
+	/// entered its tile from the neighbour @p to_prev (chord_entry_offset).
+	void set_entry_offset(koord to_prev);
 
 	// number of steps in this tile (255 per tile)
 	uint8 steps, steps_next;
@@ -100,8 +108,8 @@ protected:
 	// only needed for old way of moving vehicles to determine position at loading time
 	bool is_about_to_hop( const sint8 neu_xoff, const sint8 neu_yoff ) const;
 
-	/// Screen steps for @p s steps into the tile, scaled by @p raster_width
-	sint32 get_display_steps(uint32 s, sint16 raster_width) const;
+	/// Pixel offset @p s steps along the chord dx, dy at @p raster_width
+	koord get_chord_offset(uint32 s, sint16 raster_width) const;
 
 public:
 	/// Steps to cross a tile entered and left by the two edges in @p edges:

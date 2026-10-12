@@ -592,9 +592,10 @@ The current port pattern-matches on the sign of (di, dj)
 and maps to the closest of the 6 hex neighbour ribis;
 the (1,1) and (-1,-1) cases
 (produced only by S+SE, SE+S, N+NW, NW+N pairs)
-fall into a defensive `ribi_t::none` fallback with dy=±2, dx=0.
-Downstream consumers (collision avoidance, sprite offsets, disp_lane)
-will be visually wrong in exactly the cases where 2-step compound paths arise.
+fall into a defensive `ribi_t::none` fallback.
+The screen motion keeps the exact chord in `dx, dy`,
+but collision avoidance and `disp_lane` read `direction`
+and are wrong in exactly the cases where 2-step compound paths arise.
 Proper fix is a hex-aware vehicle direction model —
 likely 12 states (6 hex edges × 2 magnitudes for 1-step vs 2-step)
 or a distinct `path_t` that carries both entry and exit edge names —
@@ -750,30 +751,24 @@ each lifted by its own edge's height;
 the cells for masks 1, 2 and 4 already exist,
 and the combined cells become an optimisation for edges at one height.
 
-**Phase C — flow-on.**  Per-step vehicle interpolation offsets
-(`vehicle_base_t::set_dxdy`, shared by hop time and save/load), label / halt
-screen-anchor positions.  The label / halt group rides along on
-`get_screen_coord` so positions become hex-correct automatically;
-per-tile drawing under each anchor still assumes square geometry
-until phase B lands.  `vehicle_base_t::calc_set_direction` now
-enumerates 6 hex axes but the `dx,dy` magnitudes are still the
-legacy square-iso pair (`(±2, ±1)` for the four edges that survive
-the rename, `(±4, 0)` for NE/SW); under the hex lattice N/S
-neighbours are at screen distance `2u` while NE/SW are at `u·√10`
-≈ `3.16u`, so NE/SW vehicles visibly drift off-tile mid-hop on
-straight segments.
-Sprites already face the lattice heading,
-so within a tile an N or S vehicle slides along the old diagonal
-63° away from where its sprite points.
-Rebase the per-edge offsets on the lattice;
-every edge crosses a tile in the same number of steps.
-The screen path through a bend is still the square-era one:
-`vehicle_base_t::get_display_steps` stretches the chord lengths
-(222 steps for a 60 degree turn, 128 for a 120 degree one)
-onto the old 181 and 256,
-and scales a step with `dx` or `dy` 0 by the old 724/1024;
-rebase it on the chord between the two edge middles together with the
-per-edge offsets.
+**Phase C — flow-on.**  Label / halt screen-anchor positions ride
+along on `get_screen_coord` so positions become hex-correct
+automatically; per-tile drawing under each anchor still assumes
+square geometry until phase B lands.
+Moving objects cross a tile on the chord between the middles of its
+entry and exit edges (`vehicle/screen_chord.h`),
+but a loaded game restores `dx, dy` from the saved `direction` alone,
+which names a straight run:
+an object loaded inside a bend runs off its chord until its next hop,
+and one on a (1,1) or (-1,-1) chord stands still.
+`convoi_t::finish_rd` already reads each vehicle's route tiles
+before and after it (`vehicle_t::need_realignment`);
+setting the chord from them there
+(`set_chord(chord_span(...))`, display only) fixes convoys.
+The road lane offsets (`driveleft_base_offsets`, `overtaking_base_offsets`)
+are still the square-era table, one row per sprite slot;
+once hex road art fixes where its lanes lie,
+derive them from `chord_left_offset` like the pedestrians' far sidewalk.
 
 **Chord direction of vehicles.**
 `vehicle_base_t::direction` and `calc_direction` both hold

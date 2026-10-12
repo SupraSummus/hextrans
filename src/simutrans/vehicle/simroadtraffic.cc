@@ -79,9 +79,7 @@ road_user_t::road_user_t(grund_t* bd, uint16 random) :
 	}
 
 	set_dxdy(direction);
-
-	set_xoff( (dx<0) ? OBJECT_OFFSET_STEPS : -OBJECT_OFFSET_STEPS );
-	set_yoff( (dy<0) ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
+	set_entry_offset( koord(0, 0) );
 
 	if(to) {
 		pos_next = to->get_pos();

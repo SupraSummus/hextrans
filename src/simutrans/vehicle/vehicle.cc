@@ -359,8 +359,7 @@ void vehicle_t::initialise_journey(route_t::index_t start_route_index, bool reca
 		zoff_start = zoff_end = 0;
 		steps = 0;
 
-		set_xoff( (dx<0) ? OBJECT_OFFSET_STEPS : -OBJECT_OFFSET_STEPS );
-		set_yoff( (dy<0) ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
+		set_entry_offset( koord(0, 0) );
 
 		calc_image();
 	}
@@ -667,9 +666,11 @@ void vehicle_t::make_smoke() const
 		if(  cnv->get_akt_speed() < (sint32)((cnv->get_speed_limit() * 7u) >> 3)  ||  desc->get_engine_type() == vehicle_desc_t::steam  ) {
 			grund_t* const gr = welt->lookup( get_pos() );
 			if(  gr  ) {
+				// the chord offset at raster width 64 is in the object offset basis
+				const koord off = get_chord_offset( steps, OBJECT_OFFSET_STEPS * 4 );
 				wolke_t* const abgas = new wolke_t( get_pos(),
-					get_xoff() + ((dx * (sint16)((uint16)steps * OBJECT_OFFSET_STEPS)) >> VEHICLE_STEPS_PER_TILE_SHIFT),
-					get_yoff() + ((dy * (sint16)((uint16)steps * OBJECT_OFFSET_STEPS)) >> VEHICLE_STEPS_PER_TILE_SHIFT),
+					get_xoff() + off.x,
+					get_yoff() + off.y,
 					get_hoff() - LEGACY_SMOKE_YOFFSET, DEFAULT_EXHAUSTSMOKE_TIME, DEFAULT_SMOKE_UPLIFT, desc->get_smoke() );
 
 				if(  !gr->obj_add( abgas )  ) {

@@ -15,47 +15,32 @@
 #include "../obj/crossing.h"
 #include "../simconvoi.h"
 #include "../descriptor/sprite_dir.h"
+#include "screen_chord.h"
 
 
-/* get dx and dy from dir (just to remind you)
- * any vehicle (including city cars and pedestrians)
- * will go this distance per sync step.
- * (however, the real dirs are only calculated during display, these are the old ones)
- *
- * HEX-PORT: under flat-top axial coords the 6 neighbour displacements
- * project onto the existing 2:1 isometric viewport as:
- *   N  (0,-1): screen (+2, -1) — "normal" tile step
- *   S  (0, 1): screen (-2, +1) — "normal" tile step
- *   SE (1, 0): screen (+2, +1) — takes over the old square "east"
- *   NW (-1,0): screen (-2, -1) — takes over the old square "west"
- *   NE (1,-1): screen (+4,  0) — visual-length of old square diagonals
- *   SW (-1,1): screen (-4,  0) — visual-length of old square diagonals
- */
+// dx, dy: the screen vector of the chord through the tile, in W/8 (see
+// screen_chord.h).  A single edge @p dir gives a straight run across the
+// tile, any other ribi none.
 void vehicle_base_t::set_dxdy(ribi_t::ribi dir)
 {
-	switch(dir) {
-		case ribi_t::north:     dx =  2; dy = -1; break;
-		case ribi_t::south:     dx = -2; dy =  1; break;
-		case ribi_t::southeast: dx =  2; dy =  1; break;
-		case ribi_t::northwest: dx = -2; dy = -1; break;
-		case ribi_t::northeast: dx =  4; dy =  0; break;
-		case ribi_t::southwest: dx = -4; dy =  0; break;
-		default:                dx =  0; dy =  0; break;
-	}
+	set_chord(ribi_t::is_single(dir) ? koord(dir) * 2 : koord(0, 0));
 }
 
 
-// Steps across a bend tile, on the chord between the middles of the entry and
-// exit edges: edges 120 degrees apart (a 60 degree turn) are 256 cos 30 apart,
-// edges 60 degrees apart (a 120 degree turn) 256 / 2.
-static const uint16 STEPS_PER_WIDE_BEND  = 222;
-static const uint16 STEPS_PER_SHARP_BEND = VEHICLE_STEPS_PER_TILE / 2;
+void vehicle_base_t::set_chord(koord span)
+{
+	const koord step = chord_screen_step(span);
+	dx = (sint8)step.x;
+	dy = (sint8)step.y;
+}
 
-// The screen path through a bend is still the square-era one (TODO.md
-// "Phase C"): 181 steps for a 60 degree bend, 256 for a 120 degree one, and a
-// step with dx or dy 0 covers 724/1024 of one.
-static const uint16 LEGACY_WIDE_BEND_SCREEN_STEPS = 181;
-static const uint16 LEGACY_DIAGONAL_SCREEN_SCALE = 724;
+
+void vehicle_base_t::set_entry_offset(koord to_prev)
+{
+	const koord off = chord_entry_offset(to_prev, koord(dx, dy));
+	set_xoff((sint8)off.x);
+	set_yoff((sint8)off.y);
+}
 
 
 uint16 vehicle_base_t::get_tile_steps(ribi_t::ribi edges)
@@ -63,26 +48,16 @@ uint16 vehicle_base_t::get_tile_steps(ribi_t::ribi edges)
 	if(  !ribi_t::is_bend(edges)  ) {
 		return VEHICLE_STEPS_PER_TILE;
 	}
-	// two neighbouring edges: rotating one by 60 degrees gives the other
-	return (ribi_t::rotate60(edges) & edges) ? STEPS_PER_SHARP_BEND : STEPS_PER_WIDE_BEND;
+	const ribi_t::ribi one = edges & (ribi_t::ribi)(0u - edges);
+	return chord_tile_steps(koord((ribi_t::ribi)(edges & ~one)) - koord(one));
 }
 
-// The lane offset tables have a row per square-era direction, which is a
-// screen step dx, dy.  A hex direction takes the row of the square direction
-// with its step in set_dxdy(): SE and NW the old east and west rows.  The
-// (1,1) and (-1,-1) bend chords have no direction; their step (0, +-2) is the
-// old SE / NW diagonal.
+// The lane offset tables have a row per sprite slot (ribi_t::dir), each
+// across the screen heading the art of that slot is drawn for; a vehicle
+// takes the row of the sprite it shows.
 uint8 vehicle_base_t::get_lane_offset_row() const
 {
-	switch(direction) {
-		case ribi_t::north:     return ribi_t::dir_north;
-		case ribi_t::south:     return ribi_t::dir_south;
-		case ribi_t::southeast: return ribi_t::dir_east;
-		case ribi_t::northwest: return ribi_t::dir_west;
-		case ribi_t::northeast: return ribi_t::dir_northeast;
-		case ribi_t::southwest: return ribi_t::dir_southwest;
-		default:                return dy > 0 ? ribi_t::dir_southeast : ribi_t::dir_northwest;
-	}
+	return get_sprite_dir();
 }
 
 
@@ -180,18 +155,25 @@ vehicle_base_t::vehicle_base_t(koord3d pos):
 
 void vehicle_base_t::rotate90()
 {
+	koord entry(get_xoff(), get_yoff());
+	koord chord(dx, dy);
 	obj_t::rotate90();
 	direction = ribi_t::rotate_for_map_rotate90(direction );
 	pos_next.rotate90( welt->get_map_shape() );
-	// The screen step follows from the direction (calc_set_direction);
-	// only the (1,1) / (-1,-1) bend chords have none, and those turn into
-	// each other on the half turn.
-	if(  direction != ribi_t::none  ) {
+	// The chord and its start are lattice vectors and turn with the map.
+	if(  rotate_screen_lattice_vector( chord, 1, 1 )  ) {
+		dx = (sint8)chord.x;
+		dy = (sint8)chord.y;
+	}
+	else {
 		set_dxdy( direction );
 	}
-	else if(  welt->get_settings().is_half_turn_rotation()  ) {
-		dx = -dx;
-		dy = -dy;
+	if(  rotate_screen_lattice_vector( entry, 4, 1 )  ) {
+		set_xoff( (sint8)entry.x );
+		set_yoff( (sint8)entry.y );
+	}
+	else {
+		set_entry_offset( koord(0, 0) );
 	}
 }
 
@@ -310,27 +292,7 @@ uint32 vehicle_base_t::do_drive(uint32 distance)
 			hop(gr);
 			use_calc_height = true;
 
-			// set offsets
-			set_xoff( (dx<0) ? OBJECT_OFFSET_STEPS : -OBJECT_OFFSET_STEPS );
-			set_yoff( (dy<0) ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
-			if(dx*dy==0) {
-				if(dx==0) {
-					if(dy>0) {
-						set_xoff( pos_prev.x!=get_pos().x ? -OBJECT_OFFSET_STEPS : OBJECT_OFFSET_STEPS );
-					}
-					else {
-						set_xoff( pos_prev.x!=get_pos().x ? OBJECT_OFFSET_STEPS : -OBJECT_OFFSET_STEPS );
-					}
-				}
-				else {
-					if(dx>0) {
-						set_yoff( pos_prev.y!=get_pos().y ? OBJECT_OFFSET_STEPS/2 : -OBJECT_OFFSET_STEPS/2 );
-					}
-					else {
-						set_yoff( pos_prev.y!=get_pos().y ? -OBJECT_OFFSET_STEPS/2 : OBJECT_OFFSET_STEPS/2 );
-					}
-				}
-			}
+			set_entry_offset( pos_prev - get_pos().get_2d() );
 		}
 
 		if(  steps_next == 0  ) {
@@ -368,33 +330,21 @@ uint32 vehicle_base_t::do_drive(uint32 distance)
 }
 
 
-sint32 vehicle_base_t::get_display_steps(uint32 s, sint16 raster_width) const
+koord vehicle_base_t::get_chord_offset(uint32 s, sint16 raster_width) const
 {
-	// stretch the steps of a bend onto its square-era screen path
-	if(  steps_next == STEPS_PER_WIDE_BEND - 1  ) {
-		s = (s * (LEGACY_WIDE_BEND_SCREEN_STEPS - 1)) / steps_next;
-	}
-	else if(  steps_next == STEPS_PER_SHARP_BEND - 1  ) {
-		s = (s * (VEHICLE_STEPS_PER_TILE - 1)) / steps_next;
-	}
-	sint32 display_steps = s*(uint16)raster_width;
-	if(dx && dy) {
-		display_steps &= 0xFFFFFC00;
-	}
-	else {
-		display_steps = (display_steps*LEGACY_DIAGONAL_SCREEN_SCALE)>>10;
-	}
-	return display_steps;
+	const koord step(dx, dy);
+	koord span;
+	const uint16 tile_steps = chord_span_of_screen_step(step, span) ? chord_tile_steps(span) : VEHICLE_STEPS_PER_TILE;
+	return chord_screen_offset(step, s, tile_steps, raster_width);
 }
 
 
 // to make smaller steps than the tile granularity, we have to use this trick
 void vehicle_base_t::get_screen_offset( int &xoff, int &yoff, const sint16 raster_width ) const
 {
-	// vehicles needs finer steps to appear smoother
-	const sint32 display_steps = get_display_steps( steps, raster_width );
-	xoff += (display_steps*dx) >> 10;
-	yoff += ((display_steps*dy) >> 10) + (get_hoff(raster_width))/(4*16);
+	const koord off = get_chord_offset( steps, raster_width );
+	xoff += off.x;
+	yoff += off.y + (get_hoff(raster_width))/(4*16);
 }
 
 
@@ -448,20 +398,12 @@ uint8 vehicle_base_t::calc_chord_steps_next(const koord3d& prev, const koord3d& 
 
 
 // calcs new direction and applies it to the vehicles
-//
-// HEX-PORT: dx, dy per edge are in set_dxdy(), tile length in
-// calc_chord_steps_next().  The (1,1) and (-1,-1) chords come from the
-// SE-S and NW-N bends and keep the legacy square-diagonal screen step
-// (0,+-2) until the viewport port lands.
 ribi_t::ribi vehicle_base_t::calc_set_direction(const koord3d& prev, const koord3d& cur, const koord3d& next)
 {
 	const ribi_t::ribi direction = calc_chord_direction(prev, next);
 
 	steps_next = calc_chord_steps_next(prev, cur, next);
-	set_dxdy(direction);
-	if(direction == ribi_t::none) {
-		dy = (next.y > prev.y) ? 2 : -2;
-	}
+	set_chord(chord_span(prev.get_2d() - cur.get_2d(), next.get_2d() - cur.get_2d()));
 	return direction;
 }
 
