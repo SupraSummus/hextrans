@@ -105,14 +105,6 @@ the same shape: cheap if `has_neighbour_with_way(from, wt)`, otherwise
 defer until the next time any of these branches needs a real
 edit.
 
-## Way builder rough edges from upstream 125
-
-Upstream's way-builder rework (125 stage 5) left some loose ends in code
-that is otherwise grid-neutral.
-`dialog_way_builder_t::exit` destroys `magic_player_ranking` instead of
-`magic_way_builder`.
-Next move: fix the one-liner.
-
 ## Lower_to water-tile NW-only gate
 
 `terraformer_t::lower_to` short-circuits water tiles unless the NW
