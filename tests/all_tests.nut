@@ -326,7 +326,7 @@ all_tests <- [
 	test_way_bridge_maintenance_bare_ground,
 	test_way_bridge_maintenance_heads_are_free,
 	test_way_bridge_maintenance_repeat,
-	// test_way_bridge_maintenance_failed_build: HEX-PORT PENDING.
+	test_way_bridge_maintenance_failed_build,
 	test_way_bridge_maintenance_owner,
 	test_way_bridge_maintenance_rail,
 	test_way_bridge_maintenance_auto,
@@ -337,7 +337,7 @@ all_tests <- [
 	test_way_fail_reason_slope,
 	test_way_fail_reason_still_silent,
 	test_way_planner_step_cost_ground,
-	// test_way_planner_step_cost_slope: HEX-PORT PENDING.
+	test_way_planner_step_cost_slope,
 	test_way_planner_step_cost_refused,
 	test_way_planner_step_cost_invalid,
 	test_way_planner_step_cost_matches_is_allowed_step,
@@ -345,12 +345,12 @@ all_tests <- [
 	test_way_planner_tram_shares_road,
 	test_way_planner_elevated_passes_over_road,
 	test_way_planner_runway_is_not_elevated,
-	// test_way_planner_terraform_defaults_to_off: HEX-PORT PENDING.
-	// test_way_planner_terraform_across_slope: HEX-PORT PENDING.
-	// test_way_planner_terraform_matches_executor: HEX-PORT PENDING.
+	test_way_planner_terraform_defaults_to_off,
+	test_way_planner_terraform_across_slope,
+	test_way_planner_terraform_matches_executor,
 	test_way_planner_terraform_is_no_bypass,
 	test_way_planner_terraform_does_not_build,
-	// test_way_planner_terraform_not_kept_by_the_planner: HEX-PORT PENDING.
+	test_way_planner_terraform_not_kept_by_the_planner,
 	test_way_planner_terraform_keeps_way_type,
 	test_way_road_build_single_tile,
 	test_way_road_build_straight,
@@ -380,14 +380,14 @@ all_tests <- [
 	test_way_road_cityroad_replace_keep_existing,
 	test_way_road_make_public,
 	test_way_road_build_terraform_defaults_to_off,
-	// test_way_road_build_terraform_across_slope: HEX-PORT PENDING.
-	// test_way_road_build_road_terraform_across_slope: HEX-PORT PENDING.
-	// test_way_road_build_terraform_single_step: HEX-PORT PENDING.
+	test_way_road_build_terraform_across_slope,
+	test_way_road_build_road_terraform_across_slope,
+	test_way_road_build_terraform_single_step,
 	test_way_road_build_terraform_is_no_bypass,
 	test_way_road_build_terraform_builds_no_bridge,
 	test_way_road_build_straight_auto_bridge_ne_sw,
 	// test_way_road_build_terraform_forbidden_by_scenario: HEX-PORT PENDING.
-	// test_way_road_build_terraform_not_kept_by_the_tool: HEX-PORT PENDING.
+	test_way_road_build_terraform_not_kept_by_the_tool,
 	test_way_runway_build_rw_flat,
 	test_way_runway_build_tw_flat,
 	test_way_runway_build_mixed_flat,

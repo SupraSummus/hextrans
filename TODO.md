@@ -73,32 +73,10 @@ connection FSM support (`leitung2.cc` diagonal-image table is keyed on
 work lands.
 
 **Upstream 125 stage 3 planner and bridge tests.**
-The upstream terraform tests assume a single-height slope
-refuses the step across it unless terraforming is on.
-Under hex, `slope_allows_way_axis` admits every single-height slope
-on all 6 axes (ramp or chord),
-so `way_builder_t::check_slope` accepts those steps
-with or without the flag;
-only a double slope refuses a non-axis step
-(`slope.south_double`: N/S admitted, the other 4 refused without
-terraforming and admitted with it).
-Pending on that:
-`test_way_planner_step_cost_slope`,
-`test_way_planner_terraform_{defaults_to_off, across_slope,
-matches_executor, not_kept_by_the_planner}`,
-`test_way_road_build_terraform_{across_slope, single_step,
-forbidden_by_scenario, not_kept_by_the_tool}` and
-`test_way_road_build_road_terraform_across_slope`.
-Next move: re-seat them on `slope.south_double` with an SE-axis step
-and re-derive the post-terraform slopes from the hex edge rule in
-`way_builder_t::check_terraforming`;
-they then give `check_terraforming` and its replay in
-`terraforming_leaves_way_slopes` the end-to-end coverage they lack.
-`test_way_bridge_maintenance_failed_build` uses a span across a bridge
-head as its refusal, which hex builds as a stacked bridge (see
-"Bridge double-height policy" below);
-swap in a refusal the hex builder honours,
-e.g. the span over a runway from `test_way_bridge_build_above_runway`.
+`test_way_road_build_terraform_forbidden_by_scenario` is the one of the
+re-seated terraform tests still pending:
+it needs the scenario check on terraformed steps,
+see "Way builder rough edges from upstream 125".
 
 **`ASSERT_THROWS` helper for scenario tests.**
 43 sites across `tests/tests/*.nut` hand-roll the same
