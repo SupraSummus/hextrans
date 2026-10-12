@@ -874,7 +874,7 @@ void ai_passenger_t::walk_city(linehandle_t const line, grund_t* const start, in
 
 	ribi_t::ribi ribi = start->get_weg_ribi(road_wt);
 
-	for(int r=0; r<4; r++) {
+	for(int r=0; r<6; r++) {
 
 		// a way in our direction?
 		if(  (ribi & ribi_t::nesw[r])==0  ) {
