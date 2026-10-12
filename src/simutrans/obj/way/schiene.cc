@@ -221,32 +221,6 @@ void schiene_t::rdwr(loadsave_t *file)
 }
 
 
-void schiene_t::rotate90()
-{
-	weg_t::rotate90();
-	if (is_close_diagonal()) {
-		// it is unfourtunately not straight forward to swap the reservations ...
-		bool swap = false;
-		// bool use2 = (is_close_diagonal() == 2 && (from & ribi_t::northeast)) || (is_close_diagonal() == 1 && (from & ribi_t::southeast));
-		if (enter) {
-			swap = (is_close_diagonal() == 2 && (enter & ribi_t::northeast)) || (is_close_diagonal() == 1 && (enter & ribi_t::southeast));
-		}
-		else if (enter2) {
-			swap = (is_close_diagonal() == 2 && (enter2 & ribi_t::northeast)) || (is_close_diagonal() == 1 && (enter2 & ribi_t::southeast));
-		}
-		if (swap) {
-			// needs to swap convoi handles
-			convoihandle_t tmp = reserved2;
-			reserved2 = reserved;
-			reserved = tmp;
-			ribi_t::ribi t = enter2;
-			enter2 = enter;
-			enter = t;
-		}
-	}
-}
-
-
 FLAGGED_PIXVAL schiene_t::get_outline_colour() const
 {
 	if (env_t::show_single_ways  &&  ribi_t::is_single(get_ribi_unmasked())) {

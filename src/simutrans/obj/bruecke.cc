@@ -233,13 +233,7 @@ void bruecke_t::rotate90()
 {
 	set_yoff(0);
 	obj_t::rotate90();
-	// 90° is not a hex symmetry — a hex map rotation step is 60° and
-	// `karte_t::rotate90` itself is gated unreachable (see TODO.md
-	// "Rotation cascade").  Leave `img` unchanged: it stays a valid
-	// img_t value, and any in-tree caller that reaches here lands a
-	// `dbg->fatal` further up the cascade before the wrong image
-	// renders.  Replace with a real 60° img-rotation table when the
-	// viewport / rotation port lands.
+	img = bridge_desc_t::rotate60( img );
 }
 
 

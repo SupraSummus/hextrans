@@ -126,6 +126,7 @@ void brueckenboden_t::rdwr(loadsave_t *file)
 
 void brueckenboden_t::rotate90()
 {
+	weg_hang = slope_t::rotate60( weg_hang );
 	if( sint8 way_offset = get_weg_yoff() ) {
 		pos.rotate90( welt->get_map_shape() );
 		slope = slope_t::rotate60( slope );
@@ -144,7 +145,6 @@ void brueckenboden_t::rotate90()
 		}
 	}
 	else {
-		weg_hang = slope_t::rotate60( weg_hang );
 		grund_t::rotate90();
 	}
 }

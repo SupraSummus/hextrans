@@ -234,16 +234,10 @@ bool baum_t::check_season(const bool)
 
 void baum_t::rotate90()
 {
-	// cant use obj_t::rotate90 to rotate offsets as it rotates them only if xoff!=0
-	sint8 old_yoff = get_yoff() + zoff;
-	sint8 old_xoff = get_xoff();
-
-	// rotate position
+	// the offsets turn about the tile centre, without the slope part zoff
+	set_yoff( get_yoff() + zoff );
 	obj_t::rotate90();
-
-	// .. and the offsets
-	set_xoff( -2 * old_yoff );
-	set_yoff( old_xoff/2 - zoff);
+	set_yoff( get_yoff() - zoff );
 }
 
 

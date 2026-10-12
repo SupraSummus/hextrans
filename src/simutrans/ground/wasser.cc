@@ -153,7 +153,6 @@ void wasser_t::recalc_water_neighbours()
 void wasser_t::rotate90()
 {
 	grund_t::rotate90();
-	// HEX-PORT: see rotate_for_map_rotate90 helper.
 	ribi = ribi_t::rotate_for_map_rotate90(ribi);
 	canal_ribi = ribi_t::rotate_for_map_rotate90(canal_ribi);
 	display_ribi = ribi_t::rotate_for_map_rotate90(display_ribi);

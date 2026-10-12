@@ -863,6 +863,10 @@ void private_car_t::calc_disp_lane()
 void private_car_t::rotate90()
 {
 	road_user_t::rotate90();
+#ifdef DESTINATION_CITYCARS
+	target.rotate90( welt->get_map_shape() );
+#endif
+	pos_next_next.rotate90( welt->get_map_shape() );
 	calc_disp_lane();
 }
 

@@ -47,6 +47,8 @@ protected:
 	void calc_image() OVERRIDE;
 
 public:
+	void rotate90() OVERRIDE;
+
 	static bool register_desc(groundobj_desc_t *desc);
 	static bool successfully_loaded();
 

@@ -248,46 +248,12 @@ bool wayobj_t::finish_rd()
 void wayobj_t::rotate90()
 {
 	obj_t::rotate90();
-	// HEX-PORT: map-rotate → rotate_for_map_rotate90 (currently one 60° step);
-	// see TODO.md for the karte_t::rotate90 cleanup trigger.
 	dir = ribi_t::rotate_for_map_rotate90(dir );
 	hang = slope_t::rotate60( hang );
-	if (close_diagonal) {
-		close_diagonal = ~close_diagonal;
-		if (dir == 15) {
-			img = desc->get_back_close_diagonal_image_id(close_diagonal-1);
-			after_img = desc->get_front_close_diagonal_image_id(close_diagonal-1);
-		}
-		else {
-			diagonal = true;
-			dir = close_diagonal == 1 ? ribi_t::southeast : ribi_t::northeast;
-			img = desc->get_back_diagonal_image_id(dir);
-			after_img = desc->get_front_diagonal_image_id(dir);
-		}
-	}
-	else if (diagonal) {
-		img = desc->get_back_diagonal_image_id(dir);
-		after_img = desc->get_front_diagonal_image_id(dir);
-	}
-	else if (hang) {
-		img = desc->get_back_slope_image_id(hang);
-		after_img = desc->get_front_slope_image_id(hang);
-	}
-	else if (dir > 16) {
-		// crossing image
-		img = desc->get_crossing_image_id(dir, nw, false);
-		after_img = desc->get_crossing_image_id(dir, nw, true);
-	}
-	else {
-		img = desc->get_back_image_id(dir);
-		after_img = desc->get_front_image_id(dir);
-	}
+	// the images follow in calc_image(), after the whole map has turned
 }
 
 
-// The ground recalculates its objects after slope, snowline and way
-// changes; the hex chord rule makes the cached image depend on the
-// slope, so refresh it here too.
 void wayobj_t::calc_image()
 {
 #ifdef MULTI_THREAD

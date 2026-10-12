@@ -251,9 +251,12 @@ void obj_t::rotate90()
 {
 	// most basic: rotate coordinate
 	pos.rotate90( welt->get_map_shape() );
-	sint8 new_dx = -2*yoff;
-	yoff = xoff/2;
-	xoff = new_dx;
+	// A pixel offset has no exact 60° turn on the 2:1 raster, but the
+	// half turn is the point reflection: negate it on that step.
+	if(  welt->get_settings().is_half_turn_rotation()  ) {
+		xoff = -xoff;
+		yoff = -yoff;
+	}
 }
 
 

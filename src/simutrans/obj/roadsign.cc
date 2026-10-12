@@ -589,31 +589,32 @@ sync_result roadsign_t::sync_step(uint32 /*delta_t*/)
 
 void roadsign_t::rotate90()
 {
-	// only meaningful for traffic lights
 	obj_t::rotate90();
 	if(automatic  &&  !desc->is_private_way()) {
-	  state = (state&2/*whether yellow*/) + ((state+1)&1);
-		if(  ticks_offset >= ticks_ns  ) {
-			ticks_offset -= ticks_ns;
+		// A step takes the N-S axis to NE-SW, NE-SW to SE-NW and SE-NW to
+		// N-S (see sync_step's axis_mask[]): move each axis' durations and
+		// the phase with it.  The cycle keeps its order up to where it
+		// starts, so ticks_offset is left alone; after a half turn the
+		// axes are back in place.
+		uint8 t = ticks_ow; // N-S green
+		ticks_ow = ticks_ns;
+		ticks_ns = ticks_ne_sw;
+		ticks_ne_sw = t;
+		t = ticks_yellow_ow;
+		ticks_yellow_ow = ticks_yellow_ns;
+		ticks_yellow_ns = ticks_yellow_ne_sw;
+		ticks_yellow_ne_sw = t;
+		static const uint8 state_next[6] = { 2, 0, 1, 5, 3, 4 };
+		if(  state < 6  ) {
+			state = state_next[state];
 		}
-		else {
-			ticks_offset += ticks_ow;
-		}
-		uint8 temp = ticks_ns;
-		ticks_ns = ticks_ow;
-		ticks_ow = temp;
-		temp = ticks_yellow_ns;
-		ticks_yellow_ns = ticks_yellow_ow;
-		ticks_yellow_ow = temp;
 
 		trafficlight_info_t *const trafficlight_win = dynamic_cast<trafficlight_info_t *>( win_get_magic( (ptrdiff_t)this ) );
 		if(  trafficlight_win  ) {
 			trafficlight_win->update_data();
 		}
 	}
-	// HEX-PORT: map-rotate → rotate_for_map_rotate90 helper (stubbed to one
-	// 60° step); cleanup trigger tracked in TODO.md.
-	dir = ribi_t::rotate_perpendicular(dir );
+	dir = ribi_t::rotate_for_map_rotate90(dir);
 }
 
 
