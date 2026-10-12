@@ -3087,32 +3087,40 @@ int stadt_t::orient_city_building(const koord k, const building_desc_t *h, koord
 			return RC(fit0);
 		}
 
+		// A road votes only on a tile that touches the footprint.  Of the four
+		// corner tiles of the ring round an axial rectangle, the NE and SW ones
+		// touch it; (-1,-1) and (size.x,size.y) are two steps away.
+		const auto touching_road = [&](koord d, koord size) {
+			if (koord_distance_to_rect(k + d, k, size) != 1) {
+				return false;
+			}
+			const grund_t* g = welt->lookup_kartenboden(k + d);
+			return g && g->hat_weg(road_wt);
+		};
+
 		sint16 street_counter_ew = 0;
 		sint16 roads_ew = 0;
 		if (fit0) {
+			const koord size(h->get_x(1), h->get_y(1));
 			roads_ew++;
 			sint16 extra_offset = h->get_x(1);
 			for (int offset = -1; offset <= h->get_y(1); offset++) {
-				gr = welt->lookup_kartenboden(k + koord(extra_offset, offset));
-				if (gr && gr->hat_weg(road_wt)) {
+				if (touching_road(koord(extra_offset, offset), size)) {
 					street_counter_ew++; // east
 					roads_ew++;
 				}
 				// Neighbors goes through these in 'preferred' order, orthogonal first
-				gr = welt->lookup_kartenboden(k + koord(-1, offset));
-				if (gr && gr->hat_weg(road_wt)) {
+				if (touching_road(koord(-1, offset), size)) {
 					street_counter_ew--;	//west
 					roads_ew++;
 				}
 			}
 			extra_offset = h->get_y(1);
 			for (int offset = 0; offset < h->get_x(1); offset++) {
-				gr = welt->lookup_kartenboden(k + koord(offset, extra_offset));
-				if (gr && gr->hat_weg(road_wt)) {
+				if (touching_road(koord(offset, extra_offset), size)) {
 					roads_ew++;
 				}
-				gr = welt->lookup_kartenboden(k + koord(offset,-1));
-				if (gr && gr->hat_weg(road_wt)) {
+				if (touching_road(koord(offset, -1), size)) {
 					roads_ew++;
 				}
 			}
@@ -3121,28 +3129,25 @@ int stadt_t::orient_city_building(const koord k, const building_desc_t *h, koord
 		sint16 street_counter_ns = 0;
 		sint16 roads_ns = 0;
 		if (fit1) {
+			const koord size(h->get_x(0), h->get_y(0));
 			roads_ns++;
 			sint16 extra_offset = h->get_y(0);
 			for (int offset = -1; offset <= h->get_x(0); offset++) {
-				gr = welt->lookup_kartenboden(k + koord(offset, extra_offset));
-				if (gr && gr->hat_weg(road_wt)) {
+				if (touching_road(koord(offset, extra_offset), size)) {
 					street_counter_ns++; // south
 					roads_ns++;
 				}
-				gr = welt->lookup_kartenboden(k + koord(offset, -1));
-				if (gr && gr->hat_weg(road_wt)) {
+				if (touching_road(koord(offset, -1), size)) {
 					street_counter_ns--; // north
 					roads_ns++;
 				}
 			}
 			extra_offset = h->get_x(0);
 			for (int offset = 0; offset < h->get_y(0); offset++) {
-				gr = welt->lookup_kartenboden(k + koord(extra_offset, offset));
-				if (gr && gr->hat_weg(road_wt)) {
+				if (touching_road(koord(extra_offset, offset), size)) {
 					roads_ns++;
 				}
-				gr = welt->lookup_kartenboden(k + koord(-1,offset));
-				if (gr && gr->hat_weg(road_wt)) {
+				if (touching_road(koord(-1, offset), size)) {
 					roads_ns++;
 				}
 			}
