@@ -34,6 +34,8 @@ class welt_gui_t  :
 
 	bool load_heightfield;
 	bool loaded_heightfield;
+	/// pixels of the loaded relief, which fix W and H for the D of the settings
+	sint16 relief_w, relief_h;
 
 	double city_density;
 	double industry_density;
@@ -45,9 +47,10 @@ class welt_gui_t  :
 
 	gui_numberinput_t
 		inp_map_number,
-		inp_x_size, inp_y_size;
+		inp_x_size, inp_y_size, inp_d_size;
 
 	button_t
+		equal_sides,
 		random_map,
 		load_map;
 
@@ -81,6 +84,15 @@ class welt_gui_t  :
 	void resize_preview();
 
 	void update_densities();
+
+	/// Limits and steps of the three size fields for the current sides and relief
+	void update_size_limits();
+
+	/// Shows the sides of the settings in the three size fields
+	void update_size_fields();
+
+	/// The size field @p changed was edited: set the sides of the settings from it
+	void change_size(gui_numberinput_t *changed);
 
 
 public:

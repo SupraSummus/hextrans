@@ -54,7 +54,7 @@ enlarge_map_frame_t::enlarge_map_frame_t() :
 	add_table(2,1);
 	{
 		// input fields
-		add_table(2,2);
+		add_table(2,3);
 		{
 			// map seed number label
 			map_number_label.init();
@@ -77,6 +77,13 @@ enlarge_map_frame_t::enlarge_map_frame_t() :
 			inp_y_size.init( sets->get_size_y(), sets->get_size_y(), 32766, sets->get_size_y()>=512 ? 128 : 64, false );
 			inp_y_size.add_listener(this);
 			add_component( &inp_y_size );
+
+			// the depth D of the hexagon cannot change yet, see documentation/map-shape.md
+			new_component<gui_empty_t>();
+			depth_label.init();
+			depth_label.buf().printf("%s %d", translator::translate("Depth D:"), sets->get_size_d());
+			depth_label.update();
+			add_component( &depth_label );
 		}
 		end_table();
 
