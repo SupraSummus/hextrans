@@ -324,6 +324,9 @@ function test_way_planner_terraform_across_slope()
 
 	ASSERT_TRUE(on.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
 
+	// a step that levels a slope is not free: it costs what the same step onto sloped ground does
+	ASSERT_EQUAL(on.get_step_cost(tile_x(3, 4, 0), tile_x(4, 4, 0)), WAY_COUNT_NO_WAY + WAY_COUNT_SLOPE)
+
 	// the same kind of slope on another axis, so this is not one lucky orientation: this one
 	// rises to the north-east, and the S axis crosses it
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
@@ -331,6 +334,7 @@ function test_way_planner_terraform_across_slope()
 
 	ASSERT_FALSE(off.is_allowed_step(tile_x(9, 3, 0), tile_x(9, 4, 0)))
 	ASSERT_TRUE(on.is_allowed_step(tile_x(9, 3, 0), tile_x(9, 4, 0)))
+	ASSERT_EQUAL(on.get_step_cost(tile_x(9, 3, 0), tile_x(9, 4, 0)), WAY_COUNT_NO_WAY + WAY_COUNT_SLOPE)
 
 	// clean up
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 4, 0), slope.flat), null)

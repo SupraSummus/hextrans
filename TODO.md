@@ -72,12 +72,6 @@ connection FSM support (`leitung2.cc` diagonal-image table is keyed on
 4 old-combo values).  Restore after the crossing-cluster / 3rd-axis
 work lands.
 
-**Upstream 125 stage 3 planner and bridge tests.**
-`test_way_road_build_terraform_forbidden_by_scenario` is the one of the
-re-seated terraform tests still pending:
-it needs the scenario check on terraformed steps,
-see "Way builder rough edges from upstream 125".
-
 **`ASSERT_THROWS` helper for scenario tests.**
 43 sites across `tests/tests/*.nut` hand-roll the same
 `local caught = false; try { ... } catch (e) { ASSERT_EQUAL(e, "<msg>"); caught = true } ASSERT_TRUE(caught)`
@@ -115,22 +109,14 @@ edit.
 
 Upstream's way-builder rework (125 stage 5) left some loose ends in code
 that is otherwise grid-neutral.
-`is_allowed_step` returns `true` as soon as `check_terraforming` accepts a
-terraformed step, before the scenario's `is_work_allowed_here` check and
-without setting `*costs`, so a terraformed step costs nothing in the A*
-search and skips scenario rules.
 The two `&& build_tunnel_bridge` terms in `intern_calc_route` test the enum
 constant, not `tmp->count`, so they are always true
 (`-Wint-in-bool-context`).
 `init_builder` hands the bridge and tunnel back to a builder without a
 player after clearing them, and `dialog_way_builder_t::exit` destroys
 `magic_player_ranking` instead of `magic_way_builder`.
-Next move: run the scenario check first and charge
-`way_count_straight` plus `way_count_slope` for a terraformed step,
-decide whether the two terms meant `tmp->count & build_tunnel_bridge`,
-and fix the last two one-liners;
-`test_way_road_build_terraform_forbidden_by_scenario` (pending above)
-is the test that covers the scenario half.
+Next move: decide whether the two terms meant `tmp->count &
+build_tunnel_bridge`, and fix the last two one-liners.
 
 ## Lower_to water-tile NW-only gate
 
