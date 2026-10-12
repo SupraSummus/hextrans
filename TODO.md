@@ -1295,33 +1295,18 @@ Next move: score with `physical_dot_x2(koord::neighbours[i], d)`
 (AGENTS.md → "Axial coords vs physical hex symmetry"),
 and soak a map for changed convoy routes.
 
-Placefinder box anchors.
-`pos_list_wh_t` anchors a w×h box by its corner nearest the origin
-along each axis,
-which is not the box's nearest tile in the map plane
-when the box lies in the (+q, -r) or (-q, +r) quadrant,
-so such boxes come up in the search up to half their size
-too early or too late.
-Every anchor is still visited exactly once,
-only the order is approximate
-(`tools/hex_neighbourhood_test` pins the completeness).
-Next move: order the anchors by the physical distance
-of the projection of the origin onto the box,
-for example by merging the slides of the next few `pos_list_t` positions
-through a small priority queue,
-and extend the test to check that distance does not decrease.
-
-Halt and field leftovers.
-`haltestelle_t::create_name`'s factory branch tests
-`fabs.is_contained(fab)` the wrong way round (upstream has the same line),
-and its compass words for a stop's position relative to the town
-are still four-way.
-`fabrik_t::add_random_field` sizes the field ring from the layout-0
-footprint, which is wrong for a rotated non-square factory.
-Next move: flip the `is_contained` test with a naming test
-that puts a stop next to a factory,
-name the six hex directions in `create_name`,
-and take the footprint from `get_size(rotate)`.
+Stop name zones.
+`haltestelle_t::create_name` decides `inside` and `suburb`
+from the axial bounding rectangle of the town grown by 2 and then 6 tiles.
+That is a parallelogram on the map
+whose (+q, +r) and (-q, -r) corners lie twice as far out as its sides
+(AGENTS.md → "Axial coords vs physical hex symmetry"),
+so a stop there gets a centre or suburb name
+up to a town radius past the town's edge.
+Next move: measure with `koord_distance_to_rect`
+from the town's rectangle grown by 1
+(inside is 0, suburb is at most 6),
+and test it with a stop on the (+q, +r) corner.
 
 Back-wall redraw sets.
 `grund_t::recalc_back_wall_dependants` redraws the SE, S and SW tiles
