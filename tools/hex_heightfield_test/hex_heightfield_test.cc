@@ -1,9 +1,10 @@
 // Self-test for the relief sampler in
 // src/simutrans/dataobj/height_field_sample.h, built against it and
 // dataobj/koord_hex.cc directly.  The references are independent of the
-// sampler's own arithmetic: the axial offset of each tile corner as a
-// table of thirds, and ramps whose bilinear value at a point is that
-// point's own coordinate.
+// sampler's own arithmetic: the offset of each tile corner in the image
+// frame of documentation/map-shape.md as tables of thirds (columns) and
+// halves (rows), computed in integers, and ramps whose bilinear value at
+// a point is that point's own pixel coordinate.
 
 #include <cstdio>
 #include <vector>
@@ -24,21 +25,29 @@ static int failures = 0;
 } while (0)
 
 
-// Axial offset of corner c from its tile centre, in thirds of a tile:
-// the corner at angle c*60° sits at (cos, sin) from the centre, and
-// the centre-to-corner vector (1, 0) is (2/3, -1/3) in (q, r).
-static const int CORNER_DQ3[6] = {  2,  1, -1, -2, -1,  1 };
-static const int CORNER_DR3[6] = { -1,  1,  2,  1, -1, -2 };
+// Image column of corner c in thirds of a pixel from its tile's column
+// (x = 1.5 q + cos(c*60°)), and image row in halves of a pixel from the
+// tile's plane row r + (q - cut) / 2 (y = sqrt(3) * (r + q/2) +
+// sin(c*60°) * sqrt(3)/2, taken to rows by dividing out sqrt(3)).
+static const int CORNER_DX3[6] = {  2,  1, -1, -2, -1,  1 };
+static const int CORNER_DY2[6] = {  0,  1,  1,  0, -1, -1 };
+
+// The cuts D - 1 to test: the rhombus, small cuts, the cut of a 9x7x5 world.
+static const int CUTS[4] = { 0, 1, 4, 8 };
 
 
-static int round_half_up(double x)
+static int floor_div(int a, int b)
 {
-	return (int)std::floor(x + 0.5);
+	return a >= 0 ? a / b : -((-a + b - 1) / b);
+}
+
+static int clamp(int v, int lo, int hi)
+{
+	return v < lo ? lo : (v > hi ? hi : v);
 }
 
 
-// Tile centres map to their own pixel exactly: the pixel at (i, j) is
-// the value at axial (i, j), for any field.
+// A pixel centre is its own value, for any field.
 static void test_pixel_centres()
 {
 	const sint16 w = 7, h = 5;
@@ -48,44 +57,46 @@ static void test_pixel_centres()
 	}
 	for (int j = 0; j < h; j++) {
 		for (int i = 0; i < w; i++) {
-			CHECK(height_field_at_axial(field.data(), w, h, i, j) == field[i + j * w]);
+			CHECK(height_field_at_pixel(field.data(), w, h, i, j) == field[i + j * w]);
 		}
 	}
 }
 
 
-// The corner positions of hex_vertex_pos(), taken back to axial
-// coordinates the way the sampler does, are the tile plus the table
-// of thirds.  A ramp field makes the sampled value equal q (or r), so
-// the vertex heights come out as the rounded axial coordinate plus 1.
-static void test_vertex_axial_position()
+// The corner positions of hex_vertex_pos(), taken to the image frame
+// the way the sampler does, are the tile's column plus thirds and its
+// plane row plus halves.  A ramp field makes the sampled value equal
+// the column (or row), so the vertex heights come out as the rounded
+// pixel coordinate plus 1; every vertex on a half row is a tie, which
+// rounds up.  The columns with q - cut odd are half a row down.
+static void test_vertex_pixel_position()
 {
 	const sint16 w = 40, h = 40;
-	std::vector<sint8> ramp_q(w * h), ramp_r(w * h);
+	std::vector<sint8> ramp_x(w * h), ramp_y(w * h);
 	for (int j = 0; j < h; j++) {
 		for (int i = 0; i < w; i++) {
-			ramp_q[i + j * w] = (sint8)i;
-			ramp_r[i + j * w] = (sint8)j;
+			ramp_x[i + j * w] = (sint8)i;
+			ramp_y[i + j * w] = (sint8)j;
 		}
 	}
-	for (sint16 r = -1; r <= h; r++) {
-		for (sint16 q = -1; q < w; q++) {
-			for (int c = 0; c < hex_corner_t::count; c++) {
-				const hex_vertex_t v = { koord(q, r), (hex_corner_t::type)c };
-				// ramp value at the vertex, clamped to the image
-				const double fq = q + CORNER_DQ3[c] / 3.0;
-				const double fr = r + CORNER_DR3[c] / 3.0;
-				const double cq = fq < 0 ? 0 : (fq > w - 1 ? w - 1 : fq);
-				const double cr = fr < 0 ? 0 : (fr > h - 1 ? h - 1 : fr);
-				CHECK(height_field_vertex_height(ramp_q.data(), w, h, v) == round_half_up(cq) + 1);
-				CHECK(height_field_vertex_height(ramp_r.data(), w, h, v) == round_half_up(cr) + 1);
+	for (int cut : CUTS) {
+		for (sint16 r = -1; r <= h; r++) {
+			for (sint16 q = -1; q <= w; q++) {
+				for (int c = 0; c < hex_corner_t::count; c++) {
+					const hex_vertex_t v = { koord(q, r), (hex_corner_t::type)c };
+					// ramp value at the vertex, clamped to the image, rounded half up
+					const int x3 = clamp(3 * q + CORNER_DX3[c], 0, 3 * (w - 1));
+					const int y2 = clamp(2 * r + (q - cut) + CORNER_DY2[c], 0, 2 * (h - 1));
+					CHECK(height_field_vertex_height(ramp_x.data(), w, h, v, cut) == floor_div(2 * x3 + 3, 6) + 1);
+					CHECK(height_field_vertex_height(ramp_y.data(), w, h, v, cut) == floor_div(y2 + 1, 2) + 1);
+				}
 			}
 		}
 	}
 }
 
 
-// The 3 names of a world vertex give one height, for any field.
+// The 3 names of a world vertex give one height, for any field and cut.
 static void test_shared_vertices_agree()
 {
 	const sint16 w = 12, h = 9;
@@ -93,14 +104,16 @@ static void test_shared_vertices_agree()
 	for (int i = 0; i < w * h; i++) {
 		field[i] = (sint8)((i * 53) % 31 - 15);
 	}
-	for (sint16 r = -1; r <= h; r++) {
-		for (sint16 q = -1; q < w; q++) {
-			for (int c = 0; c < hex_corner_t::count; c++) {
-				hex_vertex_t owners[3];
-				vertex_owners(koord(q, r), (hex_corner_t::type)c, owners);
-				const sint8 want = height_field_vertex_height(field.data(), w, h, owners[0]);
-				CHECK(height_field_vertex_height(field.data(), w, h, owners[1]) == want);
-				CHECK(height_field_vertex_height(field.data(), w, h, owners[2]) == want);
+	for (int cut : CUTS) {
+		for (sint16 r = -1; r <= h; r++) {
+			for (sint16 q = -1; q < w; q++) {
+				for (int c = 0; c < hex_corner_t::count; c++) {
+					hex_vertex_t owners[3];
+					vertex_owners(koord(q, r), (hex_corner_t::type)c, owners);
+					const sint8 want = height_field_vertex_height(field.data(), w, h, owners[0], cut);
+					CHECK(height_field_vertex_height(field.data(), w, h, owners[1], cut) == want);
+					CHECK(height_field_vertex_height(field.data(), w, h, owners[2], cut) == want);
+				}
 			}
 		}
 	}
@@ -113,17 +126,19 @@ static void test_constant_field()
 	for (int value = -20; value <= 20; value += 10) {
 		const sint16 w = 6, h = 4;
 		std::vector<sint8> field(w * h, (sint8)value);
-		for (sint16 r = -1; r <= h; r++) {
-			for (sint16 q = -1; q < w; q++) {
-				for (int c = 0; c < hex_corner_t::count; c++) {
-					CHECK(height_field_vertex_height(field.data(), w, h, { koord(q, r), (hex_corner_t::type)c }) == value + 1);
+		for (int cut : CUTS) {
+			for (sint16 r = -1; r <= h; r++) {
+				for (sint16 q = -1; q < w; q++) {
+					for (int c = 0; c < hex_corner_t::count; c++) {
+						CHECK(height_field_vertex_height(field.data(), w, h, { koord(q, r), (hex_corner_t::type)c }, cut) == value + 1);
+					}
 				}
 			}
 		}
 	}
 	// the top of the sint8 range does not wrap
 	const std::vector<sint8> top(4, 127);
-	CHECK(height_field_vertex_height(top.data(), 2, 2, { koord(0, 0), hex_corner_t::E }) == 127);
+	CHECK(height_field_vertex_height(top.data(), 2, 2, { koord(0, 0), hex_corner_t::E }, 0) == 127);
 }
 
 
@@ -149,11 +164,13 @@ static void test_no_read_outside_image()
 			for (size_t i = 0; i < n; i++) {
 				field[i] = (sint8)(i % 5);
 			}
-			for (sint16 r = -3; r <= h + 3; r++) {
-				for (sint16 q = -3; q < w + 3; q++) {
-					for (int c = 0; c < hex_corner_t::count; c++) {
-						const sint8 got = height_field_vertex_height(field, w, h, { koord(q, r), (hex_corner_t::type)c });
-						CHECK(got >= 1  &&  got <= 5);
+			for (int cut : CUTS) {
+				for (sint16 r = -3; r <= h + 3; r++) {
+					for (sint16 q = -3; q < w + 3; q++) {
+						for (int c = 0; c < hex_corner_t::count; c++) {
+							const sint8 got = height_field_vertex_height(field, w, h, { koord(q, r), (hex_corner_t::type)c }, cut);
+							CHECK(got >= 1  &&  got <= 5);
+						}
 					}
 				}
 			}
@@ -166,7 +183,7 @@ static void test_no_read_outside_image()
 int main()
 {
 	test_pixel_centres();
-	test_vertex_axial_position();
+	test_vertex_pixel_position();
 	test_shared_vertices_agree();
 	test_constant_field();
 	test_no_read_outside_image();

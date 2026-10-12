@@ -1739,6 +1739,7 @@ int simu_main(int argc, char** argv)
 		sets.set_default_climates();
 		sets.set_use_timeline( 1 );
 		sets.set_size(64,64);
+		sets.set_size_d(1);
 		sets.set_city_count(1);
 		sets.set_factory_count(3);
 		sets.set_tourist_attractions(1);
@@ -1774,15 +1775,20 @@ int simu_main(int argc, char** argv)
 			sets.set_max_mountain_height(0.0);
 			sets.set_river_number(0);
 		}
-		// Test hook: -heightfield FILE builds the map from the relief
+		// Test hook: -heightfield FILE [D] builds the map from the relief
 		// image FILE (bmp or ppm), as the new-world dialog's "Load
-		// relief" does, without cities, industry, rivers or lakes.  It
+		// relief" does, without cities, industry, rivers or lakes.  The
+		// image is in the frame of documentation/map-shape.md: its
+		// columns and rows give W and H for the depth D (default 1).  It
 		// prints the tile heights (heightfield_dump) and saves and quits
 		// like -flatmap.
 		const char *heightfield = args.gimme_arg("-heightfield", 1);
 		if(  heightfield  ) {
 			is_flatmap = true;
 			sets.heightfield = heightfield;
+			// the image fixes W and H; D is the optional argument
+			const char *depth = args.gimme_arg("-heightfield", 2);
+			sets.set_size_d( depth  &&  *depth >= '0'  &&  *depth <= '9' ? atoi(depth) : 1 );
 			sets.set_city_count(0);
 			sets.set_factory_count(0);
 			sets.set_tourist_attractions(0);
@@ -1815,7 +1821,7 @@ int simu_main(int argc, char** argv)
 			sets.set_size(w, h);
 			sets.set_size_d(d);
 			// the densities of an n x n map, n = sqrt(tiles)
-			const sint32 n = (sint32)sqrt( (double)sets.get_map_shape().get_tile_count() );
+			const sint32 n = (sint32)sets.get_map_shape().get_side_equivalent();
 			sets.set_city_count(n/16);
 			sets.set_factory_count(n/8);
 			sets.set_tourist_attractions(n/32);
@@ -1841,6 +1847,7 @@ int simu_main(int argc, char** argv)
 			sint32 n = size ? atoi(size) : 0;
 			if(  n < 16  ) { n = 128; }
 			sets.set_size(n, n);
+			sets.set_size_d(1);
 			sets.set_city_count(0);
 			sets.set_factory_count(0);
 			sets.set_tourist_attractions(0);
