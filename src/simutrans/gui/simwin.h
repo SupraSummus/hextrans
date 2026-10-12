@@ -26,6 +26,7 @@ class loadsave_t;
 class gui_frame_t;
 class gui_component_t;
 class tool_t;
+struct map_shape_t;
 struct event_t;
 
 /* Types for the window */
@@ -192,7 +193,7 @@ void rolldown_all_win();
 
 bool top_win(const gui_frame_t *ig, bool keep_rollup=false  );
 void display_all_win();
-void win_rotate90( sint16 new_size );
+void win_rotate90( const map_shape_t &from );
 
 void win_display_flush(double konto); // draw the frame and all windows
 

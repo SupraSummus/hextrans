@@ -459,7 +459,7 @@ public:
 
 	void finish_rd();
 
-	void rotate90( const sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	/**
 	* Called if a vehicle enters a depot

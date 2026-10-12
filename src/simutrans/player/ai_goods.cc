@@ -82,16 +82,17 @@ void ai_goods_t::new_year()
 
 
 
-void ai_goods_t::rotate90( const sint16 y_size )
+void ai_goods_t::rotate90( const map_shape_t &from )
 {
-	player_t::rotate90( y_size );
+	player_t::rotate90( from );
 
 	// rotate places
-	platz1.rotate90( y_size );
-	platz2.rotate90( y_size );
-	size1.rotate90( 0 );
-	size2.rotate90( 0 );
-	harbour.rotate90( y_size );
+	platz1.rotate90( from );
+	platz2.rotate90( from );
+	// the sizes are signed extents along an axis, which turn without a shift
+	size1 = hex_axial_rotate( size1, 1 );
+	size2 = hex_axial_rotate( size2, 1 );
+	harbour.rotate90( from );
 }
 
 

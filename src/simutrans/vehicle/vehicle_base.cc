@@ -170,7 +170,7 @@ void vehicle_base_t::rotate90()
 	// stub the ribi rotation via rotate_for_map_rotate90 so nothing assertion-fails while
 	// travelling a still-rotating map.
 	direction = ribi_t::rotate_for_map_rotate90(direction );
-	pos_next.rotate90( welt->get_size().y-1 );
+	pos_next.rotate90( welt->get_map_shape() );
 	// new offsets
 	sint8 new_dx = -dy*2;
 	dy = dx/2;

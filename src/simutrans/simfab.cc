@@ -3166,21 +3166,26 @@ void fabrik_t::finish_rd()
 }
 
 
-void fabrik_t::rotate90( const sint16 y_size )
+void fabrik_t::rotate90( const map_shape_t &from )
 {
-	rotate = (rotate+3)%desc->get_building()->get_all_layouts();
-	pos_origin.rotate90( y_size );
-	pos_origin.x -= desc->get_building()->get_x(rotate)-1;
-	pos.rotate90( y_size );
+	pos_origin.rotate90( from );
+	pos.rotate90( from );
+	if(  welt->get_settings().is_half_turn_rotation()  ) {
+		// The footprint has no 60° turn yet (see gebaeude_t::rotate90):
+		// on the half turn the old origin corner is the far corner.
+		const building_desc_t *bdesc = desc->get_building();
+		rotate = bdesc->get_half_turn_layout( rotate );
+		pos_origin -= koord( bdesc->get_x(rotate)-1, bdesc->get_y(rotate)-1 );
+	}
 
 	for(koord & i : consumer) {
-		i.rotate90(y_size);
+		i.rotate90( from );
 	}
 	for(koord & i : suppliers) {
-		i.rotate90(y_size);
+		i.rotate90( from );
 	}
 	for(field_data_t & i : fields) {
-		i.location.rotate90(y_size);
+		i.location.rotate90( from );
 	}
 }
 

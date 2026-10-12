@@ -97,7 +97,7 @@ koord3d news_loc::get_weltpos(bool)
 }
 
 
-void news_loc::map_rotate90( sint16 new_ysize )
+void news_loc::map_rotate90( const map_shape_t &from )
 {
-	view.map_rotate90(new_ysize);
+	view.map_rotate90( from );
 }

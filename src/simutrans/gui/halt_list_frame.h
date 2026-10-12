@@ -136,7 +136,7 @@ public:
 
 	bool action_triggered(gui_action_creator_t*, value_t) OVERRIDE;
 
-	void map_rotate90( sint16 ) OVERRIDE { sort_list(); }
+	void map_rotate90( const map_shape_t & ) OVERRIDE { sort_list(); }
 
 	void rdwr(loadsave_t* file) OVERRIDE;
 

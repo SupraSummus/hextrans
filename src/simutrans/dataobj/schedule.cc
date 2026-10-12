@@ -355,11 +355,11 @@ void schedule_t::rdwr(loadsave_t *file)
 }
 
 
-void schedule_t::rotate90( sint16 y_size )
+void schedule_t::rotate90( const map_shape_t &from )
 {
 	// now we have to rotate all entries ...
 	for(schedule_entry_t & i : entries) {
-		i.pos.rotate90(y_size);
+		i.pos.rotate90( from );
 	}
 }
 

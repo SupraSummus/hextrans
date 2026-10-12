@@ -14,6 +14,7 @@
 class loadsave_t;
 class schedule_t;
 class player_t;
+struct map_shape_t;
 class schedule_list_gui_t;
 
 class simlinemgmt_t
@@ -56,7 +57,7 @@ public:
 	 */
 	void finish_rd();
 
-	void rotate90( sint16 y_size );
+	void rotate90( const map_shape_t &from );
 
 	void new_month();
 

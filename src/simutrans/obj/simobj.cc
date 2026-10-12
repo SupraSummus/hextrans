@@ -250,7 +250,7 @@ void obj_t::display(int xpos, int ypos  CLIP_NUM_DEF) const
 void obj_t::rotate90()
 {
 	// most basic: rotate coordinate
-	pos.rotate90( welt->get_size().y-1 );
+	pos.rotate90( welt->get_map_shape() );
 	sint8 new_dx = -2*yoff;
 	yoff = xoff/2;
 	xoff = new_dx;

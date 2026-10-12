@@ -312,13 +312,17 @@ sint32 karte_t::perlin_hoehe(settings_t const* const sets, koord tile, hex_corne
 	// Frequency values of 0.5 .. 0.7 seem to be ok, less is boring
 	// flat, more is too crumbled.  Old defaults: f=0.6, a=160.0.
 	//
-	// HEX-PORT: rotation is the legacy 90° square formula — broken
-	// for hex (90° is not a hex symmetry) but deterministic.  Tied
-	// to the rotate90 + viewport port in TODO.md.
+	// The noise is sampled in the frame of the unrotated map: turn the
+	// vertex back by the half turn of a map with extents @p size.
+	// karte_t::can_rotate90 allows no other rotation.
 	switch( sets->get_rotation() ) {
-		case 1: tile = koord(tile.y, size.x - tile.x); break;
-		case 2: tile = koord(size.x - tile.x, size.y - tile.y); break;
-		case 3: tile = koord(size.y - tile.y, tile.x); break;
+		case 0: break;
+		case 3:
+			tile = koord(size.x - 1 - tile.x, size.y - 1 - tile.y);
+			c = (hex_corner_t::type)((c + 3) % hex_corner_t::count);
+			break;
+		default:
+			dbg->fatal( "karte_t::perlin_hoehe", "map rotation %d is no half turn", sets->get_rotation() );
 	}
 	tile = tile + koord(sets->get_origin_x(), sets->get_origin_y());
 
@@ -2044,21 +2048,11 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	}
 	humidity_map.clear();
 
-	// eventual update origin
-	switch(  settings.get_rotation()  ) {
-		case 1: {
-			settings.set_origin_y( settings.get_origin_y() - new_size.y + old_size.y );
-			break;
-		}
-		case 2: {
-			settings.set_origin_x( settings.get_origin_x() - new_size.x + old_size.x );
-			settings.set_origin_y( settings.get_origin_y() - new_size.y + old_size.y );
-			break;
-		}
-		case 3: {
-			settings.set_origin_x( settings.get_origin_x() - new_size.y + old_size.y );
-			break;
-		}
+	// eventual update origin: at 180° the map grew on the far side of
+	// the unrotated frame (see perlin_hoehe)
+	if(  settings.get_rotation() == 3  ) {
+		settings.set_origin_x( settings.get_origin_x() - new_size.x + old_size.x );
+		settings.set_origin_y( settings.get_origin_y() - new_size.y + old_size.y );
 	}
 
 	distribute_groundobjs(old_size.x, old_size.y);
@@ -2422,93 +2416,143 @@ void karte_t::local_set_tool( tool_t *tool_in, player_t * player )
 
 
 
-planquadrat_t *rotate90_new_plan;
-sint8 *rotate90_new_water;
-
-void karte_t::rotate90_plans(sint16 x_min, sint16 x_max, sint16 y_min, sint16 y_max)
+bool karte_t::can_rotate90(uint8 steps) const
 {
-	const int LOOP_BLOCK = 64;
-	if(  (loaded_rotation + settings.get_rotation()) & 1  ) {  // 1 || 3
-		for(  int yy = y_min;  yy < y_max;  yy += LOOP_BLOCK  ) {
-			for(  int xx = x_min;  xx < x_max;  xx += LOOP_BLOCK  ) {
-				for(  int y = yy;  y < min(yy + LOOP_BLOCK, y_max);  y++  ) {
-					for(  int x = xx;  x < min(xx + LOOP_BLOCK, x_max);  x++  ) {
-						const int nr = x + (y * cached_grid_size.x);
-						const int new_nr = (cached_size.y - y) + (x * cached_grid_size.y);
-						// first rotate everything on the ground(s)
-						for(  uint i = 0;  i < plan[nr].get_boden_count();  i++  ) {
-							plan[nr].get_boden_bei(i)->rotate90();
-						}
-						// rotate climate transitions
-						rotate_transitions( koord( x, y ) );
-						// now: rotate all things on the map
-						swap(rotate90_new_plan[new_nr], plan[nr]);
-					}
-				}
-			}
-		}
-	}
-	else {
-		// first: rotate all things on the map
-		for(  int xx = x_min;  xx < x_max;  xx += LOOP_BLOCK  ) {
-			for(  int yy = y_min;  yy < y_max;  yy += LOOP_BLOCK  ) {
-				for(  int x = xx;  x < min(xx + LOOP_BLOCK, x_max);  x++  ) {
-					for(  int y=yy;  y < min(yy + LOOP_BLOCK, y_max);  y++  ) {
-						// rotate climate transitions
-						rotate_transitions( koord( x, y ) );
-						const int nr = x + (y * cached_grid_size.x);
-						const int new_nr = (cached_size.y - y) + (x * cached_grid_size.y);
-						swap(rotate90_new_plan[new_nr], plan[nr]);
-					}
-				}
-			}
-		}
-		// now rotate everything on the ground(s)
-		for(  int xx = x_min;  xx < x_max;  xx += LOOP_BLOCK  ) {
-			for(  int yy = y_min;  yy < y_max;  yy += LOOP_BLOCK  ) {
-				for(  int x = xx;  x < min(xx + LOOP_BLOCK, x_max);  x++  ) {
-					for(  int y = yy;  y < min(yy + LOOP_BLOCK, y_max);  y++  ) {
-						const int new_nr = (cached_size.y - y) + (x * cached_grid_size.y);
-						for(  uint i = 0;  i < rotate90_new_plan[new_nr].get_boden_count();  i++  ) {
-							rotate90_new_plan[new_nr].get_boden_bei(i)->rotate90();
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// rotate water
-	for(  int xx = 0;  xx < cached_grid_size.x;  xx += LOOP_BLOCK  ) {
-		for(  int yy = y_min;  yy < y_max;  yy += LOOP_BLOCK  ) {
-			for(  int x = xx;  x < min( xx + LOOP_BLOCK, cached_grid_size.x );  x++  ) {
-				int nr = x + (yy * cached_grid_size.x);
-				int new_nr = (cached_size.y - yy) + (x * cached_grid_size.y);
-				for(  int y = yy;  y < min( yy + LOOP_BLOCK, y_max );  y++  ) {
-					rotate90_new_water[new_nr] = water_hgts[nr];
-					nr += cached_grid_size.x;
-					new_nr--;
-				}
-			}
-		}
-	}
+	return steps % 3 == 0  &&  settings.is_half_turn_rotation();
 }
 
 
-void karte_t::rotate90()
+void karte_t::rotate90_step()
 {
-DBG_MESSAGE( "karte_t::rotate90()", "called" );
-	// The koord, koord3d and array2d_tpl primitives take a real 60° step
-	// now, but this body and the obj_t::rotate90 overrides it calls are
-	// still upstream's 90° cascade, so running them would half-rotate the
-	// world.  See TODO.md, "Rotation cascade".
-	dbg->fatal( "karte_t::rotate90", "world rotation is not ported to hex yet; see TODO.md" );
+	const map_shape_t from = get_map_shape();
+	const map_shape_t to = from.rotated();
+	const koord new_grid_size( (sint16)to.get_size_q(), (sint16)to.get_size_r() );
+
+	// the new rotation first: hooks with no 60° form ask is_half_turn_rotation()
+	settings.rotate90();
+
+	// preprocessing, detach stops from factories to prevent crash
+	for(halthandle_t const s : haltestelle_t::get_alle_haltestellen()) {
+		s->release_factory_links();
+	}
+
+	// Move each on-map tile to its rotated cell, turning everything on its
+	// grounds on the way.  The objects still see the old shape in
+	// get_map_shape(), which they rotate their positions from.
+	const uint32 new_cells = (uint32)new_grid_size.x * (uint32)new_grid_size.y;
+	planquadrat_t *new_plan = new planquadrat_t[new_cells];
+	sint8 *new_water = new sint8[new_cells];
+	memset( new_water, groundwater, new_cells );
+	for(  sint16 y = 0;  y < cached_grid_size.y;  y++  ) {
+		for(  sint16 x = 0;  x < cached_grid_size.x;  x++  ) {
+			const koord k( x, y );
+			if(  !from.contains( k )  ) {
+				continue; // off-map cells hold no ground
+			}
+			const uint32 nr = x + y * cached_grid_size.x;
+			for(  uint i = 0;  i < plan[nr].get_boden_count();  i++  ) {
+				plan[nr].get_boden_bei(i)->rotate90();
+			}
+			rotate_transitions( k );
+			const koord k1 = from.rotate_tile( k );
+			const uint32 new_nr = k1.x + k1.y * new_grid_size.x;
+			swap( new_plan[new_nr], plan[nr] );
+			new_water[new_nr] = water_hgts[nr];
+		}
+	}
+
+	// Each canonical height slot (tile, E|SE) is the vertex (tile', corner+1)
+	// of the rotated map, canonicalised again.  Slots of no on-map tile get
+	// the groundwater default, as for a new map.
+	const uint32 new_slots = vertex_slot_count( new_grid_size.x, new_grid_size.y );
+	sint8 *new_hgts         = new sint8[new_slots];
+	sint8 *new_natural_hgts = new sint8[new_slots];
+	memset( new_hgts,         groundwater, new_slots );
+	memset( new_natural_hgts, groundwater, new_slots );
+	for(  sint16 r = -1;  r <= cached_grid_size.y;  r++  ) {
+		for(  sint16 q = -1;  q < cached_grid_size.x;  q++  ) {
+			for(  hex_corner_t::type c : { hex_corner_t::E, hex_corner_t::SE }  ) {
+				const hex_vertex_t v = { koord( q, r ), c };
+				if(  !from.contains_vertex( v )  ) {
+					continue;
+				}
+				const uint32 nr     = vertex_slot_index( v, cached_grid_size.x );
+				const uint32 new_nr = vertex_slot_index( canonical_vertex( from.rotate_vertex( v ) ), new_grid_size.x );
+				new_hgts[new_nr]         = grid_hgts[nr];
+				new_natural_hgts[new_nr] = natural_grid_hgts[nr];
+			}
+		}
+	}
+
+	grund_t::finish_rotate90();
+
+	delete [] plan;
+	plan = new_plan;
+	delete [] water_hgts;
+	water_hgts = new_water;
+	delete [] grid_hgts;
+	grid_hgts = new_hgts;
+	delete [] natural_grid_hgts;
+	natural_grid_hgts = new_natural_hgts;
+
+	climate_map.rotate90( from );
+	humidity_map.rotate90( from );
+
+	set_cached_shape( to );
+
+	// now step all towns (to generate passengers)
+	for (stadt_t* const i : cities) {
+		i->rotate90(from);
+	}
+
+	// fixed order factory, halts, convois
+	for (fabrik_t* const f : all_factories) {
+		f->rotate90(from);
+	}
+	// after rotation of factories, rotate everything that holds freight: stations and convoys
+	for (halthandle_t const s : haltestelle_t::get_alle_haltestellen()) {
+		s->rotate90(from);
+	}
+
+	for (convoihandle_t const i : convoi_array) {
+		i->rotate90(from);
+	}
+
+	for (int i = 0; i < MAX_PLAYER_COUNT; i++) {
+		if (players[i]) {
+			players[i]->rotate90(from);
+		}
+	}
+
+	// rotate label texts
+	for (koord& l : labels) {
+		l.rotate90(from);
+	}
+
+	// rotate view
+	viewport->rotate90(from);
+
+	// rotate messages
+	msg->rotate90(from);
+
+	// rotate view in dialog windows
+	win_rotate90(from);
+
+	get_scenario()->rotate90(from);
+
+	script_api::rotate90();
+}
+
+
+void karte_t::rotate90(uint8 steps)
+{
+DBG_MESSAGE( "karte_t::rotate90()", "%d steps", steps );
+	if(  !can_rotate90( steps )  ) {
+		dbg->fatal( "karte_t::rotate90", "cannot rotate by %d 60 degree steps from rotation %d; see TODO.md", steps, settings.get_rotation() );
+	}
 
 	// assume we can save this rotation
 	nosave_warning = nosave = false;
-
-	//announce current target rotation
-	settings.rotate90();
 
 	// clear marked region
 	zeiger->change_pos( koord3d::invalid );
@@ -2516,109 +2560,12 @@ DBG_MESSAGE( "karte_t::rotate90()", "called" );
 	// every coordinate changes, so the shown route would point at the wrong tiles
 	clear_schedule_route( 0 );
 
-	// preprocessing, detach stops from factories to prevent crash
-	for(halthandle_t const s : haltestelle_t::get_alle_haltestellen()) {
-		s->release_factory_links();
+	for(  uint8 i = 0;  i < steps;  i++  ) {
+		rotate90_step();
 	}
 
-	assert(cached_grid_size.x >= 0);
-	assert(cached_grid_size.y >= 0);
-
-	rotate90_new_plan  = new planquadrat_t[(uint32_t)cached_grid_size.y * (uint32_t)cached_grid_size.x];
-	rotate90_new_water = new sint8        [(uint32_t)cached_grid_size.y * (uint32_t)cached_grid_size.x];
-
-	//rotate plans in parallel posix thread ...
-	world_xy_loop(&karte_t::rotate90_plans, 0);
-
-	grund_t::finish_rotate90();
-
-	delete [] plan;
-	plan = rotate90_new_plan;
-	delete[] water_hgts;
-	water_hgts = rotate90_new_water;
-
-	climate_map.rotate90();
-
-	// rotate heightmap.  90° is geometrically wrong under hex; see
-	// TODO.md's per-vertex storage and rotation cascade entries.
-	const uint32 new_hgts_slots = vertex_slot_count(cached_grid_size.x, cached_grid_size.y);
-	sint8* new_hgts         = new sint8[new_hgts_slots];
-	sint8* new_natural_hgts = new sint8[new_hgts_slots];
-	memset(new_hgts,         groundwater, new_hgts_slots);
-	memset(new_natural_hgts, groundwater, new_hgts_slots);
-	const int LOOP_BLOCK = 64;
-	for (int yy = 0; yy <= cached_grid_size.y; yy += LOOP_BLOCK) {
-		for (int xx = 0; xx <= cached_grid_size.x; xx += LOOP_BLOCK) {
-			for (int x = xx; x <= min(xx + LOOP_BLOCK, cached_grid_size.x); x++) {
-				for (int y = yy; y <= min(yy + LOOP_BLOCK, cached_grid_size.y); y++) {
-					// Preserve both E and SE canonical slots per
-					// grid point — see the enlarge_map copy loop.
-					const int nr     = (x + y * (cached_grid_size.x + 1)) * 2;
-					const int new_nr = ((cached_grid_size.y - y) + x * (cached_grid_size.y + 1)) * 2;
-					new_hgts[new_nr    ] = grid_hgts[nr    ];
-					new_hgts[new_nr + 1] = grid_hgts[nr + 1];
-					new_natural_hgts[new_nr    ] = natural_grid_hgts[nr    ];
-					new_natural_hgts[new_nr + 1] = natural_grid_hgts[nr + 1];
-				}
-			}
-		}
-	}
-	delete[] grid_hgts;
-	grid_hgts = new_hgts;
-	delete[] natural_grid_hgts;
-	natural_grid_hgts = new_natural_hgts;
-
-	// rotate borders
-	sint16 xw = cached_size.x;
-	cached_size.x = cached_size.y;
-	cached_size.y = xw;
-
-	int wx = cached_grid_size.x;
-	cached_grid_size.x = cached_grid_size.y;
-	cached_grid_size.y = wx;
-
-	// now step all towns (to generate passengers)
-	for (stadt_t* const i : cities) {
-		i->rotate90(cached_size.x);
-	}
-
-	// fixed order factory, halts, convois
-	for (fabrik_t* const f : all_factories) {
-		f->rotate90(cached_size.x);
-	}
-	// after rotation of factories, rotate everything that holds freight: stations and convoys
-	for (halthandle_t const s : haltestelle_t::get_alle_haltestellen()) {
-		s->rotate90(cached_size.x);
-	}
-
-	for (convoihandle_t const i : convoi_array) {
-		i->rotate90(cached_size.x);
-	}
-
-	for (int i = 0; i < MAX_PLAYER_COUNT; i++) {
-		if (players[i]) {
-			players[i]->rotate90(cached_size.x);
-		}
-	}
-
-	// rotate label texts
-	for (koord& l : labels) {
-		l.rotate90(cached_size.x);
-	}
-
-	// rotate view
-	viewport->rotate90(cached_size.x);
-
-	// rotate messages
-	msg->rotate90(cached_size.x);
-
-	// rotate view in dialog windows
-	win_rotate90(cached_size.x);
-
-	if (cached_grid_size.x != cached_grid_size.y) {
-		// the map must be reinit
-		minimap_t::get_instance()->init();
-	}
+	// the map must be reinit
+	minimap_t::get_instance()->init();
 
 	//  rotate map search array
 	factory_builder_t::new_world();
@@ -2627,10 +2574,6 @@ DBG_MESSAGE( "karte_t::rotate90()", "called" );
 	if (minimap_t::is_visible) {
 		minimap_t::get_instance()->set_display_mode(minimap_t::get_instance()->get_display_mode());
 	}
-
-	get_scenario()->rotate90(cached_size.x);
-
-	script_api::rotate90();
 
 	// finally recalculate schedules for goods in transit ...
 	set_schedule_counter();

@@ -86,6 +86,7 @@ surface_t::~surface_t()
 
 void surface_t::set_cached_shape(const map_shape_t &shape)
 {
+	cached_shape = shape;
 	cached_grid_size = koord((sint16)shape.get_size_q(), (sint16)shape.get_size_r());
 	cached_size_max = max(cached_grid_size.x, cached_grid_size.y);
 	cached_size.x = cached_grid_size.x - 1;

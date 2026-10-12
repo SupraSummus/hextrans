@@ -96,9 +96,9 @@ const label_t* labellist_stats_t::get_label() const
 }
 
 
-void labellist_stats_t::map_rotate90( sint16 y_size )
+void labellist_stats_t::map_rotate90( const map_shape_t &from )
 {
-	label_pos.rotate90(y_size);
+	label_pos.rotate90( from );
 }
 
 

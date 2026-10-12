@@ -212,7 +212,7 @@ public:
 	virtual void draw(scr_coord pos, scr_size size);
 
 	// called, when the map is rotated
-	virtual void map_rotate90( sint16 /*new_ysize*/ ) { }
+	virtual void map_rotate90( const map_shape_t & ) { }
 
 
 	/**

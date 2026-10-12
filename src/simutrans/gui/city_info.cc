@@ -421,7 +421,7 @@ bool city_info_t::action_triggered( gui_action_creator_t *comp,value_t /* */)
 }
 
 
-void city_info_t::map_rotate90( sint16 )
+void city_info_t::map_rotate90( const map_shape_t & )
 {
 	pax_map->set_size( pax_map->get_size() );
 }

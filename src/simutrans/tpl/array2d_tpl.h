@@ -84,18 +84,14 @@ public:
 	}
 
 	/**
-	 * One 60° step of the map this array holds a cell per tile of, which
-	 * is a plain w x h rhombus (map_shape_t d == 1): the cell at (x, y)
-	 * moves to map_shape_t::rotate_tile, as koord::rotate90( h - 1 ).
-	 *
-	 * The rotated map is the hexagon (1, w, h), so the array becomes its
-	 * bounding rhombus, h wide and w + h - 1 high.  Cells that are no tile
-	 * of the hexagon are T().
+	 * One 60° step of the map @p from this array holds a cell per tile
+	 * of, sized to its bounding rhombus: the cell of each tile moves to
+	 * from.rotate_tile, and the array becomes the bounding rhombus of
+	 * from.rotated().  Cells that are no tile of the rotated map are T().
 	 */
-	void rotate90()
+	void rotate90( const map_shape_t &from )
 	{
 		if(  w*h > 0  ) {
-			const map_shape_t from( (sint32)w, (sint32)h, 1 );
 			const map_shape_t to = from.rotated();
 			const unsigned new_w = (unsigned)to.get_size_q();
 			const unsigned new_h = (unsigned)to.get_size_r();
@@ -105,8 +101,11 @@ public:
 			}
 			for(  unsigned y=0;  y<h;  y++  ) {
 				for(  unsigned x=0;  x<w;  x++  ) {
-					const koord k = from.rotate_tile( koord( (sint16)x, (sint16)y ) );
-					new_data[k.x + k.y*new_w] = data[x+(y*w)];
+					const koord k0( (sint16)x, (sint16)y );
+					if(  from.contains( k0 )  ) {
+						const koord k = from.rotate_tile( k0 );
+						new_data[k.x + k.y*new_w] = data[x+(y*w)];
+					}
 				}
 			}
 			delete [] data;

@@ -126,7 +126,7 @@ public:
 
 	void new_year() OVERRIDE;
 
-	void rotate90( const sint16 y_size ) OVERRIDE;
+	void rotate90( const map_shape_t &from ) OVERRIDE;
 
 	void notify_factory(notification_factory_t flag, const fabrik_t*) OVERRIDE;
 };

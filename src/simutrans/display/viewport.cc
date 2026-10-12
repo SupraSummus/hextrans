@@ -438,9 +438,9 @@ void viewport_t::metrics_updated()
 }
 
 
-void viewport_t::rotate90( sint16 y_size )
+void viewport_t::rotate90( const map_shape_t &from )
 {
-	ij_off.rotate90(y_size);
+	ij_off.rotate90( from );
 	update_cached_values();
 }
 

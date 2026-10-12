@@ -199,7 +199,7 @@ private:
 	 */
 	uint8 just_in_time = 1; // Overwritten by the value from env_t
 
-	// default 0, will be incremented after each 90 degree rotation until 4
+	// 60° steps clockwise since creation, 0..5; see rotate90()
 	uint8 rotation = 0;
 
 	sint16 origin_x = 0, origin_y = 0;
@@ -483,12 +483,30 @@ public:
 	void set_just_in_time(uint8 b) { just_in_time = b; }
 	uint8 get_just_in_time() const {return just_in_time;}
 
+	/// One 60° step: the sides permute as map_shape_t::rotated().
 	void rotate90() {
-		rotation = (rotation+1)&3;
-		set_size( size_y, size_x );
+		rotation = (rotation+1)%6;
+		const map_shape_t s = get_map_shape().rotated();
+		set_size( s.w, s.h );
+		size_d = s.d;
 		wind_direction = ribi_t::rotate_for_map_rotate90(wind_direction);
 	}
+	/// 60° steps clockwise since the map was created, 0..5.
 	uint8 get_rotation() const { return rotation; }
+
+	/**
+	 * True at 0° and 180°, the orientations a W x H map and the
+	 * rectangle footprints of buildings map onto themselves in.
+	 * Within karte_t::rotate90 the rotation is already the new one, so
+	 * true there means this step completes a half turn: state with no
+	 * 60° form yet (layouts, footprints, pixel offsets, rectangles)
+	 * turns by 180° on that step and stays put on the two before it.
+	 */
+	bool is_half_turn_rotation() const { return rotation % 3 == 0; }
+
+	/// The upstream four-image compass index nearest to the rotation,
+	/// exact at 0° and 180° (0 and 2).
+	uint8 get_compass_rotation() const { return (uint8)((rotation * 2 + 1) / 3 % 4); }
 
 	void set_origin_x(sint16 x) { origin_x = x; }
 	void set_origin_y(sint16 y) { origin_y = y; }

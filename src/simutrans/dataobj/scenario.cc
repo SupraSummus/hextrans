@@ -275,13 +275,16 @@ scenario_t::forbidden_t::forbidden_t(const forbidden_t& other) :
 }
 
 
-void scenario_t::forbidden_t::rotate90(const sint16 y_size)
+void scenario_t::forbidden_t::rotate90( const map_shape_t &from )
 {
 	switch(type) {
 		case forbid_tool_rect: {
-			pos_nw.rotate90(y_size);
-			pos_se.rotate90(y_size);
-			sint16 x = pos_nw.x; pos_nw.x = pos_se.x; pos_se.x = x;
+			// an axial rectangle again on the half turn, with the corners swapped
+			pos_nw.rotate90( from );
+			pos_se.rotate90( from );
+			if(  world()->get_settings().is_half_turn_rotation()  ) {
+				const koord k = pos_nw; pos_nw = pos_se; pos_se = k;
+			}
 		}
 		default: ;
 	}
@@ -1199,11 +1202,11 @@ void scenario_t::rdwr(loadsave_t *file)
 
 }
 
-void scenario_t::rotate90(const sint16 y_size)
+void scenario_t::rotate90( const map_shape_t &from )
 {
 	for (uint pnr = 0; pnr < MAX_PLAYER_COUNT; pnr++) {
 		for (uint32 i = 0; i < forbidden_tools[pnr].get_count(); i++) {
-			forbidden_tools[pnr][i]->rotate90(y_size);
+			forbidden_tools[pnr][i]->rotate90( from );
 		}
 	}
 }

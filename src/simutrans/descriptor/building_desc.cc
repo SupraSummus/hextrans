@@ -205,6 +205,33 @@ uint8 building_desc_t::adjust_layout(uint8 layout) const
 }
 
 
+// upstream's 90° layout step, see get_half_turn_layout()
+static uint8 quarter_turn_layout(const building_desc_t *desc, uint8 layout)
+{
+	const uint8 layouts = desc->get_all_layouts();
+	if(  desc->get_type() == building_desc_t::unknown  ||  layouts <= 4  ) {
+		return ((layout+3) % layouts) & 3;
+	}
+	if(  layouts == 8  &&  desc->get_type() >= building_desc_t::city_res  ) {
+		// eight layout city building
+		return (layout & 4) + ((layout+3) & 3);
+	}
+	// 8 & 16 tile layout for stations
+	static const uint8 layout_rotate[16] = { 1, 8, 5, 10, 3, 12, 7, 14, 9, 0, 13, 2, 11, 4, 15, 6 };
+	return layout_rotate[layout & 15] % layouts;
+}
+
+
+uint8 building_desc_t::get_half_turn_layout(uint8 layout) const
+{
+	if(  layouts == 6  ) {
+		static const uint8 opposite[6] = { 2, 3, 0, 1, 5, 4 };
+		return opposite[layout % 6];
+	}
+	return quarter_turn_layout( this, quarter_turn_layout( this, layout ) );
+}
+
+
 void building_desc_t::calc_checksum(checksum_t *chk) const
 {
 	obj_desc_timelined_t::calc_checksum(chk);

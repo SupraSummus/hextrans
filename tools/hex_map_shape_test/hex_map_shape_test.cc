@@ -416,39 +416,51 @@ static void test_side_equivalent()
 }
 
 
-// koord::rotate90( y_size ) is the d == 1 spelling of rotate_tile, which
-// shifts by -(d - 1) along r on top: y_size = h + d - 2 for any shape.
-// koord3d keeps its height, and a step takes SE to S as for the ribis.
+// koord::rotate90( from ) and koord3d::rotate90( from ) are rotate_tile;
+// koord3d keeps its height, and both leave koord::invalid alone.
+// rotate_tile( k, n ) is n single steps through the rotated shapes, and
+// three of them are the point reflection onto the same shape.
 static void test_rotate90_forms(const map_shape_t &s)
 {
+	const map_shape_t half = s.rotated(3);
+	CHECK(half.w == s.w  &&  half.h == s.h  &&  half.d == s.d);
+	CHECK(s.rotated(-1).rotated().w == s.w);
 	for (koord k : tiles_of(s)) {
 		koord k1 = k;
-		k1.rotate90((sint16)(s.h + s.d - 2));
-		k1.y = (sint16)(k1.y - (s.d - 1));
+		k1.rotate90(s);
 		CHECK(k1 == s.rotate_tile(k));
+		for (sint8 z : { (sint8)-3, (sint8)0, (sint8)7 }) {
+			koord3d p(k, z);
+			p.rotate90(s);
+			CHECK(p.get_2d() == s.rotate_tile(k)  &&  p.z == z);
+		}
 
-		if (s.d == 1) {
-			koord k2 = k;
-			k2.rotate90((sint16)(s.h - 1));
-			CHECK(k2 == s.rotate_tile(k));
-			for (sint8 z : { (sint8)-3, (sint8)0, (sint8)7 }) {
-				koord3d p(k, z);
-				p.rotate90((sint16)(s.h - 1));
-				CHECK(p.get_2d() == s.rotate_tile(k)  &&  p.z == z);
-			}
+		CHECK(s.rotate_tile(k, 3) == koord((sint16)(s.get_size_q() - 1 - k.x), (sint16)(s.get_size_r() - 1 - k.y)));
+		CHECK(s.rotate_tile(k, 6) == k);
+		CHECK(s.rotate_tile(k, 0) == k);
+		for (int n = -6; n <= 6; n++) {
+			CHECK(s.rotated(n).contains(s.rotate_tile(k, n)));
+			CHECK(s.rotated(n).rotate_tile(s.rotate_tile(k, n), -n) == k);
+		}
+		for (int c = 0; c < 6; c++) {
+			const hex_vertex_t v = s.rotate_vertex({ k, (hex_corner_t::type)c }, 3);
+			CHECK(v.tile == s.rotate_tile(k, 3)  &&  (int)v.corner == (c + 3) % 6);
 		}
 	}
+	koord inv(-1, -1);
+	inv.rotate90(s);
+	CHECK(inv == koord(-1, -1));
 }
 
 
-// array2d_tpl::rotate90 on a w x h array, one cell per tile of the
-// rhombus (w, h, 1): each cell moves with rotate_tile into the bounding
-// rhombus of the rotated hexagon, and the cells off the hexagon are
-// empty.
-static void test_array_rotate(sint32 w, sint32 h)
+// array2d_tpl::rotate90 on an array with one cell per tile of the
+// bounding rhombus of s: each on-map cell moves with rotate_tile into
+// the bounding rhombus of the rotated hexagon, and the cells off it
+// are empty.
+static void test_array_rotate(const map_shape_t &s)
 {
-	const map_shape_t s(w, h, 1);
 	const map_shape_t s1 = s.rotated();
+	const sint32 w = s.get_size_q(), h = s.get_size_r();
 	array2d_tpl<uint32> a((unsigned)w, (unsigned)h);
 	for (sint32 y = 0; y < h; y++) {
 		for (sint32 x = 0; x < w; x++) {
@@ -456,17 +468,15 @@ static void test_array_rotate(sint32 w, sint32 h)
 		}
 	}
 
-	a.rotate90();
+	a.rotate90(s);
 	CHECK((sint32)a.get_width() == s1.get_size_q());
 	CHECK((sint32)a.get_height() == s1.get_size_r());
 	std::set<uint32> hexagon;
-	for (sint32 y = 0; y < h; y++) {
-		for (sint32 x = 0; x < w; x++) {
-			const koord k = s.rotate_tile(koord((sint16)x, (sint16)y));
-			CHECK(s1.contains(k));
-			CHECK(a.to_array()[k.x + k.y * a.get_width()] == (uint32)(1 + x + y * w));
-			hexagon.insert((uint32)(k.x + k.y * a.get_width()));
-		}
+	for (koord k0 : tiles_of(s)) {
+		const koord k = s.rotate_tile(k0);
+		CHECK(s1.contains(k));
+		CHECK(a.to_array()[k.x + k.y * a.get_width()] == (uint32)(1 + k0.x + k0.y * w));
+		hexagon.insert((uint32)(k.x + k.y * a.get_width()));
 	}
 	CHECK((sint64)hexagon.size() == s1.get_tile_count());
 	for (unsigned i = 0; i < a.get_width() * a.get_height(); i++) {
@@ -492,7 +502,9 @@ int main()
 	CHECK(!map_shape_t::from_image_size(5, 2, 1).is_valid());
 	for (sint32 w = 1; w <= 7; w++) {
 		for (sint32 h = 1; h <= 7; h++) {
-			test_array_rotate(w, h);
+			for (sint32 d = 1; d <= 4; d++) {
+				test_array_rotate(map_shape_t(w, h, d));
+			}
 		}
 	}
 

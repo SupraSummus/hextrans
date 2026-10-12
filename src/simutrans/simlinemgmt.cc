@@ -171,11 +171,11 @@ void simlinemgmt_t::finish_rd()
 }
 
 
-void simlinemgmt_t::rotate90( sint16 y_size )
+void simlinemgmt_t::rotate90( const map_shape_t &from )
 {
 	for(linehandle_t const i : all_managed_lines) {
 		if (schedule_t* const schedule = i->get_schedule()) {
-			schedule->rotate90( y_size );
+			schedule->rotate90( from );
 		}
 	}
 }

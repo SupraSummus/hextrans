@@ -89,7 +89,7 @@ public:
 
 	void clear();
 
-	void rotate90( sint16 size_w );
+	void rotate90( const map_shape_t &from );
 
 	void rdwr( loadsave_t *file );
 
@@ -148,7 +148,7 @@ public:
 
 	void clear();
 
-	void rotate90(sint16 size_w);
+	void rotate90( const map_shape_t &from );
 
 	void rdwr(loadsave_t* file);
 

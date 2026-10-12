@@ -70,7 +70,7 @@ bool grund_info_t::is_weltpos()
 }
 
 
-void grund_info_t::map_rotate90( sint16 new_ysize )
+void grund_info_t::map_rotate90( const map_shape_t &from )
 {
-	lview.map_rotate90(new_ysize);
+	lview.map_rotate90( from );
 }

@@ -1073,9 +1073,9 @@ bool halt_info_t::action_triggered( gui_action_creator_t *comp, value_t )
 }
 
 
-void halt_info_t::map_rotate90( sint16 new_ysize )
+void halt_info_t::map_rotate90( const map_shape_t &from )
 {
-	view.map_rotate90(new_ysize);
+	view.map_rotate90( from );
 }
 
 

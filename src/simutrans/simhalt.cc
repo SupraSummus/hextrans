@@ -615,9 +615,9 @@ haltestelle_t::~haltestelle_t()
 }
 
 
-void haltestelle_t::rotate90( const sint16 y_size )
+void haltestelle_t::rotate90( const map_shape_t &from )
 {
-	init_pos.rotate90( y_size );
+	init_pos.rotate90( from );
 
 	// rotate cargo (good) destinations
 	// iterate over all different categories
@@ -627,7 +627,7 @@ void haltestelle_t::rotate90( const sint16 y_size )
 			for (size_t j = warray.get_count(); j-- != 0;) {
 				ware_t& ware = warray[j];
 				if(ware.amount>0) {
-					ware.rotate90(y_size);
+					ware.rotate90( from );
 				}
 				else {
 					// empty => remove
@@ -940,7 +940,7 @@ char* haltestelle_t::create_name(koord const k, char const* const typ)
 		static const char *diagonal_name[4] = { "nordwest", "nordost", "suedost", "suedwest" };
 		static const char *direction_name[4] = { "nord", "ost", "sued", "west" };
 
-		uint8 const rot = welt->get_settings().get_rotation();
+		uint8 const rot = welt->get_settings().get_compass_rotation();
 		if (k.y < ob_gr  ||  (inside  &&  k.y*3 < (un_gr+ob_gr+ob_gr))  ) {
 			if (k.x < li_gr) {
 				dirname = diagonal_name[(4 - rot) % 4];
