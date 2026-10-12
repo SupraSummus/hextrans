@@ -1047,6 +1047,12 @@ bool fabrik_t::add_random_field(uint16 probability)
 	do {
 		for(sint32 xoff = -radius; xoff < radius + get_desc()->get_building()->get_size().x ; xoff++) {
 			for(sint32 yoff =-radius ; yoff < radius + get_desc()->get_building()->get_size().y; yoff++) {
+				// only the shell this many steps out (nearer tiles were checked earlier);
+				// the corners of the rectangle are further out
+				if(  koord_distance_to_rect(koord(xoff, yoff), koord(0, 0), get_desc()->get_building()->get_size()) != radius  ) {
+					continue;
+				}
+
 				// if we can build on this tile then add it to the list
 				const planquadrat_t *plan = welt->access(pos.get_2d() + koord(xoff, yoff));
 				grund_t *kb = NULL;
@@ -1055,11 +1061,6 @@ bool fabrik_t::add_random_field(uint16 probability)
 					// only on same height => climate will match!
 					build_locations.append(kb);
 					assert(kb->find<field_t>() == NULL);
-				}
-
-				// skip inside of rectangle (already checked earlier)
-				if(radius > 1 && yoff == -radius && (xoff > -radius && xoff < radius + get_desc()->get_building()->get_size().x - 1)) {
-					yoff = radius + get_desc()->get_building()->get_size().y - 2;
 				}
 			}
 		}

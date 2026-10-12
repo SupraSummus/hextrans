@@ -69,6 +69,15 @@ function ASSERT_FALSE(a)
 }
 
 
+// Hex steps between two axial tiles.  (1,1) is two steps away, (1,-1) one.
+function hex_distance(ax, ay, bx, by)
+{
+	local dx = ax - bx
+	local dy = ay - by
+	return (abs(dx) + abs(dy) + abs(dx + dy)) / 2
+}
+
+
 // Set player funds (incl. non-cash assets) to some specific amount (in credit-cents)
 function SET_PLAYER_FUNDS(pl, amount)
 {

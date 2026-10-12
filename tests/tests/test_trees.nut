@@ -311,3 +311,36 @@ function test_trees_plant_forest()
 
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+// A dragged square is a rhombus on the map, and the forest in it is a round
+// blob, not one stretched along its long diagonal.  The tiles (4, -4) and
+// (5, -4) from the middle lie on the short diagonal, about as far out as 4
+// or 5 steps along an axis; (4, 4) is 8 steps away.
+function test_trees_forest_is_round()
+{
+	local public_pl = player_x(1)
+	local planter = command_x(tool_forest)
+
+	// 15x15 tiles around (7, 7)
+	ASSERT_EQUAL(planter.work(public_pl, coord3d(0, 0, 0), coord3d(14, 14, 0), ""), null)
+
+	// full in the middle and out to the short diagonal
+	foreach (k in [[7, 7], [11, 3], [3, 11], [12, 3], [2, 11]]) {
+		ASSERT_TRUE(tile_x(k[0], k[1], 0).find_object(mo_tree) != null)
+	}
+
+	// empty along the long one
+	foreach (k in [[11, 11], [3, 3], [12, 12], [2, 2]]) {
+		ASSERT_EQUAL(tile_x(k[0], k[1], 0).find_object(mo_tree), null)
+	}
+
+	// clean up
+	for (local y = 0; y < 16; ++y) {
+		for (local x = 0; x < 16; ++x) {
+			command_x(tool_remover).work(public_pl, coord3d(x, y, 0))
+		}
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}
