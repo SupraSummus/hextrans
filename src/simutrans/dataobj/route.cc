@@ -615,6 +615,34 @@ bool route_t::intern_calc_route(karte_t *welt, const koord3d ziel, const koord3d
 
 
 /*
+ * One step of the straight substitute in postprocess_water_route(): of the
+ * hex neighbours that shorten the way to the tile @p diff away, the one along
+ * which most steps remain.  When two have as many, the one that does not
+ * continue @p straight, so that the substitute ends in a staircase of the two
+ * axes as the square-grid original did.  Returns none if @p diff is zero.
+ */
+static ribi_t::ribi postprocess_step(const koord diff, const ribi_t::ribi straight)
+{
+	ribi_t::ribi best = ribi_t::none;
+	uint32 best_run = 0;
+	for (int k = 0; k < 6; k++) {
+		// steps along neighbours[k] that each shorten the way
+		uint32 run = 0;
+		koord rest = diff;
+		while (koord_distance(rest - koord::neighbours[k], koord(0, 0)) + 1 == koord_distance(rest, koord(0, 0))) {
+			rest = rest - koord::neighbours[k];
+			run++;
+		}
+		if (run > best_run  ||  (run > 0  &&  run == best_run  &&  best == straight)) {
+			best = (ribi_t::ribi)(1 << k);
+			best_run = run;
+		}
+	}
+	return best;
+}
+
+
+/*
  * Postprocess routes created by jump-point search.
  * These routes never turn when going straight.
  * So something like this can happen:
@@ -678,38 +706,21 @@ void route_t::postprocess_water_route(karte_t *welt)
 				post.append( route[straight_end] );
 				koord3d &end = route[i];
 				for(uint32 j = straight_end; j < i  &&  ok; j++) {
-					ribi_t::ribi next = 0;
-					koord diff = (end - post.back()).get_2d();
-					// HEX-PORT: pick the hex neighbour direction whose
-					// displacement has the highest dot product with diff;
-					// if the best is the axis the straight part is already
-					// on, fall back to the second-best.  Old 4-direction
-					// code picked E/W vs N/S via |dx| vs |dy|.
-					sint32 best = INT32_MIN, second_best = INT32_MIN;
-					ribi_t::ribi best_ribi = 0, second_best_ribi = 0;
-					for (int k = 0; k < 6; k++) {
-						const sint32 s = (sint32)koord::neighbours[k].x * diff.x + (sint32)koord::neighbours[k].y * diff.y;
-						if (s > best) {
-							second_best = best;
-							second_best_ribi = best_ribi;
-							best = s;
-							best_ribi = (ribi_t::ribi)(1 << k);
-						}
-						else if (s > second_best) {
-							second_best = s;
-							second_best_ribi = (ribi_t::ribi)(1 << k);
-						}
-					}
-					next = (best_ribi == straight_ribi && second_best_ribi != 0) ? second_best_ribi : best_ribi;
-					koord3d pos = post.back() + koord(next);
+					const ribi_t::ribi next = postprocess_step((end - post.back()).get_2d(), straight_ribi);
 					ok = false;
-					if (grund_t *gr = welt->lookup(pos)) {
-						if (gr->is_water()) {
-							ok = true;
-							post.append(pos);
+					if (next != ribi_t::none) {
+						koord3d pos = post.back() + koord(next);
+						if (grund_t *gr = welt->lookup(pos)) {
+							if (gr->is_water()) {
+								ok = true;
+								post.append(pos);
+							}
 						}
 					}
 				}
+				// the substitute replaces route[straight_end..i-1], so it has to end on
+				// route[i]: any other end tile leaves a gap in the route
+				ok = ok  &&  post.back() == end;
 				// now substitute the new route part into the route
 				if (ok) {
 					for(uint32 j = straight_end; j < i  &&  ok; j++) {

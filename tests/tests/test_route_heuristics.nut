@@ -6,7 +6,8 @@
 
 //
 // Tests for the route searches: the distance estimate of the way builder's A*
-// (way_builder_t::calc_distance).
+// (way_builder_t::calc_distance) and the postprocessing of ship routes
+// (route_t::postprocess_water_route).
 //
 // Terminology used below:
 //   hex distance   fewest steps between two tiles over the six neighbours,
@@ -128,5 +129,61 @@ function test_route_heuristics_way_open_ground_shortest()
 		ASSERT_EQUAL(route_build_road(pl, p[0], p[1], p[2], p[3]), route_hex_distance(p[0], p[1], p[2], p[3]) + 1)
 		route_clear_roads(pl)
 	}
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+//
+// The ship route search takes no turn on a straight run and a postprocessing
+// pass takes out the extra turns this leaves. The pass replaces part of the
+// route by a straight substitute, which has to end on the tile where the
+// replaced part ended; one that ended elsewhere left a gap of tiles that are
+// not neighbours, and the ship would have crossed it in one step.
+//
+function test_route_heuristics_water_route_is_connected()
+{
+	local pl = player_x(0)
+	local climate = command_x(tool_set_climate)
+
+	// a lake with one island
+	ASSERT_EQUAL(climate.work(pl, coord3d(1, 1, 0), coord3d(14, 14, 0), "" + cl_water), null)
+	ASSERT_EQUAL(climate.work(pl, coord3d(7, 7, 0), coord3d(7, 7, 0), "" + cl_mediterran), null)
+
+	// pairs of tiles whose routes the pass used to break
+	local pairs = [
+		[5, 4, 7, 8],
+		[7, 6, 5, 12],
+		[9, 10, 6, 5],
+		[3, 7, 12, 5],
+		[9, 4, 4, 12],
+		[10, 11, 7, 6],
+		[5, 12, 7, 2],
+	]
+
+	foreach (p in pairs) {
+		local from = coord3d(p[0], p[1], 0)
+		local to = coord3d(p[2], p[3], 0)
+		sroute_open(0, sroute_schedule(wt_water, [from, to]), 0)
+		sroute_mark(0, true)
+		sroute_step()
+
+		ASSERT_TRUE(sroute_len() > 0)
+		ASSERT_EQUAL(sroute_gaps(), 0)
+
+		// from one tile to the next is one step, or none where two legs meet
+		local prev = sroute_tile(0)
+		for (local i = 1; i < sroute_len(); ++i) {
+			local tile = sroute_tile(i)
+			local steps = route_hex_distance(prev.x, prev.y, tile.x, tile.y)
+			if (steps > 1) {
+				print("ship route from " + from + " to " + to + " jumps " + steps + " tiles from " + prev + " to " + tile)
+			}
+			ASSERT_TRUE(steps <= 1)
+			prev = tile
+		}
+		sroute_close(0)
+	}
+
+	ASSERT_EQUAL(climate.work(pl, coord3d(1, 1, 0), coord3d(14, 14, 0), "" + cl_mediterran), null)
 	RESET_ALL_PLAYER_FUNDS()
 }

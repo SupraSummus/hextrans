@@ -1202,16 +1202,16 @@ Next move: loop over `hex_disc(1)`, accept any
 and build it once with the macro defined.
 
 Route heuristics.
-`way_builder_t::calc_distance` is axial Manhattan,
-which overestimates NE/SW distances up to 2× and makes the A* heuristic
-inadmissible there;
-use the hex distance `(|dx| + |dy| + |dx + dy|) / 2`
-on the out-of-box deltas.
-`route_t::postprocess_water_route` can leave a non-adjacent gap
-with its greedy substitution;
-substitute only when the greedy path lands exactly on the end tile.
-Next move: both fixes, with a NE-SW way-building test
-that compares the built length with `koord_distance`.
+`get_next_dirs` in `route.cc` orders the six successors of an A* node
+by their dot product with the target vector in axial coordinates,
+which is not the angle on the map:
+for a target at `(-3, 1)` it ranks SW before NW,
+though NW points 19° off it and SW 41°.
+Route costs stay correct,
+because only ties between equal-cost nodes break the wrong way.
+Next move: score with `physical_dot_x2(koord::neighbours[i], d)`
+(AGENTS.md → "Axial coords vs physical hex symmetry"),
+and soak a map for changed convoy routes.
 
 Placefinder box anchors.
 `pos_list_wh_t` anchors a w×h box by its corner nearest the origin
