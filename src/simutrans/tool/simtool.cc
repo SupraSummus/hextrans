@@ -5792,7 +5792,9 @@ void tool_build_roadsign_t::mark_tiles(player_t *player, const koord3d &start, c
 
 	const bool single_ribi     = desc->is_signal_type() || desc->is_single_way() || desc->is_choose_sign();
 	const signal_info_t &s     = current;
-	const uint8 signal_density = 2 * s.spacing;      //< measured in half tiles (straight track count as 2, diagonal as 1, since sqrt(1/2) = 1/2 ;)
+	// measured in half tiles: a tile counts as the chord the route cuts through it, rounded to
+	// a half tile.  Straight on is 1 tile and a 60 degree turn 0.87, both 2; a 120 degree turn is 0.5, so 1.
+	const uint8 signal_density = 2 * s.spacing;
 	uint8  next_signal         = signal_density + 1; //< to place a sign asap
 	sint32 cost                = 0;
 	directions.clear();
@@ -5832,8 +5834,9 @@ void tool_build_roadsign_t::mark_tiles(player_t *player, const koord3d &start, c
 		}
 
 		// check owner .. other signals...
-		const bool straight = (i == 0)  ||  (i == route.get_count()-1)  ||  ribi_t::is_straight(ribi_type(route[i-1], route[i+1]));
-		next_signal += straight ? 2 : 1;
+		const bool sharp = i > 0  &&  i+1 < route.get_count()  &&
+			hex_turn_steps( route[i].get_2d()-route[i-1].get_2d(), route[i+1].get_2d()-route[i].get_2d() ) >= 2;
+		next_signal += sharp ? 1 : 2;
 
 		if(  next_signal >= signal_density  ) {
 			// can we place signal here?

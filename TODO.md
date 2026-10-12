@@ -1266,20 +1266,6 @@ and the `simtool.cc` terraform tools still refresh the square set.
 Next move: one helper that marks the three dependants dirty,
 called from each site.
 
-Map generation metrics.
-`way_builder_t::build_river` and the signal spacing in
-`tool_build_roadsign_t::mark_tiles` find a route's bends
-by passing the delta between a tile's two route neighbours to `ribi_type`.
-A 60° turn (SE then S) comes out off-axis, so a bend,
-but a 120° turn (SE then SW) adds up to a single step along a hex axis
-and is called straight.
-Both wait for the wegbauer and roadsign rewrites.
-Next move: compare the two step directions instead
-(`route[i] - route[i-1]` against `route[i+1] - route[i]`) in both.
-In `mark_tiles` also weigh a tile by the chord of its turn,
-two half-tiles for straight and 60° turns and one for a 120° turn,
-and test the spacing of signals on a route with a 120° turn.
-
 Descriptor visuals.
 The bridge branch of `tool_build_way_t::mark_tiles` previews every ramp
 with the single-height slope (`wh`) and every deck one level up,

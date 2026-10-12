@@ -6,7 +6,13 @@
 //
 // Also pins pos_list_t / pos_list_wh_t in world/pos_list.h, the outward spiral
 // of the placefinder: the hex disc, once each, closest first in the map plane.
+//
+// And hex_turn_steps, the turn of a route at a tile, which way_builder_t::
+// build_river and tool_build_roadsign_t::mark_tiles use to find a route's
+// bends.  They used to test whether the delta between the tiles before and
+// after is on a hex axis, which a 120 degree turn is.
 
+#include <cmath>
 #include <cstdio>
 #include <set>
 #include <utility>
@@ -217,6 +223,86 @@ static void test_pos_list_wh_anchors_every_box_once()
 }
 
 
+// The turn of a route is the number of 60 degree steps between the two
+// neighbour steps; neighbours[] runs clockwise.
+static void test_turn_steps()
+{
+	for (int i = 0; i < 6; i++) {
+		for (int j = 0; j < 6; j++) {
+			const koord in = koord::neighbours[i], out = koord::neighbours[j];
+			const int d = (j - i + 6) % 6;
+			const uint32 expected = (uint32)(d <= 3 ? d : 6 - d);
+			CHECK(hex_turn_steps(in, out) == expected);
+
+			// the same turn after a rotation, and after a reflection (q <-> r)
+			CHECK(hex_turn_steps(hex_axial_rotate(in, 1), hex_axial_rotate(out, 1)) == expected);
+			CHECK(hex_turn_steps(koord(in.y, in.x), koord(out.y, out.x)) == expected);
+			// and from the other end of the route
+			CHECK(hex_turn_steps(-out, -in) == expected);
+		}
+	}
+}
+
+
+// ribi_type(delta between the tiles before and after) != straight, the test
+// the callers used to make: the sum of the two steps is on a hex axis.
+static bool legacy_is_bend(koord in, koord out)
+{
+	const koord sum = in + out;
+	const bool on_axis = sum.x == 0  ||  sum.y == 0  ||  sum.x + sum.y == 0;
+	return sum == koord(0, 0)  ||  !on_axis;
+}
+
+
+static void test_turn_steps_vs_legacy_bend()
+{
+	const koord se = koord::neighbours[0], s = koord::neighbours[1], sw = koord::neighbours[2];
+
+	// straight on is straight in both
+	CHECK(!legacy_is_bend(se, se));
+	CHECK(hex_turn_steps(se, se) == 0);
+	// a 60 degree turn (SE then S) is off the axes in both
+	CHECK(legacy_is_bend(se, s));
+	CHECK(hex_turn_steps(se, s) == 1);
+	// a 120 degree turn (SE then SW) adds up to the S step: straight in the
+	// legacy test, a bend in hex_turn_steps
+	CHECK(se + sw == s);
+	CHECK(!legacy_is_bend(se, sw));
+	CHECK(hex_turn_steps(se, sw) == 2);
+
+	// exactly the 120 degree turns differ
+	for (int i = 0; i < 6; i++) {
+		for (int j = 0; j < 6; j++) {
+			const koord in = koord::neighbours[i], out = koord::neighbours[j];
+			const bool differs = legacy_is_bend(in, out) != (hex_turn_steps(in, out) != 0);
+			CHECK(differs == (hex_turn_steps(in, out) == 2));
+		}
+	}
+}
+
+
+// A route cuts a chord through a tile, from the middle of the edge it enters
+// by to the middle of the edge it leaves by.  In half tiles (tile centres a
+// tile apart, so the middle of an edge is half a tile from the centre) its
+// length is the physical length of in + out: 2 straight on, sqrt(3) for a 60
+// degree turn, 1 for a 120 degree turn.  The signal spacing counts 2, 2, 1.
+static void test_turn_steps_chord_weight()
+{
+	for (int i = 0; i < 6; i++) {
+		for (int j = 0; j < 6; j++) {
+			const koord in = koord::neighbours[i], out = koord::neighbours[j];
+			const uint32 turn = hex_turn_steps(in, out);
+			if (turn == 3) {
+				continue;
+			}
+			const double chord = std::sqrt((double)physical_distance_sq(in + out, koord(0, 0)));
+			const sint32 weight = turn >= 2 ? 1 : 2;
+			CHECK(weight == (sint32)std::floor(chord + 0.5));
+		}
+	}
+}
+
+
 int main()
 {
 	test_pos_list_is_sorted_disc();
@@ -226,6 +312,9 @@ int main()
 	test_matches_brute_force();
 	test_is_minkowski_sum_with_hex_disc();
 	test_adjacent_ring();
+	test_turn_steps();
+	test_turn_steps_vs_legacy_bend();
+	test_turn_steps_chord_weight();
 
 	if (failures) {
 		std::fprintf(stderr, "%d failure(s)\n", failures);

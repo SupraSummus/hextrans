@@ -3471,7 +3471,7 @@ void way_builder_t::build_river()
 	for( uint32 i = max(end_n, 2) - 2; i > start_n+1;   i-- ) {
 		grund_t *gr = welt->lookup_kartenboden( route[i].get_2d() );
 		if(  !gr->get_weg_ribi( water_wt )  &&  gr->get_grund_hang()!=slope_t::flat  ) {
-			if(  !ribi_t::is_straight(ribi_type(route[i+1].get_2d()-route[i-1].get_2d()))  ) {
+			if(  hex_turn_steps( route[i].get_2d()-route[i-1].get_2d(), route[i+1].get_2d()-route[i].get_2d() ) != 0  ) {
 				welt->flatten_tile( NULL, route[i].get_2d(), gr->get_hoehe()+1 );
 				DBG_MESSAGE( "wrong river slope", route[i].get_str() );
 			}

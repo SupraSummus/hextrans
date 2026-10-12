@@ -305,6 +305,26 @@ static inline sint32 physical_dot_x2(const koord &a, const koord &b)
 	return 2 * a.x * b.x + a.x * b.y + a.y * b.x + 2 * a.y * b.y;
 }
 
+// How sharply a route turns where it steps into a tile by `in` and out of
+// it by `out` (two neighbour steps), in 60 degree units: 0 straight on,
+// 1 a 60 degree turn, 2 a 120 degree turn, 3 turning back.  Neighbour
+// steps are unit vectors in the physical plane, so physical_dot_x2 of two
+// of them is twice the cosine of the turn: 2, 1, -1, -2.
+//
+// The sum of the two steps (the delta between the tiles before and after)
+// does not tell: it is twice a step, so on a hex axis, for straight on, and
+// one step along the axis in between for a 120 degree turn, and off the axes
+// only for a 60 degree turn.  ribi_type(sum) calls a 120 degree turn straight.
+static inline uint32 hex_turn_steps(const koord &in, const koord &out)
+{
+	switch (physical_dot_x2(in, out)) {
+		case  2: return 0;
+		case  1: return 1;
+		case -1: return 2;
+		default: return 3;
+	}
+}
+
 // Hex distance from tile p to the nearest tile of the axial rectangle
 // pos .. pos+size-1 (size.x by size.y tiles).  A rectangle in (q, r) is
 // a parallelogram, so the tiles within n steps of it are the rectangle
