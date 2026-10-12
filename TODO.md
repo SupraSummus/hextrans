@@ -44,16 +44,6 @@ and `test_way_tram_build_in_tunel` additionally shows
 a 2-axis tunnel cross (S-axis road + SE-axis tram)
 threading one buried hex tile with ribi 16|2|8|1=27.
 
-**Legacy `slope.east` / `slope.west` in tests.**  The square-era 2-corner
-diagonals are still admitted as way slopes by the post-slope-way
-predicate (side-chord branch with samples both at 1), but the names
-project poorly onto the hex axes and read as historical baggage.  Four
-call sites (`test_building_rotate_harbour`, the "east-west direction"
-block in `test_depot_build_on_bridge_end` and the matching block in
-`test_halt_build_on_bridge_end`, `test_powerline_remove_powerbridge`)
-migrated to `slope.southeast_narrow` / `slope.northwest_narrow`, the hex axis they were
-already projecting onto.
-
 **Deep-water grid-height clobber in `tool_change_water_height_t`.**
 The hex apply loop ends with `set_grid_hgt_nocheck(kt, c, hn[c])` for
 all six corners, `hn[c] = max(new_water_height, h0[c])`.  Upstream
@@ -287,14 +277,6 @@ for slope and half-slope sprites.  Migrate per family alongside
 the flat-image migration above.
 
 ## Per-vertex height storage — remaining writer-side ports
-
-The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
-`surface.h` is `dbg->fatal` — every residual call is a crash so the
-port can't accidentally regress new sites onto the old E-slot of
-tile `(x-1, y-1)`.  Gameplay code should not call the fatal
-`lookup_hgt` / `lookup_hgt_nocheck` `(x,y)` / `(koord)` overloads;
-use `(tile, hex_corner_t)`, `min_hgt` / `max_hgt`, or
-`grund_t::get_hoehe` as appropriate.
 
 The natural-height channel (`natural_grid_hgts`) is not yet persisted
 in saves.  On load it is seeded from `grid_hgts` as a best effort, so
@@ -772,10 +754,6 @@ condition.
 Deep water still pairs with the pakset `Water` animation block as
 below; on-slope water and snow now use LightTexture-derived shapes.
 
-On-slope water tiles now use the same required `LightTexture`
-ground-lightmap path as climate ground.
-Deep water still comes from the pakset `Water` animation block.
-
 Cliff back-wall middle-slope indices 9 / 10 are baked as single-step
 half-cliffs (one corner at 0, one at 1) — placeholder for the legacy
 double-height notch shape that the pakset renderer at
@@ -866,21 +844,6 @@ so a "does this chord lead back over that edge" test can miss.
 `calc_chord_direction` and adds the route's first step,
 which is always an edge.
 The other direction tests may need the same first-step term.
-
-Minimap (`gui/minimap.cc`) now hex-projects in isometric mode:
-`map_to_screen_coord` / `screen_to_map_coord` use the `(3u, u)` /
-`(0, 2u)` lattice with `u = zoom_in`, and `set_map_color` paints
-the `3u × 2u` screen-aligned cell that the floor-inverse picks for
-a click in that cell — so paints and clicks stay in lockstep.  The
-schedule-overlay tint walks the sheared parallelogram outline
-scanline by scanline (slope 1/3, derived from `map_to_screen_coord`
-on the four world corners).  Plan (non-iso) mode is unchanged —
-still an axial-coordinate plot, lying about hex shape but compact.
-Residual: at `zoom_out ≥ 2` multiple tiles still collapse to one
-pixel as before — inherited from the legacy projection.  A regular
-flat-top hex view (vs. the current 2:1 stretch that matches the
-main viewport) would be a third mode, not a fix; not on the path
-unless the main view's lattice changes.
 
 Zoom levels where the tile raster width is not a multiple of 4
 break the hex lattice: `u = W/4` truncates,
@@ -1003,24 +966,6 @@ Land one with the bump:
 a headless check that generates a map with relief and water,
 saves, reloads and compares every vertex height.
 
-Upstream 125 moved the fork to `SIM_VERSION_MAJOR 125`
-with the fork's save and server minor kept (902, from the map-shape gate):
-fork saves now write 125.902,
-so every upstream `is_version_atleast(125, x)` gate holds,
-the `SAVE_VERSION_HEX_*` gates (all 124.x) still pass,
-and 124.9xx saves from before the merge load as older.
-No 125.901 save was ever written,
-so `SAVE_VERSION_HEX_MAP_SHAPE` (124, 902) stays exact.
-Upstream 125 clients now refuse fork saves as a future version
-instead of misreading them.
-The next fork-only on-disk change takes 125.903
-and a new named gate at MAJOR 125.
-
-Save-format feature gates now have names in `simversion.h` rather
-than floating against `SIM_SAVE_MINOR`.  Continue that convention for
-future on-disk changes so later fork-version bumps do not silently
-change the meaning of old readers.
-
 ## Multi-tile building footprint — still 2 of 6 hex axes
 
 `building_desc_t::get_size(layout)` (`descriptor/building_desc.h`)
@@ -1067,58 +1012,7 @@ Next move: delete the guess loop and keep the origin from
 when `gebaeude_t::rotate90` gets its hex body
 (see "Rotation cascade").
 
-## City growth anisotropy
-
-City footprints come out elongated rather than round.
-`tools/city_anisotropy.py` measures it: `--run` generates a flat empty
-map (via the `-flatmap` headless hook), grid-seeds cities, grows each,
-and dumps their building tiles; it maps the axial `(q, r)` through the
-flat-top basis and reports the gyration tensor in both the axial and
-physical frame plus the m=2/m=4/m=6 angular modes.  Reporting both
-frames is the point — physical elongation with a round axial blob means
-the basis shear, physical elongation with an elongated axial blob means
-the growth algorithm itself biases a direction.  The tool's
-`--self-test` validates the math (an axial-isotropic disk reads as
-physical aspect sqrt3 at bearing 60 deg).
-
-The gross elongation is fixed.  Pre-fix baseline (flat 192x192, 25
-cities spaced 40 to stay clear of each other): physical aspect 1.68
-along ~60°.  Two fixes landed: `bewerte_pos`/`bewerte_loc` widened from
-4 to 6 rotations, and `build()`'s candidate-start sampling confined to
-the physical disk inscribed in the `[lo,ur]` box-rhombus (radius^2 =
-3*min(dx,dy)^2/16 via `koord.h`'s `physical_distance_sq`, the Euclidean
-metric, not the hex-step `koord_distance`).  Physical aspect is now
-~1.16 (round); axial rose to ~1.67, the footprint deliberately
-axial-elongated to cancel the basis shear.  Two caveats when re-running:
-the disk confinement packs cities denser (~100 tiles vs ~130 — revisit
-only if a pakset looks cramped), and the aspect number is only honest at
-spacing that keeps neighbours from colliding (spacing 30 reads ~2.3 from
-competition for ground).
-
-The per-city m=2 angular-density mode (not a hex symmetry) is the only
-residual the gyration aspect can't see, and it is now understood, not
-pending.  It used to be elevated in small cities (~0.3-0.4 below ~50
-tiles) by the founding skeleton: pak64's 1-layout townhall always seeded
-its road South (bearings {30°,90°} — a 2-fold set, exactly what m=2
-reads).  Seeding the founding road isotropically over all 6 hex faces
-(`check_bau_townhall`) fixed that — `--series` now reads m=2 ~0.18 for
-small cities rising to ~0.32 for large (Pearson r = +0.26), i.e. the
-remaining m=2 is intrinsic street-layout texture (houses lining up along
-straight streets, read from building-tile coords) that grows with the
-street network, not a removable bias.  Both tile-placement layers are
-isotropic anyway (rule matching is 6-fold symmetric; `physical_distance_sq`
-= q^2+qr+r^2 makes the `build()` sampling disk a true physical circle).
-Don't chase it further: symmetrising the cityrules to full dihedral D6
-was measured to do nothing, and the multi-tile-townhall NE/SW orientation
-AGENTS.md flags is a footprint-model change, not an m=2 lever.
-
-The flat map the baseline needs is produced by the `-flatmap N` test
-hook in `simmain.cc`'s default-map path (size N, no mountains/rivers/
-cities); it only fires under the headless none-backend build.  An empty
-flat map needs no simulation, so the hook saves it directly and sets
-`quit_simutrans` rather than running the loop to `-until` (which crawled
-the quit month in NORMAL mode and hung in teardown).
-`tools/city_anisotropy.py` generates and caches it automatically.
+## City growth
 
 City road triangles at branch starts.
 `stadt_t::build_road` connects a new road tile to every adjacent road tile.

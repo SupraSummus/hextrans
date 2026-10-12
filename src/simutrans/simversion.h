@@ -30,6 +30,9 @@
 #define SIM_SAVE_MINOR      902
 #define SIM_SERVER_MINOR    902
 
+// Each fork-only on-disk change gets a named gate below, never a bare
+// comparison against SIM_SAVE_MINOR.  The next one takes 125.903 (gate
+// at MAJOR 125); no 125.901 save was ever written.
 #define SAVE_VERSION_HEX_CLIMATE_CORNERS_MAJOR 124
 #define SAVE_VERSION_HEX_CLIMATE_CORNERS_MINOR   5
 #define SAVE_VERSION_HEX_SLOPE_SHORT_MAJOR     124

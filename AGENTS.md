@@ -493,6 +493,9 @@ Longer-form design and planning docs live under `documentation/`:
     `karte_t::destroy()` (event dispatch nests inside
     `karte_t::step`), and the `tool_t` dispatch path that fixes
     it.  Describes live behaviour.
+  - `documentation/city-anisotropy.md` — measured shape of hex city
+    growth: what was fixed, and why the remaining m=2 mode is street
+    texture, not a bias to chase.
   - `documentation/agent-sessions.md` — how a session runs parallel
     agents: where work comes from, one branch and PR per fix group,
     review and merge rules.
@@ -617,7 +620,7 @@ written in the test itself.
 CI runs it after the scenario suite.
 
 `tools/city_anisotropy.py` measures how non-round city footprints come
-out under the hex grid (see `TODO.md` → "City growth anisotropy").  It
+out under the hex grid (see `documentation/city-anisotropy.md`).  It
 maps grown-city tiles through the flat-top basis and reports the
 gyration tensor in both the axial and physical frame, separating the
 basis shear from genuine algorithmic bias.  `--run` generates a flat
