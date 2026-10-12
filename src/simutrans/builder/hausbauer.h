@@ -60,9 +60,10 @@ public:
 	 * @param wt
 	 * @param time
 	 * @param enables station enabled flags (see haltestelle_t::station_flags)
+	 * @param max_length if not 0, only stations that are at most this many tiles long (their y size)
 	 * @returns a random station that can be built above ground.
 	 */
-	static const building_desc_t* get_random_station(const building_desc_t::btype utype, const waytype_t wt, const uint16 time, const uint8 enables);
+	static const building_desc_t* get_random_station(const building_desc_t::btype utype, const waytype_t wt, const uint16 time, const uint8 enables, const sint16 max_length = 0);
 
 	/// Finds and returns the tile at position @p idx
 	static const building_tile_desc_t* find_tile(const char* name, int idx);

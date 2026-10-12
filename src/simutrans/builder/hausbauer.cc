@@ -850,7 +850,7 @@ const building_desc_t* hausbauer_t::get_desc(const char *name)
 }
 
 
-const building_desc_t* hausbauer_t::get_random_station(const building_desc_t::btype type, const waytype_t wt, const uint16 time, const uint8 enables)
+const building_desc_t* hausbauer_t::get_random_station(const building_desc_t::btype type, const waytype_t wt, const uint16 time, const uint8 enables, const sint16 max_length)
 {
 	weighted_vector_tpl<const building_desc_t*> stops;
 
@@ -862,6 +862,9 @@ const building_desc_t* hausbauer_t::get_random_station(const building_desc_t::bt
 		if(  desc->get_type()==type  &&  desc->get_extra()==(uint32)wt  &&  (enables==0  ||  (desc->get_enabled()&enables)!=0)  ) {
 			// skip underground stations
 			if(  !desc->can_be_built_aboveground()  ) {
+				continue;
+			}
+			if(  max_length != 0  &&  desc->get_y() > max_length  ) {
 				continue;
 			}
 			// ok, now check timeline

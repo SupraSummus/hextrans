@@ -441,6 +441,11 @@ all_tests <- [
 	test_ai_scripted_network_state_restored,
 	test_ai_scripted_slot_allocation_skips_occupied,
 	test_ai_site_station_reaches_factory,
+	test_ai_site_harbour_all_faces,
+	test_ai_site_harbour_search_window_is_a_disc,
+	test_ai_site_harbour_run_length_after_ne_sw_shore,
+	test_ai_site_harbour_second_direction,
+	test_ai_site_random_dock_length_limit,
 	test_ai_site_extends_own_station_on_all_sides,
 	// after the sign tests, see "Traffic light removal follows its phase" in TODO.md
 	test_city_building_faces_road,

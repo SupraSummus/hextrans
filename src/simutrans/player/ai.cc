@@ -127,7 +127,7 @@ bool ai_t::call_general_tool( int tool, koord k, const char *param )
  */
 bool ai_t::suche_platz(koord pos, koord &size, koord *dirs)
 {
-	sint16 length = abs( size.x + size.y );
+	sint16 length = ai_run_length( size );
 
 	const grund_t *gr = welt->lookup_kartenboden(pos);
 	if(  gr==NULL  ) {
@@ -241,50 +241,28 @@ DBG_MESSAGE("ai_t::suche_platz()","Search around stop at (%i,%i)",x,y);
 
 void ai_t::clean_marker( koord place, koord size )
 {
-	koord pos;
-	if(size.y<0) {
-		place.y += size.y;
-		size.y = -size.y;
-	}
-	if(size.x<0) {
-		place.x += size.x;
-		size.x = -size.x;
-	}
-	for(  pos.y=place.y;  pos.y<=place.y+size.y;  pos.y++  ) {
-		for(  pos.x=place.x;  pos.x<=place.x+size.x;  pos.x++  ) {
-			// the footprint can reach past the map edge
-			grund_t *gr = welt->lookup_kartenboden(pos);
-			if(  gr  ) {
-				zeiger_t *z = gr->find<zeiger_t>();
-				delete z;
-			}
+	ai_for_each_run_tile( place, size, [this](koord pos) {
+		// the footprint can reach past the map edge
+		grund_t *gr = welt->lookup_kartenboden(pos);
+		if(  gr  ) {
+			zeiger_t *z = gr->find<zeiger_t>();
+			delete z;
 		}
-	}
+	} );
 }
 
 
 
 void ai_t::set_marker( koord place, koord size )
 {
-	koord pos;
-	if(size.y<0) {
-		place.y += size.y;
-		size.y = -size.y;
-	}
-	if(size.x<0) {
-		place.x += size.x;
-		size.x = -size.x;
-	}
-	for(  pos.y=place.y;  pos.y<=place.y+size.y;  pos.y++  ) {
-		for(  pos.x=place.x;  pos.x<=place.x+size.x;  pos.x++  ) {
-			grund_t *gr = welt->lookup_kartenboden(pos);
-			if(  gr  ) {
-				zeiger_t *z = new zeiger_t(gr->get_pos(), this);
-				z->set_image( skinverwaltung_t::belegtzeiger->get_image_id(0) );
-				gr->obj_add( z );
-			}
+	ai_for_each_run_tile( place, size, [this](koord pos) {
+		grund_t *gr = welt->lookup_kartenboden(pos);
+		if(  gr  ) {
+			zeiger_t *z = new zeiger_t(gr->get_pos(), this);
+			z->set_image( skinverwaltung_t::belegtzeiger->get_image_id(0) );
+			gr->obj_add( z );
 		}
-	}
+	} );
 }
 
 
@@ -368,7 +346,8 @@ koord ai_t::find_shore(koord start, koord end) const
 	const int dx = xx - x;
 	const int dy = yy - y;
 
-	steps = (abs(dx) > abs(dy) ? abs(dx) : abs(dy));
+	// one sample per hex step, so no tile of the line is skipped
+	steps = koord_distance(start, end);
 	if (steps == 0) steps = 1;
 
 	xs = (dx << 16) / steps;
@@ -381,7 +360,9 @@ koord ai_t::find_shore(koord start, koord end) const
 	for (i = 0; i <= steps; i++) {
 		koord next(xp>>16,yp>>16);
 		if(next!=last) {
-			if(!welt->lookup_kartenboden(next)->is_water()) {
+			// rounding can leave the line on a cut corner of the hexagon
+			const grund_t *gr = welt->lookup_kartenboden(next);
+			if(  gr  &&  !gr->is_water()  ) {
 				last = next;
 			}
 		}
@@ -402,14 +383,19 @@ bool ai_t::find_harbour(koord &start, koord &size, koord target)
 	koord k;
 	// now find a nice shore next to here
 	for(  k.y=max(1,shore.y-5);  k.y<shore.y+6  &&  k.y<welt->get_size().y-2; k.y++  ) {
-		for(  k.x=max(1,shore.x-5);  k.x<shore.x+6  &&  k.y<welt->get_size().x-2; k.x++  ) {
+		for(  k.x=max(1,shore.x-5);  k.x<shore.x+6  &&  k.x<welt->get_size().x-2; k.x++  ) {
+			if(  koord_distance(k, shore) > 5  ) {
+				// the corners of the axial square are up to 10 steps out
+				continue;
+			}
 			grund_t *gr = welt->lookup_kartenboden(k);
-			if(  gr  &&  gr->get_grund_hang() != 0  &&  slope_t::is_way( gr->get_grund_hang() )  &&  gr->ist_natur()  &&  gr->get_hoehe() == welt->get_water_hgt(k)  &&  !gr->is_halt()  ) {
+			// the slope a dock needs: one of the six edge ramps
+			if(  gr  &&  slope_t::is_axis_slope( gr->get_grund_hang() )  &&  gr->ist_natur()  &&  gr->get_hoehe() == welt->get_water_hgt(k)  &&  !gr->is_halt()  ) {
 				koord zv = koord(gr->get_grund_hang());
 				const grund_t *water = welt->lookup_kartenboden(k-zv);
 				if(  water  &&  water->get_weg_ribi(water_wt)  ) {
 					// next place is also water
-					koord dir[2] = { zv, koord(zv.y,zv.x) };
+					koord dir[2] = { zv, ai_shore_second_dir( zv, target-k ) };
 					koord platz = k+zv;
 					int current_dist = koord_distance(k,target);
 					if(  current_dist<dist  &&  suche_platz(platz,size,dir)  ){
