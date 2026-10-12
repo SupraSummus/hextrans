@@ -343,6 +343,9 @@ void karte_t::perlin_hoehe_loop( sint16 x_min, sint16 x_max, sint16 y_min, sint1
 	// is filled separately by fill_south_phantom_heights().
 	for(  int y = y_min;  y < y_max;  y++  ) {
 		for(  int x = x_min;  x < x_max;  x++  ) {
+			if(  !map_shape_t::slot_near_map_cached(x - 1, y - 1, cached_cut_lo, cached_cut_hi)  ) {
+				continue; // inside a cut corner of the W x H x D hexagon, nothing reads it
+			}
 			set_vertex_heights_from_perlin(koord(x - 1, y - 1), koord(0, 0));
 		}
 	}
@@ -357,7 +360,9 @@ void karte_t::fill_south_phantom_heights()
 	// gets a dedicated O(W) pass after perlin_hoehe_loop returns.
 	const sint16 H = cached_grid_size.y;
 	for (sint16 q = -1; q < cached_grid_size.x; q++) {
-		set_vertex_heights_from_perlin(koord(q, H), koord(0, 0));
+		if(  map_shape_t::slot_near_map_cached(q, H, cached_cut_lo, cached_cut_hi)  ) {
+			set_vertex_heights_from_perlin(koord(q, H), koord(0, 0));
+		}
 	}
 }
 
@@ -1845,13 +1850,21 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 		}
 		// HEX-PORT: same walk as perlin_hoehe_loop plus the south
 		// phantom row — both canonical slots of every tile in
-		// q in [-1, W-1], r in [-1, H] — with the imported relief
-		// sampled at each vertex instead of the noise.
+		// q in [-1, W'-1], r in [-1, H'] — with the imported relief
+		// sampled at each vertex instead of the noise.  The image
+		// is get_image_cols() x get_image_rows() pixels, the frame
+		// of documentation/map-shape.md; load_heightfield derived
+		// the shape from its size.
+		const sint16 image_w = (sint16)new_shape.get_image_cols();
+		const sint16 image_h = (sint16)new_shape.get_image_rows();
 		for(  sint16 r = -1;  r <= new_size.y;  r++  ) {
 			for(  sint16 q = -1;  q < new_size.x;  q++  ) {
+				if(  !new_shape.slot_near_map(q, r)  ) {
+					continue;
+				}
 				const koord tile(q, r);
-				set_grid_hgt_nocheck(tile, hex_corner_t::E,  height_field_vertex_height(h_field, new_size.x, new_size.y, { tile, hex_corner_t::E }));
-				set_grid_hgt_nocheck(tile, hex_corner_t::SE, height_field_vertex_height(h_field, new_size.x, new_size.y, { tile, hex_corner_t::SE }));
+				set_grid_hgt_nocheck(tile, hex_corner_t::E,  height_field_vertex_height(h_field, image_w, image_h, { tile, hex_corner_t::E },  new_shape.get_cut_lo()));
+				set_grid_hgt_nocheck(tile, hex_corner_t::SE, height_field_vertex_height(h_field, image_w, image_h, { tile, hex_corner_t::SE }, new_shape.get_cut_lo()));
 			}
 		}
 		ls.set_progress(2);
@@ -1859,15 +1872,17 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	else {
 		if(  sets->get_rotation()==0  &&  sets->get_origin_x()==0  &&  sets->get_origin_y()==0) {
 			// otherwise negative offsets may occur, so we cache only non-rotated maps
-			// HEX-PORT: world-space hex vertex positions reach p.x up
-			// to 1.5*W and p.y up to sqrt(3)*(H + W/2).  At max
-			// freq=32 the perlin integer index is half that, plus
+			// HEX-PORT: world-space hex vertex positions reach
+			// the physical bounding box of the slots generation
+			// fills, p.x up to 1.5*W' and p.y up to
+			// sqrt(3)*(H' + (W' - t)/2).  At max freq=32 the
+			// perlin integer index is half that, plus
 			// interpolated_noise reads +1 and smoothed_noise reads
-			// ±1.  Size the cache to the actual hex-axis extents
-			// rather than the legacy (W+2)×(H+2) square-tile range.
-			constexpr double HEX_SQRT3_HALF = 0.86602540378443864;
-			const sint32 cache_w = 3 + (sint32)(0.75 * new_size.x);
-			const sint32 cache_h = 3 + (sint32)(HEX_SQRT3_HALF * (new_size.y + 0.5 * new_size.x));
+			// ±1.  Size the cache to those extents rather than
+			// the legacy (W+2)×(H+2) square-tile range.
+			const hex_pos_t bound = new_shape.get_vertex_pos_bound();
+			const sint32 cache_w = 3 + (sint32)(0.5 * bound.x);
+			const sint32 cache_h = 3 + (sint32)(0.5 * bound.y);
 			init_perlin_map(cache_w, cache_h);
 		}
 		if (  old_size.x > 0  &&  old_size.y > 0  ) {
@@ -5554,7 +5569,15 @@ void karte_t::load_heightfield(settings_t* const sets)
 	height_map_loader_t hml(min_h, max_h, env_t::height_conv_mode);
 
 	if(hml.get_height_data_from_file(sets->heightfield.c_str(), (sint8)(sets->get_groundwater()), h_field, w, h, false )) {
-		sets->set_size(w,h);
+		// the image fixes the sides W and H for the D of the settings
+		const map_shape_t shape = map_shape_t::from_image_size(w, h, sets->get_size_d());
+		if(  !shape.is_valid()  ) {
+			free(h_field);
+			dbg->error("karte_t::load_heightfield()", "relief of %d x %d pixels does not fit a map with D = %d", (int)w, (int)h, (int)sets->get_size_d());
+			create_win( new news_img("\nThe relief does not fit the map depth.\n"), w_info, magic_none );
+			return;
+		}
+		sets->set_size(shape.w, shape.h);
 		// create map
 		init(sets,h_field);
 		free(h_field);
