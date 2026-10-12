@@ -695,6 +695,28 @@ static void heightfield_dump(const karte_t *welt)
 }
 
 
+// -mapstats: how many tiles of each climate the generated map has, one
+// "mapstats: climate NAME COUNT" line per climate, for tools/mapgen_metrics.py.
+static void mapstats_dump(const karte_t *welt)
+{
+	static const char *const names[MAX_CLIMATES] = {
+		"water", "desert", "tropic", "mediterran", "temperate", "tundra", "rocky", "arctic"
+	};
+	uint32 count[MAX_CLIMATES] = { 0 };
+	for(  sint16 y = 0;  y < welt->get_size().y;  y++  ) {
+		for(  sint16 x = 0;  x < welt->get_size().x;  x++  ) {
+			if(  welt->is_within_limits( x, y )  ) {
+				count[welt->get_climate( koord( x, y ) )]++;
+			}
+		}
+	}
+	fprintf( stderr, "mapstats: size %d %d\n", (int)welt->get_size().x, (int)welt->get_size().y );
+	for(  int cl = 0;  cl < MAX_CLIMATES;  cl++  ) {
+		fprintf( stderr, "mapstats: climate %s %u\n", names[cl], (unsigned)count[cl] );
+	}
+}
+
+
 int simu_main(int argc, char** argv)
 {
 	std::set_new_handler(sim_new_handler);
@@ -1792,12 +1814,43 @@ int simu_main(int argc, char** argv)
 			// seeded from the clock above, so pin it too
 			setsimrand(sets.get_map_number(), sets.get_map_number());
 		}
+		// Test hook: -mapstats SIZE [SEED [GEN]] generates a SIZE x SIZE
+		// map with the normal terrain, lakes and rivers but no cities,
+		// industry or attractions, from SEED (default: the map number of
+		// settings_t) and with the climate generator GEN ("height", the
+		// default, or "humidity").  It prints the climate shares
+		// (mapstats_dump) and saves and quits like -flatmap.
+		const bool is_mapstats = args.has_arg("-mapstats");
+		if(  is_mapstats  ) {
+			is_flatmap = true;
+			const char *size = args.gimme_arg("-mapstats", 1);
+			sint32 n = size ? atoi(size) : 0;
+			if(  n < 16  ) { n = 128; }
+			sets.set_size(n, n);
+			sets.set_city_count(0);
+			sets.set_factory_count(0);
+			sets.set_tourist_attractions(0);
+			const char *seed = args.gimme_arg("-mapstats", 2);
+			if(  seed  &&  *seed >= '0'  &&  *seed <= '9'  ) {
+				sets.set_map_number(atoi(seed));
+			}
+			const char *gen = args.gimme_arg("-mapstats", 3);
+			if(  gen  &&  strcmp(gen, "humidity") == 0  ) {
+				sets.set_climate_generator(settings_t::HUMIDITY_BASED);
+			}
+			// the map number seeds the terrain noise only; pin the
+			// generator behind rivers, climates and trees too
+			setsimrand(sets.get_map_number(), sets.get_map_number());
+		}
 		if(  heightfield  ) {
 			welt->load_heightfield(&sets);
 			heightfield_dump( welt );
 		}
 		else {
 			welt->init(&sets,0);
+			if(  is_mapstats  ) {
+				mapstats_dump( welt );
+			}
 		}
 
 		//  start in June ...
