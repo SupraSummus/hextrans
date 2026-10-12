@@ -562,6 +562,12 @@ filters to narrow the run: `tools/test.py halt` runs only tests whose
 name contains "halt". This is the cmake-Debug fast loop.
 The engine's user dir for these runs lives under `build/test-data/`,
 so parallel worktrees don't share scenario or test-pak links.
+`tools/test.py --map` loads the W×H×D hexagon fixture
+`tests/empty-hex-9x7x5.sve` instead of `empty-16x16.sve`
+and runs only the `test_map_shape` tests,
+the ones that read the map shape from the settings
+(`--map FILE pattern…` picks another fixture or other tests).
+Regenerate the fixture with `-flatmap 9,7,5` (see below).
 
 The harness launches the engine with `-fast` (fast-forward + uncapped
 `max_acceleration`, so `idle_time` collapses to 0 and sim steps run
@@ -611,7 +617,8 @@ maps grown-city tiles through the flat-top basis and reports the
 gyration tensor in both the axial and physical frame, separating the
 basis shear from genuine algorithmic bias.  `--run` generates a flat
 map via the `-flatmap N` hook in `simmain.cc` (a gated test flag in the
-default-map path; needs the headless none-backend build) and grows
+default-map path; `-flatmap W,H,D` writes a W×H×D hexagon instead;
+needs the headless none-backend build) and grows
 cities on it; `--series` grows a spread of city sizes and correlates the
 m=2 angular mode against footprint size (a scale-invariant m=2 floor is
 intrinsic street texture, a decaying one is founding-skeleton bias);

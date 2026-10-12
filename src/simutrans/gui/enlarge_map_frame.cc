@@ -43,8 +43,8 @@ enlarge_map_frame_t::enlarge_map_frame_t() :
 	sets(new settings_t(welt->get_settings())), // Make a copy.
 	map(MAP_PREVIEW_SIZE_X-2, MAP_PREVIEW_SIZE_Y-2)
 {
-	sets->set_size_x(welt->get_size().x);
-	sets->set_size_y(welt->get_size().y);
+	// the copy holds the sides W, H, D; welt->get_size() is the bounding
+	// rhombus, the same only for D = 1
 
 	changed_number_of_towns = false;
 

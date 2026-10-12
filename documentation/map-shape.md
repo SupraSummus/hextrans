@@ -78,13 +78,42 @@ Off-map cells are `planquadrat_t` with `ground_size == 0`.
 so a loop over the full `W'×H'` rectangle that dereferences the ground
 crashes at the first off-map cell:
 the tripwire for loops that have not learnt the shape.
-The known ones: `world_xy_loop` and the init passes it drives
-(`cleanup_grounds_loop`, `perlin_hoehe_loop`), the season, image and sync loops
-in `simworld.cc`, the `enlarge_map` and `rotate90_plans` copies,
-`minimap.cc`, `obj_t` and `vehicle_base_t` rotation walks, `simplay.cc:532`,
-`simtool.cc:2328`, `fabrikbauer.cc:77` and the AI scan windows.
-Each gets `if (!shape.contains(k)) continue;`,
+Each such loop gets `if (!is_within_limits(k)) continue;`,
 or the per-row range `shape.q_range(r)` in hot loops.
+
+Step 2 fixed the loops that a flat empty hexagon runs through
+on generation, the first game months, save, load and display:
+`cleanup_grounds_loop` (off-map cells get no ground),
+the height-bound loop in `enlarge_map`,
+`create_lakes` and `can_flood_to_depth`
+(an off-map cell is never a lake seed and counts as the map edge),
+the three `create_beaches` passes, `calc_humidity_map_region`,
+`distribute_groundobjs`, `distribute_movingobjs`,
+the rainfall pass of `distribute_trees_region`,
+`tree_builder_t::fill_trees`,
+`square_is_free` (so `find_squares` and city placement skip the cut),
+`plans_finish_rd`,
+and `planquadrat_t::correct_water` and `update_underground`,
+which return early on a cell without ground.
+`gameinfo_t` draws off-map cells of its minimap black.
+`perlin_hoehe_loop` and the climate generators
+write heights and climates for off-map cells too;
+nothing reads them, so they stay.
+
+Left for step 3: `create_rivers`
+and the city, factory and attraction builders on a populated map,
+the season, image and sync loops in `simworld.cc`
+that dereference the ground,
+`minimap.cc`, `obj_t` and `vehicle_base_t` rotation walks, `simplay.cc:532`,
+`simtool.cc:2328`, `fabrikbauer.cc:77`, the AI scan windows,
+`lookup_kartenboden_gridcoords`,
+and `climate_at_clamped` / `vertex_corner_height`,
+whose rectangle clamp lands on an off-map cell next to a cut
+and reads it as water at groundwater height.
+The `enlarge_map` strips (step 5) and `rotate90_plans` (step 6)
+are tripwires instead:
+`enlarge_map` on an existing world and `rotate90` call `dbg->fatal`
+when D > 1.
 
 `koord_random(W', H')` callers sample by rejection
 (acceptance at least 36%, even at 128×128×512);
@@ -96,12 +125,27 @@ the minimum over the six half-planes.
 
 ## Save and load
 
-`settings_t` keeps `size_x`/`size_y` as W and H and adds `size_d`, default 1.
-`settings_t::rdwr` writes `size_d` behind a named gate in `simversion.h`
-(`SAVE_VERSION_HEX_MAP_SHAPE`, next free fork minor);
+`settings_t` keeps `size_x`/`size_y` as W and H and adds `size_d`, default 1;
+`get_map_shape()` returns the `map_shape_t`.
+`settings_t::rdwr` writes `size_d` behind a named gate in `simversion.h`,
+`SAVE_VERSION_HEX_MAP_SHAPE_MAJOR/MINOR` (124, 902),
+with `SIM_SAVE_MINOR` and `SIM_SERVER_MINOR` at 902;
 older saves read D = 1.
-`gameinfo_t` carries D under the same gate for the server list.
-`rdwr_gamestate` sets `cached_grid_size` from the shape before the tiles load.
+`rdwr_gamestate` sets `cached_grid_size` from the shape before the tiles load,
+through `surface_t::set_cached_shape`,
+and refuses a shape that is invalid or wider than 32766 cells.
+
+`gameinfo_t` carries W, H (the sides, from the settings,
+where it used to copy `get_size()`: equal at D = 1)
+and D under the same gate.
+The file holding it travels with its own version header
+(`SERVER_SAVEGAME_VER_NR` for `NWC_GAMEINFO`),
+so a reader of either version parses it;
+`nwc_gameinfo_t` itself is unchanged.
+The server list prints `W×H×D` when D > 1.
+The listserver announcement keeps `&size=` at the bounding extents
+and adds nothing:
+its query fields are the external listserver's schema.
 
 The tile and climate streams skip off-map cells on save and on load,
 with no version check:
@@ -176,6 +220,16 @@ as upstream's `rotate90_plans` swaps W and H.
 Three steps map the shape onto itself with `(q, r) -> (W'-1-q, H'-1-r)`,
 so 180° needs no reallocation and works on today's rhombus.
 
+The linear part of a step, `(q, r) -> (-r, q + r)`,
+is `hex_axial_rotate` in `dataobj/koord_hex.cc`;
+`rotate_tile` and `rotate_vertex` add the shift `(H + D - 2, -(D - 1))`.
+`koord::rotate90(y_size)`, `koord3d::rotate90` and `array2d_tpl::rotate90()`
+are the D = 1 forms, with `y_size = H - 1`:
+upstream's signatures, one step of a W×H rhombus.
+The rotated hexagon (1, W, H) is not a rhombus,
+so `array2d_tpl::rotate90()` grows the array to its bounding rhombus.
+`tools/hex_map_shape_test` pins all of them against `rotate_tile`.
+
 ## Upstream divergence
 
 `size_x`/`size_y` (equal to the extents at D = 1), `get_size()`,
@@ -188,7 +242,7 @@ and small `contains` hunks inside upstream loops.
 1. **`map_shape_t` and its self-test.**
    `dataobj/map_shape.h` with `contains`, `contains_vertex`, `tile_count`,
    the extents, `rotated` and `rotate_tile`/`rotate_vertex`.
-   No engine caller.  Landed.
+   Landed.
    Test: `tools/hex_map_shape_test` in CI:
    tile count against enumeration, D = 1 is the full rhombus,
    central symmetry, rotation a bijection with period six
@@ -198,10 +252,19 @@ and small `contains` hunks inside upstream loops.
    the cached cut in `is_within_limits`,
    off-map skips in the tile and climate streams and in world creation
    (off-map cells stay empty), and `-flatmap W,H,D` in `simmain.cc`.
+   Landed.
+   Scripts read the sides through `settings.get_map_side_w/h/d`.
    Test: the suite stays green (its fixture is W×H×1);
-   `tests/empty-hex-*.sve` from `-flatmap` with a `test_map_shape` group
-   (off-map lookups are NULL, a road into a cut corner is refused,
-   save and reload keep the shape), run by `tools/test.py --map`.
+   the `test_map_shape` tests run in it and,
+   through `tools/test.py --map` and a CI step,
+   on `tests/empty-hex-9x7x5.sve`, written by `-flatmap 9,7,5`:
+   the extents, ground on exactly the on-map cells and none off them
+   (`square_x` and `tile_x` invalid), the tile count,
+   and a road from each cut line into the cut refused.
+   The fixture went through the save and load paths,
+   so the shape assertions also cover the round trip.
+   `tools/hex_map_shape_test` checks the cached branchless predicate
+   `map_shape_t::contains_cached` against `contains`.
 3. **Full-map loops and edges.**
    The tripwire sweep listed under "Off-map cells", `edge_distance`,
    border walls, cursor and viewport.

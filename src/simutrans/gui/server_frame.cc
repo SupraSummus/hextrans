@@ -222,7 +222,12 @@ PIXVAL server_frame_t::update_info()
 		join.disable();
 	}
 
-	label_size.buf().printf("%ux%u\n", gi.get_size_x(), gi.get_size_y());
+	if(  gi.get_size_d() > 1  ) {
+		label_size.buf().printf("%ux%ux%u\n", gi.get_size_x(), gi.get_size_y(), gi.get_size_d());
+	}
+	else {
+		label_size.buf().printf("%ux%u\n", gi.get_size_x(), gi.get_size_y());
+	}
 	label_size.update();
 
 	// Update all text fields

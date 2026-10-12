@@ -24,6 +24,7 @@ include("tests/test_player")
 include("tests/test_halt")
 include("tests/test_headquarters")
 include("tests/test_label")
+include("tests/test_map_shape")
 include("tests/test_powerline")
 include("tests/test_reservation")
 include("tests/test_scenario")
@@ -170,6 +171,9 @@ all_tests <- [
 	test_halt_move_stop_invalid_param,
 	test_headquarters_build_flat,
 	test_label,
+	test_map_shape_extents,
+	test_map_shape_tiles,
+	test_map_shape_no_way_into_cut,
 	test_player_cash,
 	test_player_isactive,
 	test_player_headquarters,

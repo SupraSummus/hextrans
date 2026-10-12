@@ -31,7 +31,14 @@ public:
 	const char *get_str() const;
 	const char *get_fullstr() const; // including brackets
 
-	void rotate90( sint16 y_diff );
+	/// koord::rotate90 of the xy part; z is kept, as the hex grid stacks right prisms.
+	void rotate90( sint16 y_diff )
+	{
+		koord k( x, y );
+		k.rotate90( y_diff );
+		x = k.x;
+		y = k.y;
+	}
 
 	void rdwr(loadsave_t* file);
 

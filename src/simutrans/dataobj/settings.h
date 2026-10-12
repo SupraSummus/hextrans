@@ -13,6 +13,7 @@
 #include "../simconst.h"
 
 #include "ribi.h"
+#include "map_shape.h"
 
 class player_t;
 class loadsave_t;
@@ -55,8 +56,11 @@ public:
 	} climate_generate_t;
 
 private:
+	// The map is the W x H x D hexagon of documentation/map-shape.md:
+	// size_x = W, size_y = H, size_d = D.  D = 1 is the plain W x H rhombus.
 	sint32 size_x     = 256;
 	sint32 size_y     = 256;
+	sint32 size_d     =   1;
 	sint32 map_number =  33;
 
 	sint32 tourist_attractions =  16;
@@ -414,6 +418,9 @@ public:
 	void set_size(sint32 x, sint32 y) {size_x = x; size_y=y;}
 	sint32 get_size_x() const {return size_x;}
 	sint32 get_size_y() const {return size_y;}
+	void set_size_d(sint32 d) {size_d=d;}
+	sint32 get_size_d() const {return size_d;}
+	map_shape_t get_map_shape() const { return map_shape_t(size_x, size_y, size_d); }
 
 	void set_map_number(sint32 n) {map_number=n;}
 	sint32 get_map_number() const {return map_number;}

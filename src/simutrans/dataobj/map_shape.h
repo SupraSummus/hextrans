@@ -46,6 +46,18 @@ struct map_shape_t
 
 	bool contains(koord k) const { return contains(k.x, k.y); }
 
+	/**
+	 * contains() without branches, in the cached form
+	 * surface_t::is_within_limits uses: @p max_q = get_size_q()-1,
+	 * @p max_r = get_size_r()-1.  Each term is negative exactly when
+	 * its half-plane is violated, so the bitwise or is negative when
+	 * any one is.
+	 */
+	static bool contains_cached(sint32 q, sint32 r, sint32 max_q, sint32 max_r, sint32 cut_lo, sint32 cut_hi)
+	{
+		return (q | r | (max_q - q) | (max_r - r) | (q + r - cut_lo) | (cut_hi - q - r)) >= 0;
+	}
+
 	/// A world vertex is on-map when any of its three owning tiles is.
 	bool contains_vertex(hex_vertex_t v) const
 	{
@@ -66,17 +78,26 @@ struct map_shape_t
 	 */
 	map_shape_t rotated() const { return map_shape_t(d, w, h); }
 
-	/// Where tile @p k of this shape lands in rotated().
+	/**
+	 * Where tile @p k of this shape lands in rotated(): hex_axial_rotate
+	 * about the origin, then the shift that moves the rotated hexagon's
+	 * corner back to (0, 0).
+	 */
 	koord rotate_tile(koord k) const
 	{
-		return koord((sint16)(h + d - 2 - k.y), (sint16)(k.x + k.y - (d - 1)));
+		return hex_axial_rotate(k, 1) + rotate_shift();
 	}
 
 	/// Where vertex @p v of this shape lands in rotated().
 	hex_vertex_t rotate_vertex(hex_vertex_t v) const
 	{
-		return { rotate_tile(v.tile), (hex_corner_t::type)((v.corner + 1) % hex_corner_t::count) };
+		hex_vertex_t r = hex_axial_rotate(v, 1);
+		r.tile += rotate_shift();
+		return r;
 	}
+
+private:
+	koord rotate_shift() const { return koord((sint16)(h + d - 2), (sint16)(1 - d)); }
 };
 
 #endif

@@ -1,13 +1,17 @@
 // Checks map_shape_t in dataobj/map_shape.h against enumeration of the
 // bounding rhombus and against the vertex topology in
-// dataobj/koord_hex.cc.  See documentation/map-shape.md.
+// dataobj/koord_hex.cc, and the map rotations that take a map extent
+// (koord::rotate90, koord3d::rotate90, array2d_tpl::rotate90) against
+// map_shape_t::rotate_tile.  See documentation/map-shape.md.
 
 #include <cstdio>
 #include <set>
 #include <utility>
 #include <vector>
 
+#include "simutrans/dataobj/koord3d.h"
 #include "simutrans/dataobj/map_shape.h"
+#include "simutrans/tpl/array2d_tpl.h"
 
 
 static int failures = 0;
@@ -92,6 +96,14 @@ static void test_shape(const map_shape_t &s)
 			CHECK(s.contains(q, r) == s.contains(Q - 1 - q, R - 1 - r));
 		}
 	}
+
+	// The branchless form surface_t::is_within_limits caches, over a
+	// margin around the rhombus wide enough to cross both cut lines.
+	for (sint32 r = -R - 2; r <= 2 * R + 2; r++) {
+		for (sint32 q = -Q - 2; q <= 2 * Q + 2; q++) {
+			CHECK(s.contains(q, r) == map_shape_t::contains_cached(q, r, Q - 1, R - 1, s.get_cut_lo(), s.get_cut_hi()));
+		}
+	}
 }
 
 
@@ -165,12 +177,140 @@ static void test_vertices(const map_shape_t &s)
 }
 
 
+// The canonical slots of the per-vertex height arrays: one step
+// permutes the on-map vertices of s onto those of rotated(), through
+// rotate_vertex and canonical_vertex, and the slots stay inside the
+// storage range of the rotated extents.  Six steps return every slot
+// of the world, whichever shape the cycle passes through.
+static void test_vertex_slots(const map_shape_t &s)
+{
+	typedef std::pair<std::pair<int, int>, int> slot_t;
+	auto key = [](hex_vertex_t v) {
+		return std::make_pair(std::make_pair((int)v.tile.x, (int)v.tile.y), (int)v.corner);
+	};
+
+	std::vector<hex_vertex_t> before;
+	{
+		std::set<slot_t> seen;
+		for (koord k : tiles_of(s)) {
+			for (int c = 0; c < hex_corner_t::count; c++) {
+				const hex_vertex_t cv = canonical_vertex({ k, (hex_corner_t::type)c });
+				CHECK(cv.corner == hex_corner_t::E  ||  cv.corner == hex_corner_t::SE);
+				if (seen.insert(key(cv)).second) {
+					before.push_back(cv);
+				}
+			}
+		}
+	}
+
+	std::vector<hex_vertex_t> cur = before;
+	map_shape_t cur_shape = s;
+	for (int step = 1; step <= 6; step++) {
+		const map_shape_t next_shape = cur_shape.rotated();
+		const sint32 Q = next_shape.get_size_q(), R = next_shape.get_size_r();
+		std::set<slot_t> image;
+		std::set<uint32> indices;
+		for (hex_vertex_t &v : cur) {
+			CHECK(cur_shape.contains_vertex(v));
+			v = canonical_vertex(cur_shape.rotate_vertex(v));
+			CHECK(v.corner == hex_corner_t::E  ||  v.corner == hex_corner_t::SE);
+			CHECK(next_shape.contains_vertex(v));
+			CHECK(v.tile.x >= -1  &&  v.tile.x <= Q - 1  &&  v.tile.y >= -1  &&  v.tile.y <= R);
+			image.insert(key(v));
+			const uint32 slot = vertex_slot_index(v, (sint16)Q);
+			CHECK(slot < vertex_slot_count((sint16)Q, (sint16)R));
+			indices.insert(slot);
+		}
+		// Injective, and onto the on-map vertices of the rotated shape.
+		CHECK(image.size() == before.size());
+		CHECK(indices.size() == before.size());
+		std::set<slot_t> expect;
+		for (koord k : tiles_of(next_shape)) {
+			for (int c = 0; c < hex_corner_t::count; c++) {
+				expect.insert(key(canonical_vertex({ k, (hex_corner_t::type)c })));
+			}
+		}
+		CHECK(image == expect);
+		cur_shape = next_shape;
+	}
+	for (size_t i = 0; i < before.size(); i++) {
+		CHECK(same_vertex(cur[i], before[i]));
+	}
+}
+
+
+// koord::rotate90( y_size ) is the d == 1 spelling of rotate_tile, which
+// shifts by -(d - 1) along r on top: y_size = h + d - 2 for any shape.
+// koord3d keeps its height, and a step takes SE to S as for the ribis.
+static void test_rotate90_forms(const map_shape_t &s)
+{
+	for (koord k : tiles_of(s)) {
+		koord k1 = k;
+		k1.rotate90((sint16)(s.h + s.d - 2));
+		k1.y = (sint16)(k1.y - (s.d - 1));
+		CHECK(k1 == s.rotate_tile(k));
+
+		if (s.d == 1) {
+			koord k2 = k;
+			k2.rotate90((sint16)(s.h - 1));
+			CHECK(k2 == s.rotate_tile(k));
+			for (sint8 z : { (sint8)-3, (sint8)0, (sint8)7 }) {
+				koord3d p(k, z);
+				p.rotate90((sint16)(s.h - 1));
+				CHECK(p.get_2d() == s.rotate_tile(k)  &&  p.z == z);
+			}
+		}
+	}
+}
+
+
+// array2d_tpl::rotate90 on a w x h array, one cell per tile of the
+// rhombus (w, h, 1): each cell moves with rotate_tile into the bounding
+// rhombus of the rotated hexagon, and the cells off the hexagon are
+// empty.
+static void test_array_rotate(sint32 w, sint32 h)
+{
+	const map_shape_t s(w, h, 1);
+	const map_shape_t s1 = s.rotated();
+	array2d_tpl<uint32> a((unsigned)w, (unsigned)h);
+	for (sint32 y = 0; y < h; y++) {
+		for (sint32 x = 0; x < w; x++) {
+			const_cast<uint32 *>(a.to_array())[x + y * w] = (uint32)(1 + x + y * w);
+		}
+	}
+
+	a.rotate90();
+	CHECK((sint32)a.get_width() == s1.get_size_q());
+	CHECK((sint32)a.get_height() == s1.get_size_r());
+	std::set<uint32> hexagon;
+	for (sint32 y = 0; y < h; y++) {
+		for (sint32 x = 0; x < w; x++) {
+			const koord k = s.rotate_tile(koord((sint16)x, (sint16)y));
+			CHECK(s1.contains(k));
+			CHECK(a.to_array()[k.x + k.y * a.get_width()] == (uint32)(1 + x + y * w));
+			hexagon.insert((uint32)(k.x + k.y * a.get_width()));
+		}
+	}
+	CHECK((sint64)hexagon.size() == s1.get_tile_count());
+	for (unsigned i = 0; i < a.get_width() * a.get_height(); i++) {
+		CHECK((a.to_array()[i] == 0) == (hexagon.count(i) == 0));
+	}
+}
+
+
 int main()
 {
 	for (const map_shape_t &s : sample_shapes()) {
 		test_shape(s);
 		test_rotation(s);
 		test_vertices(s);
+		test_vertex_slots(s);
+		test_rotate90_forms(s);
+	}
+	for (sint32 w = 1; w <= 7; w++) {
+		for (sint32 h = 1; h <= 7; h++) {
+			test_array_rotate(w, h);
+		}
 	}
 
 	// Regular hexagon: the hex disc of radius n-1 around the centre.

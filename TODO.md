@@ -111,8 +111,8 @@ swap in a refusal the hex builder honours,
 e.g. the span over a runway from `test_way_bridge_build_above_runway`.
 `test_way_tunnel_planner_rotated_map` and `test_schedule_route_rotate`
 call `karte_t::rotate90` through the `sroute_rotate` test hook
-and hit the `koord::rotate90` tripwire;
-they come back with the rotation redesign (see "Rotation cascade").
+and hit its tripwire;
+they come back with the hex rotation (see "Rotation cascade").
 
 **`ASSERT_THROWS` helper for scenario tests.**
 43 sites across `tests/tests/*.nut` hand-roll the same
@@ -292,11 +292,13 @@ the flat-image migration above.
 
 ## Per-vertex height storage — remaining writer-side ports
 
-`karte_t::rotate90`'s heightmap-rotation loop is still the legacy
-90° square formula — 90° is not a hex symmetry, so the result is
-deterministic but geometrically wrong.  `perlin_hoehe`'s own
-rotation code shares the bug.  Both land together with a real hex
-rotation (or a `dbg->fatal` refusal), tied to the viewport port.
+`karte_t::rotate90`'s heightmap-rotation loop (behind its tripwire)
+is still the legacy 90° square formula,
+and `perlin_hoehe`'s own rotation code shares the bug.
+Both are rewritten with the rotation cascade (see below):
+the slot permutation is `canonical_vertex(shape.rotate_vertex(v))`,
+pinned by `tools/hex_map_shape_test`,
+and `perlin_hoehe` un-rotates with `hex_axial_rotate_inv`.
 
 The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
 `surface.h` is `dbg->fatal` — every residual call is a crash so the
@@ -341,9 +343,14 @@ ahead of the tree sprite offsets in the renderer port.
 The playable world becomes the W×H×D hexagon of #280,
 stored as its bounding rhombus with a validity predicate;
 `documentation/map-shape.md` has the design and a six-step plan.
-Step 1, `map_shape_t` in `dataobj/map_shape.h`, has landed with no caller.
-Next move is step 2: `size_d` in `settings_t` and the save,
-and the cut in `surface_t::is_within_limits`.
+Steps 1 and 2 have landed:
+`map_shape_t`, `size_d` in the settings and the save,
+and the cut in `surface_t::is_within_limits`,
+so a flat D > 1 hexagon generates, saves and loads
+(`-flatmap W,H,D`, `tools/test.py --map`).
+Next move is step 3: the full-map loops the doc lists as left,
+`edge_distance`, border walls, cursor and viewport,
+with a `-mapshape W,H,D` hook that grows a populated world.
 
 ## Engine → pakset descriptor boundary
 
@@ -432,17 +439,31 @@ These are the shim / stub patterns spread across the caller port
 that need a second sweep once their trigger condition lands.  Each
 is named / tagged so a global grep surfaces all sites.
 
-**Rotation cascade.**  `koord::rotate90` is `dbg->fatal` and the 6
-top-level callers (`fabrikbauer` retry loops ×4, `karte_t::destroy`
-/ `karte_t::save` retry loops, the `tool_rotate90` player tool) are
-gated so the cascade is unreachable in normal play.  The underlying
-`karte_t::rotate90` body and every `obj_t::rotate90()` override
-still compile (so the binary builds and any hex-aware rotation
-replacement can drop in cleanly), and the `ribi_t::rotate_for_map_rotate90`
-/ `rotate_perpendicular` stubs (currently `rotate60`) stay for the
-same reason.  Replace with a real design when the viewport port
-lands — either a hex 60° rotation, a viewport-only rotation, or a
-formal removal.
+**Rotation cascade.**
+#281 decided on real world rotation in 60° steps,
+built on upstream's `karte_t::rotate90` cascade.
+The primitives are in:
+`hex_axial_rotate` (`dataobj/koord_hex.cc`) is the step about the origin,
+and `koord::rotate90(y_size)`, `koord3d::rotate90` and
+`array2d_tpl::rotate90()` take one step of a W×H rhombus map
+(`map_shape_t::rotate_tile` is the same step for any W×H×D).
+One step leaves the rhombus; only three steps (180°) map it onto itself.
+`karte_t::rotate90` is a `dbg->fatal` tripwire,
+because its body and every `obj_t::rotate90` override are still
+upstream's 90° cascade,
+and the 6 top-level callers (`fabrikbauer` retry loops ×4,
+`karte_t::destroy` / `karte_t::save` retry loops, the `tool_rotate90` player tool)
+are gated off.
+Next move: give the cascade hex bodies, 180° first on today's rhombus
+(`(q, r) -> (W-1-q, H-1-r)`: tiles, heights, buildings, offsets,
+`settings_t::rotation` mod 6), then drop the tripwire and open the tool;
+rename `rotate90` to `rotate_one_step` once upstream stage 5 lands;
+single 60° steps wait for the W×H×D storage (see above),
+when the `y_size` argument becomes the shape.
+Sites that rotate an extent rather than a position
+(`ai_goods.cc`'s `size1.rotate90(0)`) want the linear `hex_axial_rotate` alone.
+The `ribi_t::rotate_for_map_rotate90` / `rotate_perpendicular` stubs
+(currently `rotate60`) stay for the same reason.
 
 **`ribi_t::rotate_perpendicular` / `_l` sweep.**  Square-era "90°
 off this direction" sites — crossroads collision avoidance
@@ -760,12 +781,18 @@ before and after the vehicle's tile,
 which sorts the off-axis chords of 60 degree bends into NE / SW or none.
 `vehicle_base_t::calc_direction` is still `ribi_type`,
 which gives none for every off-axis chord,
-so `no_cars_blocking`, the overtaking checks, `can_go_alte_richtung`'s
-"going backwards" test (`simconvoi.cc`) and `road_vehicle_t`'s
+so `no_cars_blocking`, the overtaking checks and `road_vehicle_t`'s
 `next_direction` compare chords classified two ways on a bend.
 Next move: make `calc_direction` call `calc_chord_direction` and check the
 bend cases of `no_cars_blocking` with a scenario of two buses meeting on a
 60 degree bend.
+Even then one bit names only one of the two edges an off-axis chord lies
+between (SE then NE lies between SE and NE and is filed as NE),
+so a "does this chord lead back over that edge" test can miss.
+`can_go_alte_richtung`'s going-backwards test therefore uses
+`calc_chord_direction` and adds the route's first step,
+which is always an edge.
+The other direction tests may need the same first-step term.
 
 Minimap (`gui/minimap.cc`) now hex-projects in isometric mode:
 `map_to_screen_coord` / `screen_to_map_coord` use the `(3u, u)` /
@@ -904,14 +931,16 @@ a headless check that generates a map with relief and water,
 saves, reloads and compares every vertex height.
 
 Upstream 125 moved the fork to `SIM_VERSION_MAJOR 125`
-with the save and server minor kept at 901:
-fork saves now write 125.901,
+with the fork's save and server minor kept (902, from the map-shape gate):
+fork saves now write 125.902,
 so every upstream `is_version_atleast(125, x)` gate holds,
 the `SAVE_VERSION_HEX_*` gates (all 124.x) still pass,
-and 124.901 saves from before the merge load as older.
+and 124.9xx saves from before the merge load as older.
+No 125.901 save was ever written,
+so `SAVE_VERSION_HEX_MAP_SHAPE` (124, 902) stays exact.
 Upstream 125 clients now refuse fork saves as a future version
 instead of misreading them.
-The next fork-only on-disk change takes 125.902
+The next fork-only on-disk change takes 125.903
 and a new named gate at MAJOR 125.
 
 Save-format feature gates now have names in `simversion.h` rather

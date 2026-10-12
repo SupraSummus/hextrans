@@ -83,6 +83,18 @@ void export_settings(HSQUIRRELVM vm)
 	 */
 	register_local_method(vm, get_start_time, "get_start_time");
 
+	/**
+	 * The map is a hexagon whose opposite sides are W, H and D tiles long;
+	 * world::get_size returns its bounding box (W+D-1, H+D-1).
+	 * D = 1 is the plain W x H map.
+	 * @returns side W (along the x axis)
+	 */
+	register_method(vm, &settings_t::get_size_x, "get_map_side_w");
+	/// @returns side H of the map hexagon (along the y axis), see settings::get_map_side_w
+	register_method(vm, &settings_t::get_size_y, "get_map_side_h");
+	/// @returns side D of the map hexagon (the cut corners), see settings::get_map_side_w
+	register_method(vm, &settings_t::get_size_d, "get_map_side_d");
+
 	/// @returns station coverage
 	register_method(vm, &settings_t::get_station_coverage, "get_station_coverage");
 	/// @returns passenger factors influences passenger generation in cities
