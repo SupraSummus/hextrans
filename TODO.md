@@ -343,14 +343,15 @@ ahead of the tree sprite offsets in the renderer port.
 The playable world becomes the W×H×D hexagon of #280,
 stored as its bounding rhombus with a validity predicate;
 `documentation/map-shape.md` has the design and a six-step plan.
-Steps 1 and 2 have landed:
+Steps 1 to 3 have landed:
 `map_shape_t`, `size_d` in the settings and the save,
-and the cut in `surface_t::is_within_limits`,
-so a flat D > 1 hexagon generates, saves and loads
-(`-flatmap W,H,D`, `tools/test.py --map`).
-Next move is step 3: the full-map loops the doc lists as left,
-`edge_distance`, border walls, cursor and viewport,
-with a `-mapshape W,H,D` hook that grows a populated world.
+the cut in `surface_t::is_within_limits`,
+and the full-map loops, edge margins and border walls,
+so a populated D > 1 hexagon generates and plays a year of AI game
+(`-ai_soak W,H,D`, `tools/ai_soak.py --shape`, `tools/test.py --map`).
+Next move is step 4: W, H and D in the new-world dialog
+with densities by tile count,
+and the preview and heightfield import in offset coordinates.
 
 ## Engine → pakset descriptor boundary
 
