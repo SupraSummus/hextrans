@@ -65,7 +65,10 @@ using namespace script_api;
 
 /**
  * Grows the map to W x H with the same D, as the enlarge-map dialog does,
- * and adds up to @p cities new cities in the new part.
+ * and adds up to @p cities new cities in the new part.  The new part has
+ * mountains up to @p mountains (as the setting max_mountain_height, 0 to 160,
+ * which scenario maps made by -flatmap have 0 of) at the roughest noise,
+ * or the map's own if that is negative.
  * Returns the shift of the script's coordinates: the new part lies beyond
  * the far sides of the map as it is, so the old tiles keep their
  * coordinates, unless the map is turned by 180 degrees, where the script's
@@ -77,6 +80,7 @@ SQInteger debug_enlarge_map(HSQUIRRELVM vm)
 	const sint32 w = param<sint32>::get(vm, 2);
 	const sint32 h = param<sint32>::get(vm, 3);
 	const sint32 cities = param<sint32>::get(vm, 4);
+	const sint32 mountains = param<sint32>::get(vm, 5);
 
 	const map_shape_t old_shape = welt->get_map_shape();
 	const map_shape_t new_shape(w, h, old_shape.d);
@@ -86,10 +90,19 @@ SQInteger debug_enlarge_map(HSQUIRRELVM vm)
 		return 1;
 	}
 
+	// the noise of the new part is the world's settings'
+	const double old_mountains = welt->get_settings().get_max_mountain_height();
+	const double old_roughness = welt->get_settings().get_map_roughness();
+	if (mountains >= 0) {
+		welt->get_settings().set_max_mountain_height(mountains);
+		welt->get_settings().set_map_roughness(1.0);
+	}
 	settings_t sets(welt->get_settings());
 	sets.set_size(w, h);
 	sets.set_city_count(cities);
 	welt->enlarge_map(&sets, NULL);
+	welt->get_settings().set_max_mountain_height(old_mountains);
+	welt->get_settings().set_map_roughness(old_roughness);
 
 	const bool turned = coordinate_transform_t::get_rotation() != 0;
 	return push_instance(vm, "coord",
@@ -182,11 +195,14 @@ void export_control(HSQUIRRELVM vm)
 	 * @param w new side W, at least the current one
 	 * @param h new side H, at least the current one
 	 * @param cities number of cities to add
+	 * @param mountains the height of the new part's mountains, 0 to 160 as
+	 *        the setting max_mountain_height, with the roughest noise, or
+	 *        negative for the map's own settings
 	 * @returns the coord by which the script's coordinates of the old tiles
 	 *          moved, or null when the map was not enlarged.
-	 * @typemask coord(integer,integer,integer)
+	 * @typemask coord(integer,integer,integer,integer)
 	 */
-	STATIC register_function(vm, debug_enlarge_map, "enlarge_map", 4, ".iii");
+	STATIC register_function(vm, debug_enlarge_map, "enlarge_map", 5, ".iiii");
 
 	/**
 	 * Scripts can pause the game in case of error. Toggle this behavior by parameter @p p.
