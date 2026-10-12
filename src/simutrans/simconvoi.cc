@@ -1943,7 +1943,14 @@ bool convoi_t::can_go_alte_richtung()
 	}
 
 	// going backwards? then recalculate all
-	ribi_t::ribi neue_richtung_rwr = ribi_t::backward(fahr[0]->calc_direction(route.front(), route.at(min(2, route.get_count() - 1))));
+	// Chords are classified the way calc_set_direction stores alte_richtung.
+	// The first step is looked at on its own as well: the chord of two steps
+	// that bend is off-axis and names at most one edge, which may not be the
+	// one that leads back (a dead end with a bend behind it).
+	ribi_t::ribi neue_richtung_rwr = ribi_t::backward(vehicle_base_t::calc_chord_direction(route.front(), route.at(min(2, route.get_count() - 1))));
+	if(route.get_count() > 1) {
+		neue_richtung_rwr |= ribi_t::backward(vehicle_base_t::calc_chord_direction(route.front(), route.at(1)));
+	}
 //	DBG_MESSAGE("convoi_t::go_alte_richtung()","neu=%i,rwr_neu=%i,alt=%i",neue_richtung_rwr,ribi_t::backward(neue_richtung_rwr),alte_richtung);
 	if(neue_richtung_rwr&alte_richtung) {
 		akt_speed = 8;
