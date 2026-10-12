@@ -1354,14 +1354,24 @@ a test wants a hook in a `script/api/*_test.cc` (like
 and reads the marker images off the tiles.
 
 GUI views.
-`world_view_t::internal_draw` lays out the square lattice in every
-info-window view;
-the `gui_building_t` preview, the `minimap_t::draw` viewport-box
-fallback, the station building selector (4 labels, 4 buttons),
-`gui_rotation_item_t` in `extend_edit.cc` (4 rotation labels)
-and the wind box in `settings_climates_stats_t` (0..3) are 4-way.
-Next move: `world_view_t` through `hex_proj` first,
-since every info window uses it.
+The facing lists are four-way.
+The station building selector offers `min(layouts, 4)` buttons
+(S, SE, N, NW),
+and the editors' rotation combobox lists `get_all_layouts()` entries,
+with `gui_rotation_item_t` naming 0..3 after the hex edges
+and 4..7 as the square corner layouts of 8-layout stations and city buildings.
+Those corner layouts clash with layouts 4 and 5 meaning NE and SW
+in `ribi_t::layout_to_ribi`.
+Next move: for a 1x1 extension building that is not a dock,
+add NE and SW buttons to the selector
+and entries 4 and 5 to the editors,
+only for descriptions with at most four layouts,
+where `building_desc_t::adjust_layout` folds them onto S and SE
+as the townhall seed does,
+labelled with the `nordost` and `suedwest` keys;
+multi-tile extensions and docks wait for the third footprint axis
+(see "Multi-tile building footprint"),
+and so does the meaning of layouts 4..7 on 8-layout descriptions.
 
 
 ## Pak reader child-count expectations are implicit
