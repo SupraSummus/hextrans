@@ -59,7 +59,7 @@ roadsign_t::roadsign_t(loadsave_t *file) : obj_t ()
 		automatic = false;
 	}
 	// some sve had rather strange entries in state
-	if(  !automatic  ||  desc==NULL  ) {
+	if(  !automatic  ||  desc==NULL  ||  state >= NUM_TRAFFIC_LIGHT_STATES  ) {
 		state = 0;
 	}
 	// only traffic light need switches
@@ -246,6 +246,19 @@ void roadsign_t::calc_diagonal_index(uint16 idx[4], ribi_t::ribi, uint16)
 }
 
 
+image_id roadsign_t::get_private_image() const
+{
+	// the N-S gate is the first image, the NW-SE gate the second. The NE-SW axis
+	// has no gate of its own and shows the N-S one
+	uint8 image = ribi_t::straight_axis(dir) == ribi_t::northwest ? 1 : 0;
+	if(  (1<<welt->get_active_player_nr()) & get_player_mask()  ) {
+		// gate open
+		image += 2;
+	}
+	return desc->get_image_id(image);
+}
+
+
 // could be still better aligned for drive_left settings ...
 void roadsign_t::calc_image()
 {
@@ -288,12 +301,7 @@ void roadsign_t::calc_image()
 
 	// private way have also closed/open states
 	if(  desc->is_private_way()  ) {
-		uint8 image = 1-(dir&1);
-		if(  (1<<welt->get_active_player_nr()) & get_player_mask()  ) {
-			// gate open
-			image += 2;
-		}
-		set_image( desc->get_image_id(image) );
+		set_image( get_private_image() );
 		set_yoff( 0 );
 		if(  flat_way_body  ) {
 			set_yoff( sign_way->get_yoff() );
@@ -334,14 +342,8 @@ void roadsign_t::calc_image()
 
 		if(  gr->get_typ()==grund_t::tunnelboden  &&  gr->ist_karten_boden()  &&
 			(grund_t::underground_mode==grund_t::ugm_none  ||  (grund_t::underground_mode==grund_t::ugm_level  &&  gr->get_hoehe()<grund_t::underground_level))   ) {
-			// entering tunnel here: hide the image further in if not undergroud/sliced
-			const ribi_t::ribi tunnel_hang_dir = ribi_t::backward( ribi_type(gr->get_grund_hang()) );
-			if(  tunnel_hang_dir==ribi_t::southeast ||  tunnel_hang_dir==ribi_t::north  ) {
-				temp_dir &= ~ribi_t::southwest;
-			}
-			else {
-				temp_dir &= ~ribi_t::northeast;
-			}
+			// entering tunnel here: hide the image further in, the direction the slope climbs, if not undergroud/sliced
+			temp_dir &= ~ribi_type( gr->get_grund_hang() );
 		}
 
 		// signs for left side need other offsets and other front/back order
@@ -446,7 +448,7 @@ void roadsign_t::calc_image()
 			// projects onto the NS slot as placeholder visuals
 			// until 3-axis roadsign art ships (TODO.md →
 			// "roadsign_writer.cc").
-			static const uint8 state_to_direction[6] = {
+			static const uint8 state_to_direction[NUM_TRAFFIC_LIGHT_STATES] = {
 				/* NS green    */ 1,
 				/* SE-NW green */ 0,
 				/* NE-SW green */ 1,
@@ -454,7 +456,8 @@ void roadsign_t::calc_image()
 				/* SE-NW yellow*/ 2,
 				/* NE-SW yellow*/ 3,
 			};
-			const uint8 dir_full = state_to_direction[state & 7];
+			assert( state < NUM_TRAFFIC_LIGHT_STATES );
+			const uint8 dir_full = state_to_direction[state];
 			const uint8 direction = desc->get_count()>16 ? dir_full : (dir_full & 1);
 
 			// other front/back images for left side ...
@@ -543,14 +546,11 @@ sync_result roadsign_t::sync_step(uint32 /*delta_t*/)
 		return SYNC_DELETE;
 	}
 	if(  desc->is_private_way()  ) {
-		uint8 image = 1-(dir&1);
 		if(  (1<<welt->get_active_player_nr()) & get_player_mask()  ) {
-			// gate open
-			image += 2;
-			// force redraw
+			// gate open, force redraw
 			mark_image_dirty(get_image(),0);
 		}
-		set_image( desc->get_image_id(image) );
+		set_image( get_private_image() );
 	}
 	else {
 		grund_t* const gr = welt->lookup(get_pos());
