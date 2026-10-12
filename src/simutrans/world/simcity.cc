@@ -4094,12 +4094,12 @@ bool stadt_t::test_and_build_cityroad(koord start, koord end)
 		return build_road(start, NULL, true);
 	}
 
-	const sint16 length = koord_distance(start, end);
-	const koord dir = (end - start) / length;
-	if (dir.x + dir.y != 1) {
-		// was a diagonal
+	// the line has to run along one of the three hex axes, in either direction
+	if (ribi_type(end - start) == ribi_t::none) {
 		return false;
 	}
+	const sint16 length = koord_distance(start, end);
+	const koord dir = (end - start) / length;
 	const sint8 max_step = city_road && city_road->has_double_slopes() ? 2 : 1;
 	minivec_tpl<sint8>heights(length);
 	for (sint8 i = 0; i <= length; i++) {

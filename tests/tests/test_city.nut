@@ -488,6 +488,50 @@ function test_city_building_3x2_faces_road()
 }
 
 
+// stadt_t::test_and_build_cityroad lays a straight piece of city road along
+// any of the three hex axes, in either direction.  The founding of a
+// townhall only asks it for strips that run S or SE, so the tests call it
+// through citytest_cityroad.  A line of four tiles from (10, 10) in each of
+// the six directions has to get a road on every tile; a displacement that
+// is on no axis, here (3, -1), builds nothing.
+function test_city_cityroad_along_all_axes()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(3, 3, 0), "0"), null)
+	local city = city_x(3, 3)
+
+	local start = coord3d(10, 10, 0)
+	foreach (d in [dir.southeast, dir.south, dir.southwest, dir.northwest, dir.north, dir.northeast]) {
+		local c = dir.to_coord(d)
+		local end = coord3d(start.x + 3 * c.x, start.y + 3 * c.y, 0)
+		local mid = coord3d(start.x + c.x, start.y + c.y, 0)
+		local where = "line towards " + d
+		ASSERT_EQUAL(where + ": " + citytest_cityroad(city, start, end), where + ": true")
+		ASSERT_EQUAL(way_dirs_at(start, wt_road), d)
+		ASSERT_EQUAL(way_dirs_at(mid, wt_road), d | dir.backward(d))
+		ASSERT_EQUAL(way_dirs_at(end, wt_road), dir.backward(d))
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, start, end, "" + wt_road), null)
+	}
+
+	// no axis, so no line; clean up what a wrong answer built
+	local built = citytest_cityroad(city, start, coord3d(13, 9, 0))
+	for (local x = 10; x <= 13; x++) {
+		for (local y = 9; y <= 10; y++) {
+			if (tile_x(x, y, 0).get_way(wt_road) != null) {
+				local p = coord3d(x, y, 0)
+				ASSERT_EQUAL(command_x(tool_remove_way).work(pl, p, p, "" + wt_road), null)
+			}
+		}
+	}
+	clear_townhall_and_roads(public_pl, 3, 3)
+	ASSERT_EQUAL("off-axis line: " + built, "off-axis line: false")
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // The tiles [x, y] with a road in the 3x3 axial ring around (q, r).
 function city_ring_roads(q, r)
 {

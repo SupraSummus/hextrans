@@ -442,6 +442,7 @@ all_tests <- [
 	// after the sign tests, see "Traffic light removal follows its phase" in TODO.md
 	test_city_building_faces_road,
 	test_city_building_3x2_faces_road,
+	test_city_cityroad_along_all_axes,
 	test_city_road_fills_valley_tile,
 	test_world_rotate_roundtrip,
 	test_city_population_ledger, // keep last: grows a city across the whole map

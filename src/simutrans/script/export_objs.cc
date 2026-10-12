@@ -42,6 +42,7 @@ void register_export_function(HSQUIRRELVM vm, bool scenario)
 	export_ai_test(vm, scenario);       // TEST SUPPORT ONLY
 	if (scenario) {
 		export_schedule_route_test(vm); // TEST SUPPORT ONLY
+		export_city_test(vm);           // TEST SUPPORT ONLY
 	}
 
 	export_commands(vm);
