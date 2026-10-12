@@ -40,6 +40,11 @@ jobs:
       # render-loop bijection.  ~1 second; fails fast on any
       # regression before the slow Simutrans build runs.
       run: make -C tools/hex_proj_test run
+    - name: Vehicle sprite direction self-test
+      # descriptor/sprite_dir.h: every vehicle heading shows the
+      # 8-direction sprite nearest to it on screen under hex_proj.h.
+      # ~1 second.
+      run: make -C tools/hex_dir_test run
     - name: Back-image wall-floor decoder self-test
       # Pins the base-WALL_IMAGE_COUNT digit extraction in
       # ground/back_image_decode.h: range gates, single-wall

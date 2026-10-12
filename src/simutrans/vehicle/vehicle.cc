@@ -816,10 +816,10 @@ void vehicle_t::calc_image()
 {
 	image_id old_image=get_image();
 	if (fracht.empty()) {
-		set_image(desc->get_image_id(ribi_t::get_dir(get_direction()),NULL));
+		set_image(desc->get_image_id(get_sprite_dir(),NULL));
 	}
 	else {
-		set_image(desc->get_image_id(ribi_t::get_dir(get_direction()), fracht.front().get_desc()));
+		set_image(desc->get_image_id(get_sprite_dir(), fracht.front().get_desc()));
 	}
 	if(old_image!=get_image()) {
 		set_flag(obj_t::dirty);

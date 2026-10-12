@@ -453,11 +453,10 @@ public:
 	typedef uint8 ribi;
 
 	/**
-	 * Direction image index for vehicles / signs.  Still the square-era
-	 * 8-value enum for sprite-raster reasons; porting this is tied to
-	 * the viewport projection (see TODO.md) and a real hex sprite set.
-	 * For now `get_dir()` maps each single hex edge onto the slot of
-	 * the same name.
+	 * Slot of the 8-direction sprite table of vehicles, city cars,
+	 * pedestrians and animals, named after the square grid the art was
+	 * drawn for.  sprite_dir_of_heading() in descriptor/sprite_dir.h
+	 * picks the slot for a hex heading.
 	 */
 	enum _dir {
 		dir_invalid   = 0,
@@ -586,12 +585,6 @@ public:
 		const ribi a = straight_axis(x);
 		return a == none ? (ribi)0 : (ribi)(a | backward(a));
 	}
-
-	/// Convert ribi to dir (sprite-raster index).  Each single hex
-	/// edge maps to the same-named slot of the 8-value square dir
-	/// enum until the viewport/sprite port lands.  `none` and
-	/// multi-bit inputs return dir_invalid.
-	static dir get_dir(ribi x);
 
 	/// Alias for `backward`.  Under the old 4-bit layout this was a
 	/// bit-rotation fast path for single-direction ribis (while

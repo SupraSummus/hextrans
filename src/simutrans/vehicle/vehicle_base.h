@@ -157,6 +157,9 @@ public:
 
 	ribi_t::ribi get_direction() const {return direction;}
 
+	/// Slot of the 8-direction sprite table for the heading on screen.
+	ribi_t::dir get_sprite_dir() const;
+
 	koord3d get_pos_next() const {return pos_next;}
 
 	void set_pos_next(koord3d pn) { pos_next = pn; }
