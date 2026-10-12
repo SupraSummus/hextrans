@@ -56,6 +56,11 @@ jobs:
       # climate patch, the obtuse-angle test of the intercity roads and
       # the free city site are round in the physical plane.  ~1 second.
       run: make -C tools/hex_mapgen_test run
+    - name: Neighbourhood helper self-test
+      # koord_distance_to_rect in dataobj/koord.h against brute force
+      # and the union of hex discs: the axial ring around a footprint
+      # lacks its (-1,-1) and (size) corners.  ~1 second.
+      run: make -C tools/hex_neighbourhood_test run
     - name: Cache
       uses: actions/cache@v4
       with:

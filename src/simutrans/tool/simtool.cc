@@ -309,6 +309,10 @@ static halthandle_t suche_nahe_haltestelle(player_t *player, karte_t *welt, koor
 	// now just search all neighbours
 	for(  sint16 y=-1;  y<=h;  y++  ) {
 		for(  sint16 x=-1;  x<=b;  (x==-1 && y>-1 && y<h) ? x=b:x++  ) {
+			// the axial corners (-1,-1) and (b,h) of the ring are two steps away
+			if(  koord_distance_to_rect(koord(x,y), koord(0,0), koord(b,h)) > 1  ) {
+				continue;
+			}
 			if(  planquadrat_t* plan=welt->access(k+koord(x,y))  ) {
 				my_halt = plan->get_halt( player );
 				if(  my_halt.is_bound()  ) {
@@ -4525,9 +4529,13 @@ DBG_MESSAGE("tool_station_building_aux()", "building mail office/station buildin
 					int neighbour_halts[4] = { 0, 0, 0, 0 };
 					int best_halts[4] = { 0, 0, 0, 0 };
 
-					// test also diagonal corners (that is why from -1 to size!)
+					// test also the corners touching the footprint (that is why from -1 to size!)
 					for(  sint16 y=-1;  y<=testsize.y;  y++  ) {
 						for(  sint16 x=-1;  x<=testsize.x;  (x==-1 && y>-1 && y<testsize.y)?x=testsize.x:x++  ) {
+							// the axial corners (-1,-1) and (size) are two steps away
+							if(  koord_distance_to_rect(koord(x,y), koord(0,0), testsize) > 1  ) {
+								continue;
+							}
 							const planquadrat_t *pl = welt->access( test_start+koord(x,y) );
 							if(  pl  ) {
 								for(  uint b=0;  b < pl->get_boden_count();  b++  ) {
@@ -7506,7 +7514,7 @@ const char *tool_make_stop_public_t::work( player_t *player, koord3d p )
 			halthandle_t h = pl->get_haltlist()[i];
 			if(  !checked_halts.is_contained(h)  &&  h->can_use_halt(player)  ) {
 				koord testpos = h->get_ground_closest_to( pos )->get_pos().get_2d();
-				if(  abs(pos.x-testpos.x) <= 1  &&  abs(pos.y-testpos.y) <= 1  ) {
+				if(  koord_distance(pos, testpos) <= 1  ) {
 					merge_to = h;
 					break;
 				}
