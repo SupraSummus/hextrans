@@ -157,6 +157,75 @@ static void test_rows_and_edges(const map_shape_t &s)
 }
 
 
+// The per-column range is the on-map part of the column.
+static void test_columns(const map_shape_t &s)
+{
+	const sint32 Q = s.get_size_q(), R = s.get_size_r();
+	for (sint32 q = 0; q < Q; q++) {
+		CHECK(s.get_r_begin(q) < s.get_r_end(q));
+		for (sint32 r = -1; r <= R; r++) {
+			CHECK(s.contains(q, r) == (s.get_r_begin(q) <= r  &&  r < s.get_r_end(q)));
+		}
+	}
+}
+
+
+// The tiles within `band` of the far sides, row by row, against the
+// distance to the three far half-planes.  At d == 1 they are the strips
+// along the last row and column that the enlargement of a rhombus redid.
+static void test_far_band(const map_shape_t &s)
+{
+	const sint32 Q = s.get_size_q(), R = s.get_size_r();
+	for (sint32 band = 1; band <= 22; band++) {
+		for (sint32 r = 0; r < R + 3; r++) {
+			if (s.d == 1) {
+				CHECK(s.get_far_q_begin(r, band) == (r >= R - band ? 0 : std::max(Q - band, (sint32)0)));
+			}
+			for (sint32 q = 0; q < Q + 3; q++) {
+				if (r < R  &&  !s.contains(q, r)) {
+					continue;
+				}
+				const sint32 far_edge = std::min(std::min(Q - 1 - q, R - 1 - r), s.get_cut_hi() - q - r);
+				CHECK((far_edge < band) == (q >= s.get_far_q_begin(r, band)));
+			}
+		}
+	}
+}
+
+
+// Enlarging keeps the old hexagon where it is: its tiles are among the new
+// ones, and in each row and column the added tiles are one run to the right
+// of the old ones.  From no map every tile is added.
+static void check_added(const map_shape_t &old, const map_shape_t &s)
+{
+	std::set<std::pair<sint32, sint32>> old_tiles;
+	for (koord k : tiles_of(old)) {
+		CHECK(s.contains(k));
+		old_tiles.insert({ k.x, k.y });
+	}
+	for (sint32 r = 0; r < s.get_size_r(); r++) {
+		for (sint32 q = 0; q < s.get_size_q(); q++) {
+			const bool added = s.contains(q, r)  &&  !old_tiles.count({ q, r });
+			CHECK(added == (s.contains(q, r)  &&  s.get_added_q_begin(old, r) <= q));
+			CHECK(added == (s.contains(q, r)  &&  s.get_added_r_begin(old, q) <= r));
+		}
+	}
+	CHECK(s.get_tile_count() - (sint64)old_tiles.size() >= 0);
+}
+
+static void test_added(const map_shape_t &s)
+{
+	check_added(map_shape_t::none(), s);
+	CHECK(!map_shape_t::none().contains(0, 0));
+	CHECK(map_shape_t::none().get_size_q() == 0  &&  map_shape_t::none().get_size_r() == 0);
+	for (sint32 dw = 0; dw <= 3; dw++) {
+		for (sint32 dh = 0; dh <= 3; dh++) {
+			check_added(s, map_shape_t(s.w + dw, s.h + dh, s.d));
+		}
+	}
+}
+
+
 // One step is a bijection onto rotated() that turns every neighbour
 // direction one place clockwise; three steps are the central
 // reflection, six the identity.
@@ -490,6 +559,9 @@ int main()
 	for (const map_shape_t &s : sample_shapes()) {
 		test_shape(s);
 		test_rows_and_edges(s);
+		test_columns(s);
+		test_far_band(s);
+		test_added(s);
 		test_rotation(s);
 		test_vertices(s);
 		test_vertex_slots(s);

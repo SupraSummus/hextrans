@@ -333,8 +333,14 @@ sint32 karte_t::perlin_hoehe(settings_t const* const sets, koord tile, hex_corne
 
 void karte_t::set_vertex_heights_from_perlin(koord tile, koord rot_size)
 {
-	set_grid_hgt_nocheck(tile, hex_corner_t::E,  (sint8) perlin_hoehe(&settings, tile, hex_corner_t::E,  rot_size));
-	set_grid_hgt_nocheck(tile, hex_corner_t::SE, (sint8) perlin_hoehe(&settings, tile, hex_corner_t::SE, rot_size));
+	set_vertex_height_from_perlin(tile, hex_corner_t::E,  rot_size);
+	set_vertex_height_from_perlin(tile, hex_corner_t::SE, rot_size);
+}
+
+
+void karte_t::set_vertex_height_from_perlin(koord tile, hex_corner_t::type c, koord rot_size)
+{
+	set_grid_hgt_nocheck(tile, c, (sint8) perlin_hoehe(&settings, tile, c, rot_size));
 }
 
 
@@ -406,7 +412,7 @@ void karte_t::cleanup_grounds_loop( sint16 x_min, sint16 x_max, sint16 y_min, si
 }
 
 
-void karte_t::cleanup_karte( int xoff, int yoff )
+void karte_t::cleanup_karte( const map_shape_t &old_shape )
 {
 	// we need a copy to smooth the map to a realistic level
 	// HEX-PORT: grid_hgts is per-hex-vertex now.  Smooth over the
@@ -417,11 +423,17 @@ void karte_t::cleanup_karte( int xoff, int yoff )
 	sint8 *grid_hgts_cpy = new sint8[grid_size];
 	memcpy( grid_hgts_cpy, grid_hgts, grid_size );
 
+	// Smooth the slots of the new tiles and the last slot column and row
+	// of the old map next to them, which the new tiles share; with a cut
+	// also its far slots.  The old interior keeps its heights.  A new world
+	// has no old map and smooths everything.
+	const sint32 old_x = old_shape.get_size_q();
+	const sint32 old_y = old_shape.get_size_r();
 	auto for_each_cleanup_vertex = [&](auto const& fn) {
-		for(sint32 y=0; y<=get_size().y + 1; y++) {
-			const sint32 x_start = y >= yoff ? 0 : xoff;
-			for(sint32 x=x_start; x<=get_size().x; x++) {
-				const koord tile((sint16)(x - 1), (sint16)(y - 1));
+		for(sint32 r=-1; r<=get_size().y; r++) {
+			const sint32 q_start = r >= old_y - 1 ? -1 : max( -1, min( old_x - 1, old_shape.get_cut_hi() - r ) );
+			for(sint32 q=q_start; q<get_size().x; q++) {
+				const koord tile((sint16)q, (sint16)r);
 				fn(tile, hex_corner_t::E);
 				fn(tile, hex_corner_t::SE);
 			}
@@ -444,13 +456,9 @@ void karte_t::cleanup_karte( int xoff, int yoff )
 		natural_grid_hgts[slot] --;
 	});
 
-	if(  xoff==0 && yoff==0  ) {
-//		world_xy_loop(&karte_t::cleanup_grounds_loop, 0);
-		cleanup_grounds_loop( 0, get_size().x, 0, get_size().y );
-	}
-	else {
-		cleanup_grounds_loop( 0, get_size().x, yoff, get_size().y );
-		cleanup_grounds_loop( xoff, get_size().x, 0, yoff );
+	// the ground of the tiles beyond the old hexagon, row by row
+	for(  sint16 y = 0;  y < get_size().y;  y++  ) {
+		cleanup_grounds_loop( (sint16)get_map_shape().get_added_q_begin( old_shape, y ), get_size().x, y, y + 1 );
 	}
 }
 
@@ -848,10 +856,12 @@ void karte_t::create_rivers( sint16 number )
 }
 
 
-void karte_t::distribute_cities(int new_city_count, sint32 new_mean_citizen_count, sint16 old_x, sint16 old_y)
+void karte_t::distribute_cities(int new_city_count, sint32 new_mean_citizen_count, const map_shape_t &old_shape)
 {
 	DBG_DEBUG("karte_t::distribute_cities()","prepare cities");
-	vector_tpl<koord> *pos = stadt_t::random_place(new_city_count, old_x, old_y);
+	// no old map: a new world
+	const bool new_world = old_shape.get_size_q() == 0;
+	vector_tpl<koord> *pos = stadt_t::random_place(new_city_count, old_shape);
 
 	if(  !pos->empty()  ) {
 		const sint32 old_city_count = cities.get_count();
@@ -862,7 +872,7 @@ void karte_t::distribute_cities(int new_city_count, sint32 new_mean_citizen_coun
 		settings.set_city_count(old_city_count);
 		int old_progress = 16;
 
-		loadingscreen_t ls( translator::translate( "distributing cities" ), 16 + 2 * (old_city_count + new_city_count) + 2 * new_city_count + (old_x == 0 ? settings.get_factory_count() : 0), true, true );
+		loadingscreen_t ls( translator::translate( "distributing cities" ), 16 + 2 * (old_city_count + new_city_count) + 2 * new_city_count + (new_world ? settings.get_factory_count() : 0), true, true );
 
 		{
 			// Loop only new cities:
@@ -876,7 +886,7 @@ void karte_t::distribute_cities(int new_city_count, sint32 new_mean_citizen_coun
 			}
 
 			// center on first city
-			if(  old_x+old_y == 0  &&  cities.get_count()>0) {
+			if(  new_world  &&  cities.get_count()>0) {
 				viewport->change_world_position( cities[0]->get_pos() );
 			}
 
@@ -963,7 +973,7 @@ void karte_t::distribute_cities(int new_city_count, sint32 new_mean_citizen_coun
 		// something to do??
 		if(  max_count > 0  ) {
 			// print("Building intercity roads ...\n");
-			ls.set_max( 16 + 2 * (old_city_count + new_city_count) + 2 * new_city_count + (old_x == 0 ? settings.get_factory_count() : 0) );
+			ls.set_max( 16 + 2 * (old_city_count + new_city_count) + 2 * new_city_count + (new_world ? settings.get_factory_count() : 0) );
 			// find townhall of city i and road in front of it
 			vector_tpl<koord3d> k;
 			for (int i = 0;  i < settings.get_city_count(); ++i) {
@@ -1178,7 +1188,7 @@ void karte_t::distribute_cities(int new_city_count, sint32 new_mean_citizen_coun
 }
 
 
-void karte_t::distribute_groundobjs(sint16 old_x, sint16 old_y)
+void karte_t::distribute_groundobjs(const map_shape_t &old_shape)
 {
 DBG_DEBUG("karte_t::distribute_groundobj()","distributing groundobjs");
 	if(  env_t::ground_object_probability > 0  ) {
@@ -1186,7 +1196,7 @@ DBG_DEBUG("karte_t::distribute_groundobj()","distributing groundobjs");
 		koord k;
 		sint32 queried = simrand(env_t::ground_object_probability*2-1);
 		for(  k.y=0;  k.y<get_size().y;  k.y++  ) {
-			for(  k.x=(k.y<old_y)?old_x:0;  k.x<get_size().x;  k.x++  ) {
+			for(  k.x=(sint16)get_map_shape().get_added_q_begin(old_shape, k.y);  k.x<get_size().x;  k.x++  ) {
 				grund_t *gr = lookup_kartenboden_nocheck(k);
 				if(  gr  &&  gr->get_typ()==grund_t::boden  &&  !gr->hat_wege()  ) {
 					queried --;
@@ -1213,7 +1223,7 @@ DBG_DEBUG("karte_t::distribute_groundobj()","distributing groundobjs");
 }
 
 
-void karte_t::distribute_movingobjs(sint16 old_x, sint16 old_y)
+void karte_t::distribute_movingobjs(const map_shape_t &old_shape)
 {
 DBG_DEBUG("karte_t::distribute_movingobj()","distributing movingobjs");
 	if(  env_t::moving_object_probability > 0  ) {
@@ -1223,7 +1233,7 @@ DBG_DEBUG("karte_t::distribute_movingobj()","distributing movingobjs");
 		sint32 queried = simrand(env_t::moving_object_probability*2);
 		// no need to test the borders, since they are mostly slopes anyway
 		for(k.y=1; k.y<get_size().y-1; k.y++) {
-			for(k.x=(k.y<old_y)?old_x:1; k.x<get_size().x-1; k.x++) {
+			for(k.x=(sint16)max(1, get_map_shape().get_added_q_begin(old_shape, k.y)); k.x<get_size().x-1; k.x++) {
 				grund_t *gr = lookup_kartenboden_nocheck(k);
 				// flat ground or open water
 				if(  gr  &&  gr->obj_count()==0  &&  (  (gr->get_typ()==grund_t::boden  &&  gr->get_grund_hang()==slope_t::flat)  ||  (has_water  &&  gr->is_water())  )  ) {
@@ -1568,14 +1578,20 @@ void karte_t::create_lakes(  int xoff, int yoff, sint8 max_lake_height  )
 }
 
 
-void karte_t::create_beaches(  int xoff, int yoff  )
+void karte_t::create_beaches(  const map_shape_t &old_shape  )
 {
-	const uint16 size_x = get_size().x;
 	const uint16 size_y = get_size().y;
+
+	// Only the tiles within 19 of the far sides of the old map: its last
+	// rows and columns and the far cut, with the new tiles beyond.  A new
+	// world has no old map and takes every row whole.
+	auto first_x = [&](uint16 iy) {
+		return (uint16)max( old_shape.get_far_q_begin( iy, 19 ), (sint32)get_row_begin( iy ) );
+	};
 
 	// bays have wide beaches
 	for(  uint16 iy = 0;  iy < size_y;  iy++  ) {
-		for(  uint16 ix = (iy >= yoff - 19) ? 0 : max( xoff - 19, 0 );  ix < size_x;  ix++  ) {
+		for(  uint16 ix = first_x( iy );  ix < (uint16)get_row_end( iy );  ix++  ) {
 			grund_t *gr = lookup_kartenboden_nocheck(ix,iy);
 			if(  gr  &&  gr->is_water()  &&  gr->get_hoehe()==groundwater  &&  gr->kann_alle_obj_entfernen(NULL)==NULL) {
 				koord k( ix, iy );
@@ -1627,7 +1643,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 
 	// headlands should not have beaches at all
 	for(  uint16 iy = 0;  iy < size_y;  iy++  ) {
-		for(  uint16 ix = (iy >= yoff - 19) ? 0 : max( xoff - 19, 0 );  ix < size_x;  ix++  ) {
+		for(  uint16 ix = first_x( iy );  ix < (uint16)get_row_end( iy );  ix++  ) {
 			koord k( ix, iy );
 			grund_t *gr = lookup_kartenboden_nocheck(k);
 			if(  gr  &&  !gr->is_water()  &&  gr->get_pos().z == groundwater  ) {
@@ -1651,7 +1667,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 
 	// remove any isolated 1 tile beaches
 	for(  uint16 iy = 0;  iy < size_y;  iy++  ) {
-		for(  uint16 ix = (iy >= yoff - 19) ? 0 : max( xoff - 19, 0 );  ix < size_x;  ix++  ) {
+		for(  uint16 ix = first_x( iy );  ix < (uint16)get_row_end( iy );  ix++  ) {
 			koord k( ix, iy );
 			if(  is_within_limits(k)  &&  access_nocheck(k)->get_climate()  ==  desert_climate  ) {
 				uint8 neighbour_beach = 0;
@@ -1691,7 +1707,7 @@ void karte_t::create_beaches(  int xoff, int yoff  )
 }
 
 
-void karte_t::distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom  )
+void karte_t::distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip  )
 {
 	// now distribute trees
 	DBG_DEBUG("karte_t::init()","distributing trees");
@@ -1702,7 +1718,7 @@ void karte_t::distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 			for(  pos.y=ytop;  pos.y<ybottom;  pos.y++  ) {
 				for(  pos.x=xtop;  pos.x<xbottom;  pos.x++  ) {
 					grund_t *gr = lookup_kartenboden(pos);
-					if(gr  &&  gr->obj_count() == 0  &&  gr->get_typ() == grund_t::boden)  {
+					if(gr  &&  gr->obj_count() == 0  &&  gr->get_typ() == grund_t::boden  &&  !(skip  &&  skip->contains(pos)))  {
 						if(humidity_map.at(pos.x,pos.y)>75) {
 							const uint32 tree_probability = (humidity_map.at(pos.x,pos.y) - 75)/5 + 38;
 							uint8 number_to_plant = 0;
@@ -1732,7 +1748,7 @@ void karte_t::distribute_trees_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 		// fall-through
 	case settings_t::TREE_DIST_RANDOM:
 		// no humidity data or on request
-		tree_builder_t::distribute_trees(3, xtop, ytop, xbottom, ybottom );
+		tree_builder_t::distribute_trees(3, xtop, ytop, xbottom, ybottom, skip );
 		break;
 	case settings_t::TREE_DIST_NONE:
 		// no trees
@@ -1752,10 +1768,24 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	}
 	// the bounding rhombus of the W x H x D hexagon, see documentation/map-shape.md
 	const koord new_size((sint16)new_shape.get_size_q(), (sint16)new_shape.get_size_r());
-	if(  get_size() != koord(0, 0)  &&  (settings.get_size_d() != 1  ||  new_shape.d != 1)  ) {
-		// the old_x / old_y strips below only cover a W x H x 1 rhombus
-		dbg->fatal( "karte_t::enlarge_map", "enlarging a W x H x D map with D > 1 lands with step 5 of documentation/map-shape.md" );
+	const koord old_size = get_size();
+	const bool new_world = old_size.x == 0 && old_size.y == 0;
+	// The hexagon the map grows from.  W and H grow with D fixed, so it stays
+	// inside the new one at the same coordinates, and the new tiles are those
+	// of the new hexagon that it does not have.
+	const map_shape_t old_shape = new_world ? map_shape_t::none() : get_map_shape();
+	if(  !new_world  &&  (new_shape.d != old_shape.d  ||  new_shape.w < old_shape.w  ||  new_shape.h < old_shape.h)  ) {
+		// D would move every tile and needs a 60° rotation step, see documentation/map-shape.md; shrinking is no more supported than upstream
+		dbg->fatal( "karte_t::enlarge_map", "a map of %d x %d x %d can only grow to the same D: %d x %d x %d is not larger", old_shape.w, old_shape.h, old_shape.d, new_shape.w, new_shape.h, new_shape.d );
 	}
+	// Whether the slot of vertex (tile, c) of the new storage holds the height
+	// of a vertex of the old hexagon, as the copy below keeps it: the slots of
+	// the old storage but its south-phantom row, which is generated and anchored
+	// to the heights of the tiles above.  The slots of other vertices, which
+	// the old map has none of, hold nothing after a load: they are generated.
+	const auto keeps_slot = [&](koord tile, hex_corner_t::type c) {
+		return tile.x < old_size.x  &&  tile.y < old_size.y  &&  (old_shape.contains(tile)  ||  old_shape.contains_vertex({ tile, c }));
+	};
 
 	if(  cached_grid_size.y>0  &&  cached_grid_size.y!=new_size.y  ) {
 		// to keep the labels
@@ -1774,9 +1804,6 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 	memset( new_grid_hgts,         groundwater, sizeof(sint8) * new_hgts_slots );
 	memset( new_natural_grid_hgts, groundwater, sizeof(sint8) * new_hgts_slots );
 	memset( new_water_hgts,        groundwater, sizeof(sint8) *  new_size.x      *  new_size.y );
-
-	const koord old_size = get_size();
-	const bool new_world = old_size.x == 0 && old_size.y == 0;
 
 	settings.set_size_x(new_shape.w);
 	settings.set_size_y(new_shape.h);
@@ -1802,8 +1829,13 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 			for (sint16 ix = 0; ix<old_size.x; ix++) {
 				uint32 nr = ix+(iy*old_size.x);
 				uint32 nnr = ix+(iy*new_size.x);
+				// an off-map cell has no ground, which swap moves as it is
 				swap(new_plan[nnr], plan[nr]);
-				new_water_hgts[nnr] = water_hgts[nr];
+				if(  old_shape.contains(ix, iy)  ) {
+					new_water_hgts[nnr] = water_hgts[nr];
+				}
+				// else the cell is in the cut corner, to be a tile of the new
+				// hexagon: its water height is the default
 			}
 		}
 		for (sint16 iy = 0; iy<=old_size.y; iy++) {
@@ -1816,10 +1848,15 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 				// nothing there.
 				uint32 nr  = (ix + iy*(uint32)(old_size.x+1)) * 2;
 				uint32 nnr = (ix + iy*(uint32)(new_size.x+1)) * 2;
-				new_grid_hgts[nnr    ] = grid_hgts[nr    ];
-				new_grid_hgts[nnr + 1] = grid_hgts[nr + 1];
-				new_natural_grid_hgts[nnr    ] = natural_grid_hgts[nr    ];
-				new_natural_grid_hgts[nnr + 1] = natural_grid_hgts[nr + 1];
+				const koord tile(ix - 1, iy - 1);
+				if(  keeps_slot(tile, hex_corner_t::E)  ) {
+					new_grid_hgts[nnr    ] = grid_hgts[nr    ];
+					new_natural_grid_hgts[nnr    ] = natural_grid_hgts[nr    ];
+				}
+				if(  keeps_slot(tile, hex_corner_t::SE)  ) {
+					new_grid_hgts[nnr + 1] = grid_hgts[nr + 1];
+					new_natural_grid_hgts[nnr + 1] = natural_grid_hgts[nr + 1];
+				}
 			}
 		}
 		max_display_progress = 16 + sets->get_city_count()*2 + cities.get_count()*4;
@@ -1890,18 +1927,22 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 			init_perlin_map(cache_w, cache_h);
 		}
 		if (  old_size.x > 0  &&  old_size.y > 0  ) {
-			// HEX-PORT: iterate canonical tiles in the new region
-			// only.  The copy loop above preserved both E+SE slots
-			// for canonical tiles with q < old_W AND r < old_H;
-			// anything outside that rectangle needs regenerating,
-			// including the south-phantom r = new_H row.
+			// HEX-PORT: generate the canonical slots that the copy loop
+			// above did not keep, those the new hexagon reads that are not
+			// vertices of the old one, and the south-phantom row.
 			const koord rot_size(old_size.x, old_size.y);
 			for (sint16 r = -1; r <= new_size.y; r++) {
 				for (sint16 q = -1; q < new_size.x; q++) {
-					if (q < old_size.x && r < old_size.y) {
-						continue; // preserved by the copy loop
+					if (!new_shape.slot_near_map(q, r)) {
+						continue; // inside a cut corner, nothing reads it
 					}
-					set_vertex_heights_from_perlin(koord(q, r), rot_size);
+					const koord tile(q, r);
+					if (!keeps_slot(tile, hex_corner_t::E)) {
+						set_vertex_height_from_perlin(tile, hex_corner_t::E, rot_size);
+					}
+					if (!keeps_slot(tile, hex_corner_t::SE)) {
+						set_vertex_height_from_perlin(tile, hex_corner_t::SE, rot_size);
+					}
 				}
 				ls.set_progress( ((r + 1) * 16) / (new_size.y + 2) );
 			}
@@ -1934,33 +1975,34 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 			raise_vertex_to(q, r, c, h);
 			lower_vertex_to(q, r, c, h);
 		};
-		// South boundary corners: SW, SE.
-		for (sint32 i = 0; i < old_size.x; i++) {
-			grund_t *gr = lookup_kartenboden_nocheck(i, old_size.y - 1);
-			if (gr->is_water()) continue;
-			clamp_corner(gr, i, old_size.y - 1, hex_corner_t::SW);
-			clamp_corner(gr, i, old_size.y - 1, hex_corner_t::SE);
-		}
-		// East boundary corners: NE, E, SE.  The SE-corner old tile
-		// is already covered by both loops.
-		for (sint32 i = 0; i < old_size.y; i++) {
-			grund_t *gr = lookup_kartenboden_nocheck(old_size.x - 1, i);
-			if (gr->is_water()) continue;
-			clamp_corner(gr, old_size.x - 1, i, hex_corner_t::NE);
-			clamp_corner(gr, old_size.x - 1, i, hex_corner_t::E);
-			clamp_corner(gr, old_size.x - 1, i, hex_corner_t::SE);
+		// The old tiles with a new neighbour are those along the far sides of
+		// the old hexagon: its last row and column and its far cut.  The
+		// corners next to neighbour d of a tile are d and d + 1, so the
+		// south side has SW, SE (and W), the east side NE, E, SE.
+		for (sint16 r = 0; r < old_size.y; r++) {
+			for (sint16 q = (sint16)old_shape.get_far_q_begin(r, 1); q < old_shape.get_q_end(r); q++) {
+				grund_t *gr = lookup_kartenboden_nocheck(q, r);
+				if (gr->is_water()) continue;
+				for (uint8 d = 0; d < lengthof(koord::neighbours); d++) {
+					const koord n = koord(q, r) + koord::neighbours[d];
+					if (new_shape.contains(n)  &&  !old_shape.contains(n)) {
+						clamp_corner(gr, q, r, (hex_corner_t::type)d);
+						clamp_corner(gr, q, r, (hex_corner_t::type)((d + 1) % hex_corner_t::count));
+					}
+				}
+			}
 		}
 	}
 
 	// smooth the new part, reassign slopes on new part
-	cleanup_karte( old_size.x, old_size.y );
+	cleanup_karte( old_shape );
 	if (  new_world  ) {
 		ls.set_progress(10);
 	}
 
 	// update height bounds
 	for(  sint16 iy = 0;  iy < new_size.y;  iy++  ) {
-		for(  sint16 ix = (iy >= old_size.y) ? 0 : max( old_size.x, 0 );  ix < new_size.x;  ix++  ) {
+		for(  sint16 ix = (sint16)new_shape.get_added_q_begin(old_shape, iy);  ix < new_size.x;  ix++  ) {
 			if(  !is_within_limits(ix, iy)  ) {
 				continue;
 			}
@@ -1997,6 +2039,14 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 		calc_climate_map_region( 0, 0, new_size.x, new_size.y );
 	}
 	else {
+		// The new tiles within the old rectangle, those of the old far cut
+		// corner, first: the corner of the rectangle that the new tiles
+		// beyond it do not reach.  Its tiles hold no climate yet, those of
+		// the old hexagon in the rectangle keep theirs.
+		const sint16 t = (sint16)old_shape.get_cut_lo();
+		if( t > 0 ) {
+			calc_climate_map_region( old_size.x - t, old_size.y - t, old_size.x, old_size.y, &old_shape );
+		}
 		calc_climate_map_region( 0, old_size.y, old_size.x, new_size.y );
 		calc_climate_map_region( old_size.x, 0, new_size.x, new_size.y );
 	}
@@ -2005,7 +2055,7 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 		ls.set_progress(14);
 	}
 
-	create_beaches( old_size.x, old_size.y );
+	create_beaches( old_shape );
 	if (  new_world  ) {
 		ls.set_progress(15);
 	}
@@ -2016,33 +2066,34 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 		ls.set_progress(16);
 	}
 	else {
-		// and calculate transitions in a 1 tile larger area
+		// and calculate transitions in a 1 tile larger area: the new tiles and
+		// the old ones within 20 of them, the band along the far sides of the old map
 		for(  sint16 iy = 0;  iy < new_size.y;  iy++  ) {
-			for(  sint16 ix = (iy >= old_size.y - 20) ? 0 : max( old_size.x - 20, 0 );  ix < new_size.x;  ix++  ) {
+			const sint16 x_begin = (sint16)max( old_shape.get_far_q_begin( iy, 20 ), (sint32)get_row_begin( iy ) );
+			for(  sint16 ix = x_begin;  ix < get_row_end( iy );  ix++  ) {
 				recalc_transitions( koord( ix, iy ) );
 			}
 		}
 	}
 
 	// now recalc the images of the old map near the seam ...
-	for(  sint16 y = 0;  y < old_size.y - 20;  y++  ) {
-		for(  sint16 x = max( old_size.x - 20, 0 );  x < old_size.x;  x++  ) {
+	for(  sint16 y = 0;  y < old_size.y;  y++  ) {
+		for(  sint16 x = (sint16)old_shape.get_far_q_begin( y, 20 );  x < old_shape.get_q_end( y );  x++  ) {
 			lookup_kartenboden_nocheck(x,y)->calc_image();
 		}
 	}
 
-	for(  sint16 y = max( old_size.y - 20, 0 );  y < old_size.y;  y++) {
-		for(  sint16 x = 0;  x < old_size.x;  x++  ) {
-			lookup_kartenboden_nocheck(x,y)->calc_image();
-		}
-	}
-
-	distribute_cities( sets->get_city_count(), sets->get_mean_citizen_count(), old_size.x, old_size.y );
+	distribute_cities( sets->get_city_count(), sets->get_mean_citizen_count(), old_shape );
 
 	if( new_world ) {
 		distribute_trees_region( 0, 0, new_size.x, new_size.y );
 	}
 	else {
+		// the tiles of the old far cut corner first, as with the climates
+		const sint16 t = (sint16)old_shape.get_cut_lo();
+		if( t > 0 ) {
+			distribute_trees_region( old_size.x - t, old_size.y - t, old_size.x, old_size.y, &old_shape );
+		}
 		distribute_trees_region( 0, old_size.y, old_size.x, new_size.y );
 		distribute_trees_region( old_size.x, 0, new_size.x, new_size.y );
 	}
@@ -2055,49 +2106,29 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
 		settings.set_origin_y( settings.get_origin_y() - new_size.y + old_size.y );
 	}
 
-	distribute_groundobjs(old_size.x, old_size.y);
-	distribute_movingobjs(old_size.x, old_size.y);
+	distribute_groundobjs(old_shape);
+	distribute_movingobjs(old_shape);
 
 	// hausbauer_t::new_world(); <- this would reinit monuments! do not do this!
 	factory_builder_t::new_world();
 	set_schedule_counter();
 
 	// Refresh the haltlist for the affected tiles / stations.
-	// It is enough to check the tile just at the border ...
+	// It is enough to check the tiles within the coverage of the border:
+	// the stops of the old tiles there cover the new tiles next to them.
 	uint16 const cov = settings.get_station_coverage();
-	if(  old_size.y < new_size.y  ) {
+	if(  !new_world  ) {
 		for(  sint16 y=0;  y<old_size.y;  y++  ) {
-			for(  sint16 x=max(0,old_size.x-cov);  x<old_size.x;  x++  ) {
+			for(  sint16 x=(sint16)old_shape.get_far_q_begin( y, cov );  x<old_shape.get_q_end( y );  x++  ) {
 				const planquadrat_t* pl = access_nocheck(x,y);
 				for(  uint8 i=0;  i < pl->get_boden_count();  i++  ) {
 					// update halt
 					halthandle_t h = pl->get_boden_bei(i)->get_halt();
 					if(  h.is_bound()  ) {
-						for(  sint16 xp=max(0,x-cov);  xp<min(new_size.x,x+cov+1);  xp++  ) {
-							for(  sint16 yp=y;  yp<min(new_size.y,y+cov+1);  yp++  ) {
-								if(  koord_distance(koord(x,y), koord(xp,yp)) <= cov  ) {
-									access_nocheck(xp,yp)->add_to_haltlist(h);
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	if(  old_size.x < new_size.x  ) {
-		for(  sint16 y=max(0,old_size.y-cov);  y<old_size.y;  y++  ) {
-			for(  sint16 x=0;  x<old_size.x;  x++  ) {
-				const planquadrat_t* pl = access_nocheck(x,y);
-				for(  uint8 i=0;  i < pl->get_boden_count();  i++  ) {
-					// update halt
-					halthandle_t h = pl->get_boden_bei(i)->get_halt();
-					if(  h.is_bound()  ) {
-						for(  sint16 xp=x;  xp<min(new_size.x,x+cov+1);  xp++  ) {
-							for(  sint16 yp=max(0,y-cov);  yp<min(new_size.y,y+cov+1);  yp++  ) {
-								if(  koord_distance(koord(x,y), koord(xp,yp)) <= cov  ) {
-									access_nocheck(xp,yp)->add_to_haltlist(h);
-								}
+						for(  koord d : hex_disc( cov )  ) {
+							const koord k = koord(x,y) + d;
+							if(  is_within_limits(k)  &&  !old_shape.contains(k)  ) {
+								access_nocheck(k)->add_to_haltlist(h);
 							}
 						}
 					}
@@ -3612,14 +3643,15 @@ void karte_t::update_history()
 }
 
 
-slist_tpl<koord> *karte_t::find_free_discs(sint16 radius, climate_bits cl, sint16 old_x, sint16 old_y) const
+slist_tpl<koord> *karte_t::find_free_discs(sint16 radius, climate_bits cl, const map_shape_t &old_shape) const
 {
 	slist_tpl<koord> * list = new slist_tpl<koord>();
 	koord centre;
 
 DBG_DEBUG("karte_t::find_free_discs()","for radius %i in map (%i,%i)",radius,get_size().x,get_size().y );
 	for(centre.x=radius; centre.x<get_size().x-radius; centre.x++) {
-		const sint16 y_start = centre.x<old_x ? old_y : 0;
+		// the column's tiles beyond the old hexagon
+		const sint16 y_start = (sint16)get_map_shape().get_added_r_begin(old_shape, centre.x);
 		for(centre.y=max(radius, y_start); centre.y<get_size().y-radius; centre.y++) {
 			if(disc_is_free(centre, radius, cl)) {
 				list->insert(centre);
@@ -5213,13 +5245,26 @@ void karte_t::calc_humidity_map_region( sint16 , sint16 , sint16 xbottom, sint16
 
 
 // distributes climates in a rectangle
-void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom  )
+void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip  )
 {
 
 	if( xtop == 0 && ytop == 0 ) {
 		climate_map.clear();
 	}
 	climate_map.resize( xbottom, ybottom, 0x7F );
+
+	if( skip ) {
+		// the rectangle holds tiles of an old map, which keep their climates;
+		// all the others are to get one, those of its cut corner among them,
+		// which held no climate of the old map
+		for(  sint16 y = ytop;  y < ybottom;  y++  ) {
+			for(  sint16 x = xtop;  x < xbottom;  x++  ) {
+				if(  !skip->contains(x, y)  ) {
+					climate_map.at( x, y ) = 0x7F;
+				}
+			}
+		}
+	}
 
 	switch(settings.get_climate_generator()) {
 
@@ -5309,7 +5354,7 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 
 				for(uint16 y=ytop; y<ybottom; y++) {
 					for(uint16 x=max(0,xtop-1); x<xbottom; x++) {
-						if(climate_smooth_cpy[x+y*xbottom] != water_climate ) {
+						if(climate_smooth_cpy[x+y*xbottom] != water_climate  &&  !(skip  &&  skip->contains(x, y)) ) {
 							sint32 neighbour_climate[lengthof(koord::neighbours)];
 							for(size_t i=0; i<lengthof(koord::neighbours); i++) {
 								sint32 this_climate;
@@ -5351,6 +5396,9 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 			// for the first passes, we only work on the grid, which is much faster
 			for(  sint16 y = ytop;  y < ybottom;  y++  ) {
 				for(  sint16 x = xtop;  x < xbottom;  x++  ) {
+					if(  skip  &&  skip->contains(x, y)  ) {
+						continue;
+					}
 					sint8 hgt = min_hgt_nocheck(koord(x, y));
 					if( hgt < groundwater ) {
 						climate_map.at( x, y ) = water_climate;
@@ -5419,6 +5467,9 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 			 */
 			for(  sint16 y = ytop;  y < ybottom;  y++  ) {
 				for(  sint16 x = xtop;  x < xbottom;  x++  ) {
+					if(  skip  &&  skip->contains(x, y)  ) {
+						continue;
+					}
 					sint8 hgt = min_hgt_nocheck(koord(x, y));
 					if( hgt < groundwater ) {
 						climate_map.at( x, y ) = water_climate;
@@ -5433,15 +5484,18 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 
 	}
 
-	assign_climate_map_region( xtop, ytop, xbottom, ybottom );
+	assign_climate_map_region( xtop, ytop, xbottom, ybottom, skip );
 }
 
 
 
-void karte_t::assign_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom  )
+void karte_t::assign_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom, sint16 ybottom, const map_shape_t *skip  )
 {
 	for(  sint16 y = ytop;  y < ybottom;  y++  ) {
 		for(  sint16 x = xtop;  x < xbottom;  x++  ) {
+			if(  skip  &&  skip->contains(x, y)  ) {
+				continue;
+			}
 			if(  planquadrat_t *pl = access( x, y )  ) {
 				if(  pl->get_kartenboden()->is_water()  ) {
 					// full water tile

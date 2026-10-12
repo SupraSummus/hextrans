@@ -64,6 +64,70 @@ struct map_shape_t
 		return q < get_size_q() ? q : get_size_q();
 	}
 
+	/// The same per column: the on-map tiles of column @p q are get_r_begin(q) <= r < get_r_end(q).
+	sint32 get_r_begin(sint32 q) const
+	{
+		const sint32 r = get_cut_lo() - q;
+		return r > 0 ? r : 0;
+	}
+
+	sint32 get_r_end(sint32 q) const
+	{
+		const sint32 r = get_cut_hi() - q + 1;
+		return r < get_size_r() ? r : get_size_r();
+	}
+
+	/**
+	 * The shape of no map, before the first one is made: contains nothing,
+	 * extents 0 x 0.  What karte_t::enlarge_map grows from when it creates
+	 * the world.
+	 */
+	static map_shape_t none() { return map_shape_t(0, 0, 1); }
+
+	/**
+	 * Growing w and h with d fixed keeps the old hexagon at its coordinates:
+	 * cut_lo stays, cut_hi only grows.  So the old tiles lie on the left
+	 * of each row and of each column and the added ones, the tiles of this
+	 * shape that @p old does not have, to the right: in row @p r they are
+	 * get_added_q_begin(old, r) <= q < get_q_end(r), in column @p q
+	 * get_added_r_begin(old, q) <= r < get_r_end(q).  @p old has the same d,
+	 * no larger w and h, or is none().  Rows and columns beyond old are
+	 * added whole.
+	 */
+	sint32 get_added_q_begin(const map_shape_t &old, sint32 r) const
+	{
+		return r < old.get_size_r() ? old.get_q_end(r) : get_q_begin(r);
+	}
+
+	sint32 get_added_r_begin(const map_shape_t &old, sint32 q) const
+	{
+		return q < old.get_size_q() ? old.get_r_end(q) : get_r_begin(q);
+	}
+
+	/**
+	 * The tiles within @p band tiles of the three far sides, the ones that
+	 * move when w and h grow (the q = size_q - 1 side, the r = size_r - 1
+	 * side and the far cut), are those with
+	 *
+	 *     q > size_q - 1 - band  ||  r > size_r - 1 - band  ||  q + r > cut_hi - band
+	 *
+	 * Each term only gets truer with q, so in row @p r they are
+	 * get_far_q_begin(r, band) <= q, up to the end of the row.  What an
+	 * enlargement redoes near the seam, its tiles and the old ones next to
+	 * them, is this band of the old shape.  Rows beyond the map are in it
+	 * whole.
+	 */
+	sint32 get_far_q_begin(sint32 r, sint32 band) const
+	{
+		if(  r > get_size_r() - 1 - band  ) {
+			return get_q_begin(r);
+		}
+		const sint32 from_q = get_size_q() - band;
+		const sint32 from_cut = get_cut_hi() - band + 1 - r;
+		const sint32 q = from_q < from_cut ? from_q : from_cut;
+		return q > get_q_begin(r) ? q : get_q_begin(r);
+	}
+
 	/**
 	 * Hex steps from @p k to the hexagon's boundary: 0 on an edge tile,
 	 * negative off the map.  The minimum over the six half-planes, each

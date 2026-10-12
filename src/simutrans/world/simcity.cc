@@ -4232,7 +4232,7 @@ void stadt_t::build()
 
 
 // find suitable places for cities
-vector_tpl<koord>* stadt_t::random_place(const sint32 count, sint16 old_x, sint16 old_y)
+vector_tpl<koord>* stadt_t::random_place(const sint32 count, const map_shape_t &old_shape)
 {
 	int cl = 0;
 	for (int i = 0; i < MAX_CLIMATES; i++) {
@@ -4242,7 +4242,7 @@ vector_tpl<koord>* stadt_t::random_place(const sint32 count, sint16 old_x, sint1
 	}
 	DBG_DEBUG("karte_t::init()", "get random places in climates %x", cl);
 	// search at least places with two free rings of tiles around them
-	slist_tpl<koord>* list = welt->find_free_discs( 2, (climate_bits)cl, old_x, old_y);
+	slist_tpl<koord>* list = welt->find_free_discs( 2, (climate_bits)cl, old_shape);
 	DBG_DEBUG("karte_t::init()", "found %i places", list->get_count());
 	vector_tpl<koord>* result = new vector_tpl<koord>(count);
 
