@@ -766,6 +766,13 @@ neighbours are at screen distance `2u` while NE/SW are at `u·√10`
 ≈ `3.16u`, so NE/SW vehicles visibly drift off-tile mid-hop on
 straight segments.  Rebase the per-edge offsets on the lattice; every
 edge crosses a tile in the same number of steps.
+The screen path through a bend is still the square-era one:
+`vehicle_base_t::get_display_steps` stretches the chord lengths
+(222 steps for a 60 degree turn, 128 for a 120 degree one)
+onto the old 181 and 256,
+and scales a step with `dx` or `dy` 0 by the old 724/1024;
+rebase it on the chord between the two edge middles together with the
+per-edge offsets.
 
 Two more per-direction tables still follow the old square model.
 `driveleft_base_offsets` and `overtaking_base_offsets` (`vehicle_base.cc`)
@@ -773,26 +780,6 @@ are keyed by `get_dir()`,
 so SE/NW traffic gets the square-diagonal lane rows
 instead of the rows the old east/west edges used.
 Next move: key them by ribi, the way `set_dxdy` does.
-
-**Bend tile length.**
-A vehicle crosses a tile on the chord from the middle of its entry edge
-to the middle of its exit edge.
-On the square grid every bend was a 90 degree corner,
-and `diagonal_vehicle_steps_per_tile` (181 of 256) stands for its length.
-A hex bend is one of two:
-a 60 degree change of heading (edges 120 degrees apart, 0.87 of a straight
-run, about 221 steps) or a 120 degree one (edges 60 degrees apart, 0.5,
-128 steps).
-`calc_chord_steps_next` instead tells bends from straight runs by the chord
-from the tile before to the tile after:
-the 60 degree bends are off-axis and take the 181 steps,
-the 120 degree bends have an on-axis chord and take the full 256, like
-straight travel (a bus crosses a SE-SW bend tile in 42 script steps, a
-SE-S bend tile in 28).
-Next move: derive `steps_next` from the turn between the two edge steps
-(256, 221, 128), retire `diagonal_vehicle_steps_per_tile` and the pakset
-`diagonal_multiplier` together with `is_cutting_corner()`, and add bends of
-both kinds to `test_vehicle_tile_length_all_hex_directions`.
 
 **Chord direction of vehicles.**
 `vehicle_base_t::direction` holds `calc_chord_direction` of the tiles
