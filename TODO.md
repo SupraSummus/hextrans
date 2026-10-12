@@ -1102,6 +1102,23 @@ Next move: store the real facing in `gebaeude_t` with the next save-format bump,
 read it first in `get_facing_ribi`,
 then drop the way-derived path and the fallback.
 
+*Traffic light removal follows its phase.*
+A traffic light's `dir` is the axis that is green at the moment:
+`roadsign_t::sync_step` rewrites it with every phase.
+`grund_t::remove_everything_from_way` deletes a sign
+when its `dir` holds a direction that goes,
+so taking away the legs of a junction keeps the light
+if the axis that is green is the one that stays.
+Whether `test_sign_build_trafficlight` passes then depends on the game time
+at which it runs,
+which the script time of the tests before it moves.
+`test_city_building_faces_road` and `test_city_road_fills_valley_tile`
+stand after the sign tests in `tests/all_tests.nut`
+to leave that time as it was.
+Next move: delete a traffic light when the ribi that remains is not a threeway,
+which is what `place_sign_intern` requires to build one,
+and move the two city tests back beside the other city tests.
+
 *Crossroads collision FSM.*
 `vehicle_base_t::no_cars_blocking` (`vehicle_base.cc:491`)
 and the related branches in `road_vehicle.cc::can_enter_tile`
@@ -1199,13 +1216,6 @@ A read-only audit (2026-10) of `tool/`, `builder/`, `vehicle/`, `obj/`,
 found the sites below still reasoning in four directions or axial squares.
 Each paragraph is one PR-sized fix group.
 
-`stadt_t::generate_private_cars` under `DESTINATION_CITYCARS`
-(off by default) seeds cars from an axial 3×3 square
-and admits only the square combos `ribi_t::northsouth` / `eastwest`.
-Next move: loop over `hex_disc(1)`, accept any
-`ribi_t::is_straight` non-single road ribi,
-and build it once with the macro defined.
-
 Route heuristics.
 `get_next_dirs` in `route.cc` orders the six successors of an A* node
 by their dot product with the target vector in axial coordinates,
@@ -1246,19 +1256,18 @@ that puts a stop next to a factory,
 name the six hex directions in `create_name`,
 and take the footprint from `get_size(rotate)`.
 
-City growth geometry.
-`stadt_t::evaluate_size_res_com_ind` scores a 5×5 axial rhombus
-and its street update uses an 8-neighbour table that paves `(1,1)`;
-`stadt_t::build_road`'s corner check ignores the E and W corners;
-`stadt_t::orient_city_building` only looks at S, SE, N and NW;
-`stadt_t::new_month` spawns city cars in an axial square;
-`stadt_t::generate_private_cars` is dead.
-Next move: `koord_distance <= 2` for the scoring area,
-`koord::neighbours` for the street update, six corners in `build_road`,
-six neighbours plus `ribi_to_layout` in `orient_city_building`,
-`hex_disc(3)` for car spawning, and delete `generate_private_cars`.
-`tools/city_anisotropy.py --series` before and after
-shows whether the footprint bias moves (see "City growth anisotropy").
+Multi-tile city building orientation.
+The multi-tile branch of `stadt_t::orient_city_building`
+counts the roads on the ring of its axial footprint rectangle,
+corners included.
+Two of the four corner tiles, `(size.x, -1)` and `(-1, size.y)`,
+touch the footprint on its NE and SW side;
+the other two, `(-1, -1)` and `(size.x, size.y)`, are two steps away,
+yet a road on one of them still votes for a side.
+Next move: count only the tiles with
+`koord_distance_to_rect(p, k, size) == 1`,
+and test it with a 3×2 city building in `tests/test-pak/`
+and a `tool_build_house` `1A` case with a road on a far corner.
 
 Back-wall redraw sets.
 After a height or building change, the tiles whose back walls must be
