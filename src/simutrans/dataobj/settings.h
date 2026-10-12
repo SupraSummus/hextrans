@@ -58,9 +58,11 @@ public:
 private:
 	// The map is the W x H x D hexagon of documentation/map-shape.md:
 	// size_x = W, size_y = H, size_d = D.  D = 1 is the plain W x H rhombus.
-	sint32 size_x     = 256;
-	sint32 size_y     = 256;
-	sint32 size_d     =   1;
+	// New worlds are the regular 150 x 150 x 150 hexagon, 67051 tiles,
+	// about the 256 x 256 of upstream.
+	sint32 size_x     = 150;
+	sint32 size_y     = 150;
+	sint32 size_d     = 150;
 	sint32 map_number =  33;
 
 	sint32 tourist_attractions =  16;

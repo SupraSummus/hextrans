@@ -341,6 +341,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 	// to keep the reset cheap.
 	settings_t sets = env_t::default_settings;
 	sets.set_size(FUZZ_MAP_SIZE, FUZZ_MAP_SIZE);
+	sets.set_size_d(1);
 	sets.set_city_count(0);
 	sets.set_factory_count(0);
 	sets.set_tourist_attractions(0);
