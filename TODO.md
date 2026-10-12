@@ -539,6 +539,10 @@ which the unturned run does not:
 the terraforming under `tool_setslope_t` is not mirror symmetric;
 next move is a scenario test that sets and restores the same ramp
 on the N and the S edge and compares the neighbours.
+`test_city_road_fills_valley_tile` does the same with its raised terrain:
+it passes turned but breaks the money check of `test_halt_make_public_single`
+after it;
+the same scenario test covers its cleanup.
 `is_within_grid_limits` (14 more sites) is the square grid-point range;
 `tool_set_climate_t` used it as the neighbour-tile test
 and read off-map heights at the far edges, which the rotated run exposed;
