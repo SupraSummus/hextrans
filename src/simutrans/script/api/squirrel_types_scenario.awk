@@ -408,6 +408,7 @@ BEGIN {
 	export_types_scenario["world::remove_player"] = "bool(player_x)"
 	export_types_scenario["world::create_player"] = "bool(integer, integer)"
 	export_types_scenario["world::generate_goods"] = "integer(coord, coord, good_desc_x, integer)"
+	export_types_scenario["world::generate_build_script"] = "string(player_x, coord3d, coord3d)"
 	export_types_scenario["world::get_player"] = "player_x(integer)"
 	export_types_scenario["world::get_time"] = "time_ticks_x()"
 	export_types_scenario["world::get_citizens"] = "array<integer>()"

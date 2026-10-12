@@ -6004,6 +6004,40 @@ const char *tool_build_roadsign_t::check_pos_intern(player_t *player, koord3d po
 }
 
 
+ribi_t::ribi tool_build_roadsign_t::first_sign_dir(ribi_t::ribi way)
+{
+	for (uint8 i = 0; i < 6; i++) {
+		if ((way & ribi_t::nesw[i]) != 0) {
+			return ribi_t::nesw[i];
+		}
+	}
+	return way;
+}
+
+
+ribi_t::ribi tool_build_roadsign_t::next_signal_dir(ribi_t::ribi way, ribi_t::ribi cur)
+{
+	uint8 i = 0;
+	if (!ribi_t::is_twoway(cur)) {
+		// inverse first dir
+		for (; i < 6; i++) {
+			if ((way & ribi_t::nesw[i]) == cur) {
+				i++;
+				break;
+			}
+		}
+	}
+	// find the second dir ...
+	for (; i < 6; i++) {
+		if ((way & ribi_t::nesw[i]) != 0) {
+			return ribi_t::nesw[i];
+		}
+	}
+	// if nothing found, we have two ways again ...
+	return way;
+}
+
+
 const char *tool_build_roadsign_t::place_sign_intern(player_t *player, grund_t *gr)
 {
 	static const char *error = "Hier kann kein\nSignal aufge-\nstellt werden!\n";
@@ -6051,29 +6085,11 @@ const char *tool_build_roadsign_t::place_sign_intern(player_t *player, grund_t *
 
 		if (rs->get_desc() == desc) {
 			// signals have three options: cycle two-way → first dir →
-			// second dir → two-way.  Scans all 6 hex ribi directions
-			// (ribi_t::nesw); a 4-direction bound here left the N and NE
+			// second dir → two-way.  next_signal_dir scans all 6 hex ribi
+			// directions; a 4-direction bound there left the N and NE
 			// single-bit dirs unreachable, collapsing the cycle to
 			// two-way ↔ one-way on the N-S and SW-NE axes.
-			ribi_t::ribi sig_dir = rs->get_dir();
-			uint8 i = 0;
-			if (!ribi_t::is_twoway(sig_dir)) {
-				// inverse first dir
-				for (; i < 6; i++) {
-					if ((dir & ribi_t::nesw[i]) == sig_dir) {
-						i++;
-						break;
-					}
-				}
-			}
-			// find the second dir ...
-			for (; i < 6; i++) {
-				if ((dir & ribi_t::nesw[i]) != 0) {
-					dir = ribi_t::nesw[i];
-				}
-			}
-			// if nothing found, we have two ways again ...
-			rs->set_dir(dir);
+			rs->set_dir(next_signal_dir(dir, rs->get_dir()));
 		}
 
 		// different desc -> replace signal
@@ -6104,12 +6120,7 @@ const char *tool_build_roadsign_t::place_sign_intern(player_t *player, grund_t *
 			// add a new roadsign at position zero!
 			// if single way, we need to reduce the allowed ribi to one
 			if (desc->is_single_way() || desc->is_choose_sign()) {
-				for(  int i=0;  i<6;  i++  ) {
-					if ((dir & ribi_t::nesw[i]) != 0) {
-						dir = ribi_t::nesw[i];
-						break;
-					}
-				}
+				dir = first_sign_dir(dir);
 			}
 			DBG_MESSAGE("tool_roadsign()", "new roadsign, dir is %i", dir);
 			rs = new roadsign_t(player, gr->get_pos(), dir, desc);

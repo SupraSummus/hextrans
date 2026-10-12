@@ -22,6 +22,9 @@
 #include "../../builder/goods_manager.h"
 #include "../../simhalt.h"
 #include "../../simfab.h"
+#include "../../tool/simtool.h"
+#include "../../utils/cbuffer.h"
+#include "../../utils/plainstring.h"
 
 
 using namespace script_api;
@@ -85,6 +88,17 @@ bool world_create_player(karte_t* welt, uint8 nr, uint8 type)
 		welt->call_change_player_tool(karte_t::toggle_player_active, nr, 1, true /*scripted*/);
 	}
 	return true;
+}
+
+
+plainstring world_generate_build_script(karte_t*, player_t* pl, koord3d start, koord3d end)
+{
+	cbuffer_t script;
+	koord area;
+	if (pl == NULL || tool_generate_script_t::build_script(pl, start, end, script, area) != NULL || script.len() == 0) {
+		return plainstring();
+	}
+	return plainstring(script.get_str());
 }
 
 
@@ -321,6 +335,22 @@ void export_world(HSQUIRRELVM vm, bool scenario)
 		 * @ingroup scen_only
 		 */
 		STATIC register_method(vm, &world_generate_goods, "generate_goods", true);
+
+		/**
+		 * Generates the script that the "generate script" tool saves for the area spanned by
+		 * @p start and @p end.
+		 * It rebuilds the ground, ways, way objects, bridges, stations, depots, signs and houses
+		 * of the area for the build toolkit (script/hm_toolkit_v3.nut).
+		 * The positions in the script are relative to the corner of the area with the smallest
+		 * x and y, at the height of the ground at @p start.
+		 *
+		 * @param pl player whose buildings are exported
+		 * @param start first corner of the area
+		 * @param end opposite corner of the area
+		 * @returns text of the script, or null if there is nothing to export or the area is off the map
+		 * @ingroup scen_only
+		 */
+		STATIC register_method(vm, &world_generate_build_script, "generate_build_script", true);
 	}
 
 	/**

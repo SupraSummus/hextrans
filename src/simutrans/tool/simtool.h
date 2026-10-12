@@ -533,6 +533,16 @@ public:
 	void set_values(player_t *player, uint8 spacing, bool remove, bool replace);
 	void get_values(player_t *player, uint8 &spacing, bool &remove, bool &replace);
 
+	/// Direction a one-way or choose sign gets on its first click on a way
+	/// with ribi @p way: the first edge in ribi_t::nesw order.  Another click
+	/// flips it to the other edge.
+	static ribi_t::ribi first_sign_dir(ribi_t::ribi way);
+
+	/// Direction of a signal with direction @p cur after one more click on a
+	/// way with ribi @p way.  A signal starts as @p way (both directions) and
+	/// then cycles through the first edge, the second edge and back.
+	static ribi_t::ribi next_signal_dir(ribi_t::ribi way, ribi_t::ribi cur);
+
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	void draw_after(scr_coord, bool dirty) const OVERRIDE;
 	void rdwr_custom_data(memory_rw_t*) OVERRIDE;
@@ -759,6 +769,12 @@ public:
 	bool is_init_keeps_game_state() const OVERRIDE { return true; }
 	bool is_work_keeps_game_state() const OVERRIDE { return true; }
 	bool save_script(const char *fullpath, const char *command, koord area) const;
+
+	/// Writes the rebuild script of the area spanned by @p start and @p end
+	/// into @p script and its size into @p area.  @p script stays empty if
+	/// there is nothing to export.
+	/// @returns an error message, or NULL
+	static char const* build_script(player_t*, koord3d const& start, koord3d const& end, cbuffer_t& script, koord& area);
 private:
 	char const* do_work(player_t*, koord3d const&, koord3d const&) OVERRIDE;
 	void mark_tiles(player_t*, koord3d const&, koord3d const&) OVERRIDE;

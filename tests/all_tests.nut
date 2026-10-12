@@ -29,6 +29,7 @@ include("tests/test_powerline")
 include("tests/test_reservation")
 include("tests/test_scenario")
 include("tests/test_schedule_route")
+include("tests/test_script_generator")
 include("tests/test_script_sandbox")
 include("tests/test_sign")
 include("tests/test_slope")
@@ -192,6 +193,9 @@ all_tests <- [
 	test_reservation_clear_road,
 	test_reservation_clear_rail,
 	test_scenario_rules_allow_forbid_tool,
+	test_script_generator_northeast_southwest_road,
+	test_script_generator_oneway_sign_direction,
+	test_script_generator_signal_direction,
 	test_script_sandbox_no_shell_exec,
 	test_scenario_rules_allow_forbid_way_tool,
 	test_scenario_rules_allow_forbid_way_tool_rect,
