@@ -3606,14 +3606,10 @@ DBG_MESSAGE("way_builder_t::build", "took %u ms", dr_time() - ms );
 
 uint32 way_builder_t::calc_distance( const koord3d &pos, const koord3d &mini, const koord3d &maxi )
 {
-	uint32 dist = 0;
-	if     ( pos.x < mini.x ) { dist += mini.x - pos.x; }
-	else if( pos.x > maxi.x ) { dist += pos.x - maxi.x; }
-
-	if     ( pos.y < mini.y ) { dist += mini.y - pos.y; }
-	else if( pos.y > maxi.y ) { dist += pos.y - maxi.y; }
-
 	settings_t const& settings = welt->get_settings();
+	// hex steps to the nearest tile of the box; |dx| + |dy| of the out-of-box
+	// deltas is up to twice that along NE-SW and overestimates
+	uint32 dist = koord_distance_to_rect(pos.get_2d(), mini.get_2d(), (maxi - mini).get_2d() + koord(1, 1));
 	dist *= settings.way_count_straight;
 
 	if     ( pos.z < mini.z ) { dist += (mini.z - pos.z) * settings.way_count_slope; }
