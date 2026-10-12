@@ -15,7 +15,8 @@
 
 bool connection_info_t::operator==(const connection_info_t& other) const
 {
-	return (address.get_ip() == other.address.get_ip())  &&  ( strcmp(nickname.c_str(), other.nickname.c_str())==0 );
+	// nickname is NULL until the client has sent NWC_JOIN
+	return (address.get_ip() == other.address.get_ip())  &&  nickname == other.nickname.c_str();
 }
 
 
@@ -347,6 +348,8 @@ plainstring socket_list_t::get_all_nicks()
 	for (uint32 i = server_sockets; i < list.get_count(); i++) {
 		if (list[i]->is_active() && list[i]->socket != INVALID_SOCKET
 			&& (list[i]->state == socket_info_t::playing || list[i]->state == socket_info_t::connected)
+			// no nickname until the client has sent NWC_JOIN
+			&& list[i]->nickname != NULL
 			) {
 			if (!nicks.empty()) {
 				nicks += "\t";
