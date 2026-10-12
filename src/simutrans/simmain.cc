@@ -9,6 +9,7 @@
 #endif
 
 #include <stdio.h>
+#include <math.h>
 #include <string>
 #include <new>
 
@@ -679,8 +680,9 @@ static void ai_soak_run(karte_t *welt, uint32 quit_month, bool snapshots)
 }
 
 
-// -heightfield: the base height of every tile, "W" for a water tile, one
-// "heightfield: ROW z,z,..." line per row, for tools/heightfield_import_test.py.
+// -heightfield: the base height of every tile, "W" for a water tile, "-"
+// off the map, one "heightfield: ROW z,z,..." line per row, for
+// tools/heightfield_import_test.py.
 static void heightfield_dump(const karte_t *welt)
 {
 	for(  sint16 y = 0;  y < welt->get_size().y;  y++  ) {
@@ -688,7 +690,7 @@ static void heightfield_dump(const karte_t *welt)
 		for(  sint16 x = 0;  x < welt->get_size().x;  x++  ) {
 			const grund_t *gr = welt->lookup_kartenboden( x, y );
 			row += x > 0 ? "," : "";
-			row += gr->is_water() ? std::string( "W" ) : std::to_string( (int)gr->get_hoehe() );
+			row += !gr ? std::string( "-" ) : gr->is_water() ? std::string( "W" ) : std::to_string( (int)gr->get_hoehe() );
 		}
 		fprintf( stderr, "heightfield: %d %s\n", (int)y, row.c_str() );
 	}
@@ -1788,8 +1790,10 @@ int simu_main(int argc, char** argv)
 			sets.set_lakeheight(sets.get_groundwater());
 		}
 		// Test hook: -ai_soak SIZE [SEED] runs the computer players
-		// unattended.  It generates a SIZE x SIZE map with cities and
-		// industry from SEED (default: the map number of settings_t),
+		// unattended.  It generates a SIZE x SIZE map, or with SIZE
+		// = W,H,D the W x H x D hexagon of documentation/map-shape.md,
+		// with cities and industry from SEED (default: the map number
+		// of settings_t),
 		// adds one goods and one passenger AI (or, with -ai_script NAME,
 		// the scripted AI ai/NAME instead), and runs flat out to
 		// -until without the start-up banner (its modal loop runs the
@@ -1799,9 +1803,19 @@ int simu_main(int argc, char** argv)
 		// -ai_snapshot also takes a screenshot.
 		if(  ai_soak  ) {
 			const char *size = args.gimme_arg("-ai_soak", 1);
-			sint32 n = size ? atoi(size) : 0;
-			if(  n < 16  ) { n = 128; }
-			sets.set_size(n, n);
+			int w = 0, h = 0, d = 1;
+			if(  !size  ||  sscanf(size, "%d,%d,%d", &w, &h, &d) != 3  ) {
+				w = h = size ? atoi(size) : 0;
+				d = 1;
+				if(  w < 16  ) { w = h = 128; }
+			}
+			if(  w < 1  ||  h < 1  ||  d < 1  ) {
+				dbg->fatal("simu_main()", "-ai_soak W,H,D needs W, H, D >= 1 (got %s)", size);
+			}
+			sets.set_size(w, h);
+			sets.set_size_d(d);
+			// the densities of an n x n map, n = sqrt(tiles)
+			const sint32 n = (sint32)sqrt( (double)sets.get_map_shape().get_tile_count() );
 			sets.set_city_count(n/16);
 			sets.set_factory_count(n/8);
 			sets.set_tourist_attractions(n/32);

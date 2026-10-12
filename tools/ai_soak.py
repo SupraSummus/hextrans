@@ -5,10 +5,12 @@ Usage:
     tools/ai_soak.py                         # seeds 1 2 3 to 1933.1 on 128x128
     tools/ai_soak.py 4 5 --until 1931.1      # other seeds, shorter run
     tools/ai_soak.py --size 192 --exe build/simutrans/simutrans 7
+    tools/ai_soak.py --shape 48,40,32 --until 1931.1  # a W x H x D hexagon
 
 Each seed is one engine run (see AGENTS.md, `-ai_soak`): a generated map with
-cities and industry, one goods and one passenger AI, stepped flat out to the
-given game month.  A run passes if the engine exits cleanly and its last
+cities and industry (square, or with --shape the W x H x D hexagon of
+documentation/map-shape.md), one goods and one passenger AI, stepped flat out
+to the given game month.  A run passes if the engine exits cleanly and its last
 status line is the requested month; an assert, a fatal error or a sanitizer
 hit (all SIGABRT) or a crash fails it, and the tail of its log is printed.
 The busy phase of the AIs is the first few game years; both go bankrupt soon
@@ -64,9 +66,9 @@ def run_seed(exe, size, seed, until, timeout, env):
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     env = dict(env, XDG_DATA_HOME=str(USER_DATA / str(seed)))
     Path(env["XDG_DATA_HOME"]).mkdir(parents=True, exist_ok=True)
-    log = LOG_DIR / ("soak_%d_%d.log" % (size, seed))
+    log = LOG_DIR / ("soak_%s_%d.log" % (size.replace(",", "x"), seed))
     cmd = [str(exe), "-use_workdir", "-objects", "pak", "-nosound", "-nomidi", "-debug", "2",
-           "-ai_soak", str(size), str(seed), "-until", until]
+           "-ai_soak", size, str(seed), "-until", until]
     start = time.monotonic()
     with open(log, "w") as out:
         try:
@@ -97,6 +99,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("seeds", nargs="*", type=int, default=[1, 2, 3])
     ap.add_argument("--size", type=int, default=128, help="map size (default 128)")
+    ap.add_argument("--shape", metavar="W,H,D",
+                    help="W x H x D hexagon instead of a SIZE x SIZE map")
     ap.add_argument("--until", default="1933.1", help="YEAR.MONTH to stop at (default 1933.1)")
     ap.add_argument("--exe", help="engine binary")
     ap.add_argument("--timeout", type=int, default=900, help="seconds per seed (default 900)")
@@ -111,8 +115,11 @@ def main():
     env.setdefault("ASAN_OPTIONS", "print_stacktrace=1 abort_on_error=1 detect_leaks=0")
     env.setdefault("UBSAN_OPTIONS", "print_stacktrace=1 abort_on_error=1")
 
+    size = args.shape or str(args.size)
+    if args.shape and not re.fullmatch(r"\d+,\d+,\d+", args.shape):
+        sys.exit("--shape wants W,H,D, got %s" % args.shape)
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        futures = [pool.submit(run_seed, exe, args.size, seed, args.until, args.timeout, env)
+        futures = [pool.submit(run_seed, exe, size, seed, args.until, args.timeout, env)
                    for seed in args.seeds]
         results = []
         for future in futures:  # in seed order

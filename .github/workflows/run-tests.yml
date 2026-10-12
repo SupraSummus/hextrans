@@ -149,6 +149,14 @@ jobs:
         export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
         export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
         python3 tools/ai_soak.py
+    - name: Soak the AI players on a hexagon world
+      # The same on the 48x40x32 hexagon of documentation/map-shape.md:
+      # relief, rivers, cities, industry and both AIs on a map with cut
+      # corners, for one game year (seconds per seed).
+      run: |
+        export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
+        export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
+        python3 tools/ai_soak.py --shape 48,40,32 --until 1931.1
     - name: Run NWC protocol e2e suite
       # Black-box wire-protocol tests: spawn a headless server, send
       # one hand-rolled packet, parse the reply.  Pins NWC_AUTH_PLAYER
