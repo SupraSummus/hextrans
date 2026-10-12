@@ -177,6 +177,7 @@ all_tests <- [
 	test_halt_stop_join_hex_neighbours_only,
 	test_halt_build_explicit_layout_way_orientation,
 	test_halt_name_from_building_within_two_steps,
+	test_halt_name_from_factory,
 	test_halt_upgrade_downgrade,
 	test_halt_make_public_single,
 	test_halt_make_public_shared,

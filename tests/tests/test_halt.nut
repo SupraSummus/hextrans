@@ -1553,6 +1553,56 @@ function test_halt_name_from_building_within_two_steps()
 }
 
 
+// A new stop within the catchment of a factory is named after it
+// ("<city> <factory> yard"), one out of reach is not.
+function test_halt_name_from_factory()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local pax_halt  = building_desc_x.get_available_stations(building_desc_x.station, wt_road, good_desc_x.passenger)[0]
+	local wayremover = command_x(tool_remove_way)
+	local townhall = coord3d(3, 3, 0)
+	local mine = coord3d(10, 10, 0)
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, townhall, "0"), null)
+	ASSERT_EQUAL(build_factory(public_pl, mine, 1, 1, 1024, "Kohlegrube"), null)
+	local city_name = city_x(townhall.x, townhall.y).get_name()
+
+	// the mine's corner with the smallest q and r, wherever the build tool
+	// anchored its 3x3 footprint
+	local bx = 99, by = 99
+	foreach (t in factory_x(mine.x, mine.y).get_tile_list()) {
+		bx = min(bx, t.x)
+		by = min(by, t.y)
+	}
+
+	// stop, and the way leading away from the mine
+	local cases = [
+		[coord3d(bx - 2, by, 0), coord3d(bx - 2, by - 1, 0), true],
+		[coord3d(bx, by - 4, 0), coord3d(bx, by - 5, 0), true],
+		[coord3d(bx - 4, by - 2, 0), coord3d(bx - 4, by - 3, 0), false]
+	]
+
+	foreach (c in cases) {
+		ASSERT_EQUAL(command_x.build_way(pl, c[0], c[1], road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, c[0], pax_halt.get_name()), null)
+
+		local halt = halt_x.get_halt(c[0], pl)
+		ASSERT_EQUAL(halt.get_factory_list().len(), c[2] ? 1 : 0)
+		local name = halt.get_name()
+		ASSERT_EQUAL(name.find(city_name) == 0, true)
+		ASSERT_EQUAL(name.find("Coal mine") != null, c[2])
+
+		ASSERT_EQUAL(wayremover.work(pl, c[0], c[1], "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, mine), null)
+	clear_townhall_and_roads(public_pl, townhall.x, townhall.y)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_halt_upgrade_downgrade()
 {
 	local pl = player_x(0)
