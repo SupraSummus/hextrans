@@ -6,6 +6,7 @@
 #include "gui_building.h"
 #include "gui_image.h"
 #include "../../descriptor/building_desc.h"
+#include "../../display/hex_proj.h"
 #include "../../tpl/vector_tpl.h"
 #include "../../world/simworld.h"
 
@@ -27,24 +28,31 @@ void gui_building_t::init(const building_desc_t* d, int r)
 		return;
 	}
 
-	scr_coord_val rw4 = gfx->get_base_tile_raster_width()/4;
-	for(int i=0; i< desc->get_x(layout); i++) {
-		for(int j=0; j < desc->get_y(layout); j++) {
-			image_id id = desc->get_tile(layout,i,j)->get_background(0,0,0);
-			if (id == IMG_EMPTY) {
-				id = desc->get_tile(layout,i,j)->get_foreground(0,0);
-			}
-			if (id != IMG_EMPTY) {
-				gui_image_t *img = new gui_image_t(id, world()->get_active_player_nr());
-				img->set_pos(scr_coord( 2*(i-j)*rw4, (i+j)*rw4 ));
-				images.append(img);
-				// compute bounding box
-				scr_rect r = gfx->get_base_image_offset(id);
-				tl.clip_rightbottom(img->get_pos() + scr_coord(r.x, r.y));
-				br.clip_lefttop(img->get_pos() + scr_coord(r.x + r.w, r.y+r.h));
-			}
+	// The tiles lie where the map puts them: tile (i, j) is the axial offset
+	// (i, j) of the footprint, drawn back to front in rows of the hex lattice
+	// (display/hex_proj.h).
+	const scr_coord_val raster = gfx->get_base_tile_raster_width();
+	const sint16 size_x = desc->get_x(layout);
+	const sint16 size_y = desc->get_y(layout);
+	hex_for_each_in_rows(0, (size_x - 1) + 2 * (size_y - 1), 0, 3 * (size_x - 1), [&](koord const k) {
+		// the rows of the footprint's parallelogram only
+		if (k.y < 0  ||  k.y >= size_y) {
+			return;
 		}
-	}
+		image_id id = desc->get_tile(layout,k.x,k.y)->get_background(0,0,0);
+		if (id == IMG_EMPTY) {
+			id = desc->get_tile(layout,k.x,k.y)->get_foreground(0,0);
+		}
+		if (id != IMG_EMPTY) {
+			gui_image_t *img = new gui_image_t(id, world()->get_active_player_nr());
+			img->set_pos(scr_coord( hex_screen_dx(k.x, raster), hex_screen_dy(k.x, k.y, raster) ));
+			images.append(img);
+			// compute bounding box
+			scr_rect r = gfx->get_base_image_offset(id);
+			tl.clip_rightbottom(img->get_pos() + scr_coord(r.x, r.y));
+			br.clip_lefttop(img->get_pos() + scr_coord(r.x + r.w, r.y+r.h));
+		}
+	});
 }
 
 
