@@ -1280,16 +1280,6 @@ In `mark_tiles` also weigh a tile by the chord of its turn,
 two half-tiles for straight and 60° turns and one for a 120° turn,
 and test the spacing of signals on a route with a 120° turn.
 
-The climate smoothing in `karte_t::calc_climate_map_region` rounds down.
-On the humidity generator that turns small pockets of a climate
-into the climate below them:
-mediterran tiles go from 739 to 6 on a 256×256 map from seed 1,
-with tropic around them.
-Next move: round to nearest,
-`(sum + CLIMATE_SMOOTH_TOTAL / 2) / CLIMATE_SMOOTH_TOTAL`
-in `climate_smooth_cell`,
-and compare `tools/mapgen_metrics.py --generators humidity` before and after.
-
 Descriptor visuals.
 The bridge branch of `tool_build_way_t::mark_tiles` previews every ramp
 with the single-height slope (`wh`) and every deck one level up,
