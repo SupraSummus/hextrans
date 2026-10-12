@@ -175,29 +175,36 @@ function test_way_bridge_maintenance_repeat()
 
 //
 // A refused bridge must leave the books exactly as they were. The refusal used here is a
-// span across an existing bridge head, which test_way_bridge_build_ground already
-// establishes is rejected - and rejecting it is decided before anything is placed.
+// span over a runway, which test_way_bridge_build_above_runway establishes is rejected -
+// and rejecting it is decided before anything is placed, so the ways on the two heads keep
+// their owner and their maintenance.
 //
-// test_way_bridge_maintenance_failed_build: HEX-PORT PENDING.
 function test_way_bridge_maintenance_failed_build()
 {
 	local pl     = player_x(0)
 	local road   = BM_ROAD()
 	local bridge = BM_BRIDGE(wt_road, road)
+	local runway = way_desc_x.get_available_ways(wt_air, st_elevated)[0]
+	local mid    = (BM_W2 + BM_E1) / 2
 
 	local start = pl.get_current_maintenance()
 
 	BM_BUILD_APPROACHES(pl, road)
-	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(BM_W2, BM_ROW, 0), coord3d(BM_E1, BM_ROW, 0), bridge), null)
+
+	// a runway across the gap between the approaches, which no bridge may span
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(mid, BM_ROW - 1, 0), coord3d(mid, BM_ROW + 1, 0), runway, true), null)
 	local before = pl.get_current_maintenance()
 
-	// perpendicular span straight across the western head
-	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(BM_W2, BM_ROW - 1, 0), coord3d(BM_W2, BM_ROW + 1, 0), bridge), "")
-	ASSERT_FALSE(tile_x(BM_W2, BM_ROW - 1, 0).has_way(wt_road))
+	ASSERT_EQUAL(command_x.build_bridge(pl, coord3d(BM_W2, BM_ROW, 0), coord3d(BM_E1, BM_ROW, 0), bridge), "No bridges over runways!")
+	ASSERT_FALSE(tile_x(BM_W2, BM_ROW, 0).find_object(mo_bridge) != null)
 
 	ASSERT_EQUAL(pl.get_current_maintenance(), before)
 
-	BM_CLEAR(pl, wt_road)
+	// the approaches are two pieces of road with the runway between them
+	local remover = command_x(tool_remove_way)
+	ASSERT_EQUAL(remover.work(pl, coord3d(mid, BM_ROW - 1, 0), coord3d(mid, BM_ROW + 1, 0), "" + wt_air), null)
+	ASSERT_EQUAL(remover.work(pl, coord3d(BM_W1, BM_ROW, 0), coord3d(BM_W2, BM_ROW, 0), "" + wt_road), null)
+	ASSERT_EQUAL(remover.work(pl, coord3d(BM_E1, BM_ROW, 0), coord3d(BM_E2, BM_ROW, 0), "" + wt_road), null)
 	ASSERT_EQUAL(pl.get_current_maintenance(), start)
 	RESET_ALL_PLAYER_FUNDS()
 }

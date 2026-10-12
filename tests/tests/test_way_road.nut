@@ -1222,25 +1222,26 @@ function test_way_road_build_terraform_defaults_to_off()
 }
 
 
-// test_way_road_build_terraform_across_slope: HEX-PORT PENDING.
 function test_way_road_build_terraform_across_slope()
 {
 	local pl        = player_x(0)
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 	local remover   = command_x(tool_remove_way)
 
-	// a slope across the way: no road can follow it
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
+	// a slope across the way: no road can follow it.  The double slope rises to the north,
+	// and a drag along the SE axis crosses the ramp
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_double), null)
 
 	local cash = pl.get_current_cash()
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true), "Slope is too steep")
 	ASSERT_EQUAL(pl.get_current_cash(), cash)
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_narrow)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_double)
 
-	// the same command may change the slope now
+	// the same command may change the slope now: the SE and NW edges come down to the
+	// road, and the NE corner, which is on neither, keeps its two steps
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true, true), null)
 	ASSERT_TRUE(pl.get_current_cash() < cash)
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.flat)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), 2 * slope.raised_NE)
 
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 		[
@@ -1261,26 +1262,27 @@ function test_way_road_build_terraform_across_slope()
 
 	// clean up
 	ASSERT_EQUAL(remover.work(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
 
-// test_way_road_build_road_terraform_across_slope: HEX-PORT PENDING.
 function test_way_road_build_road_terraform_across_slope()
 {
 	local pl        = player_x(0)
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 	local remover   = command_x(tool_remove_way)
 
-	// the same crossing turned by 90 degrees, and through build_road this time
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.east), null)
+	// a slope that rises to the north-east, crossed by the S axis, and through build_road
+	// this time.  The N and S edges come down, and the E corner, on neither, keeps its steps
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.southwest_double), null)
 
 	ASSERT_EQUAL(command_x.build_road(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), road_desc, true, false), "Slope is too steep")
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.east)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.southwest_double)
 
 	ASSERT_EQUAL(command_x.build_road(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), road_desc, true, false, true), null)
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.flat)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), 2 * slope.raised_E)
 
 	ASSERT_WAY_PATTERN(wt_road, coord3d(0, 0, 0),
 		[
@@ -1299,12 +1301,12 @@ function test_way_road_build_road_terraform_across_slope()
 
 	// clean up
 	ASSERT_EQUAL(remover.work(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
 
-// test_way_road_build_terraform_single_step: HEX-PORT PENDING.
 function test_way_road_build_terraform_single_step()
 {
 	local pl        = player_x(0)
@@ -1313,14 +1315,14 @@ function test_way_road_build_terraform_single_step()
 	local planner   = way_planner_x(pl)
 	planner.set_build_types(road_desc)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south_double), null)
 
 	// building one step of a planned route at a time, the way the bundled ai scripts do,
 	// cannot stop on the slope: only the near edge would be levelled and the tile would
-	// be left with a single raised corner, so the tool refuses and changes nothing
+	// be left with its far edge half raised, so the tool refuses and changes nothing
 	ASSERT_FALSE(planner.is_allowed_step(tile_x(8, 9, 0), tile_x(9, 9, 0)))
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 9, 0), coord3d(9, 9, 0), road_desc, true, true), "Slope is too steep")
-	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_narrow)
+	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_double)
 	ASSERT_FALSE(tile_x(8, 9, 0).has_way(wt_road))
 	ASSERT_FALSE(tile_x(9, 9, 0).has_way(wt_road))
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
@@ -1328,8 +1330,8 @@ function test_way_road_build_terraform_single_step()
 	// the step has to be taken together with the one that levels the far edge
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 9, 0), coord3d(10, 9, 0), road_desc, true, true), null)
 
-	// with both edges taken down the tile ends up flat
-	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.flat)
+	// with both edges taken down only the NE corner, on neither, is left raised
+	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), 2 * slope.raised_NE)
 
 	// exactly the three tiles of the run, no detour
 	ASSERT_WAY_PATTERN(wt_road, coord3d(7, 8, 0),
@@ -1345,6 +1347,7 @@ function test_way_road_build_terraform_single_step()
 
 	// clean up
 	ASSERT_EQUAL(remover.work(pl, coord3d(8, 9, 0), coord3d(10, 9, 0), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.flat), null)
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -1379,19 +1382,31 @@ function test_way_road_build_terraform_forbidden_by_scenario()
 	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 	local remover   = command_x(tool_remove_way)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_double), null)
 
-	// the way is still built by the tool, so the scenario still sees the way name
-	rules.forbid_way_tool_rect(0, tool_build_way, wt_road, road_desc.get_name(), coord(3, 3), coord(5, 5), "Foo Bar")
+	// the way is still built by the tool, so the scenario still sees the way name.
+	// only the tile that has to be levelled is closed: the ends of the drag are open,
+	// so the refusal has to come from the terraformed step itself
+	rules.forbid_way_tool_rect(0, tool_build_way, wt_road, road_desc.get_name(), coord(4, 4), coord(4, 4), "Foo Bar")
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true, true), "Foo Bar")
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_narrow)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_double)
+	ASSERT_FALSE(tile_x(3, 4, 0).has_way(wt_road))
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+
+	// the planner reads the same rule
+	local planner = way_planner_x(pl)
+	planner.set_build_types(road_desc, true)
+	ASSERT_FALSE(planner.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
+	ASSERT_EQUAL(planner.get_step_cost(tile_x(3, 4, 0), tile_x(4, 4, 0)), null)
 	rules.clear()
+	ASSERT_TRUE(planner.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
 
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc, true, true), null)
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.flat)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), 2 * slope.raised_NE)
 
 	// clean up
 	ASSERT_EQUAL(remover.work(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -1453,7 +1468,6 @@ function test_way_road_build_straight_auto_bridge_ne_sw()
 	RESET_ALL_PLAYER_FUNDS()
 }
 
-// test_way_road_build_terraform_not_kept_by_the_tool: HEX-PORT PENDING.
 function test_way_road_build_terraform_not_kept_by_the_tool()
 {
 	local pl        = player_x(0)
@@ -1461,22 +1475,23 @@ function test_way_road_build_terraform_not_kept_by_the_tool()
 	local remover   = command_x(tool_remove_way)
 	local builder   = command_x(tool_build_way)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_double), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south_double), null)
 
 	// terraforming once must not leave the tool terraforming for good: the option
 	// belongs to the single command, and the same instance is used for both.
 	// The ctrl flag makes the drag go straight, and the tool clears it per call.
 	builder.set_flags(2)
 	ASSERT_EQUAL(builder.work(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), road_desc.get_name() + ",t"), null)
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.flat)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), 2 * slope.raised_NE)
 
 	builder.set_flags(2)
 	ASSERT_EQUAL(builder.work(pl, coord3d(8, 9, 0), coord3d(10, 9, 0), road_desc.get_name()), "Slope is too steep")
-	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_narrow)
+	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_double)
 
 	// clean up
 	ASSERT_EQUAL(remover.work(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.flat), null)
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	RESET_ALL_PLAYER_FUNDS()

@@ -52,13 +52,12 @@ function test_way_planner_step_cost_ground()
 }
 
 
-// test_way_planner_step_cost_slope: HEX-PORT PENDING.
 function test_way_planner_step_cost_slope()
 {
 	local pl = player_x(0)
 	local planner = make_road_planner()
 
-	// a slope along the direction of travel: the step stays allowed, only dearer
+	// a single-height slope along the direction of travel: the step stays allowed, only dearer
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
 
 	local flat_step  = planner.get_step_cost(tile_x(4, 2, 0), tile_x(4, 3, 0))
@@ -71,12 +70,23 @@ function test_way_planner_step_cost_slope()
 	// approaching the same slope from the other side costs the same
 	ASSERT_EQUAL(planner.get_step_cost(tile_x(4, 5, 0), tile_x(4, 4, 0)), slope_step)
 
-	// across the slope the way cannot follow it
-	ASSERT_FALSE(planner.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
-	ASSERT_EQUAL(planner.get_step_cost(tile_x(3, 4, 0), tile_x(4, 4, 0)), null)
+	// a single-height slope admits all three hex axes, so a step across it is priced alike
+	ASSERT_TRUE(planner.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
+	ASSERT_EQUAL(planner.get_step_cost(tile_x(3, 4, 0), tile_x(4, 4, 0)), slope_step)
+	ASSERT_EQUAL(planner.get_step_cost(tile_x(5, 3, 0), tile_x(4, 4, 0)), slope_step)
+
+	// a double slope is what the way cannot follow, along the ramp or across it
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 4, 0), slope.south_double), null)
+	foreach (step in [[8, 4, 9, 4], [9, 3, 9, 4], [9, 5, 9, 4], [10, 3, 9, 4]]) {
+		local from = tile_x(step[0], step[1], 0)
+		local to   = tile_x(step[2], step[3], 0)
+		ASSERT_FALSE(planner.is_allowed_step(from, to))
+		ASSERT_EQUAL(planner.get_step_cost(from, to), null)
+	}
 
 	// clean up
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 4, 0), slope.flat), null)
 
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -262,7 +272,6 @@ function test_way_planner_runway_is_not_elevated()
 }
 
 
-// test_way_planner_terraform_defaults_to_off: HEX-PORT PENDING.
 function test_way_planner_terraform_defaults_to_off()
 {
 	local pl       = player_x(0)
@@ -273,27 +282,29 @@ function test_way_planner_terraform_defaults_to_off()
 	legacy.set_build_types(road)
 	explicit.set_build_types(road, false)
 
-	// a slope across the way: neither planner may follow it
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
+	// a double slope on the way: neither planner may follow it
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_double), null)
 
 	ASSERT_FALSE(legacy.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
 	ASSERT_FALSE(explicit.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
 	ASSERT_EQUAL(legacy.get_step_cost(tile_x(3, 4, 0), tile_x(4, 4, 0)), null)
 	ASSERT_EQUAL(explicit.get_step_cost(tile_x(3, 4, 0), tile_x(4, 4, 0)), null)
 
-	// and they price the legal steps exactly alike
+	// and they price the legal steps exactly alike, on the flat and onto a single-height slope
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(6, 6, 0), slope.south_narrow), null)
 	ASSERT_EQUAL(legacy.get_step_cost(tile_x(2, 2, 0), tile_x(3, 2, 0)), WAY_COUNT_NO_WAY)
 	ASSERT_EQUAL(explicit.get_step_cost(tile_x(2, 2, 0), tile_x(3, 2, 0)), WAY_COUNT_NO_WAY)
-	ASSERT_EQUAL(explicit.get_step_cost(tile_x(4, 3, 0), tile_x(4, 4, 0)),
-	             legacy.get_step_cost(tile_x(4, 3, 0), tile_x(4, 4, 0)))
+	ASSERT_EQUAL(legacy.get_step_cost(tile_x(6, 5, 0), tile_x(6, 6, 0)), WAY_COUNT_NO_WAY + WAY_COUNT_SLOPE)
+	ASSERT_EQUAL(explicit.get_step_cost(tile_x(6, 5, 0), tile_x(6, 6, 0)),
+	             legacy.get_step_cost(tile_x(6, 5, 0), tile_x(6, 6, 0)))
 
 	// clean up
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(6, 6, 0), slope.flat), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
 
 
-// test_way_planner_terraform_across_slope: HEX-PORT PENDING.
 function test_way_planner_terraform_across_slope()
 {
 	local pl   = player_x(0)
@@ -304,22 +315,22 @@ function test_way_planner_terraform_across_slope()
 	off.set_build_types(road, false)
 	on.set_build_types(road, true)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
+	// the double slope rises to the north, so a step along the SE axis crosses the ramp
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_double), null)
 
 	// the step across the slope is the one the flag is about
 	ASSERT_FALSE(off.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
 	ASSERT_EQUAL(off.get_step_cost(tile_x(3, 4, 0), tile_x(4, 4, 0)), null)
 
 	ASSERT_TRUE(on.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
-	ASSERT_TRUE(on.get_step_cost(tile_x(3, 4, 0), tile_x(4, 4, 0)) != null)
 
-	// the same slope turned by 90 degrees, so this is not one lucky orientation
+	// the same kind of slope on another axis, so this is not one lucky orientation: this one
+	// rises to the north-east, and the S axis crosses it
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 4, 0), slope.east), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 4, 0), slope.southwest_double), null)
 
 	ASSERT_FALSE(off.is_allowed_step(tile_x(9, 3, 0), tile_x(9, 4, 0)))
 	ASSERT_TRUE(on.is_allowed_step(tile_x(9, 3, 0), tile_x(9, 4, 0)))
-	ASSERT_TRUE(on.get_step_cost(tile_x(9, 3, 0), tile_x(9, 4, 0)) != null)
 
 	// clean up
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 4, 0), slope.flat), null)
@@ -327,7 +338,6 @@ function test_way_planner_terraform_across_slope()
 }
 
 
-// test_way_planner_terraform_matches_executor: HEX-PORT PENDING.
 function test_way_planner_terraform_matches_executor()
 {
 	local pl      = player_x(0)
@@ -339,7 +349,7 @@ function test_way_planner_terraform_matches_executor()
 	off.set_build_types(road, false)
 	on.set_build_types(road, true)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.south_double), null)
 
 	// one adjacent pair, planned and built with the same policy on both sides.
 	// without terraforming the planner refuses the step and the tool cannot build it
@@ -349,7 +359,7 @@ function test_way_planner_terraform_matches_executor()
 	ASSERT_FALSE(tile_x(9, 9, 0).has_way(wt_road))
 
 	// the failed attempt left the slope alone, so both halves see the same world
-	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_narrow)
+	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_double)
 
 	// with terraforming the planner accepts the step: it is asked about this one move
 	// alone, and the move is usable - as the first half of a way across the slope
@@ -357,9 +367,9 @@ function test_way_planner_terraform_matches_executor()
 	ASSERT_TRUE(on.get_step_cost(tile_x(8, 9, 0), tile_x(9, 9, 0)) != null)
 
 	// a route stopping on the slope only ever levels the near edge, which would leave
-	// the tile with a single raised corner, so the tool refuses to build it at all
+	// the far edge half raised (E up, SE down), so the tool refuses to build it at all
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 9, 0), coord3d(9, 9, 0), road, true, true), "Slope is too steep")
-	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_narrow)
+	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.south_double)
 	ASSERT_FALSE(tile_x(8, 9, 0).has_way(wt_road))
 	ASSERT_FALSE(tile_x(9, 9, 0).has_way(wt_road))
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
@@ -369,8 +379,9 @@ function test_way_planner_terraform_matches_executor()
 	ASSERT_TRUE(on.is_allowed_step(tile_x(9, 9, 0), tile_x(10, 9, 0)))
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(8, 9, 0), coord3d(10, 9, 0), road, true, true), null)
 
-	// and it got there by taking the slope down, not by some other route
-	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), slope.flat)
+	// and it got there by taking the SE-NW edges of the slope down, not by some other route.
+	// the NE corner is on neither edge, so it keeps its two steps
+	ASSERT_EQUAL(tile_x(9, 9, 0).get_slope(), 2 * slope.raised_NE)
 
 	// exactly the three tiles of the run, no detour
 	ASSERT_WAY_PATTERN(wt_road, coord3d(7, 8, 0),
@@ -388,6 +399,7 @@ function test_way_planner_terraform_matches_executor()
 
 	// clean up
 	ASSERT_EQUAL(remover.work(pl, coord3d(8, 9, 0), coord3d(10, 9, 0), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(9, 9, 0), slope.flat), null)
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
@@ -431,18 +443,19 @@ function test_way_planner_terraform_does_not_build()
 
 	on.set_build_types(road, true)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_double), null)
 
 	local cash        = pl.get_current_cash()
 	local maintenance = pl.get_current_maintenance()
 
-	// asking is not building: the accepted step must leave the world alone
+	// asking is not building: the accepted step, which needs the slope levelled to be
+	// taken, must leave the world alone
 	for (local i = 0; i < 5; ++i) {
 		ASSERT_TRUE(on.is_allowed_step(tile_x(3, 4, 0), tile_x(4, 4, 0)))
 		ASSERT_TRUE(on.get_step_cost(tile_x(3, 4, 0), tile_x(4, 4, 0)) != null)
 	}
 
-	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_narrow)
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.south_double)
 	ASSERT_FALSE(tile_x(4, 4, 0).has_way(wt_road))
 	ASSERT_FALSE(tile_x(3, 4, 0).has_way(wt_road))
 	ASSERT_EQUAL(pl.get_current_cash(), cash)
@@ -454,14 +467,13 @@ function test_way_planner_terraform_does_not_build()
 }
 
 
-// test_way_planner_terraform_not_kept_by_the_planner: HEX-PORT PENDING.
 function test_way_planner_terraform_not_kept_by_the_planner()
 {
 	local pl      = player_x(0)
 	local road    = way_desc_x.get_available_ways(wt_road, st_flat)[0]
 	local planner = way_planner_x(pl)
 
-	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_narrow), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.south_double), null)
 
 	// the option belongs to the configuration, not to the planner for good
 	planner.set_build_types(road, true)
