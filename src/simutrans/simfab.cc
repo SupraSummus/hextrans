@@ -1041,15 +1041,17 @@ bool fabrik_t::add_random_field(uint16 probability)
 
 	// we start closest to the factory, and check for valid tiles as we move out
 	uint8 radius = 1;
+	// the footprint of the layout it was built in
+	const koord size = get_desc()->get_building()->get_size(rotate);
 
 	// pick a coordinate to use - create a list of valid locations and choose a random one
 	vector_tpl<grund_t *> build_locations;
 	do {
-		for(sint32 xoff = -radius; xoff < radius + get_desc()->get_building()->get_size().x ; xoff++) {
-			for(sint32 yoff =-radius ; yoff < radius + get_desc()->get_building()->get_size().y; yoff++) {
+		for(sint32 xoff = -radius; xoff < radius + size.x ; xoff++) {
+			for(sint32 yoff =-radius ; yoff < radius + size.y; yoff++) {
 				// only the shell this many steps out (nearer tiles were checked earlier);
 				// the corners of the rectangle are further out
-				if(  koord_distance_to_rect(koord(xoff, yoff), koord(0, 0), get_desc()->get_building()->get_size()) != radius  ) {
+				if(  koord_distance_to_rect(koord(xoff, yoff), koord(0, 0), size) != radius  ) {
 					continue;
 				}
 
