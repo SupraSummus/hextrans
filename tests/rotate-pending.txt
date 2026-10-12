@@ -56,6 +56,7 @@ test_toolkit_slope_commands
 # Passes, but leaves the turned map different from the unturned one:
 # the terraforming under it is not mirror symmetric.
 test_way_bridge_over_building
+test_city_road_fills_valley_tile
 
 # Square-era geometry left in the engine.
 test_air_takeoff_and_landing_all_runway_axes
