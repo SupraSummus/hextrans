@@ -196,7 +196,7 @@ private:
 
 	/**
 	 * This function calculates the distance of pos to the cuboid
-	 * spanned up by mini and maxi.
+	 * spanned up by mini and maxi, counting hex steps in the plane.
 	 * The result is already weighted according to
 	 * welt->get_settings().get_way_count_{straight,slope}().
 	 */

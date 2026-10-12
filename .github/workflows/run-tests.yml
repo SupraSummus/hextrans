@@ -61,6 +61,12 @@ jobs:
       # and the union of hex discs: the axial ring around a footprint
       # lacks its (-1,-1) and (size) corners.  ~1 second.
       run: make -C tools/hex_neighbourhood_test run
+    - name: Route heuristic self-test
+      # koord_distance_to_rect in dataobj/koord.h as the distance estimate
+      # of the way builder's A*, against a breadth-first search: never
+      # above the true hex distance, never dropping faster than one per
+      # step.  ~1 second.
+      run: make -C tools/hex_route_test run
     - name: Cache
       uses: actions/cache@v4
       with:
