@@ -223,6 +223,7 @@ all_tests <- [
 	test_sign_build_private_way,
 	test_sign_build_signal,
 	test_sign_build_signal_multiple,
+	test_sign_build_signal_spacing_turns,
 	test_sign_replace_signal,
 	test_sign_signal_when_player_removed,
 	test_sign_signals_removed_with_bankrupt_company,

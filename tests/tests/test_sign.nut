@@ -1001,6 +1001,83 @@ function test_sign_build_signal_multiple()
 }
 
 
+// Where the signal tool puts signals when it is dragged along a route: the
+// route indices of the tiles that got one, as "0,5,11". The tool is called
+// with Ctrl held, so that the first click only sets the start; without it the
+// first click would place a signal there and the drag would never begin.
+function dragged_signal_indices(pl, signal, route)
+{
+	local tool = command_x(tool_build_roadsign)
+	tool.set_flags(2)
+	ASSERT_EQUAL(tool.work(pl, route[0], route[route.len() - 1], signal.get_name()), null)
+
+	local placed = ""
+	for (local i = 0; i < route.len(); ++i) {
+		if (tile_x(route[i].x, route[i].y, route[i].z).find_object(mo_signal) != null) {
+			placed += (placed == "" ? "" : ",") + i
+		}
+	}
+	return placed
+}
+
+
+// Signals are spaced by the length of track between them, counted in half
+// tiles: a tile counts as the chord the route cuts through it, rounded to a
+// half tile. That is 2 for straight on and for a 60 degree turn (1 and 0.87
+// tiles) and 1 for a 120 degree turn (0.5 tiles). The default spacing is 5
+// tiles, 10 half tiles, and the first signal goes on the first tile.
+function test_sign_build_signal_spacing_turns()
+{
+	local pl = player_x(0)
+	local rail = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local signal = sign_desc_x.get_available_signs(wt_rail).filter(@(idx, sign) sign.is_signal())[0]
+
+	// the route runs SE along y=2 from (1,2) to the corner at (9,2), and
+	// on for eight tiles. The rail goes on a tile beyond both ends, which
+	// the first click needs: a signal cannot stand on a way end.
+	local arm = []
+	for (local x = 1; x <= 9; ++x) {
+		arm.append(coord3d(x, 2, 0))
+	}
+
+	// 120 degree turn: SE, then SW. The corner is index 8, half a tile
+	// long, so the second signal comes one tile later than on a straight
+	{
+		local route = clone arm
+		for (local j = 1; j <= 8; ++j) {
+			route.append(coord3d(9 - j, 2 + j, 0))
+		}
+
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 2, 0), coord3d(9, 2, 0), rail, true), null)
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(9, 2, 0), coord3d(0, 11, 0), rail, true), null)
+
+		ASSERT_EQUAL(dragged_signal_indices(pl, signal, route), "0,5,11,16")
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(0, 2, 0), coord3d(9, 2, 0), "" + wt_rail), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(9, 2, 0), coord3d(0, 11, 0), "" + wt_rail), null)
+	}
+
+	// 60 degree turn: SE, then S. A tile still counts 2, so the signals
+	// stand every five tiles round the corner
+	{
+		local route = clone arm
+		for (local j = 1; j <= 8; ++j) {
+			route.append(coord3d(9, 2 + j, 0))
+		}
+
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(0, 2, 0), coord3d(9, 2, 0), rail, true), null)
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(9, 2, 0), coord3d(9, 11, 0), rail, true), null)
+
+		ASSERT_EQUAL(dragged_signal_indices(pl, signal, route), "0,5,10,15")
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(0, 2, 0), coord3d(9, 2, 0), "" + wt_rail), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(9, 2, 0), coord3d(9, 11, 0), "" + wt_rail), null)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_sign_replace_signal()
 {
 	local pl = player_x(0)
