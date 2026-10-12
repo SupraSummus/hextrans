@@ -513,6 +513,10 @@ or to mark them world-frame and keep them out of the rotated run.
 `test_toolkit_slope_commands` only runs out of opcodes in the rotated run,
 where the generator tests that sleep before it are left out;
 it comes back with them.
+The `test_ai_site_*` tests call the test-only probes of
+`script/api/api_ai_test.cc`, which take and return world coordinates;
+next move is to pass their coordinates through the script transform
+like the rest of the API.
 `test_air_takeoff_and_landing_all_runway_axes`:
 `aircraft_t::calc_route`'s landing circle (`circle_koord[16]`, offsets
 for N, NW, S, SE runway ends only) is square-era,
