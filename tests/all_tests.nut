@@ -453,5 +453,8 @@ all_tests <- [
 	test_city_cityroad_along_all_axes,
 	test_city_road_fills_valley_tile,
 	test_world_rotate_roundtrip,
-	test_city_population_ledger, // keep last: grows a city across the whole map
+	test_city_population_ledger, // keep last but for the enlarge tests: grows a city across the whole map
+	// the map is another one after these, so they come last
+	test_map_shape_enlarge,
+	test_map_shape_enlarge_cities,
 ]
