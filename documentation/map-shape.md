@@ -104,9 +104,9 @@ the rainfall pass of `distribute_trees_region`,
 and `planquadrat_t::correct_water` and `update_underground`,
 which return early on a cell without ground.
 `gameinfo_t` draws off-map cells of its minimap black.
-`perlin_hoehe_loop` and the climate generators
-write heights and climates for off-map cells too;
+The climate generators write climates for off-map cells too;
 nothing reads them, so they stay.
+`perlin_hoehe_loop` skips the middle of the cut corners (step 4).
 
 Step 3 fixed the loops a populated world runs through
 in generation, a game year of AI play and teardown:
@@ -158,7 +158,6 @@ and the lake tool does not flood one.
 The minimap draws the hexagon on black.
 
 Still rectangular after step 3:
-the new-world densities and the preview (step 4),
 the light tint over the isometric minimap
 while a schedule is shown,
 and the grid-point gates of the terraforming tools,
@@ -201,38 +200,78 @@ the bump's terrain round-trip test should also run on a hexagon with D > 1.
 
 The new-world dialog (`gui/welt.cc`) has three fields, W, H and D,
 and an "Equal sides" checkbox:
-while it is ticked, editing any field sets all three.
-City, factory, attraction and river densities scale with `sqrt(tile_count())`
-instead of `sqrt(size_x·size_y)`.
+while it is ticked, editing any field sets all three,
+and ticking it sets all three to W.
+W and H are at least 8 as before, D at least 1,
+and the extents `W'` and `H'` stay within 32766
+(an equal side is at most 16383).
+The checkbox starts ticked when the settings have W = H = D.
+City, factory, attraction and river densities scale with
+`map_shape_t::get_side_equivalent()`, `sqrt(tile_count())`,
+instead of `sqrt(size_x·size_y)`: the same number at D = 1.
+The memory estimate counts a `planquadrat_t` per cell of the bounding rhombus
+and the ground of each tile.
 
 **Image coordinates.**
 The map preview and an imported heightfield share one frame,
 the physical plane in offset coordinates:
-column `i = q`, row `j = r + (q - t)/2`.
+column `i = q`, row `j = r + ⌊(q - t)/2⌋`.
 Columns are exact, because a tile centre sits at `x = 1.5·q`;
-odd columns fall half a row down, as on screen.
+the columns with `q - t` odd fall half a row down, as on screen.
 The hexagon needs an image of `W'` columns by `H + ⌈(W'-1)/2⌉` rows,
-a square image for a regular hexagon.
+a square image for a regular hexagon
+(`map_shape_t::get_image_cols/rows`, `get_image_row`, `get_tile_row`).
 The pixel aspect is `1.5 : √3`, about 0.87, so a source with square pixels
 reads about 13% narrower than tall.
-Pixels outside the hexagon are ignored.
+A pixel whose tile is off the hexagon belongs to no tile.
+The vertices of the tiles along the edge still interpolate
+between the pixels around them, outside ones included,
+so an image should not carry content there that it does not want in the edge.
 
-The preview draws in that frame and blanks the cut corners.
+The preview draws in that frame:
+preview pixel `(x, y)` shows image pixel `(X, Y)` at the centre of its cell,
+the tile `(X, get_tile_row(X, Y))`, in the colour of its height,
+and pixels off the hexagon are black.
+At D = 1 that is the sheared rhombus of the screen, not the axial square.
+The preview has the aspect of the image.
 Loading a relief fixes the image size:
-D stays editable, W follows from the columns and H from the rows,
-and the dialog refuses a D that leaves either below 1.
-`height_field_vertex_height` (branch `claude/heightfield-import-hex`)
-samples at `hex_vertex_pos(v)` and maps back to axial,
-pixel `(i, j)` = tile `(i, j)`, which shears a picture drawn on the plane.
-Only its back-conversion changes: `i = p.x / 1.5`, `j = p.y / √3 - t/2`.
-At D = 1 preview and import too move from axial identity to this frame.
+D stays editable, W follows from the columns and H from the rows
+(`map_shape_t::from_image_size`),
+and the dialog refuses a D that leaves W below 1 and keeps the old one.
+H does not depend on D, so a relief with `rows <= columns/2` fits no D:
+it is refused with a message and the generated map stays.
+A relief that does not fit the D of the settings when it is loaded
+sets D to `(columns + 1)/2`, the depth of the regular hexagon.
+W, H and the equal-sides box are fixed while a relief is loaded.
+`karte_t::load_heightfield` derives the shape from the image the same way,
+and the `-heightfield FILE [D]` hook takes D (default 1).
+`height_field_vertex_height` samples at `hex_vertex_pos(v)`
+and takes the position to the image frame,
+`i = p.x / 1.5`, `j = p.y / √3 - t/2`.
+Values between pixels are multiples of 1/6,
+so a tie at .5 is exact:
+the rounding adds `1e-9` so that ties round up on every platform.
 
 **Generation.** `perlin_hoehe` already samples at `hex_vertex_pos`,
-so only its loop skips off-map cells.
-`init_perlin_map` sizes its cache from the hexagon's physical bounding box.
+so only its loop skips cells:
+`perlin_hoehe_loop`, `fill_south_phantom_heights`
+and the relief import fill the canonical vertex slots
+that `map_shape_t::slot_near_map` accepts,
+those within one vertex step of an on-map vertex,
+which is everything at D = 1 and leaves the middle of the cut corners at the
+water level.
+The smoothing in `cleanup_karte` only raises vertices,
+so the low off-map ones never touch the map.
+`init_perlin_map` sizes its cache from the physical bounding box of those slots,
+`map_shape_t::get_vertex_pos_bound()`:
+the old `(W'+2) × (H'+2)`-based size at D = 1,
+smaller in y by `t/2` tiles otherwise.
 Cities, factories, rivers and trees pick candidates through `koord_random`
 and edge margins, so they follow the predicate.
-New worlds default to 150×150×150 (67 051 tiles, about the old 256×256).
+New worlds default to 150×150×150 (67 051 tiles, about the old 256×256);
+every other place that builds `settings_t` sets D = 1 with its size
+(`simmain.cc` test hooks, `fuzz_command`),
+and a saved `default.sve` keeps its own shape.
 
 **Enlarging.** Growing W and H with D fixed keeps the old hexagon
 inside the new one at the same coordinates,
@@ -322,8 +361,17 @@ and small `contains` hunks inside upstream loops.
 4. **World-creation dialog and image frame.**
    Three fields, "Equal sides", densities by tile count,
    preview and heightfield import in offset coordinates, the new default.
-   Test: the heightfield sampler self-test pins the offset frame;
-   a scenario imports a relief into a 9×7×5 world, checks corner heights.
+   Landed.
+   Test: `tools/hex_heightfield_test` pins the offset frame
+   (corner offsets in thirds and halves, ties rounded up);
+   `tools/hex_map_shape_test` pins the image frame against enumeration,
+   the vertex slot band and the noise cache bound,
+   and the density scale at D = 1 and for 150×150×150;
+   `tools/heightfield_import_test.py` imports a relief at D = 1,
+   into a 9×7×5 world (13×13 pixels, the six corner tiles must differ)
+   and a regular hexagon, and compares every tile and the off-map cells
+   with an exact model.
+   The dialog itself has no headless test.
 5. **Enlarge.** W and H grow with D fixed;
    the new-region loops use the predicate.
    Test: enlarge the fixture to a larger W and H;

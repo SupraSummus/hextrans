@@ -20,8 +20,12 @@ Click on number-box and type the required map number or use the arrow-buttons to
 </p>
 
 <p>
-<em>Size</em> - Sets the map size as W x H. The number-box on top is the width, and the one below it is the height. The memory required for the map is displayed in brackets.<br>
-NOTE: Large maps need more memory and take more time to generate. The game and other graphics require an extra 88MB in pak64 and 144MB in pak128. As a general rule of thumb, on a computer with 256MB RAM do not try maps much larger than 512 x 512 squares.
+<em>Size</em> - Sets the map size as W x H x D. The map is a hexagon whose opposite sides are W, H and D tiles long: W along the south-east to north-west axis, H along the north-south axis and D along the north-east to south-west axis. With D = 1 the map is a plain W x H rhombus. The memory required for the map is displayed in brackets.<br>
+NOTE: Large maps need more memory and take more time to generate. The game and other graphics require an extra 88MB in pak64 and 144MB in pak128. As a general rule of thumb, on a computer with 256MB RAM do not try maps with much more than 260,000 tiles.
+</p>
+
+<p>
+<em>Equal sides</em> - While ticked, changing any of W, H and D sets all three, so the map is a regular hexagon. Ticking it sets all three sides to W. The default map is a regular hexagon of 150 x 150 x 150, 67,051 tiles.
 </p>
 
 <p>
@@ -29,7 +33,7 @@ NOTE: Large maps need more memory and take more time to generate. The game and o
 </p>
 
 <p>
-<em>Load Height Map</em> - Loads a custom terrain. Opens the <a href="load_relief.txt">Load Height Map</a> window.
+<em>Load Height Map</em> - Loads a custom terrain. Opens the <a href="load_relief.txt">Load Height Map</a> window. The size of the image fixes W and H for the chosen D: the image has W + D - 1 columns, and its number of rows is H plus half its columns. A regular hexagon of side n needs a square image of 2n - 1 pixels. Of the image, only the part inside the hexagon is used; the preview shows the rest black. D can still be changed.
 </p>
 
 <p>
