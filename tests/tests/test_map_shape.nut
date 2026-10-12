@@ -126,3 +126,27 @@ function test_map_shape_no_terraform_in_cut()
 
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+// Terraforming a tile redraws its SE, S and SW neighbours where they
+// are on the map.  (0, t) has no SW neighbour, the last tile of the far
+// cut line (or the map's last tile, for D = 1) no S and SE neighbour.
+function test_map_shape_terraform_at_edge()
+{
+	local pl = player_x(0)
+	local w = settings.get_map_side_w()
+	local h = settings.get_map_side_h()
+	local d = settings.get_map_side_d()
+	local t = d - 1
+	local size = world.get_size()
+
+	foreach (c in [ [0, t], [size.x - 1, size.y - 1 - t] ]) {
+		ASSERT_TRUE(map_shape_contains(w, h, d, c[0], c[1]))
+		local z = square_x(c[0], c[1]).get_ground_tile().z
+		ASSERT_EQUAL(command_x.grid_raise(pl, coord3d(c[0], c[1], z)), null)
+		ASSERT_EQUAL(command_x.grid_lower(pl, coord3d(c[0], c[1], z + 1)), null)
+		ASSERT_EQUAL(square_x(c[0], c[1]).get_ground_tile().get_slope(), slope.flat)
+	}
+
+	RESET_ALL_PLAYER_FUNDS()
+}

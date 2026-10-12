@@ -248,6 +248,17 @@ void export_tiles(HSQUIRRELVM vm)
 	register_method(vm, &ground_get_image, "get_image", true);
 
 	/**
+	 * @returns the back-wall state the engine last computed for this tile,
+	 *          which does not need a pakset with images.
+	 *          The walls to the NW, N and NE neighbours are the digits 0, 1
+	 *          and 2 in base 11, each nonzero where a wall shows;
+	 *          a plain fence is encoded above 1331, and the value is negative
+	 *          for walls of foundations and artificial slopes.
+	 *          Use for asserting that a change on a neighbour redrew this tile.
+	 */
+	register_method(vm, &grund_t::get_back_imageid, "get_back_walls");
+
+	/**
 	 * Returns text of a sign on this tile (station sign, city name, label).
 	 * @returns text
 	 */

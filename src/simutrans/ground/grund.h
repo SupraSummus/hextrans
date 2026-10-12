@@ -355,6 +355,11 @@ public:
 	image_id get_back_image(uint8 wall) const;
 	virtual void clear_back_image() {back_imageid=0;}
 
+	// The raw encoded back-wall state `calc_back_image` last stored, for
+	// the script API: unlike `get_back_image` it does not need a pakset
+	// with images, so headless tests can see a stale tile.
+	sint16 get_back_imageid() const { return back_imageid; }
+
 	/**
 	* if ground is deleted mark the old spot as dirty
 	*/
