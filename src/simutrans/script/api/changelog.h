@@ -36,6 +36,7 @@
  * - Added @ref settings::has_double_slopes, @ref settings::get_way_height_clearance
  * - Added @ref tile_x::is_crossing
  * - Added @ref world::generate_goods to generate passengers, mail or freight (scenario only)
+ * - Added @ref world::generate_build_script to export an area as a script for the build toolkit (scenario only)
  * - Added @ref change_climate_at
  * - Added @ref convoy_x::change_schedule
  * - Added tool_ids::tool_build_groundobj

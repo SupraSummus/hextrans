@@ -150,6 +150,33 @@ static void write_depot_at(player_t* pl, cbuffer_t& buf, const koord3d pos, cons
 }
 
 
+// Number of build clicks that leave a sign facing @p d on a way with ribi
+// @p way.  Mirrors the click sequence of tool_build_roadsign_t::place_sign_intern,
+// whose helpers it asks for the order of the edges.
+static uint8 sign_click_count(const roadsign_desc_t* desc, const ribi_t::ribi way, const ribi_t::ribi d)
+{
+	if (!ribi_t::is_single(d)) {
+		// not directional, or a signal that still passes both ways
+		return 1;
+	}
+	if (desc->is_signal_type()) {
+		// first click: both ways, then the first edge, then the second edge
+		uint8 cnt = 1;
+		ribi_t::ribi cur = way;
+		while (cur != d && cnt < 3) {
+			cur = tool_build_roadsign_t::next_signal_dir(way, cur);
+			cnt++;
+		}
+		return cnt;
+	}
+	if (desc->is_single_way() || desc->is_choose_sign()) {
+		// first click: the first edge, the second click flips it
+		return d == tool_build_roadsign_t::first_sign_dir(way) ? 1 : 2;
+	}
+	return 1;
+}
+
+
 // taking all roadsigns for now
 static void write_sign_at(player_t* , cbuffer_t& buf, const koord3d pos, const koord3d origin)
 {
@@ -169,18 +196,7 @@ static void write_sign_at(player_t* , cbuffer_t& buf, const koord3d pos, const k
 	}
 	if (sign) {
 		// now this pos has a stop.
-		uint8 cnt = 1;
-		const ribi_t::ribi d = sign->get_dir();
-		const bool ow = sign->get_desc()->is_single_way();
-		if (!ribi_t::is_single(d)) {
-			cnt = 1;
-		}
-		else if (ribi_t::is_straight(weg->get_ribi_unmasked())) {
-			cnt = (d == ribi_t::north || d == ribi_t::southeast) ^ ow ? 2 : 3;
-		}
-		else if (ribi_t::is_bend(weg->get_ribi_unmasked())) {
-			cnt = (d == ribi_t::north || d == ribi_t::south) ^ ow ? 2 : 3;
-		}
+		const uint8 cnt = sign_click_count(sign->get_desc(), weg->get_ribi_unmasked(), sign->get_dir());
 		koord3d diff = pos - origin;
 		buf.printf("\thm_sign_tl(\"%s\",%d,[%d,%d,%d],%d,%u)\n", sign->get_desc()->get_name(), cnt, diff.x, diff.y, diff.z,
 			sign->get_desc()->get_waytype(),
@@ -352,7 +368,11 @@ protected:
 
 	koord3d origin;
 
-	virtual void append_command(koord3d pos, const ribi_t::ribi(&dirs)[2]) = 0;
+	// A tile lists the edges towards its NW, N and NE neighbours, so that
+	// every edge of the area is visited exactly once.
+	static const uint8 num_dirs = 3;
+
+	virtual void append_command(koord3d pos, const ribi_t::ribi(&dirs)[num_dirs]) = 0;
 	virtual bool can_concatnate(script_cmd& a, script_cmd& b) = 0;
 
 public:
@@ -363,9 +383,10 @@ public:
 		for (sint8 z = 127; z > -127; z--) { // iterate for all height
 			for (sint16 x = start.x; x <= end.x; x++) {
 				for (sint16 y = start.y; y <= end.y; y++) {
-					ribi_t::ribi dirs[2];
+					ribi_t::ribi dirs[num_dirs];
 					dirs[0] = x > start.x ? ribi_t::northwest : ribi_t::none;
 					dirs[1] = y > start.y ? ribi_t::north : ribi_t::none;
+					dirs[2] = (x < end.x && y > start.y) ? ribi_t::northeast : ribi_t::none;
 					append_command(koord3d(x, y, z), dirs);
 				}
 			}
@@ -410,7 +431,7 @@ protected:
 	bool first_pass;
 	waytype_t waytype;
 
-	void append_command(koord3d pos, const ribi_t::ribi(&dirs)[2]) OVERRIDE
+	void append_command(koord3d pos, const ribi_t::ribi(&dirs)[num_dirs]) OVERRIDE
 	{
 		if (!first_pass && waytype != air_wt) {
 			// only air needs two passes for correct order
@@ -432,7 +453,7 @@ protected:
 		if (gr->get_typ() == grund_t::monorailboden) {
 			pb.z -= world()->get_settings().get_way_height_clearance();
 		}
-		for (uint8 i = 0; i < 2; i++) {
+		for (uint8 i = 0; i < num_dirs; i++) {
 			if (dirs[i] == ribi_t::none) {
 				continue;
 			}
@@ -484,7 +505,7 @@ public:
 
 class write_wayobj_command_t : public write_path_command_t {
 protected:
-	void append_command(koord3d pos, const ribi_t::ribi(&dirs)[2]) OVERRIDE
+	void append_command(koord3d pos, const ribi_t::ribi(&dirs)[num_dirs]) OVERRIDE
 	{
 		const grund_t* gr = world()->lookup(pos);
 		const weg_t* weg0 = gr ? gr->get_weg_nr(0) : NULL;
@@ -493,7 +514,7 @@ protected:
 			return;
 		}
 		const waytype_t type = weg0->get_waytype();
-		for (uint8 i = 0; i < 2; i++) {
+		for (uint8 i = 0; i < num_dirs; i++) {
 			if (dirs[i] == ribi_t::none) {
 				continue;
 			}
@@ -520,9 +541,9 @@ public:
 };
 
 
-char const* tool_generate_script_t::do_work(player_t* pl, const koord3d& s, const koord3d& end)
+char const* tool_generate_script_t::build_script(player_t* pl, const koord3d& s, const koord3d& end, cbuffer_t& generated_script_buf, koord& area)
 {
-	grund_t * gr = welt->lookup_kartenboden(s.get_2d());
+	grund_t * gr = world()->lookup_kartenboden(s.get_2d());
 	if(!gr) {
 		// not on the map
 		return "";
@@ -532,9 +553,8 @@ char const* tool_generate_script_t::do_work(player_t* pl, const koord3d& s, cons
 	koord3d e = end == koord3d::invalid ? start : end;
 	koord k1 = koord(min(start.x, e.x), min(start.y, e.y));
 	koord k2 = koord(max(start.x, e.x), max(start.y, e.y));
-	koord area( k2.x-k1.x+1, k2.y-k1.y+1 );
+	area = koord( k2.x-k1.x+1, k2.y-k1.y+1 );
 
-	cbuffer_t generated_script_buf;
 	generated_script_buf.printf("// automated rebuild scrip with size (%d,%d)\n\n", area.x, area.y); // comment
 	generated_script_buf.append("include(\"hm_toolkit_v3\")\n\nfunction hm_build() {\n"); // header
 
@@ -569,10 +589,26 @@ char const* tool_generate_script_t::do_work(player_t* pl, const koord3d& s, cons
 	}
 
 	if (cmdlen == generated_script_buf.len()) {
+		// nothing to export
+		generated_script_buf.clear();
 		return NULL;
 	}
 
 	generated_script_buf.append("}\n"); // footer
+	return NULL;
+}
+
+
+char const* tool_generate_script_t::do_work(player_t* pl, const koord3d& s, const koord3d& end)
+{
+	cbuffer_t generated_script_buf;
+	koord area;
+	if (const char* err = build_script(pl, s, end, generated_script_buf, area)) {
+		return err;
+	}
+	if (generated_script_buf.len() == 0) {
+		return NULL;
+	}
 
 	cbuffer_t dir_buf;
 	dir_buf.printf("%saddons%s%stool%s", env_t::user_dir, PATH_SEPARATOR, env_t::pak_name.c_str(), PATH_SEPARATOR);
