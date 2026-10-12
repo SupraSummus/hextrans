@@ -55,3 +55,7 @@ test_way_bridge_over_building
 test_air_takeoff_and_landing_all_runway_axes
 test_trees_plant_forest
 test_way_tunnel_planner_no_exit
+
+# A building with four layouts folds a road on NE or SW onto S or SE
+# (adjust_layout), which does not commute with the half turn.
+test_city_building_faces_road
