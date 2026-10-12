@@ -673,7 +673,7 @@ bool way_builder_t::is_allowed_step(const grund_t* from, const grund_t* to, sint
 		return false;
 	}
 
-	bool to_flat = false; // to tile will be flattened
+	bool terraformed = false; // the step needs the slopes changed
 	if (from == to) {
 		if ((bautyp & tunnel_flag) && !slope_t::is_way(from->get_weg_hang())) {
 			warn_fail = "Way does not match the slope here";
@@ -684,16 +684,12 @@ bool way_builder_t::is_allowed_step(const grund_t* from, const grund_t* to, sint
 		// maybe we need terraforming
 		ribi_t::ribi diff = ribi_type(zv);
 		if (terraform == 1 || !check_slope(from, to) || from->get_vmove(diff) != to->get_vmove(ribi_t::backward(diff))) {
-			slope_t::type dummy, to_slope;
-			if (check_terraforming(from, to, &dummy, &to_slope)) {
-				to_flat = to_slope == slope_t::flat;
-				return true;
-			}
-			else {
+			if (!check_terraforming(from, to, NULL, NULL)) {
 				// slopes not ok and no terraforming possible
 				warn_fail = "Slope is too steep";
 				return false;
 			}
+			terraformed = true;
 		}
 	}
 
@@ -708,9 +704,11 @@ bool way_builder_t::is_allowed_step(const grund_t* from, const grund_t* to, sint
 		return false;
 	}
 
-	// siince terraforming does all checks, we can safely exit here
-	if(to_flat) {
-		return false;
+	// the checks below judge the ground as it is, not as it will be levelled
+	if(terraformed) {
+		*costs = welt->get_settings().way_count_no_way + welt->get_settings().way_count_slope;
+		warn_fail = NULL;
+		return true;
 	}
 
 	// universal check for elevated things ...
@@ -953,7 +951,7 @@ bool way_builder_t::is_allowed_step(const grund_t* from, const grund_t* to, sint
 			if((!str  &&  to->hat_wege())  ||  (str  &&  to->has_two_ways())) {
 				*costs += s.way_count_avoid_crossings; // avoid crossings
 			}
-			if (to->get_weg_hang() != 0  &&  !to_flat) {
+			if (to->get_weg_hang() != 0) {
 				*costs += s.way_count_slope;
 			}
 		}
@@ -1008,7 +1006,7 @@ bool way_builder_t::is_allowed_step(const grund_t* from, const grund_t* to, sint
 			if((sch  &&  to->has_two_ways())  ||  (!sch &&  to->hat_wege())) {
 				*costs += s.way_count_avoid_crossings; // avoid crossings
 			}
-			if(to->get_weg_hang()!=0  &&  !to_flat) {
+			if(to->get_weg_hang()!=0) {
 				*costs += s.way_count_slope;
 			}
 		}
@@ -1040,7 +1038,7 @@ bool way_builder_t::is_allowed_step(const grund_t* from, const grund_t* to, sint
 				if(to->hat_weg(road_wt)) {
 					*costs += s.way_count_straight;
 				}
-				if(to->get_weg_hang()!=0  &&  !to_flat) {
+				if(to->get_weg_hang()!=0) {
 					*costs += s.way_count_slope;
 				}
 			}
@@ -1107,7 +1105,7 @@ bool way_builder_t::is_allowed_step(const grund_t* from, const grund_t* to, sint
 				else {
 					*costs = s.way_count_leaving_way; // new canal very expensive
 				}
-				if(to->get_weg_hang()!=0  &&  !to_flat) {
+				if(to->get_weg_hang()!=0) {
 					*costs += s.way_count_slope * 2;
 				}
 			}
@@ -1127,7 +1125,7 @@ bool way_builder_t::is_allowed_step(const grund_t* from, const grund_t* to, sint
 				if(ok) {
 					// prefer existing rivers:
 					*costs = to->hat_weg(water_wt) ? 10 : 10+simrand(s.way_count_90_curve);
-					if(to->get_weg_hang()!=0  &&  !to_flat) {
+					if(to->get_weg_hang()!=0) {
 						*costs += s.way_count_slope * 10;
 					}
 				}

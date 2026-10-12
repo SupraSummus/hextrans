@@ -1375,7 +1375,6 @@ function test_way_road_build_terraform_is_no_bypass()
 }
 
 
-// test_way_road_build_terraform_forbidden_by_scenario: HEX-PORT PENDING.
 function test_way_road_build_terraform_forbidden_by_scenario()
 {
 	local pl        = player_x(0)
@@ -1407,6 +1406,38 @@ function test_way_road_build_terraform_forbidden_by_scenario()
 	// clean up
 	ASSERT_EQUAL(remover.work(pl, coord3d(3, 4, 0), coord3d(5, 4, 0), "" + wt_road), null)
 	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
+function test_way_road_build_terraform_costs_the_search()
+{
+	local pl        = player_x(0)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local remover   = command_x(tool_remove_way)
+
+	// a run of three double slopes across the straight way: levelling them is allowed
+	// but not free, so the route search goes round them on the flat when that is cheaper
+	foreach (x in [4, 5, 6]) {
+		ASSERT_EQUAL(command_x.set_slope(pl, coord3d(x, 4, 0), slope.south_double), null)
+	}
+
+	// the search runs, with terraforming on, between the ends of the row
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 4, 0), coord3d(9, 4, 0), road_desc, false, true), null)
+	ASSERT_TRUE(tile_x(1, 4, 0).has_way(wt_road))
+	ASSERT_TRUE(tile_x(9, 4, 0).has_way(wt_road))
+
+	foreach (x in [4, 5, 6]) {
+		ASSERT_FALSE(tile_x(x, 4, 0).has_way(wt_road))
+		ASSERT_EQUAL(tile_x(x, 4, 0).get_slope(), slope.south_double)
+	}
+
+	// clean up
+	ASSERT_EQUAL(remover.work(pl, coord3d(1, 4, 0), coord3d(9, 4, 0), "" + wt_road), null)
+	foreach (x in [4, 5, 6]) {
+		ASSERT_EQUAL(command_x.set_slope(pl, coord3d(x, 4, 0), slope.flat), null)
+	}
 	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
 	RESET_ALL_PLAYER_FUNDS()
 }
