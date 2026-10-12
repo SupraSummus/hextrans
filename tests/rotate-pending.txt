@@ -5,6 +5,7 @@
 
 # A multi-tile footprint is anchored at its world NW corner, which the
 # script sees as the far corner after the half turn.
+test_city_building_3x2_faces_road
 test_building_build_house_valid_desc
 test_building_build_house_auto_rotation_attraction
 test_building_buy_house_attraction
