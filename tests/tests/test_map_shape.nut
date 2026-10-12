@@ -152,6 +152,18 @@ function test_map_shape_terraform_at_edge()
 }
 
 
+// The enlarge-map dialog opens on this map, a rhombus or a hexagon, and
+// draws its preview of the enlarged one.  Nothing here can look at the
+// picture: what it finds is a crash.
+function test_map_shape_enlarge_dialog()
+{
+	ASSERT_TRUE(debug.enlarge_dialog(true))
+	sleep()
+	sleep()
+	ASSERT_FALSE(debug.enlarge_dialog(false))
+}
+
+
 //
 // Enlarging: W and H grow, D stays (karte_t::enlarge_map).  The old
 // hexagon keeps its tiles, so the new ones are the new hexagon minus the old.

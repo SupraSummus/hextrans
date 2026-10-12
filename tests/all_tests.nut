@@ -192,6 +192,7 @@ all_tests <- [
 	test_map_shape_no_way_into_cut,
 	test_map_shape_no_terraform_in_cut,
 	test_map_shape_terraform_at_edge,
+	test_map_shape_enlarge_dialog,
 	test_player_cash,
 	test_player_isactive,
 	test_player_headquarters,
