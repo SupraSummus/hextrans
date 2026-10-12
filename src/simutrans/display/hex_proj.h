@@ -301,6 +301,37 @@ inline sint32 hex_render_x_start_clipped(sint16 y, sint32 lt_x,
 
 
 /**
+ * Visit the hexes of a screen rectangle of the render lattice, back to
+ * front.
+ *
+ * Calls `visit(koord(dq, dr))` for every hex whose centre lies on a
+ * row `y` in `[y_min, y_max]` at an `x` in `[x_min, x_max]`, both in
+ * the W/4 units of the render loop and relative to a reference hex at
+ * `(0, 0)`, so `x = 3*dq` and `y = dq + 2*dr`.  The order is the one
+ * `main_view_t::display_region` draws in: rows top to bottom, left to
+ * right within a row, so a hex drawn later may overlap one drawn
+ * earlier and never the other way round.  Small views of the world,
+ * which centre one tile and draw a few around it, take their tile list
+ * from here instead of the square lattice's two interleaved diagonals.
+ */
+template<class Visit>
+inline void hex_for_each_in_rows(sint32 y_min, sint32 y_max,
+                                 sint32 x_min, sint32 x_max, Visit visit)
+{
+	for (sint32 y = y_min; y <= y_max; y++) {
+		// Smallest x >= x_min with x = 3*y (mod 6), the phase of row y.
+		const sint32 phase = (y & 1) ? 3 : 0;
+		sint32 mod = (phase - x_min) % 6;
+		if (mod < 0) mod += 6;
+		for (sint32 x = x_min + mod; x <= x_max; x += hex_render_x_step()) {
+			const sint32 q = x / 3;
+			visit(koord((sint16)q, (sint16)((y - q) / 2)));
+		}
+	}
+}
+
+
+/**
  * Hex way axes (3 total).
  *
  * Each axis pairs two opposite hex edges; a way running through that
