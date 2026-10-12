@@ -1513,6 +1513,46 @@ function test_halt_make_public_merges_hex_neighbours_only()
 }
 
 
+// A new stop is named after a townhall, monument or attraction within two
+// steps.  The old table of 24 offsets reached (2,2), (2,1), (1,2) and their
+// opposites, which are three or four steps away.
+function test_halt_name_from_building_within_two_steps()
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local pax_halt  = building_desc_x.get_available_stations(building_desc_x.station, wt_road, good_desc_x.passenger)[0]
+	local wayremover = command_x(tool_remove_way)
+	local townhall = coord3d(8, 8, 0)
+
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, townhall, "0"), null)
+
+	// dx, dy of the stop from the townhall, and whether it is named after it
+	// (all outside the 3x3 ring around the townhall, where the city's seed road lies)
+	local cases = [
+		[ 2, -2, true], [-2,  2, true], [ 2,  0, true], [ 0,  2, true], [-2, 0, true],
+		[ 2,  2, false], [-2, -2, false], [ 2,  1, false], [-2, -1, false], [ 1, 2, false], [-1, -2, false]
+	]
+
+	foreach (c in cases) {
+		local k = coord3d(townhall.x + c[0], townhall.y + c[1], 0)
+		// a road leading away from the townhall, so nothing joins the seed roads
+		local end = coord3d(k.x, k.y + (c[1] < 0 ? -1 : 1), 0)
+
+		ASSERT_EQUAL(command_x.build_way(pl, k, end, road_desc, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, k, pax_halt.get_name()), null)
+
+		local name = halt_x.get_halt(k, pl).get_name()
+		ASSERT_EQUAL(name.find("Town Hall") != null, c[2])
+
+		ASSERT_EQUAL(wayremover.work(pl, k, end, "" + wt_road), null)
+	}
+
+	clear_townhall_and_roads(public_pl, townhall.x, townhall.y)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_halt_upgrade_downgrade()
 {
 	local pl = player_x(0)

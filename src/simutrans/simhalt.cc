@@ -789,31 +789,26 @@ char* haltestelle_t::create_name(koord const k, char const* const typ)
 	const bool suburb = !inside  &&  (li_gr - 6 < k.x  &&  re_gr + 6 > k.x  &&  ob_gr - 6 < k.y  &&  un_gr + 6 > k.y);
 
 	if (!welt->get_settings().get_numbered_stations()) {
-		static const koord next_building[24] = {
+		// all tiles within two steps, closest first
+		static const koord next_building[18] = {
 			koord( 0, -1), // north
-			koord( 1,  0), // east
+			koord( 1,  0), // southeast
 			koord( 0,  1), // south
-			koord(-1,  0), // west
+			koord(-1,  0), // northwest
 			koord( 1, -1), // northeast
-			koord( 1,  1), // southeast
 			koord(-1,  1), // southwest
-			koord(-1, -1), // northwest
-			koord( 0, -2), // double nswo
+			koord( 0, -2), // and now the tiles with distance 2
 			koord( 2,  0),
 			koord( 0,  2),
 			koord(-2,  0),
-			koord( 1, -2), // all the remaining 3s
+			koord( 1, -2),
 			koord( 2, -1),
-			koord( 2,  1),
-			koord( 1,  2),
+			koord( 1,  1),
 			koord(-1,  2),
 			koord(-2,  1),
-			koord(-2, -1),
-			koord(-1, -2),
-			koord( 2, -2), // and now all buildings with distance 4
-			koord( 2,  2),
-			koord(-2,  2),
-			koord(-2, -2)
+			koord(-1, -1),
+			koord( 2, -2),
+			koord(-2,  2)
 		};
 
 		// standard names:
@@ -841,7 +836,7 @@ char* haltestelle_t::create_name(koord const k, char const* const typ)
 			}
 			else {
 				// since the distance are presorted, we can just append for a good choice ...
-				for(  int test=0;  test<24;  test++  ) {
+				for(  uint32 test=0;  test<lengthof(next_building);  test++  ) {
 					fabrik_t *fab = fabrik_t::get_fab(k+next_building[test]);
 					if(fab  &&  fabs.is_contained(fab)) {
 						fabs.append(fab);
@@ -866,7 +861,7 @@ char* haltestelle_t::create_name(koord const k, char const* const typ)
 		const char *building_base = translator::translate(building_base_text,lang);
 		if(  building_base_text != building_base  ) {
 			// check for other special building (townhall, monument, tourist attraction)
-			for (int i=0; i<24; i++) {
+			for (uint32 i=0; i<lengthof(next_building); i++) {
 				grund_t *gr = welt->lookup_kartenboden( next_building[i] + k);
 				if(gr==NULL  ||  gr->get_typ()!=grund_t::fundament) {
 					// no building here
