@@ -81,6 +81,7 @@
 
 #include "../dataobj/height_field_sample.h"
 #include "../dataobj/height_map_loader.h"
+#include "../dataobj/mapgen_shape.h"
 #include "../dataobj/ribi.h"
 #include "../dataobj/translator.h"
 #include "../dataobj/loadsave.h"
@@ -5354,7 +5355,7 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 				for(uint16 y=ytop; y<ybottom; y++) {
 					for(uint16 x=max(0,xtop-1); x<xbottom; x++) {
 						if(climate_smooth_cpy[x+y*xbottom] != water_climate ) {
-							sint32 temp_climate = 4 * (climate_smooth_cpy[x+y*xbottom]);
+							sint32 neighbour_climate[lengthof(koord::neighbours)];
 							for(size_t i=0; i<lengthof(koord::neighbours); i++) {
 								sint32 this_climate;
 								koord k_neighbour = koord(x,y) + koord::neighbours[i];
@@ -5370,10 +5371,10 @@ void karte_t::calc_climate_map_region( sint16 xtop, sint16 ytop, sint16 xbottom,
 								else {
 									this_climate = climate_smooth_cpy[x+y*xbottom];
 								}
-								temp_climate += (i&1) ? (2 * (this_climate)) : (this_climate);
+								neighbour_climate[i] = this_climate;
 							}
 							//if(s<8) temp_height += sets->get_map_roughness()*(simrand(8));
-							climate_smooth[x+y*xbottom]=(climate)((temp_climate)/16);
+							climate_smooth[x+y*xbottom]=(climate)climate_smooth_cell( climate_smooth_cpy[x+y*xbottom], neighbour_climate );
 						}
 					}
 				}
