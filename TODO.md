@@ -1235,17 +1235,28 @@ Next move: one helper that marks the three dependants dirty,
 called from each site.
 
 Map generation metrics.
-`karte_t::calc_climate_map_region` smooths humidity with weights
-that sum to 13 but divides by 16, so climates drift dry,
-and its climate patches are axial ellipses;
-`karte_t::distribute_cities` uses an axial cosine;
-`karte_t::find_squares` looks for axial 5×5 squares;
-`terraformer_t::lower_to` recalculates an axial ring;
-`way_builder_t::build_river` has a square bend test,
-as does the signal spacing in `tool_build_roadsign_t::mark_tiles`.
-Next move: fix the humidity divisor first (a one-line change with a
-measurable effect on climate shares), then port the shapes
-to `hex_disc` / `physical_distance_sq`.
+`way_builder_t::build_river` and the signal spacing in
+`tool_build_roadsign_t::mark_tiles` find a route's bends
+by passing the delta between a tile's two route neighbours to `ribi_type`.
+A 60° turn (SE then S) comes out off-axis, so a bend,
+but a 120° turn (SE then SW) adds up to a single step along a hex axis
+and is called straight.
+Both wait for the wegbauer and roadsign rewrites.
+Next move: compare the two step directions instead
+(`route[i] - route[i-1]` against `route[i+1] - route[i]`) in both.
+In `mark_tiles` also weigh a tile by the chord of its turn,
+two half-tiles for straight and 60° turns and one for a 120° turn,
+and test the spacing of signals on a route with a 120° turn.
+
+The climate smoothing in `karte_t::calc_climate_map_region` rounds down.
+On the humidity generator that turns small pockets of a climate
+into the climate below them:
+mediterran tiles go from 739 to 6 on a 256×256 map from seed 1,
+with tropic around them.
+Next move: round to nearest,
+`(sum + CLIMATE_SMOOTH_TOTAL / 2) / CLIMATE_SMOOTH_TOTAL`
+in `climate_smooth_cell`,
+and compare `tools/mapgen_metrics.py --generators humidity` before and after.
 
 Descriptor visuals.
 `tunnel_desc_t::slope_index` has no `*_double` slopes,
