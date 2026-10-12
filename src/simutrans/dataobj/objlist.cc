@@ -1438,7 +1438,6 @@ void objlist_t::display_obj_fg( const sint16 xpos, const sint16 ypos, const uint
 }
 
 
-#ifdef MULTI_THREAD
 void objlist_t::display_obj_overlay(const sint16 xpos, const sint16 ypos) const
 {
 	if(  top == 0  ) {
@@ -1456,7 +1455,6 @@ void objlist_t::display_obj_overlay(const sint16 xpos, const sint16 ypos) const
 		}
 	}
 }
-#endif
 
 
 void objlist_t::check_season(const bool calc_only_season_change)

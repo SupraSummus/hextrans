@@ -6,11 +6,23 @@
 #include <string.h>
 
 #include "gui_textinput.h"
+#include "gui_scrolled_list.h"
+#include "../gui_frame.h"
+#include "../gui_theme.h"
 #include "../simwin.h"
 #include "../../dataobj/translator.h"
 #include "../../utils/simstring.h"
 #include "../../utils/unicode.h"
 #include "../../sys/simsys.h"
+
+
+static const char* edit_menu_str[]
+{
+	"Cut",
+	"Copy",
+	"Paste",
+	"Select all"
+};
 
 
 gui_textinput_t::gui_textinput_t() :
@@ -30,8 +42,16 @@ gui_textinput_t::gui_textinput_t() :
 	focus_received(false),
 	enabled(true),
 	notify_all_changes_delay(0xFFFF),
-	cursor_reference_time(0)
-{ }
+	cursor_reference_time(0),
+	edit_menu(gui_scrolled_list_t::listskin),
+	edit_menu_opening_gesture(false)
+{
+	for (int i= 0; i < lengthof(edit_menu_str); i++) {
+		edit_menu.new_component<gui_scrolled_list_t::const_text_scrollitem_t>(translator::translate(edit_menu_str[i]),SYSCOL_TEXT);
+	}
+	edit_menu.add_listener(this);
+	edit_menu.set_visible(false);
+}
 
 
 gui_textinput_t::~gui_textinput_t()
@@ -117,12 +137,85 @@ void gui_textinput_t::set_composition_status( char *c, int start, int length )
 }
 
 
-/**
- * Events are notified to GUI components via this method
- */
+bool gui_textinput_t::action_triggered(gui_action_creator_t*, value_t extra)
+{
+	const int cmd = edit_menu.get_count() == 1 ? 2 : extra.i;
+	edit_menu.set_visible(false);
+
+	// the control characters the key handling below already listens for CUT COPY PAST ALL
+	static const uint16 ctrl_code[4] = { 24, 3, 22, 1 };
+	event_t key(EVENT_KEYDOWN);
+	key.ev_code = ctrl_code[cmd];
+	key.ev_key_mod = SIM_KEYMOD_CTRL;
+	infowin_event(&key);
+
+	return true;
+}
+
+
 bool gui_textinput_t::infowin_event(const event_t *ev)
 {
 	if (!enabled) {
+		return false;
+	}
+
+	if(  edit_menu.is_visible()  &&  edit_menu_opening_gesture  ) {
+		// The finger that held for the menu still has to come off, and its lift
+		// arrives as a click and a release where it rested (SIM_MOUSE_LONGPRESS in
+		// simevent.cc). That ends the gesture that asked for the menu; it is not a
+		// click outside it.
+		if(  IS_LEFTRELEASE(ev)  ) {
+			edit_menu_opening_gesture = false;
+			return true;
+		}
+		if(  IS_LEFTCLICK(ev)  ||  IS_LEFTDRAG(ev)  ||  IS_LONGPRESS(ev)  ) {
+			return true;
+		}
+	}
+	if(  edit_menu.is_visible()  &&  IS_LEFTCLICK(ev)  &&  !edit_menu.getroffen(ev->click_pos)) {
+		// click outside => close it
+		edit_menu.set_visible(false);
+		// swallow click
+		return true;
+	}
+	if (edit_menu.is_visible()) {
+		event_t ev2 = *ev;
+		ev2.move_origin(edit_menu.get_pos());
+		return edit_menu.infowin_event(&ev2);
+	}
+	else if(  IS_LONGPRESS(ev)  ||  IS_RIGHTCLICK(ev)  ) {
+		// a held finger has no other meaning, and a right click in a text field had none
+		scr_rect this_comp( get_size() );
+		if(  text  &&  win_get_focus() == this  &&  this_comp.contains( ev->click_pos )  ) {
+			// find whats enabled if not secret
+			if (edit_menu.get_count() > 1) {
+				// at teh beginnign, cursor position might not be valid
+				size_t len = strlen(text);
+				size_t hc = min(len, head_cursor_pos);
+				size_t tc = min(len, tail_cursor_pos);
+				edit_menu.get_element(0)->set_visible(hc!=tc);
+				edit_menu.get_element(1)->set_visible(hc!=tc);
+				edit_menu.get_element(3)->set_visible(tc>0  ||  hc<len  ||  hc==tc);
+			}
+			// since the size is recalculated on first draw, get_min_size assumes a scrollbar => we do manual calcualtion
+			scr_size sz(0, 0);
+			for (int i = 0; i < edit_menu.get_count(); i++) {
+				if (edit_menu.get_element(i)->is_visible()) {
+					scr_size ez = edit_menu.get_element(i)->get_min_size();
+					if (sz.w < ez.w) sz.w = ez.w;
+					sz.h += ez.h;
+				}
+			}
+			// add the passing
+			sz.w += D_H_SPACE*2;
+			sz.h += D_V_SPACE;
+			edit_menu.set_size(sz);
+			edit_menu.set_pos(scr_coord(0, 0));
+			edit_menu.set_visible(true);
+			edit_menu.set_selection(-1);
+			edit_menu_opening_gesture = IS_LONGPRESS(ev);
+			return true;
+		}
 		return false;
 	}
 
@@ -517,6 +610,11 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 		tail_cursor_pos = 0;
 	}
 	else if(  ev->ev_class==INFOWIN  &&  ev->ev_code==WIN_UNTOP  ) {
+		// the focus has already moved on: a field that takes text keeps the keyboard
+		if(  !win_is_textinput()  ) {
+			dr_stop_textinput();
+		}
+		edit_menu.set_visible(false);
 		if(  text_dirty  ) {
 			text_dirty = false;
 			call_listeners((long)INPUT_UNTOP);
@@ -525,6 +623,7 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 	}
 	else if(  ev->ev_class == INFOWIN   &&  ev->ev_code == WIN_CLOSE  &&  focus_received  ) {
 		// release focus on close and close keyboard
+		edit_menu.set_visible(false);
 		dr_stop_textinput();
 		if (text_dirty) {
 			// note all pending changes
@@ -544,12 +643,24 @@ bool gui_textinput_t::infowin_event(const event_t *ev)
 }
 
 
-/**
- * Draw the component
- */
 void gui_textinput_t::draw(scr_coord offset)
 {
 	display_with_focus( offset, (win_get_focus()==this) );
+	if(  edit_menu.is_visible()  ) {
+		if (edit_menu.get_pos().y == 0) {
+			// First openen? Find out if enough space below
+			scr_size sz = edit_menu.get_size();
+			scr_size wz = win_get_top()->get_windowsize() + win_get_pos(win_get_top());
+			if (wz.h < offset.y + pos.y + size.h + sz.h) {
+				// no => show above
+				edit_menu.set_pos(scr_coord(0, -sz.h));
+			}
+			else {
+				edit_menu.set_pos(scr_coord(0, size.h));
+			}
+		}
+		edit_menu.draw(offset + pos);
+	}
 	if (text_dirty  &&  dr_time() > next_update_call) {
 		// need to trigger a dummy event for next processing
 		event_t* ev = new event_t(EVENT_KEYDOWN);
@@ -579,6 +690,7 @@ void gui_textinput_t::display_with_focus(scr_coord offset, bool has_focus)
 			dr_notify_input_pos({ x, y });
 		}
 		else {
+			edit_menu.set_visible(false);
 			dr_stop_textinput();
 		}
 		focus_received = has_focus;
@@ -713,14 +825,26 @@ void gui_textinput_t::display_with_cursor(scr_coord offset, bool cursor_active, 
 
 
 
+/// true if a cursor may stand at byte @p pos of @p t: at its end or on the first byte of a character
+static bool is_cursor_position(const char *t, size_t pos)
+{
+	const size_t len = strlen(t);
+	return pos < len ? ((uint8)t[pos] & 0xC0) != 0x80 : pos == len;
+}
+
+
 void gui_textinput_t::set_text(char *t, size_t max)
 {
+	// the menu acts on the buffer it was opened over; it must not outlive it
 	char *old_text = text;
 	this->text = t;
 	this->max = max;
 
-	if (old_text  &&   tail_cursor_pos == head_cursor_pos) {
+	edit_menu.set_visible(false);
+	if (old_text  &&   tail_cursor_pos == head_cursor_pos  &&  (t == NULL  ||  is_cursor_position(t, head_cursor_pos))) {
 		// if same, keep positions
+		// (the buffer may hold another string now, e.g. a combobox showing the next entry; a
+		//  byte position inside one of its characters would split it when drawn or edited)
 	}
 	else {
 		// whole text is selected by default
@@ -731,6 +855,13 @@ void gui_textinput_t::set_text(char *t, size_t max)
 }
 
 
+
+gui_hidden_textinput_t::gui_hidden_textinput_t() :
+	gui_textinput_t()
+{
+	edit_menu.clear_elements();
+	edit_menu.new_component<gui_scrolled_list_t::const_text_scrollitem_t>(translator::translate("Paste"), SYSCOL_TEXT);
+}
 
 // needed to set the cursor on the right position
 bool gui_hidden_textinput_t::infowin_event(const event_t *ev)

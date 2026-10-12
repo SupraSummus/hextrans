@@ -75,6 +75,7 @@
 #include "display_settings.h"
 #include "optionen.h"
 #include "player_ranking_frame.h"
+#include "way_builder_frame.h"
 
 #include "../simversion.h"
 
@@ -650,6 +651,7 @@ void rdwr_all_win(loadsave_t *file)
 					case magic_color_gui_t:    w = new color_gui_t(); break;
 					case magic_optionen_gui_t: w = new optionen_gui_t(); break;
 					case magic_player_ranking: w = new player_ranking_frame_t(); break;
+					case magic_way_builder:    w = new way_builder_frame_t(invalid_wt); break;
 
 					default:
 						if(  id>=magic_finances_t  &&  id<magic_finances_t+MAX_PLAYER_COUNT  ) {
@@ -909,10 +911,9 @@ int create_win(scr_coord pos, gui_frame_t *const gui, wintype const wt, ptrdiff_
 		if (stored == scr_size()) {
 			// not stored, take current
 			stored = gui->get_windowsize();
+			// use default width
+			stored.clip_lefttop(scr_size(D_DEFAULT_WIDTH, D_DEFAULT_HEIGHT));
 		}
-
-		// use default width
-		stored.clip_lefttop(scr_size(D_DEFAULT_WIDTH, D_DEFAULT_HEIGHT));
 		// clip to display size
 		const scr_size screen = gfx->get_screen_size();
 		stored.clip_rightbottom( scr_size(screen.w, screen.h - env_t::iconsize.h - win_get_statusbar_height() ) );
@@ -1944,15 +1945,6 @@ uint16 win_get_statusbar_height()
  *
  * Not part of the status bar and not a tooltip.
  *
- * The status bar is already at capacity: it has its own ladder for giving up
- * content when it runs out of width (compact date, then ellipsised player name,
- * then short money, then money alone - see win_display_flush below), so a
- * second variable-width tenant would push the money off screen on small
- * displays. A tooltip is wrong for a different reason: it would tie active
- * build feedback both to env_t::show_tooltips and to a mouse hovering
- * something, and neither is true of a build in progress - least of all on
- * touch, where there is no hover at all.
- *
  * Painted over the world rather than reserving space, so appearing and
  * disappearing never reflows windows or the viewport.
  *
@@ -2282,9 +2274,11 @@ void win_display_flush(double konto)
 
 		POP_CLIP();
 
-		// Deliberately outside the env_t::show_tooltips block above: hover
-		// tooltips stay under that setting, active build feedback does not.
-		display_tool_context_bar( screen, show_ticker );
+		if (env_t::show_construction_info) {
+			// Deliberately outside the env_t::show_tooltips block above: hover
+			// tooltips stay under that setting, active build feedback does not.
+			display_tool_context_bar(screen, show_ticker);
+		}
 
 		if(!wl) {
 			// no infos during loading etc

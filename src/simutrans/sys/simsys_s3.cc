@@ -60,6 +60,7 @@
 #include "../gui/components/gui_component.h"
 #include "../gui/components/gui_textinput.h"
 #include "../music/music.h"
+#include "../sound/sdl3_audio.h"
 #include "../utils/unicode.h"
 #include "../world/simworld.h"
 
@@ -474,6 +475,14 @@ bool dr_os_init(const int *parameter)
 	 * subsystem can latch the default first. */
 	SDL_SetHint( SDL_HINT_TOUCH_MOUSE_EVENTS, "0" );
 
+	/* Nor the other way round: a mouse or a pen that SDL also turns into a
+	 * finger arrives twice, as its own button events and again as a tap.
+	 * SDL does that by default for a mouse on Android and iOS, and for a pen
+	 * everywhere. Both keep their mouse events, which the handling below
+	 * already understands - hover included. */
+	SDL_SetHint( SDL_HINT_MOUSE_TOUCH_EVENTS, "0" );
+	SDL_SetHint( SDL_HINT_PEN_TOUCH_EVENTS, "0" );
+
 	// SDL2->SDL3: SDL_Init returns true on success, where SDL2 returned 0.
 	if(  !SDL_Init( SDL_INIT_VIDEO )  ) {
 		dbg->error( "dr_os_init(SDL3)", "Could not initialize SDL: %s", SDL_GetError() );
@@ -742,7 +751,8 @@ void dr_os_close()
 	 *   4 free framebuffer - ours; nothing inside SDL points at it
 	 *   5 destroy cursors  - independent of the window, but before SDL_Quit
 	 *   6 destroy window   - now nothing refers to it
-	 *   7 SDL_Quit         - last, or the calls above have no subsystem left
+	 *   7 close music      - SDL3_mixer, if used, owns audio streams of its own
+	 *   8 SDL_Quit         - last, or the calls above have no subsystem left
 	 */
 	if(  window  ) {
 		SDL_StopTextInput( window );
@@ -771,6 +781,8 @@ void dr_os_close()
 		SDL_DestroyWindow( window );
 		window = NULL;
 	}
+
+	sdl3_audio_close();
 
 	SDL_Quit();
 }
@@ -911,6 +923,34 @@ void dr_textur(int xp, int yp, int w, int h)
 
 // threshold for zooming in/out with multitouch, as in simsys_s2
 #define DELTA_PINCH (0.033)
+
+/* A finger held in place is a long press. r12289 gave the text fields a copy /
+ * cut / paste menu that a touch screen opens this way, because a soft keyboard
+ * has no Ctrl key, but only simsys_s2 ever produced the event - so on this
+ * backend the menu existed and could not be asked for. The three numbers are
+ * simsys_s2's, deliberately: the same gesture has to mean the same thing on
+ * both backends, and a player moving between them must not have to learn a
+ * different hold.
+ *
+ * LONGPRESS_MS is Android's own default; LONGPRESS_SLOP is how far a resting
+ * finger may still wander, since a finger is never quite still.
+ *
+ * LONGPRESS_REPEAT_MS: a held finger stays held, so the state is re-announced
+ * while it lasts. This is insurance, not a fix for a known loss on this
+ * backend - it mirrors simsys_s2, where one long press was once announced and
+ * never arrived and the cause was never established. It is safe because the
+ * announcement is idempotent by contract: a consumer that has already acted on
+ * it ignores the next one, which is what gui_textinput_t does. Setting
+ * LONGPRESS_REPEAT_MS to LONGPRESS_REPEAT_UNTIL_MS switches the repeat off
+ * and leaves exactly one announcement per gesture.
+ *
+ * LONGPRESS_REPEAT_UNTIL_MS bounds it, because in_finger_handling is cleared
+ * by the finger going up: a touch sequence that ends without one would
+ * otherwise repeat for as long as the process lives. */
+#define LONGPRESS_MS (500)
+#define LONGPRESS_SLOP (16)
+#define LONGPRESS_REPEAT_UNTIL_MS (LONGPRESS_MS + 1000)
+#define LONGPRESS_REPEAT_MS (250)
 
 /* Enough for every hand on the glass. A device that reports more simply has the
  * extra fingers ignored, which is safer than growing a table from a number the
@@ -1059,6 +1099,54 @@ static inline unsigned int ModifierKeys()
 }
 
 
+/**
+ * A finger resting in place is a long press, the one touch gesture Simutrans
+ * did not use until r12289. It has to be recognised here: SDL_EVENT_FINGER_DOWN
+ * reports nothing by itself - the press is synthesised from the first motion or
+ * from the lift - and a held finger sends nothing else to go by, so the hold is
+ * timed rather than received. The caller has already established that the
+ * finger has not wandered off.
+ *
+ * Positions are in texture pixels, converted by the caller the same way the
+ * rest of the finger handling converts them.
+ */
+static bool emit_longpress_if_due(uint32 down_time, bool &already_sent, uint32 &last_sent, sint32 mx, sint32 my)
+{
+	const uint32 now = dr_time();
+	if(  now - down_time >= LONGPRESS_REPEAT_UNTIL_MS  ) {
+		// said often enough; whoever wanted it has had it
+		return false;
+	}
+	if(  already_sent  ?  now - last_sent < LONGPRESS_REPEAT_MS  :  now - down_time < LONGPRESS_MS  ) {
+		return false;
+	}
+	if(  !already_sent  ) {
+		DBG_MESSAGE( "internal_GetEvents(SDL3)", "SIM_MOUSE_LONGPRESS at %i,%i", mx, my );
+	}
+	already_sent      = true;
+	last_sent         = now;
+	sys_event.type    = SIM_MOUSE_BUTTONS;
+	sys_event.code    = SIM_MOUSE_LONGPRESS;
+	sys_event.mb      = 0;
+	sys_event.mx      = mx;
+	sys_event.my      = my;
+	sys_event.key_mod = ModifierKeys();
+	return true;
+}
+
+
+// the left button release a finger owes the game
+static void finger_release(sint32 mx, sint32 my)
+{
+	sys_event.type    = SIM_MOUSE_BUTTONS;
+	sys_event.code    = SIM_MOUSE_LEFTUP;
+	sys_event.mb      = 0;
+	sys_event.mx      = mx;
+	sys_event.my      = my;
+	sys_event.key_mod = ModifierKeys();
+}
+
+
 static uint16 conv_mouse_buttons(SDL_MouseButtonFlags state)
 {
 	return
@@ -1121,6 +1209,23 @@ static void internal_GetEvents()
 	static bool   has_queued_finger_release = false;
 	static sint32 last_mx = 0, last_my = 0;
 
+	/* Whether the finger that owns the gesture has given the game a press no
+	 * release has answered yet, and where that finger last was. A drag ends
+	 * with its release; when a second finger or the system takes the
+	 * gesture over, the release is still owed. Without it the game keeps
+	 * the button down, and the next release - the next tap on the map -
+	 * is swallowed as the end of a drag that never ended. */
+	static bool   finger_press_sent = false;
+	static sint32 finger_mx = 0, finger_my = 0;
+
+	/* Where and when the finger that owns the gesture landed, so that a hold
+	 * can be told from a drag and timed. SDL delivers no event for a finger
+	 * that simply stays down, so this is the only record of it. */
+	static uint32 finger_down_time = 0;
+	static sint32 finger_down_mx = 0, finger_down_my = 0;
+	static bool   longpress_sent = false;
+	static uint32 longpress_last_sent = 0;
+
 	/* The size last reported as a SYSTEM_RESIZE, so that the two SDL3 events
 	 * that describe one resize do not become two. Zero is not a size the game
 	 * can be asked for, so the first real one always gets through. */
@@ -1142,6 +1247,13 @@ static void internal_GetEvents()
 	// SDL2->SDL3: SDL_PollEvent returns bool instead of int. Zero still means
 	// "no event", so the test itself is unchanged in meaning.
 	if(  !SDL_PollEvent( &event )  ) {
+		/* An idle queue is one of the two moments a hold can be noticed. A
+		 * single finger that has become neither a drag nor a pinch is still
+		 * resting: dLastDist is the has-this-finger-moved-yet flag here, as
+		 * everywhere else in this file. */
+		if(  in_finger_handling  &&  !previous_multifinger_touch  &&  dLastDist == 0.0  ) {
+			emit_longpress_if_due( finger_down_time, longpress_sent, longpress_last_sent, finger_down_mx, finger_down_my );
+		}
 		return;
 	}
 
@@ -1316,10 +1428,24 @@ static void internal_GetEvents()
 				FirstFingerId = event.tfinger.fingerID;
 				in_finger_handling = true;
 				previous_multifinger_touch = 0;
+
+				// remember when and where, to be able to recognise a hold later
+				if(  framebuffer  ) {
+					const scr_size screen_size = gfx->get_screen_size();
+					finger_down_mx = (sint32)(event.tfinger.x * screen_size.w);
+					finger_down_my = (sint32)(event.tfinger.y * screen_size.h);
+				}
+				finger_down_time = dr_time();
+				longpress_sent = false;
 			}
 			else if(  FirstFingerId != event.tfinger.fingerID  ) {
 				// a second finger: this is a gesture, not a drag
 				previous_multifinger_touch = 2;
+				if(  finger_press_sent  ) {
+					// so the drag the first finger started ends here
+					finger_press_sent = false;
+					finger_release( finger_mx, finger_my );
+				}
 			}
 			break;
 
@@ -1386,21 +1512,41 @@ static void internal_GetEvents()
 			}
 			else if(  framebuffer  &&  previous_multifinger_touch == 0  &&  FirstFingerId == event.tfinger.fingerID  ) {
 				// one finger drags, which the game reads as the left button
+				const sint32 mx = (sint32)(event.tfinger.x * screen_size.w);
+				const sint32 my = (sint32)(event.tfinger.y * screen_size.h);
+
+				if(  dLastDist == 0.0  &&  abs( mx - finger_down_mx ) + abs( my - finger_down_my ) <= LONGPRESS_SLOP  ) {
+					/* Still resting, not dragging - and this is the other moment
+					 * a hold can be noticed, because a finger that jitters keeps
+					 * the queue busy so the idle path above never runs.
+					 * Reporting a press here would clear the very selection a
+					 * long press is about to copy; the press still follows from
+					 * the lift, or from the first motion that leaves the slop. */
+					emit_longpress_if_due( finger_down_time, longpress_sent, longpress_last_sent, finger_down_mx, finger_down_my );
+					break;
+				}
+
 				if(  dLastDist == 0.0  ) {
 					// no press was sent yet, so this motion carries it
 					dLastDist = 1e-99;
 					sys_event.type = SIM_MOUSE_BUTTONS;
 					sys_event.code = SIM_MOUSE_LEFTBUTTON;
 					previous_multifinger_touch = 0;
+					// anchor it where the finger landed, not where it has got to
+					sys_event.mx = finger_down_mx;
+					sys_event.my = finger_down_my;
 				}
 				else {
 					sys_event.type = SIM_MOUSE_MOVE;
 					sys_event.code = SIM_MOUSE_MOVED;
+					sys_event.mx = mx;
+					sys_event.my = my;
 				}
-				sys_event.mx      = (sint32)(event.tfinger.x * screen_size.w);
-				sys_event.my      = (sint32)(event.tfinger.y * screen_size.h);
 				sys_event.mb      = MOUSE_LEFTBUTTON;
 				sys_event.key_mod = ModifierKeys();
+				finger_press_sent = true;
+				finger_mx = sys_event.mx;
+				finger_my = sys_event.my;
 			}
 			break;
 		}
@@ -1443,6 +1589,7 @@ static void internal_GetEvents()
 						}
 						else {
 							// end of a drag
+							finger_press_sent = false;
 							sys_event.type    = SIM_MOUSE_BUTTONS;
 							sys_event.code    = SIM_MOUSE_LEFTUP;
 							sys_event.mb      = 0;
@@ -1450,6 +1597,13 @@ static void internal_GetEvents()
 							sys_event.my      = (sint32)((event.tfinger.y + event.tfinger.dy) * screen_size.h);
 							sys_event.key_mod = ModifierKeys();
 						}
+					}
+					else if(  finger_press_sent  ) {
+						/* The system took a drag away. Its press was made, so its
+						 * release is given back; a gesture that never pressed - a
+						 * cancelled tap - still releases nothing. */
+						finger_press_sent = false;
+						finger_release( finger_mx, finger_my );
 					}
 					previous_multifinger_touch = 0;
 					in_finger_handling = false;
@@ -1496,6 +1650,7 @@ static void internal_GetEvents()
 				case SDLK_BACKSPACE:  code = SIM_KEYCODE_BACKSPACE;  break;
 				case SDLK_TAB:        code = SIM_KEYCODE_TAB;        break;
 				case SDLK_RETURN:     code = SIM_KEYCODE_ENTER;      break;
+				case SDLK_AC_BACK: // Android back button: close windows instead of deleting text, as in simsys_s2
 				case SDLK_ESCAPE:     code = SIM_KEYCODE_ESCAPE;     break;
 				case SDLK_DELETE:     code = SIM_KEYCODE_DELETE;     break;
 				case SDLK_DOWN:       code = SIM_KEYCODE_DOWN;       break;
@@ -1557,9 +1712,11 @@ static void internal_GetEvents()
 		case SDL_EVENT_KEY_UP:
 			// A released key carries no code, but the event still has to be
 			// reported, exactly as simsys_s2 does: an EVENT_NONE here would end
-			// the event drain loop of simwin one iteration early.
+			// the event drain loop of simwin one iteration early. key_mod is not
+			// reset between events, so a released modifier would otherwise stay set.
 			sys_event.type = SIM_KEYBOARD;
 			sys_event.code = 0;
+			sys_event.key_mod = ModifierKeys();
 			break;
 
 		case SDL_EVENT_TEXT_INPUT: {
@@ -1773,19 +1930,59 @@ static void internal_GetEvents()
 }
 
 
+/* SDL3 shows the screen keyboard only if SDL_ScreenKeyboardShown() says it is
+ * hidden, and hides it only if it says shown; on Android that state follows
+ * the UI thread. Moving the focus between two text fields stops text input
+ * for one and starts it for the other within one frame: the stop queues a
+ * hide, the start still sees the keyboard as shown and skips the show, and
+ * the keyboard vanishes under a focused field. So a stop is carried out at
+ * the next event poll, and a start before then cancels it. */
+static bool textinput_stop_pending = false;
+
+static void flush_textinput_stop()
+{
+	if(  textinput_stop_pending  ) {
+		textinput_stop_pending = false;
+		if(  window  ) {
+			SDL_StopTextInput( window );
+			DBG_MESSAGE("dr_stop_textinput(SDL3)", "");
+		}
+	}
+}
+
+
 void GetEvents()
 {
+	flush_textinput_stop();
 	internal_GetEvents();
 }
 
 
 /* ------------------------------------------------------------- text input */
 
+/* A device with a screen keyboard shows it only while text is typed:
+ * dr_os_init() sets hide_keyboard for that. But simuconf.tab is read again
+ * later - opening the new game window does it - and its "hide_keyboard = 0"
+ * would switch that off for the rest of the session, after which no field can
+ * bring the keyboard up. So the device keeps deciding here. */
+static bool keyboard_on_demand()
+{
+	return  env_t::hide_keyboard  ||  has_soft_keyboard;
+}
+
+
 void dr_start_textinput()
 {
-	if(  env_t::hide_keyboard  &&  window  ) {
-		// SDL2->SDL3: text input is started per window.
-		SDL_StartTextInput( window );
+	textinput_stop_pending = false;
+	if(  keyboard_on_demand()  &&  window  ) {
+		// SDL2->SDL3: text input is started per window. SDL3 also defaults to
+		// sentence capitalisation and autocorrect, which a screen keyboard
+		// applies to names and file names; SDL2 asked for neither.
+		SDL_PropertiesID props = SDL_CreateProperties();
+		SDL_SetNumberProperty( props, SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER, SDL_CAPITALIZE_NONE );
+		SDL_SetBooleanProperty( props, SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, false );
+		SDL_StartTextInputWithProperties( window, props );
+		SDL_DestroyProperties( props );
 		DBG_MESSAGE("dr_start_textinput(SDL3)", "");
 	}
 }
@@ -1794,9 +1991,8 @@ void dr_start_textinput()
 void dr_stop_textinput()
 {
 	if(  window  ) {
-		if(  env_t::hide_keyboard  ) {
-			SDL_StopTextInput( window );
-			DBG_MESSAGE("dr_stop_textinput(SDL3)", "");
+		if(  keyboard_on_demand()  ) {
+			textinput_stop_pending = true;
 		}
 		else {
 			SDL_SetEventEnabled( SDL_EVENT_TEXT_INPUT, true );

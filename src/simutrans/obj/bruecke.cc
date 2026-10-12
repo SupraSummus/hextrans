@@ -42,20 +42,6 @@ bruecke_t::bruecke_t(koord3d pos, player_t *player, const bridge_desc_t *desc, b
 	player_t::book_construction_costs( get_owner(), -desc->get_price(), get_pos().get_2d(), desc->get_waytype());
 }
 
-
-// Single-height fallback for any img_t.  The enum lays out the
-// 18 single-height variants first and the 18 `*_2` variants
-// immediately after, so subtracting `NS_Segment2` from a double
-// index gives the matching single-height entry; ids already in
-// the single block pass through unchanged.  Used by `calc_image`
-// / `get_front_image` when a desc lacks the double-height set.
-static bridge_desc_t::img_t single_height_of(bridge_desc_t::img_t img)
-{
-	return img < bridge_desc_t::NS_Segment2
-	    ? img
-	    : (bridge_desc_t::img_t)(img - bridge_desc_t::NS_Segment2);
-}
-
 void bruecke_t::calc_image()
 {
 	grund_t *gr=welt->lookup(get_pos());
@@ -72,7 +58,7 @@ void bruecke_t::calc_image()
 			// handle cases where old bridges don't have correct images
 			image_id display_image=desc->get_background( img, is_snow );
 			if(  display_image==IMG_EMPTY && desc->get_foreground( img, is_snow )==IMG_EMPTY  ) {
-				display_image=desc->get_background( single_height_of(img), is_snow );
+				display_image=desc->get_background( bridge_desc_t::single_height_of(img), is_snow );
 			}
 			weg0->set_image( display_image );
 
@@ -112,7 +98,7 @@ image_id bruecke_t::get_front_image() const
 	// handle cases where old bridges don't have correct images
 	image_id display_image=desc->get_foreground( img, is_snow );
 	if(  display_image==IMG_EMPTY && desc->get_background( img, is_snow )==IMG_EMPTY  ) {
-		display_image=desc->get_foreground( single_height_of(img), is_snow );
+		display_image=desc->get_foreground( bridge_desc_t::single_height_of(img), is_snow );
 	}
 	return display_image;
 }

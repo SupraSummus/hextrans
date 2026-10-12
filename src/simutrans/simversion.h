@@ -15,9 +15,9 @@
 #define SIM_BUILD_RELEASE_CANDIDATE 1
 #define SIM_BUILD_RELEASE           2
 
-#define SIM_VERSION_MAJOR 124
-#define SIM_VERSION_MINOR   5
-#define SIM_VERSION_PATCH   1
+#define SIM_VERSION_MAJOR 125
+#define SIM_VERSION_MINOR   0
+#define SIM_VERSION_PATCH   2
 #define SIM_VERSION_BUILD SIM_BUILD_NIGHTLY
 
 // Beware: SAVEGAME minor is often ahead of version minor when there were patches.
@@ -25,7 +25,8 @@
 //
 // Hextrans is a save-incompatible fork: terrain topology, slope encoding and
 // direction semantics diverge from upstream Simutrans.  Keep fork saves in a
-// high minor range so they are visibly not upstream 124.x saves.
+// high minor range so they are visibly not upstream saves.  The minor stays
+// above upstream's so every upstream is_version_atleast(MAJOR, x) gate holds.
 #define SIM_SAVE_MINOR      901
 #define SIM_SERVER_MINOR    901
 
@@ -37,7 +38,7 @@
 #define SAVE_VERSION_HEX_TRAFFICLIGHT_3AXIS_MINOR 901
 // NOTE: increment before next release to enable save/load of new features
 
-/* for next release after 124.5 */
+/* for next release 125.0 */
 #define MAKEOBJ_VERSION "60.12"
 
 #ifndef QUOTEME

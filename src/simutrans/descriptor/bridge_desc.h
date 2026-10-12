@@ -67,6 +67,17 @@ public:
 	};
 
 	/*
+	 * Single-height fallback for any img_t, for descs that lack the
+	 * double-height set.  The 18 `*2` entries follow the 18 single
+	 * ones, so subtracting `NS_Segment2` maps a double index onto its
+	 * single-height twin; single ids pass through unchanged.
+	 */
+	static img_t single_height_of(img_t img)
+	{
+		return img < NS_Segment2 ? img : (img_t)(img - NS_Segment2);
+	}
+
+	/*
 	 * Name and Copyright used to be saved only with the Cursor
 	 */
 	const char *get_name() const { return get_cursor()->get_name(); }
