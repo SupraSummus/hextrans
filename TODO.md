@@ -1304,19 +1304,6 @@ that puts a stop next to a factory,
 name the six hex directions in `create_name`,
 and take the footprint from `get_size(rotate)`.
 
-Multi-tile city building orientation.
-The multi-tile branch of `stadt_t::orient_city_building`
-counts the roads on the ring of its axial footprint rectangle,
-corners included.
-Two of the four corner tiles, `(size.x, -1)` and `(-1, size.y)`,
-touch the footprint on its NE and SW side;
-the other two, `(-1, -1)` and `(size.x, size.y)`, are two steps away,
-yet a road on one of them still votes for a side.
-Next move: count only the tiles with
-`koord_distance_to_rect(p, k, size) == 1`,
-and test it with a 3×2 city building in `tests/test-pak/`
-and a `tool_build_house` `1A` case with a road on a far corner.
-
 Back-wall redraw sets.
 `grund_t::recalc_back_wall_dependants` redraws the SE, S and SW tiles
 after a height or building change,

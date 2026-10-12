@@ -424,6 +424,70 @@ function test_city_building_faces_road()
 }
 
 
+// stadt_t::orient_city_building turns a multi-tile building to face the
+// roads round its footprint.  TEST_RES_3x2 has layouts 0 and 2 on 3x2
+// tiles and 1 and 3 on 2x3.  The building is placed at `site` with the
+// automatic orientation a dozen times, beside the road tiles in `roads`,
+// each [x, y, spur_x, spur_y] relative to `site`: the tile that is to
+// vote, and a tile further out that keeps the way a way.  The layout is
+// picked at random when the roads do not decide it, so it takes all runs
+// giving `layout` to show that they do.
+function check_city_building_3x2_picks(roads, layout)
+{
+	local pl = player_x(0)
+	local public_pl = player_x(1)
+	local road = get_slow_and_fast_road()[0]
+	local site = coord3d(10, 10, 0)
+
+	// the building is only placed if there is a city to own it
+	ASSERT_EQUAL(command_x(tool_add_city).work(public_pl, coord3d(3, 3, 0), "0"), null)
+	foreach (r in roads) {
+		local from = site + coord3d(r[0], r[1], 0)
+		local to = site + coord3d(r[2], r[3], 0)
+		ASSERT_EQUAL(command_x.build_way(pl, from, to, road, true), null)
+	}
+
+	local picked = ""
+	local wanted = ""
+	for (local i = 0; i < 12; i++) {
+		ASSERT_EQUAL(command_x(tool_build_house).work(public_pl, site, "1ATEST_RES_3x2"), null)
+		local house = tile_x(site.x, site.y, site.z).find_object(mo_building)
+		ASSERT_TRUE(house != null)
+		picked += house.get_layout() + " "
+		wanted += layout + " "
+		ASSERT_EQUAL(command_x(tool_remover).work(public_pl, site), null)
+	}
+
+	// clean up
+	foreach (r in roads) {
+		local from = site + coord3d(r[0], r[1], 0)
+		local to = site + coord3d(r[2], r[3], 0)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, from, to, "" + wt_road), null)
+	}
+	clear_townhall_and_roads(public_pl, 3, 3)
+
+	ASSERT_EQUAL(picked, wanted)
+}
+
+
+// A road votes for a side of the footprint only on a tile that touches it.
+// Of the four corner tiles of the ring round an axial rectangle, the NE
+// one (size.x, -1) and the SW one (-1, size.y) touch it, and (-1, -1) and
+// (size.x, size.y) are two steps away.  A road on the SW corner (-1, 3) of
+// the 2x3 footprint gives layout 1, one on the NE corner (3, -1) of the
+// 3x2 footprint layout 2.  With a road on the far corner (3, 2) of the 3x2
+// footprint, or (2, 3) of the 2x3 one, the far road has no say.
+function test_city_building_3x2_faces_road()
+{
+	check_city_building_3x2_picks([[-1, 3, -1, 4]], 1)
+	check_city_building_3x2_picks([[3, -1, 4, -1]], 2)
+	check_city_building_3x2_picks([[-1, 3, -1, 4], [3, 2, 4, 2]], 1)
+	check_city_building_3x2_picks([[3, -1, 4, -1], [2, 3, 2, 4]], 2)
+
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // The tiles [x, y] with a road in the 3x3 axial ring around (q, r).
 function city_ring_roads(q, r)
 {
