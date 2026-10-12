@@ -109,10 +109,6 @@ head as its refusal, which hex builds as a stacked bridge (see
 "Bridge double-height policy" below);
 swap in a refusal the hex builder honours,
 e.g. the span over a runway from `test_way_bridge_build_above_runway`.
-`test_way_tunnel_planner_rotated_map` and `test_schedule_route_rotate`
-call `karte_t::rotate90` through the `sroute_rotate` test hook
-and hit its tripwire;
-they come back with the hex rotation (see "Rotation cascade").
 
 **`ASSERT_THROWS` helper for scenario tests.**
 43 sites across `tests/tests/*.nut` hand-roll the same
@@ -292,14 +288,6 @@ the flat-image migration above.
 
 ## Per-vertex height storage — remaining writer-side ports
 
-`karte_t::rotate90`'s heightmap-rotation loop (behind its tripwire)
-is still the legacy 90° square formula,
-and `perlin_hoehe`'s own rotation code shares the bug.
-Both are rewritten with the rotation cascade (see below):
-the slot permutation is `canonical_vertex(shape.rotate_vertex(v))`,
-pinned by `tools/hex_map_shape_test`,
-and `perlin_hoehe` un-rotates with `hex_axial_rotate_inv`.
-
 The `lookup_hgt(x, y)` / `set_grid_hgt_nocheck(x, y)` shim in
 `surface.h` is `dbg->fatal` — every residual call is a crash so the
 port can't accidentally regress new sites onto the old E-slot of
@@ -462,42 +450,94 @@ is named / tagged so a global grep surfaces all sites.
 
 **Rotation cascade.**
 #281 decided on real world rotation in 60° steps,
-built on upstream's `karte_t::rotate90` cascade.
-The primitives are in:
-`hex_axial_rotate` (`dataobj/koord_hex.cc`) is the step about the origin,
-and `koord::rotate90(y_size)`, `koord3d::rotate90` and
-`array2d_tpl::rotate90()` take one step of a W×H rhombus map
-(`map_shape_t::rotate_tile` is the same step for any W×H×D).
-One step leaves the rhombus; only three steps (180°) map it onto itself.
-`karte_t::rotate90` is a `dbg->fatal` tripwire,
-because its body and every `obj_t::rotate90` override are still
-upstream's 90° cascade,
-and the 6 top-level callers (`fabrikbauer` retry loops ×4,
-`karte_t::destroy` / `karte_t::save` retry loops, the `tool_rotate90` player tool)
-are gated off.
+built on upstream's `karte_t::rotate90` cascade
+(`documentation/map-shape.md`, "Rotation").
+One call of the cascade is one 60° step of every stateful object,
+positions through `koord::rotate90(shape)` = `map_shape_t::rotate_tile`.
+Layouts, footprints, pixel offsets and axial rectangles
+(city area, scenario rects) have no 60° form yet:
+they turn by 180° on the step that completes a half turn
+(`settings_t::is_half_turn_rotation`).
+So `karte_t::can_rotate90` allows whole half turns only,
+from a world at 0° or 180°,
+and the rotate tool turns by three steps, offline;
+a lone `rotate90()` is fatal.
+The rotate-until-saveable retry loops in `fabrikbauer` and
+`karte_t::destroy` / `save` stay gated dead;
+next move (#281 step 4) is to revive them as half-turn retries
+or delete them, per site.
+Next move for the single step: populated W×H×D maps (map-shape step 4+)
+and the 6-orientation footprint (AGENTS.md),
+then give layouts, footprints and offsets a 60° body
+and widen `can_rotate90` to any step count;
+`perlin_hoehe`, `enlarge_map`'s origin shift, `enlarge_map_frame`,
+the script layout transform and the compass handle 0° and 180° only.
+Rename `rotate90` to `rotate_one_step` in its own mechanical PR.
 `objlist_t::rotate90_moving` still reorders movers with the square
 heading sets (`append_dirs`, `rotated_append_dirs`, `rotated_mirror_dirs`);
 its hex body takes both append tests from `hex_heading_climbs_screen`,
 on the heading before and after the step.
-Next move: give the cascade hex bodies, 180° first on today's rhombus
-(`(q, r) -> (W-1-q, H-1-r)`: tiles, heights, buildings, offsets,
-`settings_t::rotation` mod 6), then drop the tripwire and open the tool;
-rename `rotate90` to `rotate_one_step` once upstream stage 5 lands;
-single 60° steps wait for the W×H×D storage (see above),
-when the `y_size` argument becomes the shape.
-Sites that rotate an extent rather than a position
-(`ai_goods.cc`'s `size1.rotate90(0)`) want the linear `hex_axial_rotate` alone.
 The `ribi_t::rotate_for_map_rotate90` / `rotate_perpendicular` stubs
-(currently `rotate60`) stay for the same reason.
+(currently `rotate60`) stay until that rename.
+
+**Rotated suite.**
+`tools/test.py --rotate` (and its CI step) runs the suite
+on the 16×16 map turned by 180°,
+which the scripts see unturned,
+without the tests in `tests/rotate-pending.txt`;
+each of those fails turned but passes unturned,
+so it shows a direction or anchor the engine still takes from the world frame.
+Rerun a class with `tools/test.py --rotate =<name>` after its fix
+and drop the names that pass.
+A multi-tile footprint is anchored at its world NW corner,
+the far corner as the script sees it after the half turn,
+so the house, factory, dock, transformer and footprint tests
+build somewhere else or off the map:
+next move is a `coordinate_transform_t` footprint transform
+(script corner `p` to world corner `C - p - (size - 1)`)
+applied where the script API passes a building position
+(`build_house`, `build_factory`, `build_station`, `build_depot`),
+the same move for the 60° step later.
+The sign and signal tests see `get_dirs_masked` flip:
+`roadsign_t` picks a new sign's first direction by ribi bit order in the
+world frame;
+next move is to pick it from the way's axis
+so that the choice turns with the map.
+The image-slot, render and script-generator tests read world-frame output
+(`image[s]` vs `image[n]`, image ids, the generated `NoEntry:x:y`);
+next move is to report them through the script transform
+(the generator writes script coordinates and directions)
+or to mark them world-frame and keep them out of the rotated run.
+`test_toolkit_slope_commands` only runs out of opcodes in the rotated run,
+where the generator tests that sleep before it are left out;
+it comes back with them.
+`test_air_takeoff_and_landing_all_runway_axes`:
+`aircraft_t::calc_route`'s landing circle (`circle_koord[16]`, offsets
+for N, NW, S, SE runway ends only) is square-era,
+so a NE-SW runway circles off the map once turned;
+next move is a hex circle over the six edges.
+`test_trees_plant_forest` and `test_way_tunnel_planner_no_exit`
+meet the map edge differently on the far side:
+next move is to read the edge test of `tree_builder_t::plant_forest`
+and `tunnel_builder_t::find_end_pos` against `get_edge_distance`.
+`test_way_bridge_over_building` passes turned
+but leaves tile (3,1) one level down
+after its `set_slope(all_down_slope)` cleanup,
+which the unturned run does not:
+the terraforming under `tool_setslope_t` is not mirror symmetric;
+next move is a scenario test that sets and restores the same ramp
+on the N and the S edge and compares the neighbours.
+`is_within_grid_limits` (14 more sites) is the square grid-point range;
+`tool_set_climate_t` used it as the neighbour-tile test
+and read off-map heights at the far edges, which the rotated run exposed;
+the other sites want the same review against `is_within_limits`.
 
 **`ribi_t::rotate_perpendicular` / `_l` sweep.**  Square-era "90°
 off this direction" sites — crossroads collision avoidance
 (`road_vehicle.cc`, `pedestrian.cc`, `vehicle_base.cc`),
 broad-tunnel side tiles (`tunnel.cc`, `tunnelbauer.cc`), canal
 orthogonality (`wasser.cc`), parallel-way and shore-perpendicular
-build heuristics (`simtool.cc`), and the roadsign map-rotate call
-that mis-uses `rotate_perpendicular` where the comment intends
-`rotate_for_map_rotate90` (`roadsign.cc`).  Also stubbed to
+build heuristics (`simtool.cc`).  Also stubbed to
 `rotate60` (the "one step over" axis).  Triggered by the
 crossing-cluster port: per-site review, some may want both 60°
 and 120° (test both adjacent axes), some may redesign the check
@@ -721,8 +761,6 @@ coverage, or move the realisability check to a tripwire in
 condition.
 Deep water still pairs with the pakset `Water` animation block as
 below; on-slope water and snow now use LightTexture-derived shapes.
-`rotate_transitions` still applies a 60° bit-rotate as a stand-in for
-90° map rotate (same caveat as `karte_t::rotate90` elsewhere in this file).
 
 On-slope water tiles now use the same required `LightTexture`
 ground-lightmap path as climate ground.
