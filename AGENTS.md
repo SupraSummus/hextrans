@@ -606,10 +606,12 @@ Code that can't build standalone gets split into a dependency-free file first,
 the way `koord_hex.cc` came out of `koord.cc`.
 
 `tools/heightfield_import_test.py` imports synthetic relief images
-through the `-heightfield FILE` hook in `simmain.cc`,
+through the `-heightfield FILE [D]` hook in `simmain.cc`,
 the path of the new-world dialog's "Load relief"
 (`karte_t::load_heightfield`, then `enlarge_map`).
-The hook prints every tile's base height,
+The image size fixes W and H for D
+(`documentation/map-shape.md`, "Image coordinates").
+The hook prints every tile's base height, `-` off the hexagon,
 and the test compares them with a model of the pixel-to-tile mapping
 written in the test itself.
 CI runs it after the scenario suite.
