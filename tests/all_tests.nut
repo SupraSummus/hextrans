@@ -31,6 +31,7 @@ include("tests/test_scenario")
 include("tests/test_schedule_route")
 include("tests/test_script_generator")
 include("tests/test_script_sandbox")
+include("tests/test_script_toolkit")
 include("tests/test_sign")
 include("tests/test_slope")
 include("tests/test_squirrel_vm")
@@ -197,6 +198,8 @@ all_tests <- [
 	test_script_generator_oneway_sign_direction,
 	test_script_generator_signal_direction,
 	test_script_sandbox_no_shell_exec,
+	test_toolkit_slope_constants,
+	test_toolkit_slope_commands,
 	test_scenario_rules_allow_forbid_way_tool,
 	test_scenario_rules_allow_forbid_way_tool_rect,
 	test_scenario_rules_allow_forbid_way_tool_cube,
