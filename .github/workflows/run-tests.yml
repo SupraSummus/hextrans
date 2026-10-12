@@ -137,6 +137,18 @@ jobs:
         printf 'test_filter_patterns <- ["test_map_shape"]\ntest_map_file <- "empty-hex-9x7x5.sve"\n' > tests/filter.nut
         ulimit -St 600
         ./run-automated-tests.sh
+    - name: Run tests on a map turned by 180 degrees
+      # The suite, but tests/rotate-pending.txt, on the 16x16 map and the
+      # map-shape tests on the hexagon, both turned first; the scripts see
+      # them unturned.
+      run: |
+        export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
+        export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
+        ulimit -St 600
+        python3 tools/test.py --rotate --filter-only
+        ./run-automated-tests.sh
+        python3 tools/test.py --rotate --map --filter-only
+        ./run-automated-tests.sh
     - name: Run heightfield import test
       # Builds a map from relief images through the engine's
       # -heightfield hook (the new-world dialog's "Load relief" path)

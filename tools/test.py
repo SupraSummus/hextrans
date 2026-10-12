@@ -5,9 +5,13 @@ Usage:
     tools/test.py                # run every test in tests/all_tests.nut
     tools/test.py halt           # run tests whose name contains "halt"
     tools/test.py halt terraform # OR-match: name contains "halt" OR "terraform"
+    tools/test.py =test_dir_x    # exactly the test named test_dir_x
     tools/test.py --map          # the test_map_shape tests on the W x H x D
                                  # hexagon fixture tests/empty-hex-9x7x5.sve
     tools/test.py --map FILE pat # tests matching pat on tests/FILE
+    tools/test.py --rotate       # the suite on the map turned by 180 degrees
+                                 # first, without tests/rotate-pending.txt;
+                                 # combines with --map and patterns
 
 First run downloads pak64 (~30 MB) into simutrans/pak/; subsequent runs
 reuse it. Other setup (sim symlink, simuconf, scenario symlink) is also
@@ -110,15 +114,23 @@ def active_test_names():
 HEX_MAP = "empty-hex-9x7x5.sve"
 
 
-def write_filter(patterns, map_file=None):
+def write_filter(patterns, map_file=None, rotate=False):
     body = "test_filter_patterns <- [" + ", ".join(json.dumps(p) for p in patterns) + "]\n"
     body += "test_map_file <- " + (json.dumps(map_file) if map_file else "null") + "\n"
+    body += "test_rotate_map <- " + ("true" if rotate else "false") + "\n"
     FILTER.write_text(body)
 
 
 def main(argv):
     patterns = argv[1:]
     map_file = None
+    # The scripts see the world as before the turn (script_api's
+    # coordinate_transform_t), so every test doubles as a rotation test.
+    rotate = "--rotate" in patterns
+    # --filter-only writes tests/filter.nut and stops, for CI, which runs
+    # tools/run-automated-tests.sh on its own build
+    filter_only = "--filter-only" in patterns
+    patterns = [p for p in patterns if p not in ("--rotate", "--filter-only")]
     if patterns and patterns[0] == "--map":
         # The suite's coordinates assume the 16x16 fixture; on another map
         # only the tests that read the shape from the settings make sense.
@@ -130,18 +142,30 @@ def main(argv):
             sys.exit(f"no fixture tests/{map_file}")
         if not patterns:
             patterns = ["test_map_shape"]
+    if rotate and not patterns:
+        # the whole suite but the tests that cannot pass turned yet
+        pending = set()
+        for line in (ROOT / "tests" / "rotate-pending.txt").read_text().splitlines():
+            name = line.split("#", 1)[0].strip()
+            if name:
+                pending.add(name)
+        patterns = ["=" + n for n in active_test_names() if n not in pending]
     if patterns:
-        matches = [n for n in active_test_names() if any(p in n for p in patterns)]
+        matches = [n for n in active_test_names()
+                   if any(p == "=" + n or (not p.startswith("=") and p in n) for p in patterns)]
         if not matches:
             sys.exit(f"no active tests match {patterns}")
         print(f"{len(matches)} test(s) match: {', '.join(matches)}")
+    if filter_only:
+        write_filter(patterns, map_file, rotate)
+        return
     ensure_pak()
     ensure_simuconf()
     ensure_scenario_link()
     ensure_sim_symlink()
     build()
     ensure_test_pak()
-    write_filter(patterns, map_file)
+    write_filter(patterns, map_file, rotate)
     env = os.environ.copy()
     env["XDG_DATA_HOME"] = str(USER_DATA)
     env.setdefault("SDL_VIDEODRIVER", "dummy")
