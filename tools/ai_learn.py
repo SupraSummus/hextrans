@@ -9,7 +9,8 @@ Usage:
 
 A game logs one ai_line line per link the goods AI tries to build (its
 features, capital cost, added upkeep and convoy ids) and one ai_convoy line
-per AI convoy and month (src/simutrans/player/ai_policy.h).  Each link gets
+per AI convoy and month, and when the goods AI retires one
+(src/simutrans/player/ai_policy.h).  Each link gets
 a label, what it is worth over a planning horizon:
 
     (profit - upkeep) per month alive * horizon - capex + vehicle value
