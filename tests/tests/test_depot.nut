@@ -265,6 +265,31 @@ function test_depot_six_layouts()
 }
 
 
+function test_depot_three_layouts()
+{
+	local pl = player_x(0)
+	local road = get_slow_and_fast_road()[0]
+	local depot = building_desc_x("TEST_DEPOT_3L")
+	local site = coord3d(8, 8, 0)
+	local layouts = [[dir.south, 0], [dir.southeast, 1], [dir.southwest, 2],
+		[dir.north, 0], [dir.northwest, 1], [dir.northeast, 2]]
+
+	foreach (f in layouts) {
+		local d = dir.to_coord(f[0])
+		local a = site + d, b = site - d
+		ASSERT_EQUAL(command_x.build_way(pl, a, b, road, true), null)
+		ASSERT_EQUAL(command_x.build_depot(pl, site, depot), null)
+		ASSERT_EQUAL(depot_x(site.x, site.y, site.z).get_layout(), f[1])
+
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, site), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, a, b, "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_depot_build_road_on_tram_crossing()
 {
 	local pl = player_x(0)

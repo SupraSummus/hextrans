@@ -198,6 +198,9 @@ uint8 building_desc_t::fold_ne_sw_layout(uint8 layout)
  */
 uint8 building_desc_t::adjust_layout(uint8 layout) const
 {
+	if(  has_axis_layouts()  ) {
+		return layout;
+	}
 	if(layout >= 4 && layouts <= 4) {
 		layout = layout <= 5 ? fold_ne_sw_layout(layout) : layout - 4;
 	}
@@ -234,6 +237,10 @@ static uint8 quarter_turn_layout(const building_desc_t *desc, uint8 layout)
 
 uint8 building_desc_t::get_half_turn_layout(uint8 layout) const
 {
+	if(  has_axis_layouts()  ) {
+		// an axis is its own half turn
+		return layout;
+	}
 	if(  layouts == 6  ||  (layouts == 8  &&  type >= city_res)  ) {
 		// layouts 0..5 face S, SE, N, NW, NE, SW (ribi_t::layout_to_ribi);
 		// eight-layout city buildings use those six, see orient_city_building()
@@ -241,6 +248,20 @@ uint8 building_desc_t::get_half_turn_layout(uint8 layout) const
 		return opposite[layout % layouts];
 	}
 	return quarter_turn_layout( this, quarter_turn_layout( this, layout ) );
+}
+
+
+uint8 building_desc_t::get_through_layout(ribi_t::ribi x) const
+{
+	const uint8 layout = ribi_t::axis_to_layout(x);
+	return has_axis_layouts()  &&  layout == 5 ? 2 : layout;
+}
+
+
+ribi_t::ribi building_desc_t::get_through_axis(uint8 layout) const
+{
+	const uint8 end = has_axis_layouts()  &&  layout == 2 ? 5 : layout & 1;
+	return ribi_t::doubles(ribi_t::layout_to_ribi[end]);
 }
 
 

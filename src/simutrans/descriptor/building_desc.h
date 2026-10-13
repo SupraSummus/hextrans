@@ -298,6 +298,9 @@ public:
 	/// A through stop with 8 or 16 layouts has images for the ends of a
 	/// platform, picked by bits 1 and 2 of the layout.
 	bool has_platform_ends() const { return layouts >= 8; }
+	/// A through depot with 3 layouts has one per hex axis:
+	/// layouts 0, 1, 2 lie along the way from S, SE and SW.
+	bool has_axis_layouts() const { return layouts == 3; }
 
 	bool is_connected_with_town() const;
 
@@ -394,6 +397,13 @@ public:
 	 * The footprint extents stay.
 	 */
 	uint8 get_half_turn_layout(uint8 layout) const;
+
+	/// Layout of a through building on the straight way @p x
+	/// (ribi_t::axis_to_layout, or the axis with has_axis_layouts()).
+	uint8 get_through_layout(ribi_t::ribi x) const;
+
+	/// The axis of a through building's @p layout, both ends.
+	ribi_t::ribi get_through_axis(uint8 layout) const;
 
 	/**
 	* Skin: cursor (index 0) and icon (index 1)

@@ -994,29 +994,12 @@ sweep in "ribi_t — audit surfaces".  Shared trigger is "hex
 crossroads have a real design" — the design choice is **full
 3-axis** (Y- and 6-way intersections are first-class, not
 forbidden or projected onto 2 axes).  The traffic-light FSM has
-landed under that policy; depot orientation, collision avoidance,
+landed under that policy; collision avoidance
 and airport layout still need porting against the same choice.
 
-*Depot 3rd-axis layout.*
-`tool_build_depot_t::tool_depot_aux` in `tool/simtool.cc`
-maps a terminal depot's dead-end ribi through `ribi_t::ribi_to_layout`,
-so all 6 directions get a layout;
-a 6-layout depot or terminal stop keeps it,
-and for a 4-layout one `building_desc_t::adjust_layout` folds NE and SW
-onto the images the pakset ships.
-A 2-layout through depot or stop
-picks its layout with `ribi_t::axis_to_layout`:
-the S, SE and SW end give layouts 0, 1 and 5,
-and `adjust_layout` folds 5 onto 0,
-so NE-SW track shows the N-S image.
-An 8-layout through stop keeps layout 5,
-and the hex pak128 bakes its NE-SW image there
-(`infrastructure/road_stops/hex_stops`).
-Real fix for depots is a 3-axis through-depot descriptor;
-needs `depot_t` rotation handling.
-
 *Stop and depot facing is read from the way.*
-`get_layout()` is folded for NE and SW below 6 layouts,
+`get_layout()` is folded for NE and SW
+unless a building has a layout per side (6) or axis (3),
 so `hausbauer_t::get_facing_ribi` reads a stop's or depot's exit or axis
 from its way and falls back to the layout.
 A lone 4-layout NE or SW terminal whose road was removed

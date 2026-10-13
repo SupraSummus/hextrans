@@ -175,10 +175,11 @@ void building_reader_t::register_obj(obj_desc_t *&data)
 	}
 	// after this point all building_desc_t's have type in building_desc_t::btype
 
-	// allowed layouts are 1,2,4,6,8,16, where 8,16 is reserved for stations
-	// and 6 is one per hex side
+	// allowed layouts are 1,2,4,6,8,16, where 8,16 is reserved for stations,
+	// 6 is one per hex side and 3, for a 1x1 depot, one per hex axis
+	const bool axis_depot = desc->layouts == 3  &&  desc->type == building_desc_t::depot  &&  desc->size == koord(1, 1);
 	uint8 l = desc->type == building_desc_t::generic_stop ? 16 : 4;
-	while (l > 0  &&  desc->layouts != 6) {
+	while (l > 0  &&  desc->layouts != 6  &&  !axis_depot) {
 		if ((desc->layouts & l) != 0  &&  (desc->layouts != l)) {
 			dbg->error( "building_reader_t::register_obj()", "Building %s has %i layouts (illegal) => set to %i", desc->get_name(), desc->layouts, l );
 			desc->layouts = l;
