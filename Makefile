@@ -567,6 +567,7 @@ SOURCES += src/simutrans/old_blockmanager.cc
 SOURCES += src/simutrans/player/ai.cc
 SOURCES += src/simutrans/player/ai_goods.cc
 SOURCES += src/simutrans/player/ai_passenger.cc
+SOURCES += src/simutrans/player/ai_policy.cc
 SOURCES += src/simutrans/player/ai_scripted.cc
 SOURCES += src/simutrans/player/finance.cc
 SOURCES += src/simutrans/player/simplay.cc

@@ -266,6 +266,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_goods.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_passenger.cc" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_policy.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_scripted.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\finance.cc" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\simplay.cc" />
@@ -650,6 +651,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_goods.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_passenger.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_policy.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_scripted.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\finance.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\simplay.h" />

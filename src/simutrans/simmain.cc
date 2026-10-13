@@ -36,6 +36,8 @@
 #include "world/simcity.h"
 #include "player/simplay.h"
 #include "player/ai_scripted.h"
+#include "player/finance.h"
+#include "player/ai_policy.h"
 #include "simsound.h"
 #include "simintr.h"
 #include "simloadingscreen.h"
@@ -607,9 +609,18 @@ static void ai_soak_players(const karte_t *welt)
 			convoys += cnv->get_owner() == player;
 		}
 		const uint32 month = welt->get_current_month();
-		fprintf( stderr, "ai_soak: %04u.%02u player %d (type %d) halts=%u convoys=%u cash=%.0f\n",
+		// the year that just ended, in whole currency units
+		const finance_t *f = player->get_finance();
+		const double revenue  = f->get_history_veh_year( TT_ALL, 1, ATV_REVENUE ) / 100.0;
+		const double running  = f->get_history_veh_year( TT_ALL, 1, ATV_RUNNING_COST ) / 100.0;
+		const double upkeep   = f->get_history_veh_year( TT_ALL, 1, ATV_INFRASTRUCTURE_MAINTENANCE ) / 100.0;
+		const double building = f->get_history_veh_year( TT_ALL, 1, ATV_CONSTRUCTION_COST ) / 100.0;
+		const double vehicles = f->get_history_veh_year( TT_ALL, 1, ATV_NEW_VEHICLE ) / 100.0;
+		fprintf( stderr, "ai_soak: %04u.%02u player %d (type %d) halts=%u convoys=%u cash=%.0f wealth=%.0f"
+			" revenue=%.0f running=%.0f upkeep=%.0f building=%.0f vehicles=%.0f\n",
 			month / 12, month % 12 + 1, i, player->get_ai_id(), halts, convoys,
-			player->get_account_balance_as_double() );
+			player->get_account_balance_as_double(), f->get_netwealth() / 100.0,
+			revenue, running, upkeep, building, vehicles );
 	}
 }
 
@@ -722,6 +733,37 @@ static void ai_soak_snapshot(karte_t *welt)
 }
 
 
+// -ai_soak: one line in the month an AI goes bankrupt, i.e. its slot empties.
+static void ai_soak_bankruptcies(const karte_t *welt, bool alive[PLAYER_UNOWNED])
+{
+	for(  int i = 2;  i < PLAYER_UNOWNED;  i++  ) {
+		const bool now = welt->get_player(i) != NULL;
+		if(  alive[i]  &&  !now  ) {
+			const uint32 month = welt->get_current_month();
+			fprintf( stderr, "ai_soak: %04u.%02u player %d bankrupt\n", month / 12, month % 12 + 1, i );
+		}
+		alive[i] = now;
+	}
+}
+
+
+// -ai_soak: what each AI convoy earned in the month that just ended and what
+// it is worth, one ai_convoy line each; tools/ai_learn.py adds them up per
+// link from the convoy ids of the ai_line lines.
+static void ai_soak_convoys(const karte_t *welt)
+{
+	const uint32 month = welt->get_current_month() - 1;
+	for(  const convoihandle_t &cnv : welt->convoys()  ) {
+		const player_t *owner = cnv->get_owner();
+		if(  owner  &&  owner->get_player_nr() >= 2  &&  owner->get_player_nr() < PLAYER_UNOWNED  ) {
+			fprintf( stderr, "ai_convoy: %04u.%02u player %d id=%u profit=%.0f value=%.0f\n",
+				month / 12, month % 12 + 1, owner->get_player_nr(), cnv.get_id(),
+				cnv->get_finance_history( 1, convoi_t::CONVOI_PROFIT ) / 100.0, cnv->calc_restwert() / 100.0 );
+		}
+	}
+}
+
+
 static volatile sig_atomic_t ai_soak_stop = 0;
 
 static void ai_soak_signal(int)
@@ -747,6 +789,8 @@ static void ai_soak_run(karte_t *welt, uint32 quit_month, bool snapshots)
 		signal( SIGTERM, ai_soak_signal );
 		signal( SIGINT, ai_soak_signal );
 	}
+	bool alive[PLAYER_UNOWNED] = {};
+	ai_soak_bankruptcies( welt, alive );
 	ai_soak_status( welt );
 	while(  !env_t::quit_simutrans  &&  welt->get_current_month() < quit_month  ) {
 		const uint32 next_month = welt->get_current_month() + 1;
@@ -763,6 +807,8 @@ static void ai_soak_run(karte_t *welt, uint32 quit_month, bool snapshots)
 				break;
 			}
 		}
+		ai_soak_convoys( welt );
+		ai_soak_bankruptcies( welt, alive );
 		ai_soak_status( welt );
 		const uint32 month = welt->get_current_month();
 		const bool last = month >= quit_month;
@@ -1981,6 +2027,7 @@ int simu_main(int argc, char** argv)
 		welt->step();
 
 		if(  ai_soak  ) {
+			ai_policy_t::trace = true;
 			if(  const char *script = args.gimme_arg("-ai_script", 1)  ) {
 				// one scripted AI in place of the C++ ones; NAME is a
 				// directory under ai/ in the base directory
@@ -1994,9 +2041,14 @@ int simu_main(int argc, char** argv)
 				}
 			}
 			else {
+				if(  const char *policy = args.gimme_arg("-ai_policy", 1)  ) {
+					// the goods AI's choices from a file (tools/ai_learn.py)
+					ai_policy_t::load_goods( policy );
+				}
 				welt->change_player_tool(karte_t::new_player, 2, player_t::AI_GOODS, true, true);
 				welt->change_player_tool(karte_t::new_player, 3, player_t::AI_PASSENGER, true, true);
 			}
+			fprintf( stderr, "ai_soak: starting_money=%.0f\n", welt->get_settings().get_starting_money( welt->get_current_month()/12 ) / 100.0 );
 		}
 
 		env_t::autosave = old_autosave;

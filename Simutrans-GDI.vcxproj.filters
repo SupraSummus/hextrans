@@ -753,6 +753,9 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_passenger.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_policy.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_scripted.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -1917,6 +1920,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_passenger.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_policy.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)src\simutrans\player\ai_scripted.h">
