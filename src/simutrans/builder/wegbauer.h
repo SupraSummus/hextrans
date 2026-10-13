@@ -166,6 +166,10 @@ private:
 	// for details.
 	bool validate_route_slopes() const;
 
+	// whether the slope of gr carries a way in the directions ribi, together
+	// with the directions of the way of this type already there
+	bool slope_carries(const grund_t *gr, ribi_t::ribi ribi) const;
+
 	bool has_neighbour_with_way(koord3d pos, waytype_t wt) const;
 
 	// checks, if we can build a bridge here ...

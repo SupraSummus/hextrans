@@ -386,6 +386,7 @@ all_tests <- [
 	test_way_road_make_public,
 	test_way_road_build_terraform_defaults_to_off,
 	test_way_road_build_terraform_across_slope,
+	test_way_road_build_around_slope,
 	test_way_road_build_road_terraform_across_slope,
 	test_way_road_build_terraform_single_step,
 	test_way_road_build_terraform_is_no_bypass,

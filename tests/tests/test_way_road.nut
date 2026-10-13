@@ -1268,6 +1268,27 @@ function test_way_road_build_terraform_across_slope()
 }
 
 
+function test_way_road_build_around_slope()
+{
+	local pl        = player_x(0)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+	local remover   = command_x(tool_remove_way)
+
+	// the shortest route crosses a slope across the direction of travel,
+	// which no road can follow (test_way_fail_reason_slope); the route goes around it
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.east), null)
+	ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), road_desc, false), null)
+	ASSERT_FALSE(tile_x(4, 4, 0).has_way(wt_road))
+	ASSERT_EQUAL(tile_x(4, 4, 0).get_slope(), slope.east)
+
+	// clean up
+	ASSERT_EQUAL(remover.work(pl, coord3d(4, 3, 0), coord3d(4, 5, 0), "" + wt_road), null)
+	ASSERT_EQUAL(command_x.set_slope(pl, coord3d(4, 4, 0), slope.flat), null)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_way_road_build_road_terraform_across_slope()
 {
 	local pl        = player_x(0)
