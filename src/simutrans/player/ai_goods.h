@@ -130,6 +130,10 @@ private:
 	// one ai_line line: outcome, waytype and what the link cost
 	void trace_end( const char *outcome, const char *mode );
 
+	// remove our stop at pos if no line serves it any more, then our road
+	// from there for as long as it is a dead end
+	void remove_dead_end_road( koord3d pos );
+
 	bool suche_platz1_platz2(fabrik_t *qfab, fabrik_t *zfab, int length);
 
 	int baue_bahnhof(const koord* p, int vehicle_count);
