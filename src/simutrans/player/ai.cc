@@ -509,6 +509,82 @@ DBG_MESSAGE("ai_passenger_t::create_simple_road_transport()","Already connection
 }
 
 
+void ai_t::trace_link_begin( const double *features, const char *const *names, int count )
+{
+	if(  !ai_policy_t::trace  ) {
+		return;
+	}
+	for(  int i = 0;  i < count;  i++  ) {
+		traced_link.features[i] = features[i];
+	}
+	traced_link.names = names;
+	traced_link.count = count;
+	traced_link.balance = finance->get_account_balance();
+	traced_link.maintenance = finance->get_maintenance_with_bits( TT_ALL );
+	traced_link.convoys.clear();
+	for(  convoihandle_t const cnv : welt->convoys()  ) {
+		if(  cnv->get_owner() == this  ) {
+			traced_link.convoys.append( cnv.get_id() );
+		}
+	}
+}
+
+
+void ai_t::trace_link_end( const char *outcome, const char *mode, koord from, koord to, const char *what )
+{
+	if(  !ai_policy_t::trace  ) {
+		return;
+	}
+	cbuffer_t convoys;
+	for(  convoihandle_t const cnv : welt->convoys()  ) {
+		if(  cnv->get_owner() == this  &&  !traced_link.convoys.is_contained( cnv.get_id() )  ) {
+			convoys.printf( "%s%u", convoys.len() ? "," : "", cnv.get_id() );
+		}
+	}
+	cbuffer_t features;
+	for(  int i = 0;  i < traced_link.count;  i++  ) {
+		features.printf( "%s%s=%.4g", i ? " " : "", traced_link.names[i], traced_link.features[i] );
+	}
+	const uint32 month = welt->get_current_month();
+	fprintf( stderr, "ai_line: %04u.%02u player %d %s mode=%s from=%d,%d to=%d,%d good=%s capex=%.0f upkeep=%.0f convoys=%s %s\n",
+		month / 12, month % 12 + 1, get_player_nr(), outcome, mode, from.x, from.y, to.x, to.y, what,
+		(traced_link.balance - finance->get_account_balance()) / 100.0,
+		(finance->get_maintenance_with_bits( TT_ALL ) - traced_link.maintenance) / 100.0,
+		convoys.len() ? convoys.get_str() : "-", features.get_str() );
+}
+
+
+void ai_t::remove_dead_end_road( koord3d pos )
+{
+	grund_t *gr = welt->lookup( pos );
+	if(  gr  &&  gr->is_halt()  ) {
+		halthandle_t const halt = gr->get_halt();
+		if(  halt->get_owners() != 1 << get_player_nr()  ||  !halt->registered_lines.empty()  ||  !halt->registered_convoys.empty()  ||
+		     !haltestelle_t::remove( this, pos )  ) {
+			return;
+		}
+		gr = welt->lookup( pos );
+	}
+	while(  gr  &&  gr->ist_karten_boden()  &&  !gr->ist_bruecke()  &&  !gr->has_two_ways()  &&  !gr->is_halt()  ) {
+		weg_t *road = gr->get_weg( road_wt );
+		if(  !road  ||  road->get_owner() != this  ||  gr->suche_obj( obj_t::road_vehicle )  ) {
+			return;
+		}
+		const ribi_t::ribi ribi = road->get_ribi_unmasked();
+		if(  ribi_t::get_numways( ribi ) > 1  ) {
+			return;
+		}
+		grund_t *next = NULL;
+		if(  ribi  &&  gr->get_neighbour( next, road_wt, ribi )  ) {
+			next->get_weg( road_wt )->ribi_rem( ribi_t::backward( ribi ) );
+			next->calc_image();
+		}
+		gr->remove_everything_from_way( this, road_wt, ribi_t::none );
+		gr = next;
+	}
+}
+
+
 /* create new AI */
 ai_t::ai_t(uint8 nr) :
 	player_t( nr ),

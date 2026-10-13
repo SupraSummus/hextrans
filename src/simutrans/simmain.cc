@@ -2041,9 +2041,12 @@ int simu_main(int argc, char** argv)
 				}
 			}
 			else {
+				// the AIs' choices from files (tools/ai_learn.py)
 				if(  const char *policy = args.gimme_arg("-ai_policy", 1)  ) {
-					// the goods AI's choices from a file (tools/ai_learn.py)
-					ai_policy_t::load_goods( policy );
+					ai_policy_t::goods = ai_policy_t::load( policy, ai_policy_t::feature_names, ai_policy_t::FEATURES );
+				}
+				if(  const char *policy = args.gimme_arg("-ai_policy_passenger", 1)  ) {
+					ai_policy_t::passengers = ai_policy_t::load( policy, ai_policy_t::passenger_feature_names, ai_policy_t::PASSENGER_FEATURES );
 				}
 				welt->change_player_tool(karte_t::new_player, 2, player_t::AI_GOODS, true, true);
 				welt->change_player_tool(karte_t::new_player, 3, player_t::AI_PASSENGER, true, true);
