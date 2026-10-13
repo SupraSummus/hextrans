@@ -77,9 +77,11 @@ void road_vehicle_t::calc_disp_lane(bool is_overtaking)
 	ribi_t::ribi dir = get_direction();
 	/* disp_lane is valid for vehicles moving to the right side of
 	   the screen, must be mirrored if heading left on screen.  Under
-	   the 2:1 isometric hex projection the three left-heading edges
-	   are S, SW, NW (screen-x decreases). */
-	bool heading_left = (dir & (ribi_t::south | ribi_t::southwest | ribi_t::northwest)) != 0;
+	   the 2:1 isometric hex projection screen-x follows q alone, so
+	   the left-heading edges are SW and NW, and S (straight down)
+	   counts with them; the SE-S bend chord heads right. */
+	const koord step(dir);
+	bool heading_left = step.x < 0  ||  (step.x == 0  &&  step.y > 0);
 	if (heading_left ^ is_overtaking) {
 		disp_lane ^= 2;
 	}

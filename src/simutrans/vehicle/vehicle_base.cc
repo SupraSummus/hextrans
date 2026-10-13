@@ -352,7 +352,9 @@ void vehicle_base_t::get_screen_offset( int &xoff, int &yoff, const sint16 raste
 // step (tile to next tile) or two (tile before to tile after).
 // A displacement on a hex axis names its edge.  The chords of the 60 degree
 // bends are off-axis and are sorted into NE / SW by their signs, except
-// (1,1) and (-1,-1) (the SE-S and NW-N bends), which give none.
+// (1,1) and (-1,-1) (the SE-S and NW-N bends), which name both edges:
+// koord() of either is the chord, and the two ways along it stay opposite,
+// which road traffic needs to tell oncoming cars from those ahead.
 ribi_t::ribi vehicle_base_t::calc_chord_direction(const koord& start, const koord& ende)
 {
 	const sint32 di = ende.x - start.x;
@@ -370,13 +372,17 @@ ribi_t::ribi vehicle_base_t::calc_chord_direction(const koord& start, const koor
 		return ribi_t::northeast;
 	} else if(di < 0 && dj > 0) {    // SW
 		return ribi_t::southwest;
+	} else if(di > 0 && dj > 0) {    // SE-S bend
+		return ribi_t::southeast | ribi_t::south;
+	} else if(di < 0 && dj < 0) {    // NW-N bend
+		return ribi_t::northwest | ribi_t::north;
 	}
 	return ribi_t::none;
 }
 
 
-// The (1,1) and (-1,-1) bend chords have no direction; calc_set_direction
-// leaves the sign of their r in dy.
+// A vehicle saved on a (1,1) or (-1,-1) bend chord before those had a
+// direction has none; calc_set_direction left the sign of their r in dy.
 ribi_t::dir vehicle_base_t::get_sprite_dir() const
 {
 	if(  direction != ribi_t::none  ) {

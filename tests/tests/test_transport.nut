@@ -367,3 +367,55 @@ function test_transport_freight_valid_route()
 	ASSERT_EQUAL(command_x(tool_remove_way).work(player_x(0), coord3d(5, 7, 0), coord3d(4, 7, 0), "" + wt_road), null)
 	RESET_ALL_PLAYER_FUNDS()
 }
+
+
+function test_transport_buses_pass_on_bends()
+{
+	local pl = player_x(0)
+	local road_desc = way_desc_x.get_available_ways(wt_road, st_flat)[0]
+
+	// stop A at (3,2), then six tiles that each bend between SE and S,
+	// whose chords from the tile before to the tile after are (1,1) or (-1,-1),
+	// then stop B at (6,7)
+	local corners = [ [3,1], [3,3], [4,3], [4,4], [5,4], [5,5], [6,5], [6,7] ]
+	for (local i = 1; i < corners.len(); i++) {
+		local a = corners[i-1], b = corners[i]
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(a[0], a[1], 0), coord3d(b[0], b[1], 0), road_desc, true), null)
+	}
+	ASSERT_EQUAL(command_x(tool_build_station).work(pl, coord3d(3, 2, 0), "BusStop"), null)
+	ASSERT_EQUAL(command_x(tool_build_station).work(pl, coord3d(6, 7, 0), "BusStop"), null)
+	ASSERT_EQUAL(command_x.build_depot(pl, coord3d(3, 1, 0), building_desc_x("CarDepot")), null)
+
+	// two buses between A and B, one setting off for each, so they meet head on
+	local depot = depot_x(3, 1, 0)
+	local stops = [ coord3d(3, 2, 0), coord3d(6, 7, 0) ]
+	depot.append_vehicle(pl, convoy_x(0), vehicle_desc_x("Buessig"))
+	depot.append_vehicle(pl, convoy_x(0), vehicle_desc_x("Buessig"))
+	local convoys = depot.get_convoy_list()
+	convoys[0].change_schedule(pl, create_simple_schedule(wt_road, [ stops[1], stops[0] ]))
+	convoys[1].change_schedule(pl, create_simple_schedule(wt_road, [ stops[0], stops[1] ]))
+	depot.start_all_convoys(pl)
+
+	// a few round trips each, which they only make if they get past each other
+	for (local i = 0; i < 20000; i++) {
+		if (convoys[0].get_distance_traveled_total() >= 40  &&  convoys[1].get_distance_traveled_total() >= 40) {
+			break
+		}
+		sleep()
+	}
+	ASSERT_TRUE(convoys[0].get_distance_traveled_total() >= 40)
+	ASSERT_TRUE(convoys[1].get_distance_traveled_total() >= 40)
+
+	// clean up
+	foreach (cnv in convoys) {
+		cnv.destroy(pl)
+	}
+	sleep()
+	sleep() // make sure the convoys are destroyed
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(3, 2, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(6, 7, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remover).work(pl, coord3d(3, 1, 0)), null)
+	ASSERT_EQUAL(command_x(tool_remove_way).work(pl, coord3d(3, 1, 0), coord3d(6, 7, 0), "" + wt_road), null)
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
