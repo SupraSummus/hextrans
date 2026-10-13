@@ -510,20 +510,33 @@ bool way_builder_t::validate_route_slopes() const
 	for (uint32 i = 0; i < route.get_count(); i++) {
 		if (terraform_index.is_contained(i)) continue;
 		const grund_t* gr = welt->lookup(route[i]);
-		if (gr == NULL) continue;
-		const slope_t::type sl = gr->get_weg_hang();
-		if (sl == slope_t::flat) continue;
-
-		ribi_t::ribi ribi = route.get_short_ribi(i);
-		if (const weg_t* existing = gr->get_weg(desc->get_wtyp())) {
-			ribi |= existing->get_ribi_unmasked();
-		}
-
-		if (!slope_allows_ribi(sl, ribi)) {
+		if (gr  &&  !slope_carries(gr, route.get_short_ribi(i))) {
 			return false;
 		}
 	}
 	return true;
+}
+
+
+bool way_builder_t::slope_carries(const grund_t *gr, ribi_t::ribi ribi) const
+{
+	const slope_t::type sl = gr->get_weg_hang();
+	if (sl == slope_t::flat) {
+		return true;
+	}
+	if (const weg_t* existing = gr->get_weg(desc->get_wtyp())) {
+		ribi |= existing->get_ribi_unmasked();
+	}
+	return slope_allows_ribi(sl, ribi);
+}
+
+
+// the direction from one route tile to the next, as koord3d_vector_t::get_short_ribi
+// counts it: none for the two ends of a bridge or tunnel
+static ribi_t::ribi short_ribi(const grund_t *from, const grund_t *to)
+{
+	const koord a = from->get_pos().get_2d(), b = to->get_pos().get_2d();
+	return koord_distance(a, b) <= 1 ? ribi_type(b - a) : (ribi_t::ribi)ribi_t::none;
 }
 
 
@@ -1846,6 +1859,16 @@ sint32 way_builder_t::intern_calc_route(const vector_tpl<koord3d> &start, const 
 			if (new_dist == 0 && r.flag & terraform) {
 				// no terraforming near target
 				continue;
+			}
+			// leave no tile on a slope that validate_route_slopes() would refuse
+			if (bautyp != river) {
+				const ribi_t::ribi here = short_ribi(gr, to) | (tmp->parent ? short_ribi(gr, tmp->parent->gr) : (ribi_t::ribi)ribi_t::none);
+				if (!(tmp->count & terraform)  &&  !slope_carries(gr, here)) {
+					continue;
+				}
+				if (!(r.flag & terraform)  &&  ziel.is_contained(to->get_pos())  &&  !slope_carries(to, short_ribi(to, gr))) {
+					continue;
+				}
 			}
 			if(new_dist<min_dist) {
 				min_dist = new_dist;
