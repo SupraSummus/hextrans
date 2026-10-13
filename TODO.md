@@ -1163,13 +1163,11 @@ Next move: a candidate that builds a chain the AI can sell at the end,
 supplier → factory together with factory → consumer,
 scored and logged as one decision with both links' convoys.
 
-Most tries fail: 64% of the `ai_line` lines were failures.
-Each costs little money but the month's decision.
-The outcome now says why:
-`no_vehicle`, `no_place` (`suche_platz1_platz2` found no stop place)
-or `no_way` (the way builder found no route).
-Next move: count the reasons over a learning run
-and give the policy a feature for the common one.
+Some tries still fail, mostly with `no_place`
+(`suche_platz1_platz2` found no stop place): 8 of 108 in a learning round.
+Each costs a month's decision.
+Next move: have `pick_by_policy` look for the stop places of its best candidate
+and fall back to the next one when there are none.
 
 The labels `ai_learn.py` fits charge a link the maintenance it added when built,
 so a road a later link shares is charged to the first one only.
