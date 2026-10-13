@@ -693,7 +693,8 @@ it scores every unserved supplier → consumer link by weighted features
 and builds the best one if it scores above zero.
 Without the file the goods AI keeps its hand-written choices.
 Either way the soak logs one `ai_line:` line per link the goods AI tries
-and one `ai_convoy:` line per AI convoy and month.
+and one `ai_convoy:` line per AI convoy and month,
+and when the goods AI retires one.
 `tools/ai_learn.py` joins the two into what each link earned
 and fits a logistic regression of "the link paid back" on the features,
 which is the next policy;

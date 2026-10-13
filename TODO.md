@@ -1162,20 +1162,19 @@ Next move: a candidate that builds a chain the AI can sell at the end,
 supplier → factory together with factory → consumer,
 scored and logged as one decision with both links' convoys.
 
-Most tries fail: 64% of the `ai_line` lines are `failed`.
+Most tries fail: 64% of the `ai_line` lines were failures.
 Each costs little money but the month's decision.
-Next move: log why (`suche_platz1_platz2` found no stop place,
-or the way builder found no route)
-and give the policy a feature for it.
+The outcome now says why:
+`no_vehicle`, `no_place` (`suche_platz1_platz2` found no stop place)
+or `no_way` (the way builder found no route).
+Next move: count the reasons over a learning run
+and give the policy a feature for the common one.
 
-The labels `ai_learn.py` fits are approximate.
-A convoy retired during a month loses that month's profit;
-a link's upkeep is the maintenance it added when it was built,
-so a road a later link shares is charged to the first one;
-a link's convoys are the ones that appeared while it was built.
-Next move: log the line id in `ai_line`
-and each AI line's monthly profit, which keeps a retired convoy's bookings,
-and have `ai_learn.py` sum line profit instead of convoy profit.
+The labels `ai_learn.py` fits charge a link the maintenance it added when built,
+so a road a later link shares is charged to the first one only.
+Next move: log with each link's closing, and at the end of the soak,
+the upkeep of what `remove_dead_end_road` would remove from its stops,
+and charge that instead.
 
 Only part of the AI has a policy.
 The passenger AI goes bankrupt in every soak within two years;

@@ -1266,7 +1266,7 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 			if(state==NR_BAUE_ROUTE1) {
 				// maybe this route is not builtable ... add to forbidden connections
 				forbidden_connections.append( new fabconnection_t( start, ziel, freight ) );
-				trace_end( "failed", "none" );
+				trace_end( min(count_road,count_rail)==255 ? "no_vehicle" : "no_place", "none" );
 				ziel = NULL; // otherwise it may always try to built the same route!
 				state = CHECK_CONVOI;
 			}
@@ -1393,7 +1393,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		{
 			if(start!=NULL  &&  ziel!=NULL) {
 				forbidden_connections.append( new fabconnection_t( start, ziel, freight ) );
-				trace_end( "failed", ship_vehicle ? "ship" : "none" );
+				trace_end( "no_way", ship_vehicle ? "ship" : "none" );
 			}
 			if(ship_vehicle) {
 				// only here, if we could built ships but no connection
@@ -1513,6 +1513,13 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 					waytype_t const wt = cnv->front()->get_desc()->get_waytype();
 					linehandle_t line = cnv->get_line();
 					DBG_MESSAGE("ai_goods_t::do_ki()","%s retires convoi %s!", get_name(), cnv->get_name());
+					if(  ai_policy_t::trace  ) {
+						// the monthly ai_convoy lines miss what it booked this month
+						const uint32 month = welt->get_current_month();
+						fprintf( stderr, "ai_convoy: %04u.%02u player %d id=%u profit=%.0f value=%.0f\n",
+							month / 12, month % 12 + 1, get_player_nr(), cnv.get_id(),
+							cnv->get_finance_history( 0, convoi_t::CONVOI_PROFIT ) / 100.0, cnv->calc_restwert() / 100.0 );
+					}
 
 					koord3d start_pos, end_pos;
 					schedule_t *schedule = cnv->get_schedule();
