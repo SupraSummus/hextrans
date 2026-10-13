@@ -994,14 +994,16 @@ maps a 4-layout depot's dead-end ribi through `ribi_t::ribi_to_layout`,
 so all 6 directions get a layout;
 `building_desc_t::adjust_layout` folds the NE and SW layouts
 onto the images the pakset ships.
-A 2-layout through depot, and every through stop,
+A 2-layout through depot or stop
 picks its layout with `ribi_t::axis_to_layout`:
 the S, SE and SW end give layouts 0, 1 and 5,
 and `adjust_layout` folds 5 onto 0,
 so NE-SW track shows the N-S image.
-Real fix is a 3-axis depot and through-stop descriptor;
-needs `depot_t` rotation handling
-and pakset images for all three axes.
+An 8-layout through stop keeps layout 5,
+and the hex pak128 bakes its NE-SW image there
+(`infrastructure/road_stops/hex_stops`).
+Real fix for depots is a 3-axis through-depot descriptor;
+needs `depot_t` rotation handling.
 
 *Stop and depot facing is read from the way.*
 `get_layout()` is folded for NE and SW,
