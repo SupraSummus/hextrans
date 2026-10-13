@@ -3800,7 +3800,7 @@ bool stadt_t::build_road(const koord k, player_t* player_, bool forced)
 						// there is a building on it halt => we can only go in the allow ribis
 						// (from the way: the stored layout cannot tell NE / SW from S / SE)
 						const ribi_t::ribi facing = hausbauer_t::get_facing_ribi(gr, gb->get_tile());
-						if (gb->get_tile()->get_desc()->get_all_layouts() == 4  &&  ribi_t::backward(ribi_t::nesw[r]) != facing) {
+						if (gb->get_tile()->get_desc()->is_terminal()  &&  ribi_t::backward(ribi_t::nesw[r]) != facing) {
 							// single way => only one dir allowed
 							continue;
 						}
