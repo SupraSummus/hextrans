@@ -110,7 +110,8 @@ static void test_edges()
 
 // The step a vehicle crossing a 60 degree bend heads along, as
 // vehicle_base_t::calc_chord_direction stores it: the edge whose step has the
-// chord's signs, or for (1,1) and (-1,-1), which have no such edge, the chord.
+// chord's signs, or for (1,1) and (-1,-1), which have no such edge, both
+// edges, whose koord is the chord.
 // Straights and 120 degree bends have a chord on an edge and are covered by
 // test_edges.
 static koord stored_step(koord chord)
