@@ -1140,18 +1140,6 @@ and soak a map where one town gets a second route.
 fit the goods AI's link choice to what links earned in soaks.
 Progress and results are in issue #346.
 
-A closed link can leave its stops and road behind.
-`CHECK_CONVOI` removes the way with `tool_wayremover_t` from one stop to the other,
-and when that fails it removes only the tiles at the ends,
-so the upkeep of the rest stays on the books with nothing earning it:
-`-ai_soak 128 22 -ai_policy tools/ai_policies/pak64-goods.policy`
-retires its last convoy in 1931
-and pays 4 560 a year for its road until 1950.
-The hand-written AI closes links the same way.
-Next move: keep the way tiles the way builder laid for each link
-(`create_simple_road_transport` has the route)
-and remove those tiles and the link's stops when its last convoy goes.
-
 Some links the goods AI builds never carry anything.
 `-ai_soak 128 5 -ai_policy tools/ai_policies/pak64-goods.policy`
 builds Kohle from (27,39) to (16,24) in 1930.06,
@@ -1185,9 +1173,9 @@ A convoy retired during a month loses that month's profit;
 a link's upkeep is the maintenance it added when it was built,
 so a road a later link shares is charged to the first one;
 a link's convoys are the ones that appeared while it was built.
-Next move: the per-link record of the way-tile entry above,
-with the link's line handle and its profit summed in `ai_goods_t`,
-logged when the link closes and at the end of the soak.
+Next move: log the line id in `ai_line`
+and each AI line's monthly profit, which keeps a retired convoy's bookings,
+and have `ai_learn.py` sum line profit instead of convoy profit.
 
 Only part of the AI has a policy.
 The passenger AI goes bankrupt in every soak within two years;

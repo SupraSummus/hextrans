@@ -439,6 +439,37 @@ void ai_goods_t::trace_end( const char *outcome, const char *mode )
 }
 
 
+void ai_goods_t::remove_dead_end_road( koord3d pos )
+{
+	grund_t *gr = welt->lookup( pos );
+	if(  gr  &&  gr->is_halt()  ) {
+		halthandle_t const halt = gr->get_halt();
+		if(  halt->get_owners() != 1 << get_player_nr()  ||  !halt->registered_lines.empty()  ||  !halt->registered_convoys.empty()  ||
+		     !haltestelle_t::remove( this, pos )  ) {
+			return;
+		}
+		gr = welt->lookup( pos );
+	}
+	while(  gr  &&  gr->ist_karten_boden()  &&  !gr->ist_bruecke()  &&  !gr->has_two_ways()  &&  !gr->is_halt()  ) {
+		weg_t *road = gr->get_weg( road_wt );
+		if(  !road  ||  road->get_owner() != this  ||  gr->suche_obj( obj_t::road_vehicle )  ) {
+			return;
+		}
+		const ribi_t::ribi ribi = road->get_ribi_unmasked();
+		if(  ribi_t::get_numways( ribi ) > 1  ) {
+			return;
+		}
+		grund_t *next = NULL;
+		if(  ribi  &&  gr->get_neighbour( next, road_wt, ribi )  ) {
+			next->get_weg( road_wt )->ribi_rem( ribi_t::backward( ribi ) );
+			next->calc_image();
+		}
+		gr->remove_everything_from_way( this, road_wt, ribi_t::none );
+		gr = next;
+	}
+}
+
+
 // dilate the tile list by the hex disc of radius @p size
 void add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
 {
@@ -1533,27 +1564,11 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 						tool.work( this, end_pos );
 						tool.exit( this );
 					}
-					else {
-						// last convoi => remove completely<
-						if(line.is_bound()  &&  line->count_convoys()==0) {
-							simlinemgmt.delete_line( line );
-
-							char param[16];
-							sprintf( param, "%i", wt );
-							tool_wayremover_t tool;
-							tool.set_default_param(param);
-							tool.init( this );
-							tool.work( this, start_pos );
-							if(tool.work( this, end_pos )!=NULL) {
-								// cannot remove all => likely some other convois there too
-								// remove loading bays and road on start and end, if we cannot remove the whole way
-								tool.work( this, start_pos );
-								tool.work( this, start_pos );
-								tool.work( this, end_pos );
-								tool.work( this, end_pos );
-							}
-							tool.exit( this );
-						}
+					else if(  line.is_bound()  &&  line->count_convoys()==0  ) {
+						// last convoi => remove its stops and the road nothing else uses
+						simlinemgmt.delete_line( line );
+						remove_dead_end_road( start_pos );
+						remove_dead_end_road( end_pos );
 					}
 					break;
 				}
