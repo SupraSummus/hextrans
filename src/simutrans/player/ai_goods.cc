@@ -239,11 +239,14 @@ void ai_goods_t::get_served_factories( vector_tpl<const fabrik_t *> &served )
 // The truck that carries most of ware per running cost, which is what
 // vehicle_search() mostly picks, but without its random draws: the features
 // are logged for the hand-written AI too, whose game must not change.
-static const vehicle_desc_t *feature_truck( const goods_desc_t *ware, uint16 month_now )
+// It skips what vehicle_search( road_wt, 10, ..., false ) skips.
+static const vehicle_desc_t *feature_truck( const goods_desc_t *ware, uint16 month_now, bool not_obsolete )
 {
 	const vehicle_desc_t *best = NULL;
 	for(  vehicle_desc_t const *const desc : vehicle_builder_t::get_info( road_wt )  ) {
 		if(  !desc->can_lead( NULL )  ||  desc->is_future( month_now )  ||  desc->get_capacity() == 0  ||
+		     desc->get_power() == 0  ||  !desc->can_follow( NULL )  ||  desc->get_engine_type() == vehicle_desc_t::electric  ||
+		     (not_obsolete  &&  desc->is_retired( month_now ))  ||
 		     !desc->get_freight_type()->is_interchangeable( ware )  ) {
 			continue;
 		}
@@ -276,7 +279,7 @@ bool ai_goods_t::get_link_features( fabrik_t *qfab, fabrik_t *fab, const goods_d
 	features[ai_policy_t::F_DENSITY]      = log1p( ware->get_value() * prod );
 	features[ai_policy_t::F_PRODUCTION]   = log1p( prod );
 	// the truck NR_BAUE_ROUTE1 would pick
-	const vehicle_desc_t *truck = feature_truck( ware, welt->get_timeline_year_month() );
+	const vehicle_desc_t *truck = feature_truck( ware, welt->get_timeline_year_month(), !welt->get_settings().get_allow_buying_obsolete_vehicles() );
 	features[ai_policy_t::F_MARGIN] = truck ? log( (double)truck->get_capacity() * ware->get_value() / max( (sint64)1, truck->get_running_cost() ) ) : 0;
 	features[ai_policy_t::F_LOADS]  = truck ? log1p( prod / max( 1, (int)truck->get_capacity() ) ) : 0;
 	features[ai_policy_t::F_RAW]          = qfab->get_desc()->is_producer_only();
@@ -323,7 +326,7 @@ bool ai_goods_t::pick_by_policy()
 					continue;
 				}
 				if(  features[ai_policy_t::F_WATER]  ?  vehicle_search( water_wt, 0, 10, ware, false ) == NULL  :
-				     feature_truck( ware, welt->get_timeline_year_month() ) == NULL  ) {
+				     feature_truck( ware, welt->get_timeline_year_month(), !welt->get_settings().get_allow_buying_obsolete_vehicles() ) == NULL  ) {
 					// nothing to carry it in
 					continue;
 				}
