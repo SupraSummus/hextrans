@@ -190,13 +190,15 @@ jobs:
         export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
         export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
         python3 tools/ai_soak.py --shape 48,40,32 --until 1931.1
-    - name: Soak the goods AI with a fitted policy
-      # The -ai_policy path of the goods AI (tools/ai_learn.py) on one
-      # seed, which also checks that the committed policy still loads.
+    - name: Soak the AIs with policies
+      # The policy paths of both AIs (tools/ai_learn.py) on one seed:
+      # the committed goods policy, which also checks that it still loads,
+      # and a passenger policy that builds at random.
       run: |
         export ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0"
         export UBSAN_OPTIONS="print_stacktrace=1 abort_on_error=1"
-        python3 tools/ai_soak.py --policy tools/ai_policies/pak64-goods.policy 2 --until 1933.1
+        python3 tools/ai_soak.py --policy tools/ai_policies/pak64-goods.policy \
+          --passenger-policy tools/ai_policies/explore.policy 2 --until 1933.1
     - name: Run NWC protocol e2e suite
       # Black-box wire-protocol tests: spawn a headless server, send
       # one hand-rolled packet, parse the reply.  Pins NWC_AUTH_PLAYER

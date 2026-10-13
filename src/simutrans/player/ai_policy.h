@@ -71,11 +71,14 @@ struct ai_policy_t
 	/// retire_loss times its value (0: only the AI's own rules)
 	double retire_loss;
 	/// close a line older than a year whose convoys earned less than
-	/// retire_line times the estimated upkeep of its stops and road (0: never)
+	/// retire_line times the estimated upkeep of its road (goods AI)
+	/// or its stops (passenger AI); 0: never
 	double retire_line;
 	/// build or upgrade the headquarters only while the account holds this
 	/// many times the starting money; its upkeep can eat a small company
 	double hq_reserve;
+	/// passenger AI: stops of the bus line it lays in each town it joins
+	double city_stops;
 
 	ai_policy_t(const char *const *names, int count);
 

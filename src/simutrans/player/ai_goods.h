@@ -119,9 +119,8 @@ private:
 	// earn retire_line times the upkeep of their road
 	void get_unpaid_lines( vector_tpl<linehandle_t> &unpaid );
 
-	// -ai_soak: trace_link_begin/end for the link start -> ziel
+	// -ai_soak: trace_link_begin for the link start -> ziel
 	void trace_begin();
-	void trace_end( const char *outcome, const char *mode );
 
 	bool suche_platz1_platz2(fabrik_t *qfab, fabrik_t *zfab, int length);
 

@@ -407,15 +407,8 @@ void ai_goods_t::trace_begin()
 			f = 0;
 		}
 	}
-	trace_link_begin( features, ai_policy_t::feature_names, ai_policy_t::FEATURES );
-}
-
-
-void ai_goods_t::trace_end( const char *outcome, const char *mode )
-{
-	if(  start  &&  ziel  ) {
-		trace_link_end( outcome, mode, start->get_pos().get_2d(), ziel->get_pos().get_2d(), freight->get_name() );
-	}
+	trace_link_begin( start->get_pos().get_2d(), ziel->get_pos().get_2d(), freight->get_name(),
+		features, ai_policy_t::feature_names, ai_policy_t::FEATURES );
 }
 
 
@@ -1215,7 +1208,7 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 			if(state==NR_BAUE_ROUTE1) {
 				// maybe this route is not builtable ... add to forbidden connections
 				forbidden_connections.append( new fabconnection_t( start, ziel, freight ) );
-				trace_end( min(count_road,count_rail)==255 ? "no_vehicle" : "no_place", "none" );
+				trace_link_end( min(count_road,count_rail)==255 ? "no_vehicle" : "no_place", "none" );
 				ziel = NULL; // otherwise it may always try to built the same route!
 				state = CHECK_CONVOI;
 			}
@@ -1342,7 +1335,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		{
 			if(start!=NULL  &&  ziel!=NULL) {
 				forbidden_connections.append( new fabconnection_t( start, ziel, freight ) );
-				trace_end( "no_way", ship_vehicle ? "ship" : "none" );
+				trace_link_end( "no_way", ship_vehicle ? "ship" : "none" );
 			}
 			if(ship_vehicle) {
 				// only here, if we could built ships but no connection
@@ -1382,7 +1375,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		// successful rail construction
 		case NR_RAIL_SUCCESS:
 		{
-			trace_end( "built", ship_vehicle ? "ship+rail" : "rail" );
+			trace_link_end( "built", ship_vehicle ? "ship+rail" : "rail" );
 			// tell the player
 			cbuffer_t buf;
 			const koord3d& spos = start->get_pos();
@@ -1398,7 +1391,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		// successful rail construction
 		case NR_ROAD_SUCCESS:
 		{
-			trace_end( "built", ship_vehicle ? "ship+road" : "road" );
+			trace_link_end( "built", ship_vehicle ? "ship+road" : "road" );
 			// tell the player
 			cbuffer_t buf;
 			const koord3d& spos = start->get_pos();

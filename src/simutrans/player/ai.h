@@ -33,17 +33,23 @@ class ai_t : public player_t
 protected:
 	// -ai_soak: the link being tried, from the decision to its outcome
 	struct link_trace_t {
+		bool open;
 		double features[ai_policy_t::FEATURES];
 		const char *const *names;
 		int count;
+		koord from, to;
+		const char *what;   // the goods
 		sint64 balance;     // account before building
 		sint64 maintenance; // monthly upkeep before building
 		vector_tpl<uint16> convoys; // our convoys before building
 	} traced_link;
-	// remember FEATURES, which NAMES[COUNT] name, and what we have
-	void trace_link_begin( const double *features, const char *const *names, int count );
-	// one ai_line line: outcome, waytype, the link and what it cost
-	void trace_link_end( const char *outcome, const char *mode, koord from, koord to, const char *what );
+	// remember the link from -> to for WHAT, its FEATURES, which NAMES[COUNT]
+	// name, and what we have
+	void trace_link_begin( koord from, koord to, const char *what,
+		const double *features, const char *const *names, int count );
+	// if a link is open, one ai_line line: outcome, waytype, the link and
+	// what it cost
+	void trace_link_end( const char *outcome, const char *mode );
 
 	// remove our stop at pos if no line serves it any more, then our road
 	// from there for as long as it is a dead end

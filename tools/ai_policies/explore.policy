@@ -1,0 +1,4 @@
+# builds a random candidate at every decision: CI soaks it
+# to run the policy code of an AI that has no fitted policy
+explore = 1
+retire_line = 1.5

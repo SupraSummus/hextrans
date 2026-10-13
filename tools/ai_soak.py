@@ -7,6 +7,7 @@ Usage:
     tools/ai_soak.py --size 192 --exe build/simutrans/simutrans 7
     tools/ai_soak.py --shape 48,40,32 --until 1931.1  # a W x H x D hexagon
     tools/ai_soak.py --policy tools/ai_policies/pak64-goods.policy 2  # a goods AI policy
+    tools/ai_soak.py --passenger-policy tools/ai_policies/explore.policy 2
 
 Each seed is one engine run (see AGENTS.md, `-ai_soak`): a generated map with
 cities and industry (square, or with --shape the W x H x D hexagon of
@@ -62,7 +63,7 @@ def until_month(until):
     return "%04d.%02d" % (int(year), int(month or 1))
 
 
-def run_seed(exe, size, seed, until, timeout, env, policy=None):
+def run_seed(exe, size, seed, until, timeout, env, policies):
     """Runs one seed; returns (passed, report text)."""
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     env = dict(env, XDG_DATA_HOME=str(USER_DATA / str(seed)))
@@ -70,8 +71,8 @@ def run_seed(exe, size, seed, until, timeout, env, policy=None):
     log = LOG_DIR / ("soak_%s_%d.log" % (size.replace(",", "x"), seed))
     cmd = [str(exe), "-use_workdir", "-objects", "pak", "-nosound", "-nomidi", "-debug", "2",
            "-ai_soak", size, str(seed), "-until", until]
-    if policy:
-        cmd += ["-ai_policy", str(Path(policy).resolve())]
+    for option, policy in policies:
+        cmd += [option, str(Path(policy).resolve())]
     start = time.monotonic()
     with open(log, "w") as out:
         try:
@@ -106,6 +107,7 @@ def main():
                     help="W x H x D hexagon instead of a SIZE x SIZE map")
     ap.add_argument("--until", default="1933.1", help="YEAR.MONTH to stop at (default 1933.1)")
     ap.add_argument("--policy", help="goods AI policy file (-ai_policy)")
+    ap.add_argument("--passenger-policy", help="passenger AI policy file (-ai_policy_passenger)")
     ap.add_argument("--exe", help="engine binary")
     ap.add_argument("--timeout", type=int, default=900, help="seconds per seed (default 900)")
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 1,
@@ -122,8 +124,10 @@ def main():
     size = args.shape or str(args.size)
     if args.shape and not re.fullmatch(r"\d+,\d+,\d+", args.shape):
         sys.exit("--shape wants W,H,D, got %s" % args.shape)
+    policies = [(option, policy) for option, policy in
+                (("-ai_policy", args.policy), ("-ai_policy_passenger", args.passenger_policy)) if policy]
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        futures = [pool.submit(run_seed, exe, size, seed, args.until, args.timeout, env, args.policy)
+        futures = [pool.submit(run_seed, exe, size, seed, args.until, args.timeout, env, policies)
                    for seed in args.seeds]
         results = []
         for future in futures:  # in seed order

@@ -28,8 +28,13 @@
 
 #include "../vehicle/vehicle.h"
 
+#include "../obj/gebaeude.h"
+#include "../descriptor/building_desc.h"
+
 #include "ai_passenger.h"
 #include "finance.h"
+
+#include <math.h>
 
 
 ai_passenger_t::ai_passenger_t(uint8 nr) : ai_t( nr )
@@ -948,7 +953,7 @@ void ai_passenger_t::walk_city(linehandle_t const line, grund_t* const start, in
  */
 void ai_passenger_t::cover_city_with_bus_route(koord start_pos, int number_of_stops)
 {
-	if(  convoihandle_t::is_exhausted()  ) {
+	if(  number_of_stops <= 0  ||  convoihandle_t::is_exhausted()  ) {
 		// too many convois => cannot do anything about this ...
 		return;
 	}
@@ -989,6 +994,179 @@ void ai_passenger_t::cover_city_with_bus_route(koord start_pos, int number_of_st
 }
 
 
+void ai_passenger_t::label_land( vector_tpl<uint32> &land ) const
+{
+	const sint16 w = welt->get_size().x, h = welt->get_size().y;
+	land.clear();
+	land.reserve( (uint32)w * h );
+	for(  uint32 i = 0;  i < (uint32)w * h;  i++  ) {
+		land.append( 0 );
+	}
+	uint32 label = 0;
+	vector_tpl<koord> todo;
+	for(  sint16 y = 0;  y < h;  y++  ) {
+		for(  sint16 x = 0;  x < w;  x++  ) {
+			const grund_t *gr = welt->lookup_kartenboden_nocheck( x, y );
+			if(  land[y * w + x]  ||  !gr  ||  gr->is_water()  ) {
+				continue;
+			}
+			land[y * w + x] = ++label;
+			todo.append( koord( x, y ) );
+			while(  !todo.empty()  ) {
+				const koord k = todo.pop_back();
+				for(  koord const &d : koord::neighbours  ) {
+					const koord n = k + d;
+					if(  !welt->is_within_limits( n )  ||  land[n.y * w + n.x]  ) {
+						continue;
+					}
+					const grund_t *ngr = welt->lookup_kartenboden( n );
+					if(  ngr  &&  !ngr->is_water()  ) {
+						land[n.y * w + n.x] = label;
+						todo.append( n );
+					}
+				}
+			}
+		}
+	}
+}
+
+
+void ai_passenger_t::get_link_features( const stadt_t *from, const stadt_t *to, koord to_pos,
+	const vector_tpl<uint32> &land, double features[ai_policy_t::PASSENGER_FEATURES] ) const
+{
+	const koord from_pos = from->get_pos();
+	const double dist = koord_distance( from_pos, to_pos );
+	const sint16 w = welt->get_size().x;
+	features[ai_policy_t::P_POPULATION_FROM] = log1p( (double)from->get_einwohner() );
+	features[ai_policy_t::P_POPULATION_TO]   = to ? log1p( (double)to->get_einwohner() ) : 0;
+	features[ai_policy_t::P_DISTANCE]        = dist / 100.0;
+	features[ai_policy_t::P_LOG_DISTANCE]    = log1p( dist );
+	features[ai_policy_t::P_NEW_HUBS]        = !get_our_hub( from ).is_bound() + (to ? !get_our_hub( to ).is_bound() : 1);
+	features[ai_policy_t::P_ACROSS_WATER]    = land[from_pos.y * w + from_pos.x] != land[to_pos.y * w + to_pos.x];
+}
+
+
+bool ai_passenger_t::pick_by_policy()
+{
+	const ai_policy_t &policy = *ai_policy_t::passengers;
+	start_stadt = end_stadt = NULL;
+	if(  finance->get_account_balance() < policy.cash_reserve * finance->get_starting_money()  ) {
+		return false;
+	}
+	vector_tpl<uint32> land;
+	label_land( land );
+
+	struct candidate_t { const stadt_t *from, *to; double score; };
+	vector_tpl<candidate_t> candidates;
+	const weighted_vector_tpl<stadt_t *> &towns = welt->get_cities();
+	for(  uint32 i = 0;  i < towns.get_count();  i++  ) {
+		for(  uint32 j = i + 1;  j < towns.get_count();  j++  ) {
+			// from the larger town, as the hand-written AI mostly does
+			const bool swap = towns[j]->get_einwohner() > towns[i]->get_einwohner();
+			const stadt_t *from = swap ? towns[j] : towns[i], *to = swap ? towns[i] : towns[j];
+			koord from_hub, to_hub;
+			if(  policy_tried.is_contained( town_pair_t{ from, to } )  ||
+			     (get_our_hub( from, &from_hub ).is_bound()  &&  get_our_hub( to, &to_hub ).is_bound()  &&
+			      is_connected( from_hub, to_hub, goods_manager_t::passengers ))  ) {
+				continue;
+			}
+			double features[ai_policy_t::PASSENGER_FEATURES];
+			get_link_features( from, to, to->get_pos(), land, features );
+			candidates.append( candidate_t{ from, to, policy.score( features ) } );
+		}
+	}
+	if(  candidates.empty()  ) {
+		return false;
+	}
+	const candidate_t *pick = NULL;
+	if(  policy.explore > 0  &&  simrand( 1000000 ) < policy.explore * 1000000  ) {
+		pick = &candidates[ simrand( candidates.get_count() ) ];
+	}
+	else {
+		for(  const candidate_t &c : candidates  ) {
+			if(  c.score > 0  &&  (!pick  ||  c.score > pick->score)  ) {
+				pick = &c;
+			}
+		}
+	}
+	if(  !pick  ) {
+		return false;
+	}
+	policy_tried.append( town_pair_t{ pick->from, pick->to } );
+	const koord hub = get_hub_pos( pick->from );
+	platz1 = hub != koord::invalid ? hub : find_place_for_hub( pick->from );
+	if(  platz1 == koord::invalid  ) {
+		return false;
+	}
+	start_stadt = pick->from;
+	end_stadt = pick->to;
+	return true;
+}
+
+
+void ai_passenger_t::close_unpaid_lines()
+{
+	const ai_policy_t *policy = ai_policy_t::passengers;
+	if(  !policy  ||  policy->retire_line <= 0  ) {
+		return;
+	}
+	vector_tpl<linehandle_t> lines;
+	simlinemgmt.get_lines( simline_t::truckline, &lines );
+	for(  linehandle_t line : lines  ) {
+		sint64 profit = 0;
+		bool year_old = true;
+		for(  int j = 1;  j < MAX_MONTHS;  j++  ) {
+			profit += line->get_finance_history( j, LINE_PROFIT );
+			year_old &= line->get_finance_history( j, LINE_CONVOIS ) > 0;
+		}
+		if(  !year_old  ) {
+			continue;
+		}
+		// its stops, as if no other line shared them
+		sint64 upkeep = 0;
+		vector_tpl<koord3d> stops;
+		for(  schedule_entry_t const &e : line->get_schedule()->entries  ) {
+			const grund_t *gr = welt->lookup( e.pos );
+			const gebaeude_t *gb = gr ? gr->find<gebaeude_t>() : NULL;
+			if(  gb  ) {
+				upkeep += welt->scale_with_month_length( gb->get_tile()->get_desc()->get_maintenance( welt ) ) * (MAX_MONTHS-1);
+			}
+			stops.append( e.pos );
+		}
+		if(  profit >= policy->retire_line * upkeep  ) {
+			continue;
+		}
+		while(  line->count_convoys() > 0  ) {
+			convoihandle_t cnv = line->get_convoy( 0 );
+			cnv->self_destruct();
+			if(  cnv.is_bound()  ) {
+				cnv->step();
+			}
+		}
+		simlinemgmt.delete_line( line );
+		for(  koord3d const &pos : stops  ) {
+			remove_dead_end_road( pos );
+		}
+		return; // one a month, like the AI's other changes to its lines
+	}
+}
+
+
+void ai_passenger_t::trace_begin()
+{
+	if(  !ai_policy_t::trace  ||  !start_stadt  ) {
+		return;
+	}
+	vector_tpl<uint32> land;
+	label_land( land );
+	const koord to = end_stadt ? end_stadt->get_pos() : platz2;
+	double features[ai_policy_t::PASSENGER_FEATURES];
+	get_link_features( start_stadt, end_stadt, to, land, features );
+	trace_link_begin( start_stadt->get_pos(), to, goods_manager_t::passengers->get_name(),
+		features, ai_policy_t::passenger_feature_names, ai_policy_t::PASSENGER_FEATURES );
+}
+
+
 void ai_passenger_t::step()
 {
 	// needed for schedule of stops ...
@@ -1008,7 +1186,9 @@ void ai_passenger_t::step()
 		case NR_INIT:
 		{
 			// time to update hq?
-			built_update_headquarter();
+			if(  !ai_policy_t::passengers  ||  finance->get_account_balance() > ai_policy_t::passengers->hq_reserve * finance->get_starting_money()  ) {
+				built_update_headquarter();
+			}
 
 			// assume fail
 			state = CHECK_CONVOI;
@@ -1019,6 +1199,17 @@ void ai_passenger_t::step()
 			 */
 			if(!(finance->get_account_balance()>0  ||  finance->has_money_or_assets())  ) {
 				return;
+			}
+
+			if(  ai_policy_t::passengers  ) {
+				end_attraction = NULL;
+				ziel = NULL;
+				platz2 = koord::invalid;
+				if(  pick_by_policy()  ) {
+					state = NR_SAMMLE_ROUTEN;
+					trace_begin();
+				}
+				break;
 			}
 
 			const weighted_vector_tpl<stadt_t*>& staedte = welt->get_cities();
@@ -1148,6 +1339,9 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","searching town");
 DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","%s wants to built network between %s and %s",get_name(),start_stadt->get_name(),end_stadt->get_name());
 				}
 			}
+			if(  state == NR_SAMMLE_ROUTEN  ) {
+				trace_begin();
+			}
 		}
 		break;
 
@@ -1177,6 +1371,7 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","hub found -> NR_BAUE_ROUTE1");
 			else {
 				// no success
 DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","no suitable hub found");
+				trace_link_end( "no_place", "none" );
 				end_stadt = NULL;
 				state = CHECK_CONVOI;
 			}
@@ -1199,6 +1394,7 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using %s on %s",road_vehicle->g
 			}
 			else {
 				// no success
+				trace_link_end( "no_vehicle", "none" );
 				end_stadt = NULL;
 				state = CHECK_CONVOI;
 			}
@@ -1253,10 +1449,11 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using %s on %s",road_vehicle->g
 					else {
 						buf.printf( translator::translate("Travellers now\nuse %s's\nbusses between\n%s \nand %s.\n"), get_name(), start_stadt->get_name(), end_stadt->get_name() );
 						// add two intown routes
-						cover_city_with_bus_route(platz1, 6);
-						cover_city_with_bus_route(platz2, 6);
+						cover_city_with_bus_route(platz1, city_stops());
+						cover_city_with_bus_route(platz2, city_stops());
 					}
 					welt->get_message()->add_message(buf, welt->lookup_kartenboden(platz1)->get_pos(), message_t::ai, PLAYER_FLAG | player_nr, road_vehicle->get_base_image());
+					trace_link_end( "built", "road" );
 				}
 			}
 		}
@@ -1271,9 +1468,9 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using %s on %s",road_vehicle->g
 			if(  end_attraction == NULL  &&  ship_transport  &&
 					create_water_transport_vehicle(start_stadt, end_stadt ? end_stadt->get_pos() : ziel->get_pos().get_2d())) {
 				// add two intown routes
-				cover_city_with_bus_route( get_hub_pos(start_stadt), 6);
+				cover_city_with_bus_route( get_hub_pos(start_stadt), city_stops() );
 				if(end_stadt!=NULL) {
-					cover_city_with_bus_route( get_hub_pos(end_stadt), 6);
+					cover_city_with_bus_route( get_hub_pos(end_stadt), city_stops() );
 				}
 				else {
 					// start again with same town
@@ -1283,6 +1480,7 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using %s on %s",road_vehicle->g
 				buf.printf( translator::translate("Ferry service by\n%s\nnow between\n%s \nand %s.\n"), get_name(), start_stadt->get_name(), end_stadt->get_name() );
 				koord3d pos = welt->lookup_kartenboden(end_stadt->get_pos())->get_pos();
 				welt->get_message()->add_message(buf, pos, message_t::ai, PLAYER_FLAG | player_nr, road_vehicle->get_base_image());
+				trace_link_end( "built", "ship" );
 				state = NR_SUCCESS;
 			}
 			else {
@@ -1304,18 +1502,20 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using %s on %s",road_vehicle->g
 			}
 			else {
 				// add two intown routes
-				cover_city_with_bus_route( get_hub_pos(start_stadt), 6);
-				cover_city_with_bus_route( get_hub_pos(end_stadt), 6);
+				cover_city_with_bus_route( get_hub_pos(start_stadt), city_stops() );
+				cover_city_with_bus_route( get_hub_pos(end_stadt), city_stops() );
 				cbuffer_t buf;
 				buf.printf( translator::translate("Airline service by\n%s\nnow between\n%s \nand %s.\n"), get_name(), start_stadt->get_name(), end_stadt->get_name() );
 				koord3d pos = welt->lookup_kartenboden(end_stadt->get_pos())->get_pos();
 				welt->get_message()->add_message(buf, pos, message_t::ai, PLAYER_FLAG | player_nr, road_vehicle->get_base_image());
+				trace_link_end( "built", "air" );
 				state = NR_SUCCESS;
 			}
 		break;
 
 		// remove marker etc.
 		case NR_BAUE_CLEAN_UP:
+			trace_link_end( "no_way", "none" );
 			state = CHECK_CONVOI;
 			end_stadt = NULL; // otherwise it may always try to built the same route!
 		break;
@@ -1335,6 +1535,8 @@ DBG_MESSAGE("ai_passenger_t::do_passenger_ki()","using %s on %s",road_vehicle->g
 			// next time: do something different
 			state = NR_INIT;
 			next_construction_steps = welt->get_steps() + simrand( ai_t::construction_speed ) + 25;
+
+			close_unpaid_lines();
 
 			vector_tpl<linehandle_t> lines(0);
 			simlinemgmt.get_lines( simline_t::line, &lines);

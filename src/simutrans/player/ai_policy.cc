@@ -35,7 +35,8 @@ ai_policy_t::ai_policy_t(const char *const *names, int count) :
 	cash_reserve(0),
 	retire_loss(0),
 	retire_line(0),
-	hq_reserve(1)
+	hq_reserve(1),
+	city_stops(6)
 {
 	for(  int i = 0;  i < FEATURES;  i++  ) {
 		weight[i] = 0;
@@ -67,6 +68,7 @@ const ai_policy_t *ai_policy_t::load(const char *filename, const char *const *na
 		{ "retire_loss",  &policy->retire_loss },
 		{ "retire_line",  &policy->retire_line },
 		{ "hq_reserve",   &policy->hq_reserve },
+		{ "city_stops",   &policy->city_stops },
 	};
 	char line[256];
 	while(  fgets( line, sizeof(line), file )  ) {
