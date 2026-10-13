@@ -1266,6 +1266,12 @@ public:
 	 */
 	bool interactive(uint32 quit_month);
 
+	/**
+	 * One fast-forward step, as interactive() does it, without the display,
+	 * events and clock around it.  For unattended runs (-ai_soak).
+	 */
+	void step_unattended();
+
 	uint32 get_sync_steps() const { return sync_steps; }
 
 	/**

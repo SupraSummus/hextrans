@@ -8,6 +8,7 @@
 #pragma comment(linker, "/SUBSYSTEM:CONSOLE")
 #endif
 
+#include <signal.h>
 #include <stdio.h>
 #include <math.h>
 #include <string>
@@ -721,9 +722,20 @@ static void ai_soak_snapshot(karte_t *welt)
 }
 
 
+static volatile sig_atomic_t ai_soak_stop = 0;
+
+static void ai_soak_signal(int)
+{
+	ai_soak_stop = 1;
+}
+
+
 // -ai_soak: run the world one game month at a time, with a status line after
 // each.  interactive() sets quit_simutrans whenever it reaches the month it
 // was given, so that flag only stands once the last one is done.
+// Without snapshots nothing is drawn, so the months are stepped directly:
+// the same steps as interactive() in fast forward, without its clock.
+// That loop reads no events, so it takes SIGTERM and SIGINT itself.
 static void ai_soak_run(karte_t *welt, uint32 quit_month, bool snapshots)
 {
 	if(  snapshots  ) {
@@ -731,10 +743,25 @@ static void ai_soak_run(karte_t *welt, uint32 quit_month, bool snapshots)
 		env_t::night_shift = false;
 		env_t::daynight_level = 0;
 	}
+	else {
+		signal( SIGTERM, ai_soak_signal );
+		signal( SIGINT, ai_soak_signal );
+	}
 	ai_soak_status( welt );
 	while(  !env_t::quit_simutrans  &&  welt->get_current_month() < quit_month  ) {
-		if(  welt->interactive( welt->get_current_month() + 1 )  ) {
-			break; // stopped from outside, e.g. by SIGTERM
+		const uint32 next_month = welt->get_current_month() + 1;
+		if(  snapshots  ) {
+			if(  welt->interactive( next_month )  ) {
+				break; // stopped from outside, e.g. by SIGTERM
+			}
+		}
+		else {
+			while(  welt->get_current_month() < next_month  &&  !ai_soak_stop  ) {
+				welt->step_unattended();
+			}
+			if(  ai_soak_stop  ) {
+				break;
+			}
 		}
 		ai_soak_status( welt );
 		const uint32 month = welt->get_current_month();
