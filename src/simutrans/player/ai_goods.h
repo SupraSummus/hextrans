@@ -119,20 +119,9 @@ private:
 	// earn retire_line times the upkeep of their road
 	void get_unpaid_lines( vector_tpl<linehandle_t> &unpaid );
 
-	// -ai_soak: the link being built, from the decision to its outcome
-	struct link_trace_t {
-		double features[ai_policy_t::FEATURES];
-		sint64 balance;     // account before building
-		sint64 maintenance; // monthly upkeep before building
-		vector_tpl<uint16> convoys; // our convoys before building
-	} traced_link;
+	// -ai_soak: trace_link_begin/end for the link start -> ziel
 	void trace_begin();
-	// one ai_line line: outcome, waytype and what the link cost
 	void trace_end( const char *outcome, const char *mode );
-
-	// remove our stop at pos if no line serves it any more, then our road
-	// from there for as long as it is a dead end
-	void remove_dead_end_road( koord3d pos );
 
 	bool suche_platz1_platz2(fabrik_t *qfab, fabrik_t *zfab, int length);
 

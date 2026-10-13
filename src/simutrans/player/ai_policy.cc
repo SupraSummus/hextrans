@@ -14,6 +14,7 @@
 
 
 const ai_policy_t *ai_policy_t::goods = NULL;
+const ai_policy_t *ai_policy_t::passengers = NULL;
 bool ai_policy_t::trace = false;
 
 const char *const ai_policy_t::feature_names[FEATURES] = {
@@ -21,8 +22,14 @@ const char *const ai_policy_t::feature_names[FEATURES] = {
 	"raw", "stock", "end", "downstream", "served", "water"
 };
 
+const char *const ai_policy_t::passenger_feature_names[PASSENGER_FEATURES] = {
+	"population_from", "population_to", "distance", "log_distance", "new_hubs", "across_water"
+};
 
-ai_policy_t::ai_policy_t() :
+
+ai_policy_t::ai_policy_t(const char *const *names, int count) :
+	names(names),
+	count(count),
 	bias(0),
 	explore(0),
 	cash_reserve(0),
@@ -36,23 +43,23 @@ ai_policy_t::ai_policy_t() :
 }
 
 
-double ai_policy_t::score(const double features[FEATURES]) const
+double ai_policy_t::score(const double *features) const
 {
 	double s = bias;
-	for(  int i = 0;  i < FEATURES;  i++  ) {
+	for(  int i = 0;  i < count;  i++  ) {
 		s += weight[i] * features[i];
 	}
 	return s;
 }
 
 
-void ai_policy_t::load_goods(const char *filename)
+const ai_policy_t *ai_policy_t::load(const char *filename, const char *const *names, int count)
 {
 	FILE *file = dr_fopen( filename, "r" );
 	if(  !file  ) {
-		dbg->fatal( "ai_policy_t::load_goods", "cannot read %s", filename );
+		dbg->fatal( "ai_policy_t::load", "cannot read %s", filename );
 	}
-	ai_policy_t *policy = new ai_policy_t();
+	ai_policy_t *policy = new ai_policy_t( names, count );
 	struct { const char *key; double *value; } const fields[] = {
 		{ "bias",         &policy->bias },
 		{ "explore",      &policy->explore },
@@ -68,7 +75,7 @@ void ai_policy_t::load_goods(const char *filename)
 		char *eq = strchr( line, '=' );
 		if(  !eq  ) {
 			if(  strspn( line, " \t" ) != strlen( line )  ) {
-				dbg->fatal( "ai_policy_t::load_goods", "%s: no '=' in \"%s\"", filename, line );
+				dbg->fatal( "ai_policy_t::load", "%s: no '=' in \"%s\"", filename, line );
 			}
 			continue;
 		}
@@ -83,16 +90,16 @@ void ai_policy_t::load_goods(const char *filename)
 				value = field.value;
 			}
 		}
-		for(  int i = 0;  i < FEATURES  &&  !value;  i++  ) {
-			if(  key[0] == 'w'  &&  key[1] == '_'  &&  strcmp( key + 2, feature_names[i] ) == 0  ) {
+		for(  int i = 0;  i < count  &&  !value;  i++  ) {
+			if(  key[0] == 'w'  &&  key[1] == '_'  &&  strcmp( key + 2, names[i] ) == 0  ) {
 				value = &policy->weight[i];
 			}
 		}
 		if(  !value  ) {
-			dbg->fatal( "ai_policy_t::load_goods", "%s: unknown key \"%s\"", filename, key );
+			dbg->fatal( "ai_policy_t::load", "%s: unknown key \"%s\"", filename, key );
 		}
 		*value = strtod( eq + 1, NULL );
 	}
 	fclose( file );
-	goods = policy;
+	return policy;
 }

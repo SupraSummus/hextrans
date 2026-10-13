@@ -8,6 +8,7 @@
 
 
 #include "simplay.h"
+#include "ai_policy.h"
 
 #include "../world/building_placefinder.h"
 
@@ -30,6 +31,24 @@ public:
 class ai_t : public player_t
 {
 protected:
+	// -ai_soak: the link being tried, from the decision to its outcome
+	struct link_trace_t {
+		double features[ai_policy_t::FEATURES];
+		const char *const *names;
+		int count;
+		sint64 balance;     // account before building
+		sint64 maintenance; // monthly upkeep before building
+		vector_tpl<uint16> convoys; // our convoys before building
+	} traced_link;
+	// remember FEATURES, which NAMES[COUNT] name, and what we have
+	void trace_link_begin( const double *features, const char *const *names, int count );
+	// one ai_line line: outcome, waytype, the link and what it cost
+	void trace_link_end( const char *outcome, const char *mode, koord from, koord to, const char *what );
+
+	// remove our stop at pos if no line serves it any more, then our road
+	// from there for as long as it is a dead end
+	void remove_dead_end_road( koord3d pos );
+
 	// set the allowed modes of transport
 	bool road_transport;
 	bool rail_transport;
