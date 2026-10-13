@@ -144,6 +144,13 @@ function test_building_build_house_invalid_desc()
 		ASSERT_EQUAL(tile_x(0,0,0).find_object(mo_building), null)
 	}
 
+	// A station extension is the station tool's: the house tool has no halt for it
+	{
+		local ext = building_desc_x.get_available_stations(building_desc_x.station_extension, wt_rail, good_desc_x.passenger)[0]
+		ASSERT_EQUAL(command_x(tool_build_house).work(public_pl, coord3d(0, 0, 0), "10" + ext.get_name()), "")
+		ASSERT_EQUAL(tile_x(0,0,0).find_object(mo_building), null)
+	}
+
 	// clean up
 	ASSERT_EQUAL(command_x(tool_remover).work(public_pl, coord3d(8, 8, 0)), null); // remove city
 	clear_seed_roads(public_pl, 8, 8); // founding road seeds on a random hex face
