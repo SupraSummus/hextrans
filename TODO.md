@@ -932,6 +932,15 @@ all 6 directions in `iter_building_cells` /
 swap.  Soft trigger — only matters once residual misalignment is
 the visible artefact in-engine.
 
+The same extension should admit footprints that are not axial rectangles.
+`Dims=2,2` is a 4-hex rhombus, which has three orientations
+and only one of them expressible.
+The compact hex footprint is the 3-hex triangle,
+whose two orientations are 60° apart.
+The hex pak128 townhalls and coal mines stand on the back triangle of their rhombus,
+with only a yard on the fourth tile,
+so a triangle footprint would need no new art, just one tile fewer.
+
 Docks longer than one tile are refused on the NE-SW axis for now
 (`dock_footprint_missing` in `tool/simtool.cc`, slope and flat docks alike),
 because the footprint cannot follow the water there.
