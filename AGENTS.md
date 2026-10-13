@@ -691,15 +691,17 @@ It also works with `SDL_VIDEODRIVER=dummy`.
 (`player/ai_policy.h`):
 it scores every unserved supplier → consumer link by weighted features
 and builds the best one if it scores above zero.
-Without the file the goods AI keeps its hand-written choices.
-Either way the soak logs one `ai_line:` line per link the goods AI tries
+`-ai_policy_passenger FILE` does the same for the passenger AI's town pairs.
+Without a file an AI keeps its hand-written choices.
+Either way the soak logs one `ai_line:` line per link an AI tries
 and one `ai_convoy:` line per AI convoy and month,
 and when the goods AI retires one.
-`tools/ai_learn.py` joins the two into what each link earned
+`tools/ai_learn.py` (`--ai passenger` for the passenger AI)
+joins the two into what each link earned
 and fits a logistic regression of "the link paid back" on the features,
 which is the next policy;
 `--eval FILE` (or `none`, the hand-written AI) scores a policy on `--seeds`
-by the goods AI's net wealth at the end over the starting money.
+by the AI's net wealth at the end over the starting money.
 Fitting a whole game's wealth instead (CMA-ES, tried and dropped)
 settles on never building:
 one number for a dozen links, most of which lose.

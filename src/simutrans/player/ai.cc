@@ -509,16 +509,21 @@ DBG_MESSAGE("ai_passenger_t::create_simple_road_transport()","Already connection
 }
 
 
-void ai_t::trace_link_begin( const double *features, const char *const *names, int count )
+void ai_t::trace_link_begin( koord from, koord to, const char *what,
+	const double *features, const char *const *names, int count )
 {
 	if(  !ai_policy_t::trace  ) {
 		return;
 	}
+	traced_link.open = true;
 	for(  int i = 0;  i < count;  i++  ) {
 		traced_link.features[i] = features[i];
 	}
 	traced_link.names = names;
 	traced_link.count = count;
+	traced_link.from = from;
+	traced_link.to = to;
+	traced_link.what = what;
 	traced_link.balance = finance->get_account_balance();
 	traced_link.maintenance = finance->get_maintenance_with_bits( TT_ALL );
 	traced_link.convoys.clear();
@@ -530,11 +535,13 @@ void ai_t::trace_link_begin( const double *features, const char *const *names, i
 }
 
 
-void ai_t::trace_link_end( const char *outcome, const char *mode, koord from, koord to, const char *what )
+void ai_t::trace_link_end( const char *outcome, const char *mode )
 {
-	if(  !ai_policy_t::trace  ) {
+	if(  !traced_link.open  ) {
 		return;
 	}
+	traced_link.open = false;
+	const koord from = traced_link.from, to = traced_link.to;
 	cbuffer_t convoys;
 	for(  convoihandle_t const cnv : welt->convoys()  ) {
 		if(  cnv->get_owner() == this  &&  !traced_link.convoys.is_contained( cnv.get_id() )  ) {
@@ -547,7 +554,7 @@ void ai_t::trace_link_end( const char *outcome, const char *mode, koord from, ko
 	}
 	const uint32 month = welt->get_current_month();
 	fprintf( stderr, "ai_line: %04u.%02u player %d %s mode=%s from=%d,%d to=%d,%d good=%s capex=%.0f upkeep=%.0f convoys=%s %s\n",
-		month / 12, month % 12 + 1, get_player_nr(), outcome, mode, from.x, from.y, to.x, to.y, what,
+		month / 12, month % 12 + 1, get_player_nr(), outcome, mode, from.x, from.y, to.x, to.y, traced_link.what,
 		(traced_link.balance - finance->get_account_balance()) / 100.0,
 		(finance->get_maintenance_with_bits( TT_ALL ) - traced_link.maintenance) / 100.0,
 		convoys.len() ? convoys.get_str() : "-", features.get_str() );
@@ -594,6 +601,7 @@ ai_t::ai_t(uint8 nr) :
 	air_transport(false),
 	construction_speed(env_t::default_ai_construction_speed)
 {
+	traced_link.open = false;
 }
 
 

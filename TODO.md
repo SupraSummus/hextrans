@@ -1134,10 +1134,11 @@ Next move: take the dock tile from the halt's tiles by station type,
 assign `end_hub`,
 and soak a map where one town gets a second route.
 
-## Goods AI policy learning
+## AI policy learning
 
-`-ai_policy` and `tools/ai_learn.py` (AGENTS.md, after `-ai_soak`)
-fit the goods AI's link choice to what links earned in soaks.
+`-ai_policy`, `-ai_policy_passenger` and `tools/ai_learn.py`
+(AGENTS.md, after `-ai_soak`)
+fit the AIs' link choices to what links earned in soaks.
 Progress and results are in issue #346.
 
 Some links the goods AI builds never carry anything.
@@ -1146,6 +1147,9 @@ builds Kohle from (27,39) to (16,24) in 1930.06,
 and its trucks earn nothing until they are retired after six empty months.
 `policy_tried` keeps the policy from building it again,
 which hides the cause.
+Until road vehicles on SE-S bends had a direction (`calc_chord_direction`),
+trucks meeting head on there stood for good;
+that may have been it.
 Next move: load that map at the build month,
 check whether both stops cover their factory
 and whether the trucks find a route,
@@ -1174,13 +1178,33 @@ Next move: log with each link's closing, and at the end of the soak,
 the upkeep of what `remove_dead_end_road` would remove from its stops,
 and charge that instead.
 
+The passenger AI's links do not pay in pak64 from 1930.
+It goes bankrupt in every soak within two years,
+scoring -0.85 on 128x128 seeds 9-24
+(`tools/ai_learn.py --ai passenger --eval none`).
+Its stops cost most of its upkeep:
+in `-ai_soak 128 3` at 1932,
+19 stop buildings are 70% of its monthly maintenance
+and 313 road tiles 15%, one stop costing as much as about 76 road tiles.
+With `-ai_policy_passenger` exploring,
+4 of 59 town pairs paid back over ten years, the best by 31 000;
+without the in-town lines (`city_stops = 0`) 3 of 25,
+all on stops it already had, by under 3 000.
+So the fitted policy never builds, and keeps the starting money.
+Next move: find what a bus earns per passenger and trip
+against what pak64's square-grid games show,
+to tell the pakset's economy from a smaller hex catchment
+(19 tiles against 25 at radius 2) or a passenger routing fault.
+
+A closed intercity bus line leaves its road and its upkeep:
+both ends join town streets, so `remove_dead_end_road` keeps it.
+Next move: hand such a road to the public player,
+as `player_t::ai_bankrupt` does with a bankrupt player's roads.
+
 Only part of the AI has a policy.
-The passenger AI goes bankrupt in every soak within two years;
-the goods AI in slot 2 never builds rail (`rail_transport = nr > 2`);
+The goods AI in slot 2 never builds rail (`rail_transport = nr > 2`);
 one `-ai_policy` file drives the one goods AI.
-Next move, in order of reach: the same scoring hook in `ai_passenger_t`'s
-choice of town pairs;
-`-ai_policy SLOT=FILE` per player,
+Next move: `-ai_policy SLOT=FILE` per player,
 so that soaks with several goods AIs on one map
 fit policies that compete for the same suppliers.
 

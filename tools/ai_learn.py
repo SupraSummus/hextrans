@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Fit the goods AI's link choice to what its links earned in -ai_soak games.
+"""Fit an AI's link choice to what its links earned in -ai_soak games.
 
 Usage:
-    tools/ai_learn.py                        # 4 rounds of 12 games, 1930 -> 1950
+    tools/ai_learn.py                        # the goods AI, 4 rounds of 12 games, 1930 -> 1950
+    tools/ai_learn.py --ai passenger         # the passenger AI's choice of town pairs
     tools/ai_learn.py --eval tools/ai_policies/pak64-goods.policy --seeds 9 10 11 12
     tools/ai_learn.py --eval none            # the hand-written goods AI
     tools/ai_learn.py --fit-only build/ai-learn/links.csv
 
-A game logs one ai_line line per link the goods AI tries to build (its
-features, capital cost, added upkeep and convoy ids) and one ai_convoy line
-per AI convoy and month, and when the goods AI retires one
-(src/simutrans/player/ai_policy.h).  Each link gets
-a label, what it is worth over a planning horizon:
+A game logs one ai_line line per link an AI tries to build (its features,
+capital cost, added upkeep and convoy ids) and one ai_convoy line per AI
+convoy and month, and when the goods AI retires one
+(src/simutrans/player/ai_policy.h).  Each link gets a label, what it is worth
+over a planning horizon:
 
     (profit - upkeep) per month alive * horizon - capex + vehicle value
 
@@ -21,9 +22,10 @@ log odds of --threshold.
 
 A round plays --games new maps with the current policy, which builds a random
 candidate with probability --explore, refits on all links so far, and scores
-the fit on --seeds.  A score is the goods AI's net wealth at the end over the
+the fit on --seeds.  A score is the AI's net wealth at the end over the
 starting money, so 1.0 is what an AI that never builds keeps; a bankrupt AI
-scores -1 plus the share of the game it survived.
+scores -1 plus the share of the game it survived.  The other AI plays its
+hand-written choices.
 
 The engine is --exe, else build-release/ (a headless Release build:
 `cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DSIMUTRANS_BACKEND=none`),
@@ -45,16 +47,29 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ai_soak import ROOT, ensure_pak, find_exe  # noqa: E402
 
-FEATURES = ["revenue", "distance", "log_distance", "density", "production", "margin", "loads",
-            "raw", "stock", "end", "downstream", "served", "water"]
+# the AI a run fits: its -ai_soak player slot, the engine option for its
+# policy and the features of its links (player/ai_policy.h)
+AIS = {
+    "goods": (2, "-ai_policy", ["revenue", "distance", "log_distance", "density", "production",
+                                "margin", "loads", "raw", "stock", "end", "downstream", "served",
+                                "water"]),
+    "passenger": (3, "-ai_policy_passenger", ["population_from", "population_to", "distance",
+                                              "log_distance", "new_hubs", "across_water"]),
+}
 
 STATUS = re.compile(r"^ai_soak: (\d{4})\.(\d{2}) convoys=")
 MONEY = re.compile(r"^ai_soak: starting_money=(-?\d+)")
-WEALTH = re.compile(r"^ai_soak: \d{4}\.\d{2} player 2 \(type \d+\) .* wealth=(-?\d+)")
-BANKRUPT = re.compile(r"^ai_soak: (\d{4})\.(\d{2}) player 2 bankrupt")
-LINE = re.compile(r"^ai_line: (\d{4})\.(\d{2}) player 2 (\w+) mode=(\S+) from=(\S+) to=(\S+) "
-                  r"good=(\S+) capex=(-?\d+) upkeep=(-?\d+) convoys=(\S+) (.*)$")
-CONVOY = re.compile(r"^ai_convoy: (\d{4})\.(\d{2}) player 2 id=(\d+) profit=(-?\d+) value=(-?\d+)$")
+
+
+def patterns(player):
+    """The log lines of one player: wealth, bankruptcy, links and convoys."""
+    p = str(player)
+    return (re.compile(r"^ai_soak: \d{4}\.\d{2} player " + p + r" \(type \d+\) .* wealth=(-?\d+)"),
+            re.compile(r"^ai_soak: (\d{4})\.(\d{2}) player " + p + r" bankrupt"),
+            re.compile(r"^ai_line: (\d{4})\.(\d{2}) player " + p + r" (\w+) mode=(\S+) from=(\S+) "
+                       r"to=(\S+) good=(\S+) capex=(-?\d+) upkeep=(-?\d+) convoys=(\S+) (.*)$"),
+            re.compile(r"^ai_convoy: (\d{4})\.(\d{2}) player " + p +
+                       r" id=(\d+) profit=(-?\d+) value=(-?\d+)$"))
 
 
 def month(year, mon):
@@ -66,7 +81,7 @@ def play(exe, args, seed, policy_file, env):
     cmd = [str(exe), "-use_workdir", "-objects", "pak", "-nosound", "-nomidi", "-debug", "2",
            "-ai_soak", args.size, str(seed), "-until", args.until]
     if policy_file:
-        cmd += ["-ai_policy", str(policy_file)]
+        cmd += [args.option, str(policy_file)]
     with tempfile.TemporaryDirectory(prefix="ai-learn-") as user:
         try:
             run = subprocess.run(cmd, cwd=ROOT / "simutrans", env=dict(env, XDG_DATA_HOME=user),
@@ -74,15 +89,16 @@ def play(exe, args, seed, policy_file, env):
                                  timeout=args.timeout, text=True, errors="replace")
         except subprocess.TimeoutExpired:
             return -2.0, "timeout", ""
+    wealth_re, bankrupt_re, _, _ = patterns(args.player)
     money = first = wealth = bankrupt = None
     for line in run.stderr.splitlines():
         if (m := MONEY.match(line)):
             money = float(m.group(1))
         elif (m := STATUS.match(line)):
             first = first if first is not None else month(m.group(1), m.group(2))
-        elif (m := WEALTH.match(line)):
+        elif (m := wealth_re.match(line)):
             wealth = float(m.group(1))
-        elif (m := BANKRUPT.match(line)):
+        elif (m := bankrupt_re.match(line)):
             bankrupt = month(m.group(1), m.group(2))
     if run.returncode != 0 or money is None or first is None:
         return -2.0, "engine failed (exit %s)" % run.returncode, ""
@@ -95,28 +111,29 @@ def play(exe, args, seed, policy_file, env):
     return wealth / money, "wealth %.0f" % wealth, run.stderr
 
 
-def links_of_game(log, horizon, min_months):
-    """One row per link the goods AI built or failed to build in this game."""
+def links_of_game(log, args):
+    """One row per link the AI built or failed to build in this game."""
+    _, _, line_re, convoy_re = patterns(args.player)
     links = []
     owner = {}  # convoy id -> link, the latest that claimed it
     last = None
     for line in log.splitlines():
         if (m := STATUS.match(line)):
             last = month(m.group(1), m.group(2))
-        elif (m := LINE.match(line)):
+        elif (m := line_re.match(line)):
             feats = dict(kv.split("=") for kv in m.group(11).split())
             link = {
                 "built": month(m.group(1), m.group(2)), "outcome": m.group(3), "mode": m.group(4),
                 "from": m.group(5), "to": m.group(6), "good": m.group(7),
                 "capex": float(m.group(8)), "upkeep": float(m.group(9)),
                 "profit": 0.0, "value": {}, "seen": None,
-                **{f: float(feats[f]) for f in FEATURES},
+                **{f: float(feats[f]) for f in args.features},
             }
             links.append(link)
             if m.group(10) != "-":
                 for cid in m.group(10).split(","):
                     owner[cid] = link
-        elif (m := CONVOY.match(line)):
+        elif (m := convoy_re.match(line)):
             link = owner.get(m.group(3))
             when = month(m.group(1), m.group(2))
             if link is not None and when >= link["built"]:
@@ -132,29 +149,29 @@ def links_of_game(log, horizon, min_months):
             # alive until its last convoy, or to the end of the game
             seen = link["seen"] if link["seen"] is not None else link["built"]
             alive = (last if seen >= last - 1 else seen + 1) - link["built"]
-            if alive < min_months:
+            if alive < args.min_months:
                 continue  # built too late to say what it earns
             net = link["profit"] / alive - link["upkeep"]
-            label = net * horizon - link["capex"] + sum(link["value"].values())
+            label = net * args.horizon - link["capex"] + sum(link["value"].values())
         row = {k: v for k, v in link.items() if k not in ("value", "seen")}
         row["label"] = label / 1000.0
         rows.append(row)
     return rows
 
 
-def fit(rows, ridge, threshold):
+def fit(rows, features, ridge, threshold):
     """Logistic regression of "label > 0" -> (bias, {feature: weight}, AUC).
 
     Only built links count: a failed try costs little but the month, and
     mixing them in would make every link look unlikely to pay.
     """
     rows = [r for r in rows if r["outcome"] == "built"]
-    x = np.array([[r[f] for f in FEATURES] for r in rows])
+    x = np.array([[r[f] for f in features] for r in rows])
     y = np.array([r["label"] > 0 for r in rows], dtype=float)
     mean, std = x.mean(axis=0), x.std(axis=0)
     std[std == 0] = 1.0
     z = np.c_[np.ones(len(x)), (x - mean) / std]
-    penalty = ridge * len(rows) * np.diag([0.0] + [1.0] * len(FEATURES))
+    penalty = ridge * len(rows) * np.diag([0.0] + [1.0] * len(features))
     w = np.zeros(z.shape[1])
     for _ in range(50):  # Newton steps
         p = 1 / (1 + np.exp(-(z @ w)))
@@ -165,13 +182,14 @@ def fit(rows, ridge, threshold):
     rank = np.argsort(np.argsort(z @ w))
     n1 = y.sum()
     auc = (rank[y == 1].sum() - n1 * (n1 - 1) / 2) / max(1, n1 * (len(y) - n1))
-    return bias, dict(zip(FEATURES, weights)), auc
+    return bias, dict(zip(features, weights)), auc
 
 
 def policy_from(bias, weights, args, explore):
     return {"bias": bias, **{"w_" + f: w for f, w in weights.items()},
             "explore": explore, "cash_reserve": args.cash_reserve, "retire_loss": args.retire_loss,
-            "retire_line": args.retire_line, "hq_reserve": args.hq_reserve}
+            "retire_line": args.retire_line, "hq_reserve": args.hq_reserve,
+            **({"city_stops": args.city_stops} if args.ai == "passenger" else {})}
 
 
 def policy_text(policy, comment):
@@ -193,7 +211,7 @@ def learn(pool, exe, args, env):
     rows = []
     best = None
     # round 0 builds only random candidates
-    policy = policy_from(0.0, dict.fromkeys(FEATURES, 0.0), args, 1.0)
+    policy = policy_from(0.0, dict.fromkeys(args.features, 0.0), args, 1.0)
     for rnd in range(args.rounds + 1):
         train = out / ("round-%d-train.policy" % rnd)
         write_policy(train, policy, "round %d, training" % rnd)
@@ -203,7 +221,7 @@ def learn(pool, exe, args, env):
             sys.exit("round %d: no game ran (%s)" % (rnd, games[0][1]))
         logs = [log for _, _, log in games]
         new = [dict(row, round=rnd, seed=seed) for seed, log in zip(seeds, logs)
-               for row in links_of_game(log, args.horizon, args.min_months)]
+               for row in links_of_game(log, args)]
         rows += new
         with open(out / "links.csv", "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
@@ -211,9 +229,9 @@ def learn(pool, exe, args, env):
             writer.writerows(rows)
         print("round %d: %d links, %d built" % (
             rnd, len(new), sum(r["outcome"] == "built" for r in new)), flush=True)
-        if sum(r["outcome"] == "built" for r in rows) < 2 * len(FEATURES):
+        if sum(r["outcome"] == "built" for r in rows) < 2 * len(args.features):
             continue  # too few to fit; explore another round
-        bias, weights, auc = fit(rows, args.ridge, args.threshold)
+        bias, weights, auc = fit(rows, args.features, args.ridge, args.threshold)
         path = out / ("round-%d.policy" % rnd)
         write_policy(path, policy_from(bias, weights, args, 0.0),
                      "round %d, fitted on %d links, training AUC %.3f" % (rnd, len(rows), auc))
@@ -232,6 +250,7 @@ def learn(pool, exe, args, env):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--ai", choices=sorted(AIS), default="goods", help="the AI to fit")
     ap.add_argument("--rounds", type=int, default=4)
     ap.add_argument("--games", type=int, default=12, help="training games per round")
     ap.add_argument("--first-seed", type=int, default=1000, help="seed of the first training map")
@@ -251,6 +270,8 @@ def main():
     ap.add_argument("--retire-line", type=float, default=1.5,
                     help="close a road link earning less than this times its road's upkeep")
     ap.add_argument("--hq-reserve", type=float, default=100.0)
+    ap.add_argument("--city-stops", type=float, default=6,
+                    help="passenger AI: stops of the bus line it lays in each town it joins")
     ap.add_argument("--eval", metavar="POLICY",
                     help="only score POLICY on --seeds ('none': the hand-written AI)")
     ap.add_argument("--fit-only", metavar="LINKS_CSV", help="only fit LINKS_CSV and print the policy")
@@ -259,12 +280,13 @@ def main():
     ap.add_argument("--timeout", type=int, default=900, help="seconds per game")
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 1)
     args = ap.parse_args()
+    args.player, args.option, args.features = AIS[args.ai]
 
     if args.fit_only:
         with open(args.fit_only) as f:
             rows = [{k: v if k in ("outcome", "good", "mode", "from", "to") else float(v)
                      for k, v in r.items()} for r in csv.DictReader(f)]
-        bias, weights, auc = fit(rows, args.ridge, args.threshold)
+        bias, weights, auc = fit(rows, args.features, args.ridge, args.threshold)
         print(policy_text(policy_from(bias, weights, args, 0.0), "training AUC %.3f" % auc), end="")
         return
 
