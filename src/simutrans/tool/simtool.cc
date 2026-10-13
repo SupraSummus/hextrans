@@ -6240,14 +6240,14 @@ const char* tool_build_depot_t::tool_depot_aux(player_t* player, koord3d pos, co
 		}
 		layout = ribi_t::ribi_to_layout(ribi);
 	}
-	else if (desc->get_all_layouts() == 2) {
-		// two rotation through depot
+	else if (desc->get_all_layouts() == 2  ||  desc->has_axis_layouts()) {
+		// through depot, along its way
 		if (!ribi_t::is_straight(ribi)) {
 			return "Depots must be built on flat dead-end way tiles!";
 		}
-		// A 2-layout depot has no NE-SW image: axis_to_layout gives that
-		// axis a layout which adjust_layout folds onto one of the two.
-		layout = ribi_t::axis_to_layout(ribi);
+		// A 2-layout depot has no NE-SW image: adjust_layout folds that
+		// axis onto one of the two.
+		layout = desc->get_through_layout(ribi);
 	}
 	else {
 		dbg->warning("tool_build_depot_t::tool_depot_aux()", "Broken depot name \"%s\"", desc->get_name());

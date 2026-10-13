@@ -649,7 +649,7 @@ ribi_t::ribi hausbauer_t::get_facing_ribi(const grund_t* gr, const building_tile
 		return ribi_t::is_single(ribi) ? ribi : ribi_t::layout_to_ribi[tile->get_layout()];
 	}
 	const ribi_t::ribi axis = ribi_t::doubles(ribi);
-	return axis != ribi_t::none ? axis : ribi_t::doubles(ribi_t::layout_to_ribi[tile->get_layout() & 1]);
+	return axis != ribi_t::none ? axis : tile->get_desc()->get_through_axis(tile->get_layout());
 }
 
 

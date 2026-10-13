@@ -89,9 +89,9 @@ as-is and ungated by sprite count: the townhall road seed in
 `check_bau_townhall` orients over all 6 hex faces for any 1×1 townhall
 (`adjust_layout` folds a missing NE/SW orientation onto an available
 image, so even pak64's 1-layout townhall seeds isotropically).
-Multi-tile 3rd-axis orientation is deferred engine work; the depot
-3rd-axis and powerline crossing entries in `TODO.md` need the same
-footprint extension.
+Multi-tile 3rd-axis orientation is deferred engine work; the
+powerline crossing entry in `TODO.md` needs the same footprint
+extension.
 
 ## Diff against the upstream `simutrans` branch
 

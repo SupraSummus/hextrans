@@ -105,6 +105,7 @@ all_tests <- [
 	test_depot_build_road,
 	test_depot_third_axis,
 	test_depot_six_layouts,
+	test_depot_three_layouts,
 	test_depot_build_road_on_tram_crossing,
 	test_depot_build_water,
 	test_depot_build_monorail,
