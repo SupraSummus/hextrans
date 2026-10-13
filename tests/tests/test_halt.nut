@@ -695,6 +695,42 @@ function test_halt_terminal_stop_third_axis()
 }
 
 
+// TEST_TERMINAL_6L (tests/test-pak) has a layout for every hex side, so
+// unlike CarStop it keeps facing NE or SW after its road is gone: only
+// its own side takes a road again.
+function test_halt_terminal_stop_six_layouts()
+{
+	local pl = player_x(0)
+	local road = get_slow_and_fast_road()[0]
+	local stop = coord3d(8, 8, 0)
+	local layouts = [[dir.south, 0], [dir.southeast, 1], [dir.north, 2],
+		[dir.northwest, 3], [dir.northeast, 4], [dir.southwest, 5]]
+
+	foreach (f in layouts) {
+		local face = f[0]
+		local out = stop + dir.to_coord(face)
+		ASSERT_EQUAL(command_x.build_way(pl, stop, out, road, true), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, stop, "TEST_TERMINAL_6L"), null)
+		ASSERT_EQUAL(tile_x(stop.x, stop.y, stop.z).find_object(mo_building).get_layout(), f[1])
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, out, out, "" + wt_road), null)
+		ASSERT_EQUAL(way_dirs_at(stop, wt_road), 0)
+		foreach (d in dir.nsew) {
+			if (d == face) continue
+			local side = stop + dir.to_coord(d)
+			ASSERT_EQUAL(command_x.build_way(pl, side, stop, road, true), "A building blocks the construction")
+		}
+		ASSERT_EQUAL(command_x.build_way(pl, out, stop, road, true), null)
+		ASSERT_EQUAL(way_dirs_at(stop, wt_road), face)
+
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, stop, out, "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // BusStop is pak64's 2-layout through stop.  On a NE-SW road it has to
 // stay passable along the road and closed to the four sides.
 function test_halt_through_stop_third_axis()

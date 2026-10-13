@@ -23,7 +23,7 @@ class station_building_select_t : public gui_frame_t, action_listener_t
 {
 	const building_desc_t *desc;
 
-	button_t actionbutton[4];
+	button_t actionbutton[6];
 
 	static tool_build_station_t tool;
 

@@ -291,6 +291,14 @@ public:
 	bool is_transport_building() const { return type > headquarters  && type <= flat_dock; }
 	bool is_depot() const { return is_type(depot); }
 
+	/// A stop or depot with 4 or 6 layouts sits on a dead end and faces
+	/// its exit: layouts 0..5 face S, SE, N, NW, NE, SW (ribi_t::layout_to_ribi),
+	/// with NE and SW folded onto N and S where there are only 4.
+	bool is_terminal() const { return layouts == 4  ||  layouts == 6; }
+	/// A through stop with 8 or 16 layouts has images for the ends of a
+	/// platform, picked by bits 1 and 2 of the layout.
+	bool has_platform_ends() const { return layouts >= 8; }
+
 	bool is_connected_with_town() const;
 
 	/// @returns headquarters level (or -1 if building is not headquarters)

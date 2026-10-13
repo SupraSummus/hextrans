@@ -592,14 +592,14 @@ bool way_builder_t::check_building( const grund_t *to, const koord dir ) const
 	// check, if we may enter
 	if(building) {
 		// now check for directions
-		uint8 layouts = building->get_tile()->get_desc()->get_all_layouts();
+		const building_desc_t *desc = building->get_tile()->get_desc();
 		ribi_t::ribi r = ribi_type(dir);
-		if(  layouts&1  ) {
+		if(  desc->get_all_layouts()&1  ) {
 			return false;
 		}
 		// the stored layout cannot tell NE / SW from S / SE, the way can
 		const ribi_t::ribi facing = hausbauer_t::get_facing_ribi(to, building->get_tile());
-		if(  layouts==4  ) {
+		if(  desc->is_terminal()  ) {
 			return  r == facing;
 		}
 		return ribi_t::is_straight( r | facing );

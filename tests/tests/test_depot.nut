@@ -239,6 +239,32 @@ function test_depot_third_axis()
 }
 
 
+// TEST_DEPOT_6L (tests/test-pak) has a layout for every hex side, and
+// a depot on a dead end takes the one its exit faces.
+function test_depot_six_layouts()
+{
+	local pl = player_x(0)
+	local road = get_slow_and_fast_road()[0]
+	local depot = building_desc_x("TEST_DEPOT_6L")
+	local site = coord3d(8, 8, 0)
+	local layouts = [[dir.south, 0], [dir.southeast, 1], [dir.north, 2],
+		[dir.northwest, 3], [dir.northeast, 4], [dir.southwest, 5]]
+
+	foreach (f in layouts) {
+		local out = site + dir.to_coord(f[0])
+		ASSERT_EQUAL(command_x.build_way(pl, site, out, road, true), null)
+		ASSERT_EQUAL(command_x.build_depot(pl, site, depot), null)
+		ASSERT_EQUAL(depot_x(site.x, site.y, site.z).get_layout(), f[1])
+
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, site), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, site, out, "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 function test_depot_build_road_on_tram_crossing()
 {
 	local pl = player_x(0)

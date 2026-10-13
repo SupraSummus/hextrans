@@ -1116,7 +1116,7 @@ void gebaeude_t::cleanup(player_t *player)
 			}
 			if(gr) {
 				gebaeude_t* gb = gr->find<gebaeude_t>();
-				if(gb  &&  gb->get_tile()->get_desc()->get_all_layouts()>4u) {
+				if(gb  &&  gb->get_tile()->get_desc()->has_platform_ends()) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
 					if(ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, gb->get_tile())) == axis) {
@@ -1137,7 +1137,7 @@ void gebaeude_t::cleanup(player_t *player)
 			}
 			if(gr) {
 				gebaeude_t* gb = gr->find<gebaeude_t>();
-				if(gb  &&  gb->get_tile()->get_desc()->get_all_layouts()>4) {
+				if(gb  &&  gb->get_tile()->get_desc()->has_platform_ends()) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
 					if(ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, gb->get_tile())) == axis) {

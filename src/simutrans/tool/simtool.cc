@@ -5126,7 +5126,7 @@ const char *tool_build_station_t::tool_station_aux(player_t *player, koord3d pos
 {
 	koord k = pos.get_2d();
 DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", desc->get_name(), k.x, k.y, wegtype);
-	const char *p_error=(desc->get_all_layouts()==4) ? "No terminal station here!" : "No through station here!";
+	const char *p_error=desc->is_terminal() ? "No terminal station here!" : "No through station here!";
 
 	// underground is checked in work(); if underground only simple stations are allowed
 	// get valid ground
@@ -5164,7 +5164,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 			}
 			layout = ribi_t::axis_to_layout(ribi);
 		}
-		else if(  desc->get_all_layouts()==4  ) {
+		else if(  desc->is_terminal()  ) {
 			// terminal station
 			ribi = tool_station_way_ribi( bd, false );
 			// sorry cannot build here ... (not a terminal tile)
@@ -5175,7 +5175,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 		}
 		else {
 			// something wrong with station number of layouts
-			dbg->fatal( "tool_station_t::tool_station_aux", "%s has wrong number of layouts (must be 2,4,8,16!)", desc->get_name() );
+			dbg->fatal( "tool_station_t::tool_station_aux", "%s has wrong number of layouts (must be 2,4,6,8,16!)", desc->get_name() );
 		}
 
 		if(  desc->get_all_layouts() == 8  ||  desc->get_all_layouts() == 16  ) {
@@ -5215,7 +5215,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 				if(  gr && gr->get_halt().is_bound()  ) {
 					// check, if there is an oriented stop
 					const gebaeude_t* gb = gr->find<gebaeude_t>();
-					if(gb  &&  gb->get_tile()->get_desc()->get_all_layouts()>4  &&  (gb->get_tile()->get_desc()->get_type()>building_desc_t::dock  ||  gb->get_tile()->get_desc()->get_type()>building_desc_t::flat_dock)  ) {
+					if(gb  &&  gb->get_tile()->get_desc()->has_platform_ends()  &&  (gb->get_tile()->get_desc()->get_type()>building_desc_t::dock  ||  gb->get_tile()->get_desc()->get_type()>building_desc_t::flat_dock)  ) {
 						next_own |= ribi_t::nesw[i];
 						neighbour_layout[ribi_t::nesw[i]] = gb->get_tile()->get_layout();
 					}
@@ -5268,7 +5268,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 				return p_error;
 			}
 		}
-		else if(  desc->get_all_layouts()==4  ) {
+		else if(  desc->is_terminal()  ) {
 			if(  !ribi_t::is_single( tool_station_way_ribi( bd, false ) )  ) {
 				return p_error;
 			}
@@ -6233,8 +6233,8 @@ const char* tool_build_depot_t::tool_depot_aux(player_t* player, koord3d pos, co
 	if (bd->get_weg_hang() != slope_t::flat) {
 		return "Depots must be built on flat dead-end way tiles!";
 	}
-	if (desc->get_all_layouts() == 4) {
-		// classical four rotation depot
+	if (desc->is_terminal()) {
+		// dead-end depot, facing its exit
 		if (!ribi_t::is_single(ribi)) {
 			return "Depots must be built on flat dead-end way tiles!";
 		}
