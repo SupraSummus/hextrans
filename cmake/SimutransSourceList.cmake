@@ -252,6 +252,7 @@ target_sources(simutrans PRIVATE
 	src/simutrans/player/ai.cc
 	src/simutrans/player/ai_goods.cc
 	src/simutrans/player/ai_passenger.cc
+	src/simutrans/player/ai_policy.cc
 	src/simutrans/player/ai_scripted.cc
 	src/simutrans/player/finance.cc
 	src/simutrans/player/simplay.cc

@@ -1134,6 +1134,71 @@ Next move: take the dock tile from the halt's tiles by station type,
 assign `end_hub`,
 and soak a map where one town gets a second route.
 
+## Goods AI policy learning
+
+`-ai_policy` and `tools/ai_learn.py` (AGENTS.md, after `-ai_soak`)
+fit the goods AI's link choice to what links earned in soaks.
+Progress and results are in issue #346.
+
+A closed link can leave its stops and road behind.
+`CHECK_CONVOI` removes the way with `tool_wayremover_t` from one stop to the other,
+and when that fails it removes only the tiles at the ends,
+so the upkeep of the rest stays on the books with nothing earning it:
+`-ai_soak 128 22 -ai_policy tools/ai_policies/pak64-goods.policy`
+retires its last convoy in 1931
+and pays 4 560 a year for its road until 1950.
+The hand-written AI closes links the same way.
+Next move: keep the way tiles the way builder laid for each link
+(`create_simple_road_transport` has the route)
+and remove those tiles and the link's stops when its last convoy goes.
+
+Some links the goods AI builds never carry anything.
+`-ai_soak 128 5 -ai_policy tools/ai_policies/pak64-goods.policy`
+builds Kohle from (27,39) to (16,24) in 1930.06,
+and its trucks earn nothing until they are retired after six empty months.
+`policy_tried` keeps the policy from building it again,
+which hides the cause.
+Next move: load that map at the build month,
+check whether both stops cover their factory
+and whether the trucks find a route,
+against the square site selection described in the section above.
+
+A link's value depends on the rest of the network.
+A link into a factory whose output nobody moves fills the factory's input store,
+and its trucks stand:
+in the fitted data, 9% of links into intermediate factories paid back,
+against 27% into end consumers,
+and the `downstream` feature (the consumer's output moved last month)
+did not separate them.
+Next move: a candidate that builds a chain the AI can sell at the end,
+supplier → factory together with factory → consumer,
+scored and logged as one decision with both links' convoys.
+
+Most tries fail: 64% of the `ai_line` lines are `failed`.
+Each costs little money but the month's decision.
+Next move: log why (`suche_platz1_platz2` found no stop place,
+or the way builder found no route)
+and give the policy a feature for it.
+
+The labels `ai_learn.py` fits are approximate.
+A convoy retired during a month loses that month's profit;
+a link's upkeep is the maintenance it added when it was built,
+so a road a later link shares is charged to the first one;
+a link's convoys are the ones that appeared while it was built.
+Next move: the per-link record of the way-tile entry above,
+with the link's line handle and its profit summed in `ai_goods_t`,
+logged when the link closes and at the end of the soak.
+
+Only part of the AI has a policy.
+The passenger AI goes bankrupt in every soak within two years;
+the goods AI in slot 2 never builds rail (`rail_transport = nr > 2`);
+one `-ai_policy` file drives the one goods AI.
+Next move, in order of reach: the same scoring hook in `ai_passenger_t`'s
+choice of town pairs;
+`-ai_policy SLOT=FILE` per player,
+so that soaks with several goods AIs on one map
+fit policies that compete for the same suppliers.
+
 ## Square-grid residue — audit backlog
 
 A read-only audit (2026-10) of `tool/`, `builder/`, `vehicle/`, `obj/`,

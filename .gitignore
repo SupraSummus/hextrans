@@ -9,6 +9,7 @@ build
 build-headless
 build-fuzz
 build-bench
+build-release
 /vcpkg*
 /config.*
 /makeobj/makeobj

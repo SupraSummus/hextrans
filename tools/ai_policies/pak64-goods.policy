@@ -1,0 +1,21 @@
+# pak64 goods AI: tools/ai_learn.py with its defaults, the best of its rounds;
+# 1.50 on 128x128 seeds 9-24 (--eval), the hand-written AI -0.41
+bias = -6.3871
+w_revenue = 0.185654
+w_distance = -2.46858
+w_log_distance = 0.135621
+w_density = 0.206802
+w_production = -0.463459
+w_margin = 0.311882
+w_loads = -0.852077
+w_raw = 1.01242
+w_stock = 2.25951
+w_end = 2.49577
+w_downstream = 1.5209
+w_served = -0.247037
+w_water = 0
+explore = 0
+cash_reserve = 0.3
+retire_loss = 0.5
+retire_line = 1.5
+hq_reserve = 100

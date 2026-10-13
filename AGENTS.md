@@ -687,6 +687,25 @@ The two agree pixel for pixel
 except for the station labels and overlays only the main view draws.
 It also works with `SDL_VIDEODRIVER=dummy`.
 
+`-ai_policy FILE` (with `-ai_soak`) gives the goods AI a policy
+(`player/ai_policy.h`):
+it scores every unserved supplier → consumer link by weighted features
+and builds the best one if it scores above zero.
+Without the file the goods AI keeps its hand-written choices.
+Either way the soak logs one `ai_line:` line per link the goods AI tries
+and one `ai_convoy:` line per AI convoy and month.
+`tools/ai_learn.py` joins the two into what each link earned
+and fits a logistic regression of "the link paid back" on the features,
+which is the next policy;
+`--eval FILE` (or `none`, the hand-written AI) scores a policy on `--seeds`
+by the goods AI's net wealth at the end over the starting money.
+Fitting a whole game's wealth instead (CMA-ES, tried and dropped)
+settles on never building:
+one number for a dozen links, most of which lose.
+It wants a headless Release build in `build-release/`
+(`cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DSIMUTRANS_BACKEND=none`);
+a Debug build plays a game several times slower.
+
 `tools/mapgen_metrics.py` prints the climate shares of generated maps
 through the `-mapstats SIZE [SEED [humidity|height]]` hook in `simmain.cc`
 (terrain, lakes and rivers as in a normal new world, no cities or industry).

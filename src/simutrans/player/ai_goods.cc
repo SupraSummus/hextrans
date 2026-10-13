@@ -37,6 +37,9 @@
 #include "../vehicle/vehicle.h"
 
 #include "ai_goods.h"
+#include "ai_policy.h"
+
+#include <math.h>
 
 
 ai_goods_t::ai_goods_t(uint8 nr) :
@@ -220,6 +223,221 @@ int ai_goods_t::get_factory_tree_missing_count( fabrik_t *fab )
 	}
 	return numbers;
 }
+
+void ai_goods_t::get_served_factories( vector_tpl<const fabrik_t *> &served )
+{
+	for(  halthandle_t const halt : haltestelle_t::get_alle_haltestellen()  ) {
+		if(  halt->is_owner( this )  ) {
+			for(  fabrik_t *const fab : halt->get_fab_list()  ) {
+				served.append_unique( fab );
+			}
+		}
+	}
+}
+
+
+// The truck that carries most of ware per running cost, which is what
+// vehicle_search() mostly picks, but without its random draws: the features
+// are logged for the hand-written AI too, whose game must not change.
+static const vehicle_desc_t *feature_truck( const goods_desc_t *ware, uint16 month_now )
+{
+	const vehicle_desc_t *best = NULL;
+	for(  vehicle_desc_t const *const desc : vehicle_builder_t::get_info( road_wt )  ) {
+		if(  !desc->can_lead( NULL )  ||  desc->is_future( month_now )  ||  desc->get_capacity() == 0  ||
+		     !desc->get_freight_type()->is_interchangeable( ware )  ) {
+			continue;
+		}
+		if(  !best  ||  (best->get_capacity()*1000)/(1+best->get_running_cost()) < (desc->get_capacity()*1000)/(1+desc->get_running_cost())  ) {
+			best = desc;
+		}
+	}
+	return best;
+}
+
+
+bool ai_goods_t::get_link_features( fabrik_t *qfab, fabrik_t *fab, const goods_desc_t *ware,
+	const vector_tpl<const fabrik_t *> &served, double features[ai_policy_t::FEATURES] ) const
+{
+	const array_tpl<ware_production_t> &output = qfab->get_output();
+	uint32 o = 0;
+	while(  o < output.get_count()  &&  output[o].get_typ() != ware  ) {
+		o++;
+	}
+	if(  o == output.get_count()  ) {
+		return false;
+	}
+	// the production NR_BAUE_ROUTE1 plans the vehicles for
+	const double prod = max( (sint64)0, min( (sint64)fab->get_base_production(),
+		((sint64)qfab->get_base_production() * qfab->get_desc()->get_product(o)->get_factor())/256 - output[o].get_stat( 1, FAB_GOODS_DELIVERED ) ) );
+	const double dist = koord_distance( qfab->get_pos().get_2d(), fab->get_pos().get_2d() );
+	features[ai_policy_t::F_REVENUE]      = log1p( ware->get_value() * prod * dist );
+	features[ai_policy_t::F_DISTANCE]     = dist / 100.0;
+	features[ai_policy_t::F_LOG_DISTANCE] = log1p( dist );
+	features[ai_policy_t::F_DENSITY]      = log1p( ware->get_value() * prod );
+	features[ai_policy_t::F_PRODUCTION]   = log1p( prod );
+	// the truck NR_BAUE_ROUTE1 would pick
+	const vehicle_desc_t *truck = feature_truck( ware, welt->get_timeline_year_month() );
+	features[ai_policy_t::F_MARGIN] = truck ? log( (double)truck->get_capacity() * ware->get_value() / max( (sint64)1, truck->get_running_cost() ) ) : 0;
+	features[ai_policy_t::F_LOADS]  = truck ? log1p( prod / max( 1, (int)truck->get_capacity() ) ) : 0;
+	features[ai_policy_t::F_RAW]          = qfab->get_desc()->is_producer_only();
+	features[ai_policy_t::F_STOCK]        = output[o].menge > 0;
+	features[ai_policy_t::F_END]          = fab->get_desc()->is_consumer_only();
+	features[ai_policy_t::F_DOWNSTREAM]   = 0;
+	for(  ware_production_t const &out : fab->get_output()  ) {
+		if(  out.get_stat( 1, FAB_GOODS_DELIVERED ) > 0  ) {
+			features[ai_policy_t::F_DOWNSTREAM] = 1;
+		}
+	}
+	features[ai_policy_t::F_SERVED]       = served.is_contained( qfab )  ||  served.is_contained( fab );
+	features[ai_policy_t::F_WATER]        = qfab->get_desc()->get_placement() == factory_desc_t::Water;
+	return true;
+}
+
+
+bool ai_goods_t::pick_by_policy()
+{
+	const ai_policy_t &policy = *ai_policy_t::goods;
+	if(  finance->get_account_balance() < policy.cash_reserve * finance->get_starting_money()  ) {
+		return false;
+	}
+
+	vector_tpl<const fabrik_t *> served;
+	get_served_factories( served );
+
+	struct candidate_t { fabrik_t *qfab, *fab; const goods_desc_t *ware; double score; };
+	vector_tpl<candidate_t> candidates;
+	for(  fabrik_t *const fab : welt->get_fab_list()  ) {
+		const array_tpl<ware_production_t> &input = fab->get_input();
+		for(  uint32 i = 0;  i < input.get_count();  i++  ) {
+			const goods_desc_t *const ware = input[i].get_typ();
+			if(  input[i].menge > input[i].max/4  ) {
+				// already supplied enough, as get_factory_tree_lowest_missing() sees it
+				continue;
+			}
+			for(  koord const &q : fab->get_suppliers()  ) {
+				fabrik_t *const qfab = fabrik_t::get_fab( q );
+				double features[ai_policy_t::FEATURES];
+				if(  !qfab  ||  !get_link_features( qfab, fab, ware, served, features )  ||
+				     is_forbidden( qfab, fab, ware )  ||  policy_tried.is_contained( fabconnection_t( qfab, fab, ware ) )  ||
+				     is_connected( q, fab->get_pos().get_2d(), ware )  ) {
+					continue;
+				}
+				if(  features[ai_policy_t::F_WATER]  ?  vehicle_search( water_wt, 0, 10, ware, false ) == NULL  :
+				     feature_truck( ware, welt->get_timeline_year_month() ) == NULL  ) {
+					// nothing to carry it in
+					continue;
+				}
+				candidates.append( candidate_t{ qfab, fab, ware, policy.score( features ) } );
+			}
+		}
+	}
+
+	start = ziel = NULL;
+	freight = NULL;
+	if(  candidates.empty()  ) {
+		return false;
+	}
+	const candidate_t *pick = NULL;
+	if(  policy.explore > 0  &&  simrand( 1000000 ) < policy.explore * 1000000  ) {
+		pick = &candidates[ simrand( candidates.get_count() ) ];
+	}
+	else {
+		for(  const candidate_t &c : candidates  ) {
+			if(  c.score > 0  &&  (!pick  ||  c.score > pick->score)  ) {
+				pick = &c;
+			}
+		}
+	}
+	if(  pick  ) {
+		start = pick->qfab;
+		ziel = pick->fab;
+		freight = pick->ware;
+		policy_tried.append( fabconnection_t( start, ziel, freight ) );
+	}
+	return pick != NULL;
+}
+
+
+void ai_goods_t::get_unpaid_lines( vector_tpl<linehandle_t> &unpaid )
+{
+	if(  !ai_policy_t::goods  ||  ai_policy_t::goods->retire_line <= 0  ) {
+		return;
+	}
+	vector_tpl<linehandle_t> lines;
+	simlinemgmt.get_lines( simline_t::truckline, &lines );
+	for(  linehandle_t const line : lines  ) {
+		const schedule_t *schedule = line->get_schedule();
+		if(  schedule->get_count() < 2  ) {
+			continue;
+		}
+		sint64 profit = 0;
+		bool year_old = true;
+		for(  int j = 1;  j < MAX_MONTHS;  j++  ) {
+			profit += line->get_finance_history( j, LINE_PROFIT );
+			year_old &= line->get_finance_history( j, LINE_CONVOIS ) > 0;
+		}
+		const grund_t *gr = welt->lookup( schedule->entries[0].pos );
+		const weg_t *road = gr ? gr->get_weg( road_wt ) : NULL;
+		if(  !year_old  ||  !road  ) {
+			continue;
+		}
+		// as if the whole way between the stops were the road at the first one
+		const sint64 upkeep = welt->scale_with_month_length( road->get_desc()->get_maintenance() ) * (MAX_MONTHS-1) *
+			koord_distance( schedule->entries[0].pos.get_2d(), schedule->entries[1].pos.get_2d() );
+		if(  profit < ai_policy_t::goods->retire_line * upkeep  ) {
+			unpaid.append( line );
+		}
+	}
+}
+
+
+void ai_goods_t::trace_begin()
+{
+	if(  !ai_policy_t::trace  ) {
+		return;
+	}
+	vector_tpl<const fabrik_t *> served;
+	get_served_factories( served );
+	if(  !get_link_features( start, ziel, freight, served, traced_link.features )  ) {
+		for(  double &f : traced_link.features  ) {
+			f = 0;
+		}
+	}
+	traced_link.balance = finance->get_account_balance();
+	traced_link.maintenance = finance->get_maintenance_with_bits( TT_ALL );
+	traced_link.convoys.clear();
+	for(  convoihandle_t const cnv : welt->convoys()  ) {
+		if(  cnv->get_owner() == this  ) {
+			traced_link.convoys.append( cnv.get_id() );
+		}
+	}
+}
+
+
+void ai_goods_t::trace_end( const char *outcome, const char *mode )
+{
+	if(  !ai_policy_t::trace  ||  !start  ||  !ziel  ) {
+		return;
+	}
+	cbuffer_t convoys;
+	for(  convoihandle_t const cnv : welt->convoys()  ) {
+		if(  cnv->get_owner() == this  &&  !traced_link.convoys.is_contained( cnv.get_id() )  ) {
+			convoys.printf( "%s%u", convoys.len() ? "," : "", cnv.get_id() );
+		}
+	}
+	cbuffer_t features;
+	for(  int i = 0;  i < ai_policy_t::FEATURES;  i++  ) {
+		features.printf( "%s%s=%.4g", i ? " " : "", ai_policy_t::feature_names[i], traced_link.features[i] );
+	}
+	const uint32 month = welt->get_current_month();
+	const koord s = start->get_pos().get_2d(), z = ziel->get_pos().get_2d();
+	fprintf( stderr, "ai_line: %04u.%02u player %d %s mode=%s from=%d,%d to=%d,%d good=%s capex=%.0f upkeep=%.0f convoys=%s %s\n",
+		month / 12, month % 12 + 1, get_player_nr(), outcome, mode, s.x, s.y, z.x, z.y, freight->get_name(),
+		(traced_link.balance - finance->get_account_balance()) / 100.0,
+		(finance->get_maintenance_with_bits( TT_ALL ) - traced_link.maintenance) / 100.0,
+		convoys.len() ? convoys.get_str() : "-", features.get_str() );
+}
+
 
 // dilate the tile list by the hex disc of radius @p size
 void add_neighbourhood( vector_tpl<koord> &list, const uint16 size)
@@ -792,7 +1010,16 @@ void ai_goods_t::step()
 
 			state = NR_SAMMLE_ROUTEN;
 			count = 0;
-			built_update_headquarter();
+			if(  !ai_policy_t::goods  ||  finance->get_account_balance() > ai_policy_t::goods->hq_reserve * finance->get_starting_money()  ) {
+				built_update_headquarter();
+			}
+			if(  ai_policy_t::goods  ) {
+				state = pick_by_policy() ? NR_BAUE_ROUTE1 : CHECK_CONVOI;
+				if(  state == NR_BAUE_ROUTE1  ) {
+					trace_begin();
+				}
+				break;
+			}
 			if(root==NULL) {
 				// find a tree root to complete
 				weighted_vector_tpl<fabrik_t *> start_fabs(20);
@@ -823,6 +1050,7 @@ void ai_goods_t::step()
 				if(  start->get_desc()->get_placement()!=factory_desc_t::Water  ||  vehicle_search( water_wt, 0, 10, freight, false)!=NULL  ) {
 					DBG_MESSAGE("ai_goods_t::do_ki", "Consider route from %s (%i,%i) to %s (%i,%i)", start->get_name(), start->get_pos().x, start->get_pos().y, ziel->get_name(), ziel->get_pos().x, ziel->get_pos().y );
 					state = NR_BAUE_ROUTE1;
+					trace_begin();
 				}
 				else {
 					// add to impossible connections
@@ -1007,6 +1235,7 @@ DBG_MESSAGE("ai_goods_t::do_ki()","No roadway possible.");
 			if(state==NR_BAUE_ROUTE1) {
 				// maybe this route is not builtable ... add to forbidden connections
 				forbidden_connections.append( new fabconnection_t( start, ziel, freight ) );
+				trace_end( "failed", "none" );
 				ziel = NULL; // otherwise it may always try to built the same route!
 				state = CHECK_CONVOI;
 			}
@@ -1133,6 +1362,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		{
 			if(start!=NULL  &&  ziel!=NULL) {
 				forbidden_connections.append( new fabconnection_t( start, ziel, freight ) );
+				trace_end( "failed", ship_vehicle ? "ship" : "none" );
 			}
 			if(ship_vehicle) {
 				// only here, if we could built ships but no connection
@@ -1172,6 +1402,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		// successful rail construction
 		case NR_RAIL_SUCCESS:
 		{
+			trace_end( "built", ship_vehicle ? "ship+rail" : "rail" );
 			// tell the player
 			cbuffer_t buf;
 			const koord3d& spos = start->get_pos();
@@ -1187,6 +1418,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		// successful rail construction
 		case NR_ROAD_SUCCESS:
 		{
+			trace_end( "built", ship_vehicle ? "ship+road" : "road" );
 			// tell the player
 			cbuffer_t buf;
 			const koord3d& spos = start->get_pos();
@@ -1203,6 +1435,9 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 		case CHECK_CONVOI:
 		{
 			next_construction_steps = welt->get_steps() + ((1+finance->get_account_overdrawn())>0)*simrand( ai_t::construction_speed ) + 25;
+
+			vector_tpl<linehandle_t> unpaid;
+			get_unpaid_lines( unpaid );
 
 			for (size_t i = welt->convoys().get_count(); i-- != 0;) {
 				convoihandle_t const cnv = welt->convoys()[i];
@@ -1223,6 +1458,13 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 				// apparently we got the totally wrong vehicle here ...
 				// (but we will delete it only, if we need, because it may be needed for a chain)
 				bool delete_this = (finance->get_account_overdrawn() > 0)  &&  (gewinn < -cnv->calc_restwert());
+
+				// a policy may retire a loss maker before the account runs dry
+				if(  !delete_this  &&  ai_policy_t::goods  &&  ai_policy_t::goods->retire_loss > 0  &&
+				     (welt->get_current_month() - cnv->front()->get_purchase_time()) > 12  ) {
+					delete_this = gewinn < -ai_policy_t::goods->retire_loss * cnv->calc_restwert();
+				}
+				delete_this |= unpaid.is_contained( cnv->get_line() );
 
 				// check for empty vehicles (likely stuck) that are making no plus and remove them ...
 				// take care, that the vehicle is old enough ...

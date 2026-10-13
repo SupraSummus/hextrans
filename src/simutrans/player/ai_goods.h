@@ -8,6 +8,7 @@
 
 
 #include "ai.h"
+#include "ai_policy.h"
 
 
 /// Simple goods transport AI
@@ -82,6 +83,10 @@ private:
 
 	slist_tpl<fabconnection_t *> forbidden_connections;
 
+	// -ai_policy: links the policy picked this game, built or not; it never
+	// picks one again (not saved: a policy only runs in -ai_soak)
+	vector_tpl<fabconnection_t> policy_tried;
+
 	// return true, if this a route to avoid (i.e. we did a construction without success here ...)
 	bool is_forbidden( fabrik_t *fab1, fabrik_t *fab2, const goods_desc_t *w ) const;
 
@@ -95,6 +100,35 @@ private:
 	 * returns -1, if this tree is can't be completed
 	 */
 	int get_factory_tree_missing_count( fabrik_t *fab );
+
+	/* -ai_policy: score every supplier -> consumer link we do not serve and
+	 * set start, ziel and freight to the best one; false if none scores
+	 * above zero or the cash reserve forbids building
+	 */
+	bool pick_by_policy();
+
+	// factories one of our stops serves
+	void get_served_factories( vector_tpl<const fabrik_t *> &served );
+
+	// what ai_policy_t scores a link qfab -> fab for ware by; false if qfab
+	// does not make ware
+	bool get_link_features( fabrik_t *qfab, fabrik_t *fab, const goods_desc_t *ware,
+		const vector_tpl<const fabrik_t *> &served, double features[ai_policy_t::FEATURES] ) const;
+
+	// -ai_policy: our truck lines older than a year whose trucks did not
+	// earn retire_line times the upkeep of their road
+	void get_unpaid_lines( vector_tpl<linehandle_t> &unpaid );
+
+	// -ai_soak: the link being built, from the decision to its outcome
+	struct link_trace_t {
+		double features[ai_policy_t::FEATURES];
+		sint64 balance;     // account before building
+		sint64 maintenance; // monthly upkeep before building
+		vector_tpl<uint16> convoys; // our convoys before building
+	} traced_link;
+	void trace_begin();
+	// one ai_line line: outcome, waytype and what the link cost
+	void trace_end( const char *outcome, const char *mode );
 
 	bool suche_platz1_platz2(fabrik_t *qfab, fabrik_t *zfab, int length);
 
