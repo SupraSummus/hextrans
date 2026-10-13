@@ -175,9 +175,10 @@ void building_reader_t::register_obj(obj_desc_t *&data)
 	}
 	// after this point all building_desc_t's have type in building_desc_t::btype
 
-	// allowed layouts are 1,2,4,8,16, where 8,16 is reserved for stations
+	// allowed layouts are 1,2,4,6,8,16, where 8,16 is reserved for stations
+	// and 6 is one per hex side
 	uint8 l = desc->type == building_desc_t::generic_stop ? 16 : 4;
-	while (l > 0) {
+	while (l > 0  &&  desc->layouts != 6) {
 		if ((desc->layouts & l) != 0  &&  (desc->layouts != l)) {
 			dbg->error( "building_reader_t::register_obj()", "Building %s has %i layouts (illegal) => set to %i", desc->get_name(), desc->layouts, l );
 			desc->layouts = l;

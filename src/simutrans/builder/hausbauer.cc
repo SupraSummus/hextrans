@@ -634,7 +634,7 @@ gebaeude_t* hausbauer_t::build(player_t* player, koord pos, int org_layout, cons
 
 ribi_t::ribi hausbauer_t::get_facing_ribi(const grund_t* gr, const building_tile_desc_t* tile)
 {
-	const bool terminal = tile->get_desc()->get_all_layouts() == 4;
+	const bool terminal = tile->get_desc()->is_terminal();
 
 	// read the ways the way tool_station_aux reads them to choose the layout
 	ribi_t::ribi ribi = ribi_t::none;
@@ -655,7 +655,7 @@ ribi_t::ribi hausbauer_t::get_facing_ribi(const grund_t* gr, const building_tile
 
 gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d pos, int built_layout, const building_desc_t *desc, void *param)
 {
-	uint8 corner_layout = 6; // assume single building (for more than 4 layouts)
+	uint8 corner_layout = 6; // assume single building (for platform ends)
 
 	// adjust layout of neighbouring building
 	if(desc->is_transport_building()  &&  desc->get_all_layouts()>1) {
@@ -702,7 +702,7 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 			}
 			if(  gb  &&  gb->get_tile()->get_desc()->is_transport_building()  ) {
 				corner_layout &= ~2; // clear near bit
-				if(gb->get_tile()->get_desc()->get_all_layouts()>4) {
+				if(gb->get_tile()->get_desc()->has_platform_ends()) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
 
@@ -734,7 +734,7 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 			if(gb  &&  gb->get_tile()->get_desc()->is_transport_building()) {
 				corner_layout &= ~4; // clear far bit
 
-				if(gb->get_tile()->get_desc()->get_all_layouts()>4) {
+				if(gb->get_tile()->get_desc()->has_platform_ends()) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
 					if(ribi_t::doubles(get_facing_ribi(gr, gb->get_tile())) == axis) {
@@ -747,7 +747,7 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 	}
 
 	// adjust layouts of the new building
-	if(desc->get_all_layouts()>4) {
+	if(desc->has_platform_ends()) {
 		built_layout = (corner_layout | (built_layout&9) ) % desc->get_all_layouts();
 	}
 

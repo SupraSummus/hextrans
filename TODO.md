@@ -999,9 +999,10 @@ and airport layout still need porting against the same choice.
 
 *Depot 3rd-axis layout.*
 `tool_build_depot_t::tool_depot_aux` in `tool/simtool.cc`
-maps a 4-layout depot's dead-end ribi through `ribi_t::ribi_to_layout`,
+maps a terminal depot's dead-end ribi through `ribi_t::ribi_to_layout`,
 so all 6 directions get a layout;
-`building_desc_t::adjust_layout` folds the NE and SW layouts
+a 6-layout depot or terminal stop keeps it,
+and for a 4-layout one `building_desc_t::adjust_layout` folds NE and SW
 onto the images the pakset ships.
 A 2-layout through depot or stop
 picks its layout with `ribi_t::axis_to_layout`:
@@ -1015,10 +1016,10 @@ Real fix for depots is a 3-axis through-depot descriptor;
 needs `depot_t` rotation handling.
 
 *Stop and depot facing is read from the way.*
-`get_layout()` is folded for NE and SW,
+`get_layout()` is folded for NE and SW below 6 layouts,
 so `hausbauer_t::get_facing_ribi` reads a stop's or depot's exit or axis
 from its way and falls back to the layout.
-A lone NE or SW terminal whose road was removed
+A lone 4-layout NE or SW terminal whose road was removed
 can only be reconnected from its folded N or S side.
 Next move: store the real facing in `gebaeude_t` with the next save-format bump,
 read it first in `get_facing_ribi`,

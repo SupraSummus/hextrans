@@ -1,0 +1,40 @@
+# A road terminal stop and a road depot with one layout per hex side.
+# Baked into test-pak.pak by tools/test.py::ensure_test_pak.  The
+# headless test run renders nothing, so they carry no images.
+#
+# pak64's terminals and depots have 4 layouts, and
+# building_desc_t::adjust_layout folds the NE and SW ones onto N and S.
+# These two keep layouts 4 (NE) and 5 (SW), so the tests can read back
+# the side a terminal faces from its layout alone.
+
+obj=building
+name=TEST_TERMINAL_6L
+type=stop
+waytype=road
+enables_pax=1
+dims=1,1,6
+# tool_build_station_t::init refuses a building without a cursor skin
+cursor=-
+icon=-
+backimage[0][0][0][0][0][0]=-
+backimage[1][0][0][0][0][0]=-
+backimage[2][0][0][0][0][0]=-
+backimage[3][0][0][0][0][0]=-
+backimage[4][0][0][0][0][0]=-
+backimage[5][0][0][0][0][0]=-
+
+---
+
+obj=building
+name=TEST_DEPOT_6L
+type=depot
+waytype=road
+dims=1,1,6
+cursor=-
+icon=-
+backimage[0][0][0][0][0][0]=-
+backimage[1][0][0][0][0][0]=-
+backimage[2][0][0][0][0][0]=-
+backimage[3][0][0][0][0][0]=-
+backimage[4][0][0][0][0][0]=-
+backimage[5][0][0][0][0][0]=-

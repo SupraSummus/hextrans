@@ -182,7 +182,7 @@ sint64 building_get_cost(const building_desc_t* desc)
 
 bool building_is_terminus(const building_desc_t *desc)
 {
-	return desc  &&  desc->get_type() == building_desc_t::generic_stop  &&  desc->get_all_layouts() == 4;
+	return desc  &&  desc->get_type() == building_desc_t::generic_stop  &&  desc->is_terminal();
 }
 
 bool can_be_first(const vehicle_desc_t *desc)

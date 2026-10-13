@@ -17,13 +17,23 @@
 #include "../descriptor/building_desc.h"
 
 
-// the facings of building layouts 0..3, see ribi_t::layout_to_ribi
-static const char label_text[4][64] = {
+// the facings of building layouts 0..5, see ribi_t::layout_to_ribi
+static const char label_text[6][64] = {
 	"sued",
 	"suedost",
 	"nord",
-	"nordwest"
+	"nordwest",
+	"nordost",
+	"suedwest"
 };
+
+
+// layouts to choose from: one per side for six, else the first four
+// (the others are the platform ends of 8 and 16)
+static int facings(const building_desc_t *desc)
+{
+	return desc->get_all_layouts() == 6 ? 6 : min(desc->get_all_layouts(), 4);
+}
 
 
 tool_build_station_t station_building_select_t::tool=tool_build_station_t();
@@ -42,9 +52,9 @@ station_building_select_t::station_building_select_t(const building_desc_t *desc
 	lb->update();
 
 	// the image array
-	add_table(2,2);
+	add_table(2,0);
 	{
-		for( sint16 i=0;  i<min(desc->get_all_layouts(),4);  i++ ) {
+		for( sint16 i=0;  i<facings(desc);  i++ ) {
 			add_table(1,0)->set_alignment(ALIGN_CENTER_H);
 			{
 				gui_building_t *g = new_component<gui_building_t>(desc, i);
@@ -69,7 +79,7 @@ station_building_select_t::station_building_select_t(const building_desc_t *desc
  */
 bool station_building_select_t::action_triggered( gui_action_creator_t *comp, value_t v)
 {
-	for(int i=0; i<4; i++) {
+	for(int i=0; i<facings(desc); i++) {
 		if(comp == &actionbutton[i]  ||  v.i == i) {
 			static cbuffer_t default_str;
 			default_str.clear();
