@@ -6420,7 +6420,9 @@ const char *tool_build_house_t::work( player_t *player, koord3d pos )
 		desc = hausbauer_t::get_random_attraction( welt->get_timeline_year_month(), false, welt->get_climate( k ) );
 	}
 
-	if(desc==NULL) {
+	// stops, extensions, depots and docks are built by their own tools,
+	// which hand hausbauer_t::build the halt or way they need
+	if(desc==NULL  ||  desc->is_transport_building()) {
 		return "";
 	}
 	int rotation;
