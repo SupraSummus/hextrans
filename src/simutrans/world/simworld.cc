@@ -6463,6 +6463,16 @@ static void heavy_rotate_saves(const char *prefix, uint32 sync_steps, uint32 num
 }
 
 
+void karte_t::step_unattended()
+{
+	step_schedule_route();
+	sync_step( 100 );
+	set_random_mode( STEP_RANDOM );
+	step();
+	clear_random_mode( STEP_RANDOM );
+}
+
+
 bool karte_t::interactive(uint32 quit_month)
 {
 	finish_loop = false;
