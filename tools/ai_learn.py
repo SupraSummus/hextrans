@@ -90,6 +90,8 @@ def play(exe, args, seed, policy_file, env):
         year, mon = args.until.partition(".")[::2]
         survived = (bankrupt - first) / max(1, month(year, mon or 1) - first)
         return -1.0 + survived, "bankrupt %d.%02d" % (bankrupt // 12, bankrupt % 12 + 1), run.stderr
+    if wealth is None:
+        return -2.0, "no wealth logged (stopped early?)", ""
     return wealth / money, "wealth %.0f" % wealth, run.stderr
 
 
@@ -187,7 +189,7 @@ def evaluate(pool, exe, args, env, policy_file):
 
 
 def learn(pool, exe, args, env):
-    out = Path(args.out)
+    out = Path(args.out).resolve()
     rows = []
     best = None
     # round 0 builds only random candidates
@@ -196,7 +198,10 @@ def learn(pool, exe, args, env):
         train = out / ("round-%d-train.policy" % rnd)
         write_policy(train, policy, "round %d, training" % rnd)
         seeds = range(args.first_seed + rnd * args.games, args.first_seed + (rnd + 1) * args.games)
-        logs = pool.map(lambda s: play(exe, args, s, train, env)[2], seeds)
+        games = list(pool.map(lambda s: play(exe, args, s, train, env), seeds))
+        if not any(log for _, _, log in games):
+            sys.exit("round %d: no game ran (%s)" % (rnd, games[0][1]))
+        logs = [log for _, _, log in games]
         new = [dict(row, round=rnd, seed=seed) for seed, log in zip(seeds, logs)
                for row in links_of_game(log, args.horizon, args.min_months)]
         rows += new
