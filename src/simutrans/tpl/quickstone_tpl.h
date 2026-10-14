@@ -142,7 +142,7 @@ public:
 		uint16 i;
 
 		// scan rest of array
-		for(  i=size-1;  i>0;  i++  ) {
+		for(  i=size-1;  i>0;  i--  ) {
 			if(  data[i] == 0  ) {
 				entry = i;
 				data[entry] = p;
@@ -151,7 +151,7 @@ public:
 		}
 		enlarge();
 		// repeat
-		for(  i=size-1;  i>0;  i++  ) {
+		for(  i=size-1;  i>0;  i--  ) {
 			if(  data[i] == 0  ) {
 				entry = i;
 				data[entry] = p;
