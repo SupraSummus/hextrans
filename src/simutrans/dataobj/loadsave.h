@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <string>
+#include <typeinfo>
 
 #include "../simtypes.h"
 #include "../io/classify_file.h"
@@ -203,7 +204,22 @@ public:
 		}
 	}
 
+	/// as above, but a loaded value outside lo..hi is fatal
+	template <class X>
+	void rdwr_enum(X &x, sint32 lo, sint32 hi)
+	{
+		sint32 int_x = is_saving() ? (sint32)x : lo;
+		rdwr_long(int_x);
+		if(is_loading()) {
+			check_range(int_x, lo, hi, typeid(X).name());
+			x = (X)int_x;
+		}
+	}
+
 	friend class compare_loadsave_t; // to access stream
+
+private:
+	void check_range(sint32 value, sint32 lo, sint32 hi, const char *type_name) const;
 };
 
 

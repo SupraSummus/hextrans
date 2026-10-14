@@ -308,6 +308,14 @@ void loadsave_t::set_buffered(bool enable)
 }
 
 
+void loadsave_t::check_range(sint32 value, sint32 lo, sint32 hi, const char *type_name) const
+{
+	if(  value < lo  ||  value > hi  ) {
+		dbg->fatal("loadsave_t::rdwr_enum()", "%s: %d not in %d..%d", type_name, value, lo, hi);
+	}
+}
+
+
 loadsave_t::file_status_t loadsave_t::rd_open(const char *filename_utf8)
 {
 	close();

@@ -716,7 +716,7 @@ void settings_t::rdwr(loadsave_t *file)
 			file->rdwr_long(allow_merge_distant_halt);
 		}
 		if(  file->is_version_atleast(122, 1)  ) {
-			file->rdwr_enum(climate_generator);
+			file->rdwr_enum(climate_generator, HEIGHT_BASED, MAP_BASED);
 			file->rdwr_byte(wind_direction);
 			bool dummy = true;
 			file->rdwr_bool(dummy /*was departures_on_time */);

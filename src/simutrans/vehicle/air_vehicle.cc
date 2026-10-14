@@ -1054,7 +1054,7 @@ void air_vehicle_t::rdwr_from_convoi(loadsave_t *file)
 		target_height = get_pos().z;
 	}
 
-	file->rdwr_enum(state);
+	file->rdwr_enum(state, taxiing, taxiing_to_halt);
 	file->rdwr_short(flying_height);
 	flying_height &= ~(TILE_HEIGHT_STEP-1);
 	file->rdwr_short(target_height);
