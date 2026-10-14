@@ -997,25 +997,9 @@ forbidden or projected onto 2 axes).  The traffic-light FSM has
 landed under that policy; collision avoidance
 and airport layout still need porting against the same choice.
 
-*Through stop 3rd-axis layout.*
-A 2-layout through stop takes its layout from `ribi_t::axis_to_layout`,
-and `building_desc_t::adjust_layout` folds the NE-SW axis (layout 5) onto N-S.
-A stop with platform ends (8 or 16 layouts) fares no better:
-`hausbauer_t::build_station_extension_depot` keeps `built_layout & 9`
-and ORs the end bits (2 and 4) into it,
-so layout 5 becomes 1 or 7 and a NE-SW stop shows its NW-SE image
-(pak128's `small_early_bus_stop` on a NE-SW road gets layout 7).
-Bit 3 is the side of a 16-layout station,
-so the 8 and 16 layout encodings have no bit for a third axis.
-Next move: a 12-layout through stop, `layout = 4 * axis + ends`,
-as the 3-layout depot extends the 2-layout one,
-with the end-bit arithmetic in `build_station_extension_depot`
-and `gebaeude_t::cleanup` moved behind `building_desc_t` helpers
-that know both encodings.
-
 *Stop and depot facing is read from the way.*
 `get_layout()` is folded for NE and SW
-unless a building has a layout per side (6) or axis (3),
+unless a building has a layout per side (6) or axis (3, 12),
 so `hausbauer_t::get_facing_ribi` reads a stop's or depot's exit or axis
 from its way and falls back to the layout.
 A lone 4-layout NE or SW terminal whose road was removed

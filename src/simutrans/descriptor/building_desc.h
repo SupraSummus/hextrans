@@ -298,9 +298,10 @@ public:
 	/// A through stop with 8 or 16 layouts has images for the ends of a
 	/// platform, picked by bits 1 and 2 of the layout.
 	bool has_platform_ends() const { return layouts >= 8; }
-	/// A through depot with 3 layouts has one per hex axis:
-	/// layouts 0, 1, 2 lie along the way from S, SE and SW.
-	bool has_axis_layouts() const { return layouts == 3; }
+	/// A through depot with 3 layouts or a through stop with 12 has them
+	/// per hex axis: along the way from S, SE and SW lie layouts 0, 1, 2
+	/// of the depot and 0, 4, 8 of the stop, plus its platform ends.
+	bool has_axis_layouts() const { return layouts == 3  ||  layouts == 12; }
 
 	bool is_connected_with_town() const;
 
@@ -404,6 +405,13 @@ public:
 
 	/// The axis of a through building's @p layout, both ends.
 	ribi_t::ribi get_through_axis(uint8 layout) const;
+
+	/// The open platform ends a through stop's @p layout shows: 2 for the
+	/// end towards S, SE or SW, 4 towards N, NW or NE, both for a lone tile.
+	uint8 get_platform_ends(uint8 layout) const;
+
+	/// @p layout showing the platform ends @p ends (2 and 4 as above).
+	uint8 with_platform_ends(uint8 layout, uint8 ends) const;
 
 	/**
 	* Skin: cursor (index 0) and icon (index 1)

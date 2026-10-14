@@ -5155,14 +5155,14 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 
 		// find out orientation ...
 		ribi_t::ribi ribi = ribi_t::none;
-		if(  desc->get_all_layouts()==2  ||  desc->get_all_layouts()==8  ||  desc->get_all_layouts()==16  ) {
+		if(  desc->get_all_layouts()==2  ||  desc->get_all_layouts()==8  ||  desc->get_all_layouts()==12  ||  desc->get_all_layouts()==16  ) {
 			// through station
 			ribi = tool_station_way_ribi( bd, true );
 			// not straight: sorry cannot build here ...
 			if(  !ribi_t::is_straight(ribi)  ) {
 				return p_error;
 			}
-			layout = ribi_t::axis_to_layout(ribi);
+			layout = desc->get_through_layout(ribi);
 		}
 		else if(  desc->is_terminal()  ) {
 			// terminal station
@@ -5175,7 +5175,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 		}
 		else {
 			// something wrong with station number of layouts
-			dbg->fatal( "tool_station_t::tool_station_aux", "%s has wrong number of layouts (must be 2,4,6,8,16!)", desc->get_name() );
+			dbg->fatal( "tool_station_t::tool_station_aux", "%s has wrong number of layouts (must be 2,4,6,8,12,16!)", desc->get_name() );
 		}
 
 		if(  desc->get_all_layouts() == 8  ||  desc->get_all_layouts() == 16  ) {
@@ -5263,7 +5263,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 		// Obey the predefined layout, but not at the price of the geometry:
 		// choosing a layout selects the graphics, it does not license a tile
 		// the automatic path above would have refused. Same test, same error.
-		if(  desc->get_all_layouts()==2  ||  desc->get_all_layouts()==8  ||  desc->get_all_layouts()==16  ) {
+		if(  desc->get_all_layouts()==2  ||  desc->get_all_layouts()==8  ||  desc->get_all_layouts()==12  ||  desc->get_all_layouts()==16  ) {
 			if(  !ribi_t::is_straight( tool_station_way_ribi( bd, true ) )  ) {
 				return p_error;
 			}

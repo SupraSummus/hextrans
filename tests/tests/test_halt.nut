@@ -731,6 +731,47 @@ function test_halt_terminal_stop_six_layouts()
 }
 
 
+// A 12-layout through stop: layout 4 * axis + its platform ends, on each
+// of the three axes, which the 8- and 16-layout encodings cannot tell.
+function test_halt_through_stop_twelve_layouts()
+{
+	local pl = player_x(0)
+	local road = get_slow_and_fast_road()[0]
+	local mid = coord3d(8, 8, 0)
+	local layout = function(k) {
+		return tile_x(k.x, k.y, k.z).find_object(mo_building).get_layout()
+	}
+
+	foreach (axis, d in [dir.south, dir.southeast, dir.southwest]) {
+		local v = dir.to_coord(d)
+		ASSERT_EQUAL(command_x.build_way(pl, mid - v - v, mid + v + v, road, true), null)
+
+		// a lone stop shows both ends of its platform
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, mid, "TEST_STOP_12L"), null)
+		ASSERT_EQUAL(layout(mid), 4 * axis + 3)
+
+		// three in a row: none in the middle, one at each end;
+		// v points S, SE or SW, which is bit 0
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, mid - v, "TEST_STOP_12L"), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, mid + v, "TEST_STOP_12L"), null)
+		ASSERT_EQUAL(layout(mid), 4 * axis)
+		ASSERT_EQUAL(layout(mid + v), 4 * axis + 1)
+		ASSERT_EQUAL(layout(mid - v), 4 * axis + 2)
+
+		// removing one end gives its neighbour that end back
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, mid + v), null)
+		ASSERT_EQUAL(layout(mid), 4 * axis + 1)
+
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, mid), null)
+		ASSERT_EQUAL(command_x(tool_remover).work(pl, mid - v), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, mid - v - v, mid + v + v, "" + wt_road), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // BusStop is pak64's 2-layout through stop.  On a NE-SW road it has to
 // stay passable along the road and closed to the four sides.
 function test_halt_through_stop_third_axis()
