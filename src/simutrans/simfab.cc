@@ -251,6 +251,9 @@ void fabrik_t::arrival_statistics_t::rdwr(loadsave_t *file)
 		}
 		file->rdwr_short( current_slot );
 		file->rdwr_short( active_slots );
+		if(  current_slot>=SLOT_COUNT  ) {
+			dbg->fatal("fabrik_t::arrival_statistics_t::rdwr", "Invalid arrival slot %d", current_slot);
+		}
 	}
 	else if(  file->is_loading()  ) {
 		init();
