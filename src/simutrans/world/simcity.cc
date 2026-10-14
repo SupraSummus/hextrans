@@ -1137,6 +1137,9 @@ void stadt_t::rdwr(loadsave_t* file)
 	}
 	file->rdwr_str(name);
 	pos.rdwr(file);
+	if(  file->is_loading()  &&  !welt->is_within_limits(pos)  ) {
+		dbg->fatal("stadt_t::rdwr()", "City at %s is off the map", pos.get_str());
+	}
 	uint32 lli = lo.x;
 	uint32 lob = lo.y;
 	uint32 lre = ur.x;
