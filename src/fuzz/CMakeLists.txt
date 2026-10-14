@@ -135,55 +135,35 @@ target_compile_options(fuzz_pak PRIVATE -fno-sanitize=vptr)
 
 
 #
+# The harnesses below compile the engine with the simutrans target's flags
+# unchanged, so they share one copy of its objects.  Same full-source
+# inheritance as fuzz_pak, and the SIMUTRANS_BACKEND=none guard above.
+#
+add_library(fuzz_simutrans OBJECT ${_SIM_SOURCES_ABS})
+target_include_directories(fuzz_simutrans PUBLIC ${_SIM_INCLUDES})
+target_compile_definitions(fuzz_simutrans PUBLIC ${_SIM_DEFS} SIMUTRANS_NO_MAIN=1)
+target_compile_options(fuzz_simutrans PUBLIC ${_SIM_OPTS} -fsanitize=fuzzer-no-link)
+target_link_libraries(fuzz_simutrans PUBLIC ${_SIM_LIBS})
+target_link_options(fuzz_simutrans INTERFACE -fsanitize=fuzzer)
+# An object library does not hand on the objects of the object libraries
+# it links (simusquirrel), only their usage requirements.
+target_sources(fuzz_simutrans INTERFACE $<TARGET_OBJECTS:simusquirrel>)
+
+if (TARGET svnheader)
+	add_dependencies(fuzz_simutrans svnheader)
+endif ()
+
 # fuzz_command: network *command handling* (post-parse).  Stands the
 # engine up once, then per input builds a world and drives a fuzzed
-# sequence of nwc_tool_t commands through do_command — see
-# fuzz_command.cc.  Reuses the
-# same full-source inheritance as fuzz_pak (it needs the world + the
-# self-registering tool table), so it shares the _SIM_* properties
-# computed above and the SIMUTRANS_BACKEND=none guard that returned
-# early before this point if unmet.
-#
-add_executable(fuzz_command
-	fuzz_command.cc
-)
+# sequence of nwc_tool_t commands through do_command.
+add_executable(fuzz_command fuzz_command.cc fuzz_engine.cc)
+target_link_libraries(fuzz_command PRIVATE fuzz_simutrans)
 
-target_sources(fuzz_command PRIVATE ${_SIM_SOURCES_ABS})
-target_include_directories(fuzz_command PRIVATE ${_SIM_INCLUDES})
-target_compile_definitions(fuzz_command PRIVATE ${_SIM_DEFS} SIMUTRANS_NO_MAIN=1)
-target_compile_options(fuzz_command PRIVATE ${_SIM_OPTS})
-target_link_libraries(fuzz_command PRIVATE ${_SIM_LIBS})
-
-if (TARGET svnheader)
-	add_dependencies(fuzz_command svnheader)
-endif ()
-
-target_link_options(fuzz_command PRIVATE -fsanitize=fuzzer)
-target_compile_options(fuzz_command PRIVATE -fsanitize=fuzzer-no-link)
-
-
-#
 # fuzz_command_preauth: pre-auth wire surface for ingame commands.
-# Same socketpair → packet_t::recv() shape as fuzz_nettool, but linked
-# against the full simutrans source set so the dispatch reaches the
-# nwc_tool_t / nwc_chg_player_t / nwc_scenario_* types outside NETTOOL=1
-# — and so it can call nwc_tool_t::init_tool() to fire create_tool plus
-# the per-tool rdwr_custom_data overrides.  See fuzz_command_preauth.cc.
-# Reuses the _SIM_* properties + SIMUTRANS_BACKEND=none guard above.
-#
-add_executable(fuzz_command_preauth
-	fuzz_command_preauth.cc
-)
-
-target_sources(fuzz_command_preauth PRIVATE ${_SIM_SOURCES_ABS})
-target_include_directories(fuzz_command_preauth PRIVATE ${_SIM_INCLUDES})
-target_compile_definitions(fuzz_command_preauth PRIVATE ${_SIM_DEFS} SIMUTRANS_NO_MAIN=1)
-target_compile_options(fuzz_command_preauth PRIVATE ${_SIM_OPTS})
-target_link_libraries(fuzz_command_preauth PRIVATE ${_SIM_LIBS})
-
-if (TARGET svnheader)
-	add_dependencies(fuzz_command_preauth svnheader)
-endif ()
-
-target_link_options(fuzz_command_preauth PRIVATE -fsanitize=fuzzer)
-target_compile_options(fuzz_command_preauth PRIVATE -fsanitize=fuzzer-no-link)
+# Same socketpair → packet_t::recv() shape as fuzz_nettool, but with the
+# full source set so the dispatch reaches the nwc_tool_t /
+# nwc_chg_player_t / nwc_scenario_* types outside NETTOOL=1, and so it
+# can call nwc_tool_t::init_tool() to fire create_tool plus the per-tool
+# rdwr_custom_data overrides.
+add_executable(fuzz_command_preauth fuzz_command_preauth.cc)
+target_link_libraries(fuzz_command_preauth PRIVATE fuzz_simutrans)

@@ -1304,8 +1304,8 @@ until the next pak-loader bug or a CI gate motivates it.
 ## fuzz_pak CMake source-list inheritance fragility
 
 `src/fuzz/CMakeLists.txt` builds `fuzz_pak`
-(and now `fuzz_command` and `fuzz_command_preauth`,
-which reuse the same `_SIM_*` variables)
+(and the `fuzz_simutrans` object library behind the other world harnesses,
+which reuses the same `_SIM_*` variables)
 by copying the simutrans target's `SOURCES` / `COMPILE_DEFINITIONS` /
 `COMPILE_OPTIONS` / `LINK_LIBRARIES` via `get_target_property`,
 because the readers must all link
@@ -1325,7 +1325,7 @@ Requires extracting the per-backend `main()`
 into its own file so it can be added to the executable target only —
 the `SIMUTRANS_NO_MAIN` guard in `simsys_posix.cc` is an interim shim
 that survives only as long as the fuzzers are linux-only.
-Two more consumers (`fuzz_command`, `fuzz_command_preauth`) now exist,
+Two copies of the engine objects (`fuzz_pak`, `fuzz_simutrans`) now exist,
 so the dedup is no longer hypothetical;
 do it when a propagation gap actually bites
 or when touching this CMake file for another reason.
