@@ -5243,15 +5243,16 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 					side = neighbour_side[(~ribi) & waagerecht & next_own];
 				}
 				else {
-					// no buildings left and right
-					// oriented buildings left and right
-					if(neighbour_side[senkrecht & next_own & ribi_t::upper_half] != -1) {
-						// just rotate layout
-						side = 1-neighbour_side[senkrecht & next_own & ribi_t::upper_half];
-					}
-					else {
-						if(neighbour_side[senkrecht & next_own & ribi_t::lower_half] != -1) {
-							side = 1-neighbour_side[senkrecht & next_own & ribi_t::lower_half];
+					// no buildings along the track, oriented buildings beside it:
+					// mirror the first, upper half first.  A tile on the parallel
+					// track touches two of ours, so take one direction at a time.
+					const ribi_t::ribi beside = senkrecht & next_own;
+					for(  int half = 0;  half < 2  &&  side == -1;  half++  ) {
+						const ribi_t::ribi dirs = beside & (half == 0 ? ribi_t::upper_half : ribi_t::lower_half);
+						for(  uint i = 0;  i < 6  &&  side == -1;  i++  ) {
+							if(  (dirs & ribi_t::nesw[i])  &&  neighbour_side[ribi_t::nesw[i]] != -1  ) {
+								side = 1-neighbour_side[ribi_t::nesw[i]];
+							}
 						}
 					}
 				}
