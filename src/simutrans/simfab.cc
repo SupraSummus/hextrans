@@ -1203,6 +1203,10 @@ void fabrik_t::rdwr(loadsave_t *file)
 	// now rebuild information for received goods
 	file->rdwr_long(input_count);
 	if(  file->is_loading()  ) {
+		// factory_desc_t counts its goods in a uint16
+		if(  input_count < 0  ||  input_count > 0xFFFF  ) {
+			dbg->fatal("fabrik_t::rdwr", "Invalid input slot count %d of factory at %s", input_count, pos.get_fullstr());
+		}
 		input.resize( input_count );
 	}
 	bool mismatch = false;
@@ -1307,6 +1311,10 @@ void fabrik_t::rdwr(loadsave_t *file)
 	// now rebuilt information for produced goods
 	file->rdwr_long(output_count);
 	if(  file->is_loading()  ) {
+		// factory_desc_t counts its goods in a uint16
+		if(  output_count < 0  ||  output_count > 0xFFFF  ) {
+			dbg->fatal("fabrik_t::rdwr", "Invalid output slot count %d of factory at %s", output_count, pos.get_fullstr());
+		}
 		output.resize( output_count );
 	}
 	mismatch = false;
