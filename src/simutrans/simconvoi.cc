@@ -2284,7 +2284,7 @@ void convoi_t::rdwr(loadsave_t *file)
 	file->rdwr_long(akt_speed);
 	file->rdwr_long(akt_speed_soll);
 	file->rdwr_long(sp_soll);
-	file->rdwr_enum(state);
+	file->rdwr_enum(state, INITIAL, MAX_STATES-1);
 	file->rdwr_enum(alte_richtung);
 
 	// read the yearly income (which has since then become a 64 bit value)
