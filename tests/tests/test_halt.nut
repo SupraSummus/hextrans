@@ -795,7 +795,9 @@ function test_halt_through_stop_platform_sides()
 		ASSERT_EQUAL(layout(mid) % 12, 4 * axis + 3)
 		local other = 12 - (layout(mid) - layout(mid) % 12)
 
-		// one on the parallel track mirrors it
+		// one on the parallel track mirrors them, though it touches two
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, mid - v, "TEST_STOP_24L"), null)
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, mid + v, "TEST_STOP_24L"), null)
 		ASSERT_EQUAL(command_x(tool_build_station).work(pl, p, "TEST_STOP_24L"), null)
 		ASSERT_EQUAL(layout(p), other + 4 * axis + 3)
 
@@ -805,9 +807,9 @@ function test_halt_through_stop_platform_sides()
 
 		// the rotate tool moves the platform across the track
 		ASSERT_EQUAL(command_x(tool_rotate_building).work(pl, mid), null)
-		ASSERT_EQUAL(layout(mid), other + 4 * axis + 3)
+		ASSERT_EQUAL(layout(mid), other + 4 * axis)
 
-		foreach (k in [mid, p, p + v]) {
+		foreach (k in [mid - v, mid, mid + v, p, p + v]) {
 			ASSERT_EQUAL(command_x(tool_remover).work(pl, k), null)
 		}
 		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, mid - v - v, mid + v + v, "" + wt_rail), null)
