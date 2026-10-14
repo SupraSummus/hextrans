@@ -896,6 +896,17 @@ harness — `nwc_nick_t` / `nwc_chat_t` calling
 `get_client(get_client_id(sender))` without guarding the OOB
 sentinel — is tracked in `TODO.md`.
 
+`src/fuzz/fuzz_savegame.cc` fuzzes savegame loading,
+which a multiplayer client does with the bytes a server sends it.
+Each input is a whole save file;
+a world that loads runs a few steps and is torn down.
+The game exits on `dbg->fatal`, and so does the harness,
+so every input needs a process of its own:
+mutate with AFL++, which forks a child per input after the engine standup,
+and replay with the libFuzzer build one file per run, as CI does.
+The recipe, the seeds and what to commit are in
+`documentation/fuzz-corpora.md`.
+
 Claude Code on the web checks out a shallow clone — `git log` only
 reaches back a handful of commits and `git blame` on older lines
 returns "(grafted)". Run `git fetch --unshallow origin` when the

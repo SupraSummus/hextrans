@@ -1365,10 +1365,11 @@ need neither), `detect_leaks=0` (per the incomplete per-world teardown
 above, vs the others' `detect_leaks=1`), an absolute `SIMUTRANS_FUZZ_BASE`,
 and a committed seed corpus under `src/fuzz/corpus/command/` (a generator
 hitting each fixed tool + the minimized repros).  Concrete next steps:
-(1) wire the harness to AFL++'s `aflpp_driver` with a deferred forkserver
-(`__AFL_INIT()` after standup — the harness already pins
-`env_t::num_threads=1` so the fork is safe) and re-measure without the
-ASAN fork tax; (2) deepen the structured input layer.  Tool *selection*
+(1) build it with `afl-clang-fast` and run it with `AFL_FUZZER_LOOPCOUNT=1`,
+as `fuzz_savegame` already does (recipe in `documentation/fuzz-corpora.md`),
+which forks a child per input after standup,
+and re-measure without the ASAN fork tax;
+(2) deepen the structured input layer.  Tool *selection*
 now folds the fuzz bytes onto the dense valid id space (`fuzz_tool_id`),
 so iterations reach a real handler instead of bouncing off `create_tool`
 returning NULL; the remaining gap is the per-tool payload — `default_param`
@@ -1398,22 +1399,6 @@ use-after-free that is a harness artifact, not a server bug.  Tools that
 re-enter `karte_t::init`/`load`/`stop`/`switch_server` synchronously
 (`TOOL_QUIT`, `TOOL_WORK_WORLD`, `TOOL_LOAD_SCENARIO`) are skipped — see
 `is_world_lifecycle_tool`.
-
-## Savegame-load fuzzer
-
-No harness covers `karte_t::load`,
-yet a multiplayer server pushes a savegame to every client that joins.
-The `rdwr` code trusts counts and indices read from the file:
-`city_road_speed_limit_num` overran its fixed array until it got a clamp.
-Next move: `src/fuzz/fuzz_savegame.cc`,
-which writes the fuzz bytes to a temporary save
-and calls `karte_t::load` on it,
-standing up pak64 the way `fuzz_command` does.
-Seed it with the `tests/*.sve` fixtures decompressed,
-since the loader also reads uncompressed saves
-and mutating gzip bytes rarely gets past the decompressor.
-It needs the same fork-after-init engine as `fuzz_command` above;
-in-process world setup is too slow for a campaign.
 
 ## Network tool handlers: attacker default_param / pos hardening
 

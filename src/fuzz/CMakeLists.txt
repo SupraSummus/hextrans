@@ -167,3 +167,7 @@ target_link_libraries(fuzz_command PRIVATE fuzz_simutrans)
 # rdwr_custom_data overrides.
 add_executable(fuzz_command_preauth fuzz_command_preauth.cc)
 target_link_libraries(fuzz_command_preauth PRIVATE fuzz_simutrans)
+
+# fuzz_savegame: karte_t::load on a whole save file.  See fuzz_savegame.cc.
+add_executable(fuzz_savegame fuzz_savegame.cc fuzz_engine.cc)
+target_link_libraries(fuzz_savegame PRIVATE fuzz_simutrans)
