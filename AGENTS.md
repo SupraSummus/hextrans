@@ -246,7 +246,9 @@ Markdown in this repo uses [Semantic Line Breaks](https://sembr.org/):
 break the line after every sentence,
 and usually after a clause that ends in a comma, semicolon, colon or dash.
 Never break inside a hyphenated word
-or in a way that changes the rendered text.
+or in a way that changes the rendered text,
+such as before a `- `, `+ `, `# ` or `> `
+that would then start a list item, heading or quote.
 Keep lines under 80 characters unless a link or code span needs more.
 A change to one sentence then shows up as a change to one line.
 
