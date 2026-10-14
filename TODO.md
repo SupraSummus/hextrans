@@ -1399,6 +1399,22 @@ re-enter `karte_t::init`/`load`/`stop`/`switch_server` synchronously
 (`TOOL_QUIT`, `TOOL_WORK_WORLD`, `TOOL_LOAD_SCENARIO`) are skipped — see
 `is_world_lifecycle_tool`.
 
+## Savegame-load fuzzer
+
+No harness covers `karte_t::load`,
+yet a multiplayer server pushes a savegame to every client that joins.
+The `rdwr` code trusts counts and indices read from the file:
+`city_road_speed_limit_num` overran its fixed array until it got a clamp.
+Next move: `src/fuzz/fuzz_savegame.cc`,
+which writes the fuzz bytes to a temporary save
+and calls `karte_t::load` on it,
+standing up pak64 the way `fuzz_command` does.
+Seed it with the `tests/*.sve` fixtures decompressed,
+since the loader also reads uncompressed saves
+and mutating gzip bytes rarely gets past the decompressor.
+It needs the same fork-after-init engine as `fuzz_command` above;
+in-process world setup is too slow for a campaign.
+
 ## Network tool handlers: attacker default_param / pos hardening
 
 With `fuzz_command` now reaching real handlers (`fuzz_tool_id` folds the

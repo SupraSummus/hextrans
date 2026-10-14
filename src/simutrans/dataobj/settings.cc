@@ -738,6 +738,9 @@ void settings_t::rdwr(loadsave_t *file)
 		// restoring the city speed limit vector
 		if (file->is_version_atleast(123, 2)) {
 			file->rdwr_short(city_road_speed_limit_num);
+			if (city_road_speed_limit_num > lengthof(city_road_speed_limit)) {
+				dbg->fatal("settings_t::rdwr()", "Too many (%i) city road speed limits!", city_road_speed_limit_num);
+			}
 			for (uint16 i = 0;  i < city_road_speed_limit_num;  i++) {
 				file->rdwr_short(city_road_speed_limit[i]);
 			}
