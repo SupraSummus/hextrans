@@ -8,7 +8,8 @@ sanitizer fails the job.  The large evolving corpus that a mutation
 campaign produces is deliberately *not* committed — see "Out-of-band"
 below.
 
-One subdirectory per harness: `nettool/`, `pak/`, `command_preauth/`.
+One subdirectory per harness: `nettool/`, `pak/`, `command_preauth/`,
+`savegame/` (see "Savegames" below).
 The harnesses themselves are documented in `AGENTS.md` (search
 "fuzz_").
 
@@ -69,7 +70,7 @@ out-of-band corpus.
 
 ## Leak detection
 
-All three harnesses replay under `detect_leaks=1` in CI, and each is
+The three parser harnesses replay under `detect_leaks=1` in CI, and each is
 built to stay leak-clean per iteration so a leak in replay is a real
 regression (`fuzz_pak` tears down the descriptor DAG;
 `fuzz_command_preauth` resets `socket_list_t`, and its fatal hook throws
@@ -79,3 +80,51 @@ campaigns run with `detect_leaks=1` too, except `fuzz_command` (the
 in-process world harness), whose per-rebuild freelist retention is
 reachable, not a pluggable leak, so it runs `detect_leaks=0` — the
 measurements are in `TODO.md`.
+`fuzz_savegame` replays with `detect_leaks=0`:
+the engine standup leaves allocations LeakSanitizer reports at exit,
+and with one input per process there is no per-input leak to find.
+
+## Savegames
+
+`savegame/` holds gzipped save files,
+which `fuzz_savegame` reads the way the game does.
+The seed `ai_soak.sve` is a 32×32 world
+with cities, industry and both AIs' lines and convoys,
+saved by `-ai_soak 32 1 -until 1931.3` (see `AGENTS.md`);
+CI also replays the `tests/*.sve` fixtures.
+A reproducer is the shortest prefix of the crashing save
+that still crashes at the same place, gzipped.
+The loader reads a save front to back,
+so the bytes after the crash do not matter,
+and a fixed build stops at the end of the prefix with a fatal.
+
+To mutate, unpack the seeds,
+since mutated gzip bytes rarely get past the decompressor,
+and run the AFL++ build of the harness:
+
+```sh
+mkdir -p in && for f in src/fuzz/corpus/savegame/*.sve tests/*.sve; do
+  zcat "$f" > in/"$(basename "$f" .sve)"; done
+SAN="-fsanitize=address,undefined -fno-sanitize-recover=all \
+  -fno-sanitize=signed-integer-overflow,shift,function"
+cmake -S . -B build-fuzz-afl -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_COMPILER=afl-clang-fast -DCMAKE_CXX_COMPILER=afl-clang-fast++ \
+  -DSIMUTRANS_BUILD_FUZZERS=ON -DSIMUTRANS_BACKEND=none \
+  -DCMAKE_C_FLAGS="$SAN" -DCMAKE_CXX_FLAGS="$SAN" \
+  -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined
+cmake --build build-fuzz-afl --target svnheader fuzz_savegame
+AFL_FUZZER_LOOPCOUNT=1 SIMUTRANS_FUZZ_BASE=$PWD/simutrans \
+ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:symbolize=0 \
+  afl-fuzz -i in -o out -m none -t 2000 -- build-fuzz-afl/src/fuzz/fuzz_savegame
+```
+
+The campaign leaves out the signed overflow check:
+a save picks every number,
+and sums such as the finance history totals overflow without touching memory.
+That is why the sanitizers are set by hand;
+`SIMUTRANS_SANITIZE_UNDEFINED` would add the check back after them.
+CI's replay keeps it,
+so a reproducer that overflows on the way to its bug
+needs that value set back in range by hand.
+A save loads in well under a second;
+one that runs into `-t 2000` asks for a huge map.

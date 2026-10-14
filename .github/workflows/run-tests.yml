@@ -218,8 +218,8 @@ jobs:
       # trips ASAN/UBSAN fails the job.  The corpus holds generated
       # smoke seeds (build/wiring check) and minimized bug reproducers
       # (each pins one fixed defect); active mutation is out-of-band via
-      # -max_total_time=N.  See documentation/fuzz-corpora.md.  All three
-      # run with detect_leaks=1: fuzz_pak tears down the descriptor DAG
+      # -max_total_time=N.  See documentation/fuzz-corpora.md.  The first
+      # three run with detect_leaks=1: fuzz_pak tears down the descriptor DAG
       # per iteration (pakset_manager_t::free_all_descriptors), so the
       # baseline is clean and a leak in replay is a real regression.
       run: |
@@ -230,7 +230,7 @@ jobs:
           -DSIMUTRANS_SANITIZE_ADDRESS=ON -DSIMUTRANS_SANITIZE_UNDEFINED=ON \
           -DSIMUTRANS_BACKEND=none -DCMAKE_BUILD_TYPE=Debug
         cmake --build build-fuzz --target svnheader
-        cmake --build build-fuzz --target fuzz_nettool fuzz_pak fuzz_command_preauth -j$(nproc)
+        cmake --build build-fuzz --target fuzz_nettool fuzz_pak fuzz_command_preauth fuzz_savegame -j$(nproc)
         ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=1" \
           ./build-fuzz/src/fuzz/fuzz_nettool -runs=0 src/fuzz/corpus/nettool/
         ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=1" \
@@ -244,6 +244,14 @@ jobs:
         # mutation too, not just this replay.
         ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=1" \
           ./build-fuzz/src/fuzz/fuzz_command_preauth -runs=0 src/fuzz/corpus/command_preauth/
+        # fuzz_savegame: each save in a process of its own, as a client
+        # loads it (see fuzz_savegame.cc), against the pak64 installed above.
+        # The harness changes into simutrans/, hence the absolute paths.
+        for f in src/fuzz/corpus/savegame/*.sve tests/*.sve; do
+          SIMUTRANS_FUZZ_BASE=$PWD/simutrans \
+          ASAN_OPTIONS="print_stacktrace=1 abort_on_error=1 detect_leaks=0" \
+            ./build-fuzz/src/fuzz/fuzz_savegame -detect_leaks=0 "$PWD/$f"
+        done
     - name: Run HTTP e2e suite
       # Baseline coverage for the four HTTP call sites ahead of the
       # libcurl migration (see documentation/libcurl-port.md).  Drives
