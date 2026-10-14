@@ -237,9 +237,13 @@ static uint8 quarter_turn_layout(const building_desc_t *desc, uint8 layout)
 
 uint8 building_desc_t::get_half_turn_layout(uint8 layout) const
 {
-	if(  has_axis_layouts()  ) {
+	if(  layouts == 3  ) {
 		// an axis is its own half turn
 		return layout;
+	}
+	if(  layouts == 12  ) {
+		// the axis stays, the near and far ends swap
+		return (layout & ~3) | ((layout & 1) << 1) | ((layout & 2) >> 1);
 	}
 	if(  layouts == 6  ||  (layouts == 8  &&  type >= city_res)  ) {
 		// layouts 0..5 face S, SE, N, NW, NE, SW (ribi_t::layout_to_ribi);
@@ -254,14 +258,37 @@ uint8 building_desc_t::get_half_turn_layout(uint8 layout) const
 uint8 building_desc_t::get_through_layout(ribi_t::ribi x) const
 {
 	const uint8 layout = ribi_t::axis_to_layout(x);
-	return has_axis_layouts()  &&  layout == 5 ? 2 : layout;
+	if(  !has_axis_layouts()  ) {
+		return layout;
+	}
+	const uint8 axis = layout == 5 ? 2 : layout;
+	return layouts == 12 ? 4 * axis : axis;
 }
 
 
 ribi_t::ribi building_desc_t::get_through_axis(uint8 layout) const
 {
-	const uint8 end = has_axis_layouts()  &&  layout == 2 ? 5 : layout & 1;
+	uint8 end = layout & 1;
+	if(  has_axis_layouts()  ) {
+		const uint8 axis = layouts == 12 ? layout / 4 : layout;
+		end = axis == 2 ? 5 : axis;
+	}
 	return ribi_t::doubles(ribi_t::layout_to_ribi[end]);
+}
+
+
+uint8 building_desc_t::get_platform_ends(uint8 layout) const
+{
+	return layouts == 12 ? (layout & 3) << 1 : layout & 6;
+}
+
+
+uint8 building_desc_t::with_platform_ends(uint8 layout, uint8 ends) const
+{
+	if(  layouts == 12  ) {
+		return (layout & ~3) | ((ends >> 1) & 3);
+	}
+	return ((layout & 9) | (ends & 6)) % layouts;
 }
 
 

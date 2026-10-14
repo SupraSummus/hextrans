@@ -1096,11 +1096,10 @@ void gebaeude_t::cleanup(player_t *player)
 
 		// realign surrounding buildings...
 
-		// detect if we are connected at far (north/west) end
+		// the neighbours along the axis get their ends facing us back
 		grund_t * gr = welt->lookup( get_pos() );
 		if(gr) {
-			// the platform runs along the axis of the way; the stored layout
-			// only has two of the three hex axes
+			// the platform runs along the axis of the way
 			const ribi_t::ribi axis = ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, tile));
 			const koord far_step  = koord::step(axis & ribi_t::lower_half); // S, SE or SW
 			const koord near_step = koord::step(axis & ribi_t::upper_half); // N, NW or NE
@@ -1120,13 +1119,15 @@ void gebaeude_t::cleanup(player_t *player)
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
 					if(ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, gb->get_tile())) == axis) {
-						layoutbase |= 4u; // set far bit on neighbour
-						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
+						// the S, SE or SW neighbour's N, NW or NE end
+						const building_desc_t *nd = gb->get_tile()->get_desc();
+						layoutbase = nd->with_platform_ends(layoutbase, nd->get_platform_ends(layoutbase) | 4);
+						gb->set_tile( nd->get_tile(layoutbase, xy.x, xy.y), false );
 					}
 				}
 			}
 
-			// detect if near (south/east) end
+			// and the other way
 			gr = welt->lookup( get_pos()+koord3d( near_step, offset) );
 			if(!gr) {
 				// check whether bridge end tile
@@ -1141,8 +1142,10 @@ void gebaeude_t::cleanup(player_t *player)
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
 					if(ribi_t::doubles(hausbauer_t::get_facing_ribi(gr, gb->get_tile())) == axis) {
-						layoutbase |= 2u; // set near bit on neighbour
-						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
+						// the N, NW or NE neighbour's S, SE or SW end
+						const building_desc_t *nd = gb->get_tile()->get_desc();
+						layoutbase = nd->with_platform_ends(layoutbase, nd->get_platform_ends(layoutbase) | 2);
+						gb->set_tile( nd->get_tile(layoutbase, xy.x, xy.y), false );
 					}
 				}
 			}

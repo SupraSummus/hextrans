@@ -660,13 +660,12 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 	// adjust layout of neighbouring building
 	if(desc->is_transport_building()  &&  desc->get_all_layouts()>1) {
 
-		// the platform runs along the axis of the way; the stored layout
-		// only has two of the three hex axes
+		// the platform runs along the axis of the way
 		const ribi_t::ribi axis = ribi_t::doubles(get_facing_ribi(welt->lookup(pos), desc->get_tile(desc->adjust_layout(built_layout) % desc->get_all_layouts(), 0, 0)));
 		const koord far_step  = koord::step(axis & ribi_t::lower_half); // S, SE or SW
 		const koord near_step = koord::step(axis & ribi_t::upper_half); // N, NW or NE
 
-		// detect if we are connected at far (north/west) end
+		// joined towards S, SE or SW?
 		sint8 offset = welt->lookup( pos )->get_weg_yoff()/TILE_HEIGHT_STEP;
 		koord3d checkpos = pos+koord3d( far_step, offset);
 		grund_t * gr = welt->lookup( checkpos );
@@ -701,20 +700,22 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 				gb = gr->find<gebaeude_t>();
 			}
 			if(  gb  &&  gb->get_tile()->get_desc()->is_transport_building()  ) {
-				corner_layout &= ~2; // clear near bit
+				corner_layout &= ~2; // close our S, SE or SW end
 				if(gb->get_tile()->get_desc()->has_platform_ends()) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
 
 					if(ribi_t::doubles(get_facing_ribi(gr, gb->get_tile())) == axis) {
-						layoutbase &= 0xb; // clear near bit on neighbour
-						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
+						// and the neighbour's N, NW or NE end
+						const building_desc_t *nd = gb->get_tile()->get_desc();
+						layoutbase = nd->with_platform_ends(layoutbase, nd->get_platform_ends(layoutbase) & ~4);
+						gb->set_tile( nd->get_tile(layoutbase, xy.x, xy.y), false );
 					}
 				}
 			}
 		}
 
-		// detect if near (south/east) end
+		// joined towards N, NW or NE?
 		gr = welt->lookup( pos+koord3d( near_step, offset) );
 		if(!gr) {
 			// check whether bridge end tile
@@ -732,14 +733,16 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 		if(gr) {
 			gebaeude_t* gb = gr->find<gebaeude_t>();
 			if(gb  &&  gb->get_tile()->get_desc()->is_transport_building()) {
-				corner_layout &= ~4; // clear far bit
+				corner_layout &= ~4; // close our N, NW or NE end
 
 				if(gb->get_tile()->get_desc()->has_platform_ends()) {
 					koord xy = gb->get_tile()->get_offset();
 					uint8 layoutbase = gb->get_tile()->get_layout();
 					if(ribi_t::doubles(get_facing_ribi(gr, gb->get_tile())) == axis) {
-						layoutbase &= 0xd; // clear far bit on neighbour
-						gb->set_tile( gb->get_tile()->get_desc()->get_tile(layoutbase, xy.x, xy.y), false );
+						// and the neighbour's S, SE or SW end
+						const building_desc_t *nd = gb->get_tile()->get_desc();
+						layoutbase = nd->with_platform_ends(layoutbase, nd->get_platform_ends(layoutbase) & ~2);
+						gb->set_tile( nd->get_tile(layoutbase, xy.x, xy.y), false );
 					}
 				}
 			}
@@ -748,7 +751,7 @@ gebaeude_t *hausbauer_t::build_station_extension_depot(player_t *player, koord3d
 
 	// adjust layouts of the new building
 	if(desc->has_platform_ends()) {
-		built_layout = (corner_layout | (built_layout&9) ) % desc->get_all_layouts();
+		built_layout = desc->with_platform_ends(built_layout, corner_layout);
 	}
 
 	const building_tile_desc_t *tile = desc->get_tile(built_layout, 0, 0);
