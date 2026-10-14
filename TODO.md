@@ -1330,6 +1330,20 @@ so the dedup is no longer hypothetical;
 do it when a propagation gap actually bites
 or when touching this CMake file for another reason.
 
+## Freelists hide use-after-free from ASAN
+
+`freelist_t` and `freelist_tpl` keep freed nodes for reuse,
+so ASAN never sees the free,
+and a dangling pointer to a reused node reads as a live object.
+A convoy loaded as in a depot with vehicles still on the map
+left those vehicles in the tiles' object lists after deleting them;
+`fuzz_savegame` saw that only as a UBSAN vptr mismatch,
+and saw who freed them only with the freelist bypassed.
+Next move: give every node straight to `malloc` and `free`
+in builds with ASAN (`__SANITIZE_ADDRESS__`, or `__has_feature` on clang),
+then run the scenario suite and the AI soaks under it
+and fix the use-after-free they turn up.
+
 ## Command-handling fuzzer: go fork-based for the real campaign
 
 `src/fuzz/fuzz_command.cc` fuzzes network command *handling* (the

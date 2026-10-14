@@ -2445,6 +2445,17 @@ void convoi_t::rdwr(loadsave_t *file)
 			// add to convoi
 			fahr[i] = v;
 		}
+		if(  state==INITIAL  ) {
+			// a vehicle off the map put the convoy back in a depot,
+			// so take off the map those that went on it before
+			for(  uint8 i=0;  i<vehicle_count;  i++  ) {
+				if(  !fahr[i]->get_flag( obj_t::not_on_map )  ) {
+					fahr[i]->set_pos_next( koord3d::invalid );
+					fahr[i]->leave_tile();
+					fahr[i]->set_flag( obj_t::not_on_map );
+				}
+			}
+		}
 		sum_gesamtweight = sum_weight;
 		// cannot run without catenary
 		set_needs_electrification( sum_gear_and_power_electric > 0 && sum_gear_and_power_non_electric == 0 );
