@@ -4643,7 +4643,6 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 		DBG_DEBUG("karte_t::rdwr_gamestate()", "init %i cities", num_cities);
 
 		cities.clear();
-		cities.reserve(num_cities);
 
 		for (int i = 0; i < num_cities; ++i) {
 			stadt_t *s = new stadt_t(file);
