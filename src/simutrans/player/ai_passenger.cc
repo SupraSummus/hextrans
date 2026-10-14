@@ -1667,7 +1667,7 @@ void ai_passenger_t::rdwr(loadsave_t *file)
 	}
 
 	// now save current state ...
-	file->rdwr_enum(state);
+	file->rdwr_enum(state, NR_INIT, CHECK_CONVOI);
 	if(  file->is_version_less(111, 1)  ) {
 		file->rdwr_long(ai_t::construction_speed);
 		file->rdwr_bool(air_transport);

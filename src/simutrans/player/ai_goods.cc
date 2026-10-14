@@ -1562,7 +1562,7 @@ void ai_goods_t::rdwr(loadsave_t *file)
 	}
 
 	// now save current state ...
-	file->rdwr_enum(state);
+	file->rdwr_enum(state, NR_INIT, CHECK_CONVOI);
 	platz1.rdwr( file );
 	size1.rdwr( file );
 	platz2.rdwr( file );
