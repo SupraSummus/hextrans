@@ -22,10 +22,7 @@
  * FUZZ_COMMAND_FATAL_ABORTS=1 turns those into hard findings instead.
  *
  * Needs a real pakset + base files on disk (it renders nothing, but the
- * tools read descriptors): SIMUTRANS_FUZZ_BASE → data dir holding
- * config/ and text/ (default "simutrans"); SIMUTRANS_FUZZ_PAK → pakset
- * dir under it (default "pak"; run tools/test.py once to fetch pak64).
- * Run with ASAN_OPTIONS=detect_leaks=0 — per-world teardown is
+ * tools read descriptors); see fuzz_engine.h.  Run with ASAN_OPTIONS=detect_leaks=0 — per-world teardown is
  * incomplete and the longjmp path drops the in-flight command, so leak
  * counts are noise here; ASAN/UBSAN are the real signal.  Why a real
  * campaign wants a fork-after-init engine rather than in-process
@@ -35,32 +32,18 @@
 #include <setjmp.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include <string>
+
+#include "fuzz_engine.h"
 
 #include "../simutrans/dataobj/environment.h"
 #include "../simutrans/dataobj/settings.h"
-#include "../simutrans/dataobj/tabfile.h"
-#include "../simutrans/dataobj/translator.h"
-#include "../simutrans/dataobj/pakset_manager.h"
 #include "../simutrans/dataobj/koord3d.h"
 
 #include "../simutrans/world/simworld.h"
-#include "../simutrans/world/simcity.h"
-#include "../simutrans/builder/vehikelbauer.h"
 #include "../simutrans/tool/simmenu.h"
-#include "../simutrans/simskin.h"
-#include "../simutrans/simsound.h"
-#include "../simutrans/simconvoi.h"
-#include "../simutrans/simline.h"
-#include "../simutrans/simhalt.h"
 #include "../simutrans/player/simplay.h"
 
-#include "../simutrans/display/simgraph.h"
-#include "../simutrans/sys/simsys.h"
-
-#include "../simutrans/network/network.h"
 #include "../simutrans/network/network_cmd_ingame.h"
 
 #include "../simutrans/simdebug.h"
@@ -157,83 +140,6 @@ uint16_t fuzz_tool_id(uint8_t class_sel, uint8_t index)
 }
 
 
-// Stand up the engine far enough that create_tool() yields real tools
-// and karte_t::init() can build a world.  Mirrors the relevant slice of
-// simu_main() (simmain.cc) — see that function for the canonical order.
-// Returns false only if dirs are unusable; genuine setup failures fatal
-// (the hook lets them abort, since there is no per-iteration recovery
-// point during standup).
-bool standup_engine()
-{
-	const char *base = getenv("SIMUTRANS_FUZZ_BASE");
-	if (base == NULL || base[0] == 0) base = "simutrans";
-	const char *pak  = getenv("SIMUTRANS_FUZZ_PAK");
-	if (pak == NULL || pak[0] == 0) pak = "pak";
-
-	env_t::init();
-
-	// base_dir / user_dir: keep everything under the data dir.
-	strncpy(env_t::base_dir, base, sizeof(env_t::base_dir) - 2);
-	env_t::base_dir[sizeof(env_t::base_dir) - 2] = 0;
-	size_t bl = strlen(env_t::base_dir);
-	if (bl == 0 || env_t::base_dir[bl - 1] != PATH_SEPARATOR[0]) {
-		strcat(env_t::base_dir, PATH_SEPARATOR);
-	}
-	strcpy(env_t::user_dir, env_t::base_dir);
-
-	if (dr_chdir(env_t::base_dir) != 0) {
-		dbg->warning("standup_engine", "cannot chdir to base_dir '%s'", env_t::base_dir);
-		return false;
-	}
-
-	// pak_dir is relative to base_dir, with a trailing separator;
-	// pak_name is the leaf (some pakset config keys off it).
-	env_t::pak_dir  = std::string(pak) + PATH_SEPARATOR;
-	env_t::pak_name = pak;
-
-	// Pull pakset-independent defaults from the base simuconf.
-	tabfile_t simuconf;
-	if (simuconf.open((std::string("config") + PATH_SEPARATOR + "simuconf.tab").c_str())) {
-		env_t::default_settings.parse_simuconf(simuconf);
-		simuconf.close();
-	}
-
-	// Single-threaded for determinism, and so the process stays
-	// fork-safe for a future fork-after-init engine (no threads holding
-	// locks across the fork).
-	env_t::num_threads = 1;
-
-	convoihandle_t::init(1024);
-	linehandle_t::init(1024);
-	halthandle_t::init(1024);
-
-	sound_set_mute(true);
-
-	if (!translator::load()) {
-		dbg->warning("standup_engine", "no language files under '%s' — check SIMUTRANS_FUZZ_BASE", env_t::base_dir);
-		return false;
-	}
-	// A language must be selected: karte_t::init -> init_custom_names
-	// indexes lang_info[get_language()], and the default -1 is OOB.
-	translator::set_language("en");
-
-	stadt_t::cityrules_init();
-	vehicle_builder_t::speedbonus_init();
-	tool_t::init_menu();
-
-	skinverwaltung_t::restore_all_skins();
-	pakset_manager_t::load_pakset(false);
-	skinverwaltung_t::save_all_skins();
-
-	if (!tool_t::read_menu(env_t::pak_dir + "config" + PATH_SEPARATOR + "menuconf.tab")) {
-		dbg->warning("standup_engine", "no menuconf.tab under '%s' — is SIMUTRANS_FUZZ_PAK a real pakset?", env_t::pak_dir.c_str());
-		return false;
-	}
-
-	return true;
-}
-
-
 // World-lifecycle tools re-enter karte_t::init / load / stop / switch_server
 // synchronously from init().  On a server that is the deferred-dispatch hazard
 // in documentation/world-mutation-deferral.md; in this single-process harness it
@@ -314,18 +220,7 @@ void apply_command_sequence(karte_t *welt, const uint8_t *data, size_t size)
 
 extern "C" int LLVMFuzzerInitialize(int * /*argc*/, char *** /*argv*/)
 {
-	// Silent logger keeps per-iteration I/O out of the hot loop.
-	dbg = new log_t(NULL, false, false, false, NULL, NULL);
-	gfx = simgraph_select(SIMGRAPH_TYPE_NULL);
-
-	if (!standup_engine()) {
-		// Misconfigured environment: better to fail loudly here than
-		// to "fuzz" an engine that can't build a world.
-		dbg->fatal("LLVMFuzzerInitialize",
-			"engine standup failed; set SIMUTRANS_FUZZ_BASE to the simutrans "
-			"data dir and SIMUTRANS_FUZZ_PAK to a pakset (run tools/test.py "
-			"once to fetch pak64)");
-	}
+	fuzz_standup_engine();
 
 	// Install the recovery hook only after standup, so standup errors
 	// abort normally rather than longjmp to an unset target.
