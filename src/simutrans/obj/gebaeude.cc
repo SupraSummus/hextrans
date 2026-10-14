@@ -909,7 +909,7 @@ void gebaeude_t::rdwr(loadsave_t *file)
 					}
 					level --;
 				}
-				else if(buf[3]=='_') {
+				else if(strlen(buf) > 3  &&  buf[3]=='_') {
 					/* should have the form of RES/IND/COM_xx_level
 					 * xx is usually a number by can be anything without underscores
 					 */
