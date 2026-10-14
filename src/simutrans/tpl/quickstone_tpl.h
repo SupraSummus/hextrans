@@ -207,7 +207,7 @@ public:
 
 	inline bool is_bound() const
 	{
-		return data[entry] != 0;
+		return get_rep() != 0;
 	}
 
 	/**
@@ -216,8 +216,10 @@ public:
 	 */
 	T* detach()
 	{
-		T* p = data[entry];
-		data[entry] = 0;
+		T* p = get_rep();
+		if(  p  ) {
+			data[entry] = 0;
+		}
 		return p;
 	}
 
@@ -228,7 +230,11 @@ public:
 	 * are never ever deleted or that by some means detach() is called
 	 * upon deletion, i.e. from the ~T() destructor!!!
 	 */
-	T* get_rep() const { return data[entry]; }
+	T* get_rep() const
+	{
+		// an id from a save or a network command can lie past the table
+		return entry < size ? data[entry] : 0;
+	}
 
 	/**
 	 * @return the index into the tombstone table. May be used as
@@ -246,9 +252,9 @@ public:
 	 * Overloaded dereference operator. With this, quickstones can
 	 * be used as if they were pointers.
 	 */
-	T* operator->() const { return data[entry]; }
+	T* operator->() const { return get_rep(); }
 
-	T& operator *() const { return *data[entry]; }
+	T& operator *() const { return *get_rep(); }
 
 	bool operator== (const quickstone_tpl<T> &other) const { return entry == other.entry; }
 
