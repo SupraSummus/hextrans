@@ -828,6 +828,9 @@ void route_t::rdwr(loadsave_t *file)
 
 	file->rdwr_long(max_n);
 	if(file->is_loading()) {
+		if(  max_n < -1  ||  max_n >= INVALID_INDEX  ) {
+			dbg->fatal("route_t::rdwr", "Invalid route length %d", max_n+1);
+		}
 		koord3d k;
 		route.clear();
 		route.reserve(max_n+2);
