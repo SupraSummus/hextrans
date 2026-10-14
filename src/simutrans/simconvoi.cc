@@ -281,7 +281,7 @@ void convoi_t::reserve_route()
 	if(  !route.empty()  &&  vehicle_count>0  &&  (is_waiting()  ||  state==DRIVING  ||  state==LEAVING_DEPOT)  ) {
 		for(  route_t::index_t idx = back()->get_route_index();  idx < next_reservation_index  /*&&  idx < route.get_count()*/;  idx++  ) {
 			if(  grund_t *gr = welt->lookup( route.at(idx) )  ) {
-				if(  schiene_t *sch = (schiene_t *)gr->get_weg( front()->get_waytype() )  ) {
+				if(  schiene_t *sch = dynamic_cast<schiene_t *>( gr->get_weg( front()->get_waytype() ) )  ) {
 					sch->reserve( self, idx );
 				}
 			}
