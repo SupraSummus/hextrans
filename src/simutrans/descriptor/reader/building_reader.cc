@@ -176,12 +176,12 @@ void building_reader_t::register_obj(obj_desc_t *&data)
 	// after this point all building_desc_t's have type in building_desc_t::btype
 
 	// allowed layouts are 1,2,4,6,8,16, where 8,16 is reserved for stations,
-	// 6 is one per hex side, and 3 for a 1x1 depot and 12 for a 1x1 stop
-	// are one per hex axis
+	// 6 is one per hex side, and 3 for a 1x1 depot and 12 or 24 for a 1x1
+	// stop are one per hex axis
 	const bool one_tile = desc->size == koord(1, 1);
 	const bool axis_layouts =
 		(desc->layouts == 3   &&  desc->type == building_desc_t::depot  &&  one_tile)  ||
-		(desc->layouts == 12  &&  desc->type == building_desc_t::generic_stop  &&  one_tile);
+		((desc->layouts == 12  ||  desc->layouts == 24)  &&  desc->type == building_desc_t::generic_stop  &&  one_tile);
 	uint8 l = desc->type == building_desc_t::generic_stop ? 16 : 4;
 	while (l > 0  &&  desc->layouts != 6  &&  !axis_layouts) {
 		if ((desc->layouts & l) != 0  &&  (desc->layouts != l)) {
