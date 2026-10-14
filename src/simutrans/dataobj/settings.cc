@@ -1625,6 +1625,10 @@ uint32 settings_t::get_locality_factor(sint16 const year) const
 		sint32 diff = (locality_factor_per_year[i].factor-locality_factor_per_year[i-1].factor);
 		double a = exp((year-locality_factor_per_year[i-1].year)/20.0);
 		double b = exp((locality_factor_per_year[i].year-locality_factor_per_year[i-1].year)/20.0);
+		if(  isinf(b)  ) {
+			// years over 14000 apart; a may overflow too, and inf/inf is NaN
+			return locality_factor_per_year[i-1].factor;
+		}
 		return locality_factor_per_year[i-1].factor + (sint32)((diff*(a-1.0))/(b-1.0) + 0.5);
 #endif
 	}
