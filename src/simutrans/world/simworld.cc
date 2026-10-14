@@ -4535,7 +4535,9 @@ void karte_t::rdwr_gamestate(loadsave_t *file, loadingscreen_t *ls)
 		// wird gecached, um den Pointerzugriff zu sparen, da
 		// die size _sehr_ oft referenziert wird
 		const map_shape_t shape = settings.get_map_shape();
-		if(  !shape.is_valid()  ||  shape.get_size_q() > 32766  ||  shape.get_size_r() > 32766  ) {
+		// w, h and d first, so that w + d - 1 cannot overflow
+		if(  !shape.is_valid()  ||  shape.w > 32766  ||  shape.h > 32766  ||  shape.d > 32766
+			||  shape.get_size_q() > 32766  ||  shape.get_size_r() > 32766  ) {
 			dbg->fatal( "karte_t::rdwr_gamestate()", "Savegame has an invalid map shape %d x %d x %d", shape.w, shape.h, shape.d );
 		}
 		set_cached_shape(shape);
