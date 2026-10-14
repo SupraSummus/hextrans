@@ -1091,8 +1091,9 @@ uint32 vehicle_t::calc_sale_value() const
 	if(  has_driven  ) {
 		value *= (1000 - welt->get_settings().get_used_vehicle_reduction()) / 1000.0;
 	}
-	// after 20 year, it has only half value
-	return (uint32)( value * pow(0.997, (int)(welt->get_current_month() - get_purchase_time())));
+	// after 20 year, it has only half value; one bought in the future counts as new
+	const sint32 age = max( 0, (int)(welt->get_current_month() - get_purchase_time()) );
+	return (uint32)( value * pow(0.997, age) );
 }
 
 
