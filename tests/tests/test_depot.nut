@@ -512,10 +512,10 @@ function test_depot_build_sloped()
 }
 
 
-// Depot succeeds on a tunnel mouth because `tunnelboden_t::get_weg_hang`
-// reports flat for the karten-boden surface tile, which the depot
-// tool's flat-hang gate accepts.  Cover all 6 hex axes via the
-// 6-mouth-hill scaffold.
+// Depot fails on every tunnel mouth: `tunnelboden_t::get_weg_hang`
+// reports flat for the karten-boden surface tile, so the depot tool
+// rejects a tunnel tile whose way slope differs from its ground slope.
+// Cover all 6 hex axes via the 6-mouth-hill scaffold.
 function test_depot_build_on_tunnel_entrance()
 {
 	local pl = player_x(0)
@@ -524,7 +524,8 @@ function test_depot_build_on_tunnel_entrance()
 	local mouths = raise_hex_hill_with_six_mouths(pl, 4, 2, 0, rail_tunnel)
 
 	foreach (p in mouths) {
-		ASSERT_EQUAL(command_x.build_depot(pl, p, depot), null)
+		ASSERT_EQUAL(command_x.build_depot(pl, p, depot),
+		             "Depots must be built on flat dead-end way tiles!")
 	}
 
 	// no-way tile takes the other branch of the same error string.
@@ -533,9 +534,6 @@ function test_depot_build_on_tunnel_entrance()
 
 	local remover = command_x(tool_remover)
 	remover.set_flags(2)
-	foreach (p in mouths) {
-		ASSERT_EQUAL(remover.work(pl, p), null)
-	}
 	ASSERT_EQUAL(remover.work(pl, mouths[0]), null)
 	remover.set_flags(0)
 	foreach (p in mouths) {

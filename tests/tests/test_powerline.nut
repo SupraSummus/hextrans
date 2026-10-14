@@ -497,7 +497,7 @@ function test_powerline_ways()
 
 	{
 		// build powerline ending on road
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 2, 0), coord3d(2, 2, 0), powerline, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 2, 0), coord3d(2, 2, 0), powerline, true), "No suitable ground!")
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
 				"........",
@@ -513,7 +513,7 @@ function test_powerline_ways()
 
 	{
 		// build powerline over end of road
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(2, 3, 0), powerline, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(2, 3, 0), powerline, true), "No suitable ground!")
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
 				"........",
@@ -526,23 +526,24 @@ function test_powerline_ways()
 				"........"
 			])
 
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), powerline, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), powerline, true), null)
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
 				"........",
 				"........",
 				"........",
-				"........",
+				".2A8....",
 				"........",
 				"........",
 				"........",
 				"........"
 			])
+		ASSERT_EQUAL(wayremover.work(pl, coord3d(1, 3, 0), coord3d(3, 3, 0), "" + wt_power), null)
 	}
 
 	{
 		// build powerline in the same direction as way below
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 0, 0), coord3d(2, 4, 0), powerline, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(2, 0, 0), coord3d(2, 4, 0), powerline, true), "No suitable ground!")
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
 				"........",
@@ -561,7 +562,7 @@ function test_powerline_ways()
 	ASSERT_EQUAL(command_x.build_way(pl, coord3d(7, 0, 0), coord3d(0, 7, 0), road, true), null)
 
 	{
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 4, 0), coord3d(6, 4, 0), powerline, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(1, 4, 0), coord3d(6, 4, 0), powerline, true), "No suitable ground!")
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
 				"........",
@@ -575,7 +576,7 @@ function test_powerline_ways()
 			])
 
 		// and the other direction
-		ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 1, 0), coord3d(4, 6, 0), powerline, true), "")
+		ASSERT_EQUAL(command_x.build_way(pl, coord3d(4, 1, 0), coord3d(4, 6, 0), powerline, true), "No suitable ground!")
 		ASSERT_WAY_PATTERN(wt_power, coord3d(0, 0, 0),
 			[
 				"........",

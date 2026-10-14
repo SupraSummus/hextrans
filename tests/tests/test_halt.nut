@@ -1253,10 +1253,9 @@ function test_halt_coverage_is_hex_disc()
 }
 
 
-// Counterpoint to `test_depot_build_on_tunnel_entrance`: station
-// building has an explicit `ist_tunnel() && ist_karten_boden()` reject
-// that the depot tool lacks, so the same 6-mouth scaffold fails on
-// every mouth.
+// Station building has an explicit `ist_tunnel() && ist_karten_boden()`
+// reject, so the 6-mouth scaffold fails on every mouth (as does
+// `test_depot_build_on_tunnel_entrance`).
 function test_halt_build_on_tunnel_entrance()
 {
 	local pl = player_x(0)

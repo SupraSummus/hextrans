@@ -91,20 +91,6 @@ It runs near the end of `tests/all_tests.nut` until that is found.
 Next move: diff the world (cities, ground objects, ownership) before and after the test,
 fix its cleanup, and move it back beside the other city tests.
 
-## `is_allowed_step` prefer_parallel branches near-duplicated
-
-`strasse`, `schiene`, and `schiene_tram` in `wegbauer.cc::is_allowed_step`
-now carry three near-identical prefer_parallel cost branches (the
-last added on the hex 1-step diagonal motivation).  All three follow
-the same shape: cheap if `has_neighbour_with_way(from, wt)`, otherwise
-`way_count_no_way`, with a fall-through `way_count_straight` /
-`way_count_no_way` when prefer_parallel is off.  Extract a helper
-`prefer_parallel_cost(from, wt)` and drop the upstream dead branch
-(`if (to->get_weg(wt))` inside `if (!sch && ...)` is unreachable —
-`!sch` already excluded it).  Refactor, not a behaviour change;
-defer until the next time any of these branches needs a real
-edit.
-
 ## Lower_to water-tile NW-only gate
 
 `terraformer_t::lower_to` short-circuits water tiles unless the NW
