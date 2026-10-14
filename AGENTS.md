@@ -649,7 +649,8 @@ adds one goods and one passenger AI,
 skips the start-up banner,
 and steps the world flat out to `-until YEAR.MONTH`,
 logging one `ai_soak: YYYY.MM convoys=… halts=… cities=… ais=… rng=…`
-line per game month to stderr.
+line per game month to stderr,
+and saves the world it ends with to `ai_soak.sve` in the user directory.
 `ais` counts the AIs still alive:
 once both have gone bankrupt the run only soaks an idle world.
 `dbg->fatal` and failed asserts (Debug builds) abort with SIGABRT

@@ -778,6 +778,7 @@ static void ai_soak_signal(int)
 // Without snapshots nothing is drawn, so the months are stepped directly:
 // the same steps as interactive() in fast forward, without its clock.
 // That loop reads no events, so it takes SIGTERM and SIGINT itself.
+// The world it ends with goes to ai_soak.sve in the user dir.
 static void ai_soak_run(karte_t *welt, uint32 quit_month, bool snapshots)
 {
 	if(  snapshots  ) {
@@ -820,6 +821,8 @@ static void ai_soak_run(karte_t *welt, uint32 quit_month, bool snapshots)
 		}
 		env_t::quit_simutrans = false;
 	}
+	dr_chdir( env_t::user_dir );
+	welt->save( "ai_soak.sve", true, SAVEGAME_VER_NR, true );
 	env_t::quit_simutrans = true;
 }
 
