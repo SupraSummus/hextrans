@@ -116,7 +116,7 @@ void bruecke_t::rdwr(loadsave_t *file)
 		s = desc->get_name();
 	}
 	file->rdwr_str(s);
-	file->rdwr_enum(img);
+	file->rdwr_enum(img, bridge_desc_t::NS_Segment, bridge_desc_t::img_t_count-1);
 
 	if(file->is_loading()) {
 		if (!s) {
@@ -145,7 +145,6 @@ void bruecke_t::rdwr(loadsave_t *file)
 			    " holds a square-era bridge img value at (%s); save format"
 			    " conversion not implemented", get_pos().get_str());
 		}
-		assert(img >= bridge_desc_t::NS_Segment && img < bridge_desc_t::img_t_count);
 
 	}
 }
