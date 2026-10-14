@@ -999,7 +999,7 @@ and airport layout still need porting against the same choice.
 
 *Stop and depot facing is read from the way.*
 `get_layout()` is folded for NE and SW
-unless a building has a layout per side (6) or axis (3, 12),
+unless a building has a layout per side (6) or axis (3, 12, 24),
 so `hausbauer_t::get_facing_ribi` reads a stop's or depot's exit or axis
 from its way and falls back to the layout.
 A lone 4-layout NE or SW terminal whose road was removed

@@ -298,10 +298,14 @@ public:
 	/// A through stop with 8 or 16 layouts has images for the ends of a
 	/// platform, picked by bits 1 and 2 of the layout.
 	bool has_platform_ends() const { return layouts >= 8; }
-	/// A through depot with 3 layouts or a through stop with 12 has them
-	/// per hex axis: along the way from S, SE and SW lie layouts 0, 1, 2
-	/// of the depot and 0, 4, 8 of the stop, plus its platform ends.
-	bool has_axis_layouts() const { return layouts == 3  ||  layouts == 12; }
+	/// A through depot with 3 layouts or a through stop with 12 or 24 has
+	/// them per hex axis: along the way from S, SE and SW lie layouts 0, 1, 2
+	/// of the depot and 0, 4, 8 of the stop, plus its platform ends, plus
+	/// 12 for a platform on the other side of the way.
+	bool has_axis_layouts() const { return layouts == 3  ||  layouts == 12  ||  layouts == 24; }
+	/// A through stop with 16 or 24 layouts has its platform on one side of
+	/// the way, picked by get_platform_side().
+	bool has_platform_sides() const { return layouts == 16  ||  layouts == 24; }
 
 	bool is_connected_with_town() const;
 
@@ -412,6 +416,15 @@ public:
 
 	/// @p layout showing the platform ends @p ends (2 and 4 as above).
 	uint8 with_platform_ends(uint8 layout, uint8 ends) const;
+
+	/// The side of the way a one-sided platform stands on, 0 or 1.  With 16
+	/// layouts 0 is the far side on screen, 1 the near one; with 24, 0 is
+	/// left of the way looking from its S, SE or SW end and 1 right of it,
+	/// so a half turn swaps them.
+	uint8 get_platform_side(uint8 layout) const;
+
+	/// @p layout with its platform on @p side.
+	uint8 with_platform_side(uint8 layout, uint8 side) const;
 
 	/**
 	* Skin: cursor (index 0) and icon (index 1)

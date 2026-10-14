@@ -772,6 +772,53 @@ function test_halt_through_stop_twelve_layouts()
 }
 
 
+function test_halt_through_stop_platform_sides()
+{
+	local pl = player_x(0)
+	local rail = way_desc_x.get_available_ways(wt_rail, st_flat)[0]
+	local mid = coord3d(8, 8, 0)
+	local layout = function(k) {
+		return tile_x(k.x, k.y, k.z).find_object(mo_building).get_layout()
+	}
+
+	// v runs along the track towards S, SE or SW; the parallel track goes
+	// through p, the neighbour of mid 60 degrees round from v
+	foreach (axis, d in [[dir.south, dir.southeast], [dir.southeast, dir.northeast], [dir.southwest, dir.south]]) {
+		local v = dir.to_coord(d[0])
+		local p = mid + dir.to_coord(d[1])
+		ASSERT_EQUAL(command_x.build_way(pl, mid - v - v, mid + v + v, rail, true), null)
+		ASSERT_EQUAL(command_x.build_way(pl, p - v - v, p + v + v, rail, true), null)
+
+		// a lone stop takes either side, which one depends on the map's
+		// rotation; other is the offset of the other side, 12 or 0
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, mid, "TEST_STOP_24L"), null)
+		ASSERT_EQUAL(layout(mid) % 12, 4 * axis + 3)
+		local other = 12 - (layout(mid) - layout(mid) % 12)
+
+		// one on the parallel track mirrors it
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, p, "TEST_STOP_24L"), null)
+		ASSERT_EQUAL(layout(p), other + 4 * axis + 3)
+
+		// one further along that track keeps its side
+		ASSERT_EQUAL(command_x(tool_build_station).work(pl, p + v, "TEST_STOP_24L"), null)
+		ASSERT_EQUAL(layout(p + v), other + 4 * axis + 1)
+
+		// the rotate tool moves the platform across the track
+		ASSERT_EQUAL(command_x(tool_rotate_building).work(pl, mid), null)
+		ASSERT_EQUAL(layout(mid), other + 4 * axis + 3)
+
+		foreach (k in [mid, p, p + v]) {
+			ASSERT_EQUAL(command_x(tool_remover).work(pl, k), null)
+		}
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, mid - v - v, mid + v + v, "" + wt_rail), null)
+		ASSERT_EQUAL(command_x(tool_remove_way).work(pl, p - v - v, p + v + v, "" + wt_rail), null)
+	}
+
+	ASSERT_EQUAL(pl.get_current_maintenance(), 0)
+	RESET_ALL_PLAYER_FUNDS()
+}
+
+
 // BusStop is pak64's 2-layout through stop.  On a NE-SW road it has to
 // stay passable along the road and closed to the four sides.
 function test_halt_through_stop_third_axis()

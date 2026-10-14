@@ -169,6 +169,7 @@ all_tests <- [
 	test_halt_terminal_stop_third_axis,
 	test_halt_terminal_stop_six_layouts,
 	test_halt_through_stop_twelve_layouts,
+	test_halt_through_stop_platform_sides,
 	test_halt_through_stop_third_axis,
 	test_halt_stop_reconnect_after_road_removed,
 	test_halt_platform_end_layouts_third_axis,

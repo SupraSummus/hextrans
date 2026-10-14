@@ -5155,7 +5155,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 
 		// find out orientation ...
 		ribi_t::ribi ribi = ribi_t::none;
-		if(  desc->get_all_layouts()==2  ||  desc->get_all_layouts()==8  ||  desc->get_all_layouts()==12  ||  desc->get_all_layouts()==16  ) {
+		if(  desc->get_all_layouts()==2  ||  desc->get_all_layouts()==8  ||  desc->has_axis_layouts()  ||  desc->get_all_layouts()==16  ) {
 			// through station
 			ribi = tool_station_way_ribi( bd, true );
 			// not straight: sorry cannot build here ...
@@ -5175,10 +5175,10 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 		}
 		else {
 			// something wrong with station number of layouts
-			dbg->fatal( "tool_station_t::tool_station_aux", "%s has wrong number of layouts (must be 2,4,6,8,12,16!)", desc->get_name() );
+			dbg->fatal( "tool_station_t::tool_station_aux", "%s has wrong number of layouts (must be 2,4,6,8,12,16,24!)", desc->get_name() );
 		}
 
-		if(  desc->get_all_layouts() == 8  ||  desc->get_all_layouts() == 16  ) {
+		if(  desc->get_all_layouts() == 8  ||  desc->has_platform_sides()  ) {
 			// through station - complex layout
 			// bits
 			// 1 = north south/east west (as simple layout)
@@ -5193,9 +5193,10 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 			sint8 offset = bd->get_hoehe()+bd->get_weg_yoff()/TILE_HEIGHT_STEP;
 
 			grund_t *gr;
-			// Indexed by a single-bit ribi value (max = NE bit = 32).
-			sint32 neighbour_layout[64];
-			for(  size_t i = 0;  i < 64;  i++  ) { neighbour_layout[i] = -1; }
+			// The platform side of the stop in each direction, indexed by a
+			// single-bit ribi value (max = NE bit = 32).
+			sint32 neighbour_side[64];
+			for(  size_t i = 0;  i < 64;  i++  ) { neighbour_side[i] = -1; }
 			for(  unsigned i=0;  i<6;  i++  ) {
 				// oriented buildings here - get neighbouring layouts
 				gr = welt->lookup(koord3d(k+koord::neighbours[i],offset));
@@ -5217,7 +5218,7 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 					const gebaeude_t* gb = gr->find<gebaeude_t>();
 					if(gb  &&  gb->get_tile()->get_desc()->has_platform_ends()  &&  (gb->get_tile()->get_desc()->get_type()>building_desc_t::dock  ||  gb->get_tile()->get_desc()->get_type()>building_desc_t::flat_dock)  ) {
 						next_own |= ribi_t::nesw[i];
-						neighbour_layout[ribi_t::nesw[i]] = gb->get_tile()->get_layout();
+						neighbour_side[ribi_t::nesw[i]] = gb->get_tile()->get_desc()->get_platform_side(gb->get_tile()->get_layout());
 					}
 				}
 			}
@@ -5228,42 +5229,46 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 
 			if(next_own!=ribi_t::none) {
 				// oriented buildings here
+				sint32 side = -1;
 				if(ribi_t::is_single(ribi & next_own)) {
 					// only a single next neighbour on the same track
-					layout |= neighbour_layout[ribi & next_own] & 8;
+					side = neighbour_side[ribi & next_own];
 				}
 				else if(ribi_t::is_straight(ribi & next_own)) {
 					// two neighbours on the same track, use the upper end
-					layout |= neighbour_layout[ribi & next_own & ribi_t::upper_half] & 8;
+					side = neighbour_side[ribi & next_own & ribi_t::upper_half];
 				}
 				else if(ribi_t::is_single((~ribi) & waagerecht & next_own)) {
 					// neighbour across break in track
-					layout |= neighbour_layout[(~ribi) & waagerecht & next_own] & 8;
+					side = neighbour_side[(~ribi) & waagerecht & next_own];
 				}
 				else {
 					// no buildings left and right
 					// oriented buildings left and right
-					if(neighbour_layout[senkrecht & next_own & ribi_t::upper_half] != -1) {
+					if(neighbour_side[senkrecht & next_own & ribi_t::upper_half] != -1) {
 						// just rotate layout
-						layout |= 8-(neighbour_layout[senkrecht & next_own & ribi_t::upper_half]&8);
+						side = 1-neighbour_side[senkrecht & next_own & ribi_t::upper_half];
 					}
 					else {
-						if(neighbour_layout[senkrecht & next_own & ribi_t::lower_half] != -1) {
-							layout |= 8-(neighbour_layout[senkrecht & next_own & ribi_t::lower_half]&8);
+						if(neighbour_side[senkrecht & next_own & ribi_t::lower_half] != -1) {
+							side = 1-neighbour_side[senkrecht & next_own & ribi_t::lower_half];
 						}
 					}
+				}
+				if(  side > 0  ) {
+					layout = desc->with_platform_side(layout, side);
 				}
 			}
 			assert(layout >= 0);
 			// avoid orientation on 8 tiled buildings
-			layout &= (desc->get_all_layouts()-1);
+			layout %= desc->get_all_layouts();
 		}
 	}
 	else {
 		// Obey the predefined layout, but not at the price of the geometry:
 		// choosing a layout selects the graphics, it does not license a tile
 		// the automatic path above would have refused. Same test, same error.
-		if(  desc->get_all_layouts()==2  ||  desc->get_all_layouts()==8  ||  desc->get_all_layouts()==12  ||  desc->get_all_layouts()==16  ) {
+		if(  desc->get_all_layouts()==2  ||  desc->get_all_layouts()==8  ||  desc->has_axis_layouts()  ||  desc->get_all_layouts()==16  ) {
 			if(  !ribi_t::is_straight( tool_station_way_ribi( bd, true ) )  ) {
 				return p_error;
 			}
@@ -5650,12 +5655,12 @@ const char *tool_rotate_building_t::work( player_t *player, koord3d pos )
 
 		if(  gr->hat_wege()  ) {
 			// this is almost certainly a station ...
-			if(  desc->get_all_layouts()<16  ) {
-				// either symmetrical (==2, ==8) or freight loading station, so do not rotate!
+			if(  !desc->has_platform_sides()  ) {
+				// either symmetrical (==2, ==8, ==12) or freight loading station, so do not rotate!
 				return "Cannot rotate this building!";
 			}
 			int layout = gb->get_tile()->get_layout();
-			gb->set_tile( gb->get_tile()->get_desc()->get_tile( layout^8, 0, 0 ), false );
+			gb->set_tile( desc->get_tile( desc->with_platform_side(layout, 1-desc->get_platform_side(layout)), 0, 0 ), false );
 		}
 		else {
 			// single and multitile buildings from here, include factories with holes etc.

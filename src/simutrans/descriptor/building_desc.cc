@@ -241,9 +241,10 @@ uint8 building_desc_t::get_half_turn_layout(uint8 layout) const
 		// an axis is its own half turn
 		return layout;
 	}
-	if(  layouts == 12  ) {
-		// the axis stays, the near and far ends swap
-		return (layout & ~3) | ((layout & 1) << 1) | ((layout & 2) >> 1);
+	if(  layouts == 12  ||  layouts == 24  ) {
+		// the axis stays, the near and far ends swap, and so do the sides
+		const uint8 turned = (layout & ~3) | ((layout & 1) << 1) | ((layout & 2) >> 1);
+		return layouts == 24 ? (turned + 12) % 24 : turned;
 	}
 	if(  layouts == 6  ||  (layouts == 8  &&  type >= city_res)  ) {
 		// layouts 0..5 face S, SE, N, NW, NE, SW (ribi_t::layout_to_ribi);
@@ -262,7 +263,7 @@ uint8 building_desc_t::get_through_layout(ribi_t::ribi x) const
 		return layout;
 	}
 	const uint8 axis = layout == 5 ? 2 : layout;
-	return layouts == 12 ? 4 * axis : axis;
+	return layouts == 3 ? axis : 4 * axis;
 }
 
 
@@ -270,7 +271,7 @@ ribi_t::ribi building_desc_t::get_through_axis(uint8 layout) const
 {
 	uint8 end = layout & 1;
 	if(  has_axis_layouts()  ) {
-		const uint8 axis = layouts == 12 ? layout / 4 : layout;
+		const uint8 axis = layouts == 3 ? layout : (layout % 12) / 4;
 		end = axis == 2 ? 5 : axis;
 	}
 	return ribi_t::doubles(ribi_t::layout_to_ribi[end]);
@@ -279,16 +280,36 @@ ribi_t::ribi building_desc_t::get_through_axis(uint8 layout) const
 
 uint8 building_desc_t::get_platform_ends(uint8 layout) const
 {
-	return layouts == 12 ? (layout & 3) << 1 : layout & 6;
+	return layouts == 12  ||  layouts == 24 ? (layout & 3) << 1 : layout & 6;
 }
 
 
 uint8 building_desc_t::with_platform_ends(uint8 layout, uint8 ends) const
 {
-	if(  layouts == 12  ) {
+	if(  layouts == 12  ||  layouts == 24  ) {
 		return (layout & ~3) | ((ends >> 1) & 3);
 	}
 	return ((layout & 9) | (ends & 6)) % layouts;
+}
+
+
+uint8 building_desc_t::get_platform_side(uint8 layout) const
+{
+	switch(  layouts  ) {
+		case 16: return (layout >> 3) & 1;
+		case 24: return layout / 12;
+		default: return 0;
+	}
+}
+
+
+uint8 building_desc_t::with_platform_side(uint8 layout, uint8 side) const
+{
+	switch(  layouts  ) {
+		case 16: return (layout & ~8) | ((side & 1) << 3);
+		case 24: return layout % 12 + 12 * (side & 1);
+		default: return layout;
+	}
 }
 
 
