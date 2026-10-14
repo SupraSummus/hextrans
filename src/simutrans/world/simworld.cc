@@ -4101,7 +4101,9 @@ player_t* karte_t::get_player_or_create(uint8 n)
 		return players[n];
 	}
 	dbg->error("get_player()", "No player %d in this game -> make a new one", n);
-	init_new_player(n, player_t::HUMAN);
+	if(  init_new_player(n, player_t::HUMAN)  ) {
+		dbg->fatal("get_player()", "Cannot make player %d", n);
+	}
 	return players[n];
 }
 
