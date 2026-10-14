@@ -109,11 +109,7 @@ DBG_MESSAGE("simlinemgmt_t::rdwr()","number of lines=%i",totalLines);
 
 		for (int i = 0; i<totalLines; i++) {
 			simline_t::linetype lt=simline_t::line;
-			file->rdwr_enum(lt);
-
-			if(lt < simline_t::truckline  ||  lt > simline_t::narrowgaugeline) {
-					dbg->fatal( "simlinemgmt_t::rdwr()", "Cannot create default line!" );
-			}
+			file->rdwr_enum(lt, simline_t::truckline, simline_t::narrowgaugeline);
 			simline_t *line = new simline_t(player, lt, file);
 			if (!line->get_handle().is_bound()) {
 				// line id was saved as zero ...
